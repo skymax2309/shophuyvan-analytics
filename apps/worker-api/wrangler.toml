@@ -1,0 +1,22 @@
+name = "huyvan-worker-api"
+main = "src/index.js"
+compatibility_date = "2024-03-12"
+
+# Worker settings
+workers_dev = true
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "huyvan-analytics-db"
+database_id = "60d0148f-9133-44a8-ad2f-da4d750995f6"
+
+# R2 Storage
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "huyvan-storage"
+
+# Optional environment variables
+[vars]
+APP_NAME = "HuyVan Analytics"
+VERSION = "1.0"

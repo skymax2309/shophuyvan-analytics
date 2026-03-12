@@ -1,0 +1,49 @@
+<h1>Product Manager</h1>
+
+<input id="sku" placeholder="SKU">
+<input id="name" placeholder="Name">
+<input id="cost" placeholder="Cost">
+<input id="price" placeholder="Price">
+
+<button onclick="add()">Add</button>
+
+<table id="table"></table>
+
+<script type="module">
+
+import {getProducts,addProduct} from "./js/api.js"
+
+async function load(){
+
+ const data = await getProducts()
+
+ const t = document.getElementById("table")
+
+ t.innerHTML=""
+
+ data.forEach(p=>{
+  t.innerHTML +=
+  `<tr>
+   <td>${p.sku}</td>
+   <td>${p.name}</td>
+   <td>${p.cost}</td>
+  </tr>`
+ })
+
+}
+
+window.add = async function(){
+
+ await addProduct({
+  sku:sku.value,
+  name:name.value,
+  cost:cost.value,
+  price:price.value
+ })
+
+ load()
+}
+
+load()
+
+</script>

@@ -1,0 +1,55 @@
+<h2>Cost Settings</h2>
+
+<table>
+
+<tr>
+<td>Platform Fee %</td>
+<td><input id="platform"></td>
+</tr>
+
+<tr>
+<td>Ads %</td>
+<td><input id="ads"></td>
+</tr>
+
+<tr>
+<td>Affiliate %</td>
+<td><input id="affiliate"></td>
+</tr>
+
+<tr>
+<td>Packaging</td>
+<td><input id="pack"></td>
+</tr>
+
+<tr>
+<td>Operation</td>
+<td><input id="operation"></td>
+</tr>
+
+</table>
+
+<button onclick="save()">Save</button>
+
+<script>
+
+async function save(){
+
+ const body={
+  platform_fee:platform.value,
+  ads:ads.value,
+  affiliate:affiliate.value,
+  packaging:pack.value,
+  operation:operation.value
+ }
+
+ await fetch("/api/cost-settings",{
+  method:"POST",
+  body:JSON.stringify(body)
+ })
+
+ alert("Saved")
+
+}
+
+</script>

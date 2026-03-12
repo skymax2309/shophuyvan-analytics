@@ -1,0 +1,19 @@
+apps
+│
+├─ fe
+│
+│  index.html              (upload file)
+│  profit-dashboard.html   (dashboard)
+│  profit-analysis.html    (phân tích SKU)
+│  sku-mapping.html
+│  admin-products.html
+│  cost-settings.html
+│
+│  parser.js
+│  profit-engine.js
+│  sku-manager.js
+│  uploader.js
+│
+└─ worker-api
+    └ src
+       index.js

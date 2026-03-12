@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>SKU Mapping</title>
+</head>
+
+<body>
+
+<h1>SKU Mapping</h1>
+
+<input id="platformSku" placeholder="Platform SKU">
+<input id="internalSku" placeholder="Internal SKU">
+
+<button onclick="add()">Add Mapping</button>
+
+<ul id="list"></ul>
+
+<script type="module">
+
+import {addSkuMapping} from "./js/sku-manager.js"
+
+const list = document.getElementById("list")
+
+window.add = function(){
+
+ const p = document.getElementById("platformSku").value
+ const i = document.getElementById("internalSku").value
+
+ addSkuMapping(p,i)
+
+ const li = document.createElement("li")
+
+ li.innerText = p + " → " + i
+
+ list.appendChild(li)
+
+}
+
+</script>
+
+</body>
+</html>
