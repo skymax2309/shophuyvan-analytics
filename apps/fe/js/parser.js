@@ -33,9 +33,10 @@ export function parseFileMeta(filename) {
 
 // ── 2. DETECT PLATFORM (fallback) ───────────────────────────────────
 export function detectPlatform(row) {
-  if (row["Mã đơn hàng"])  return "shopee"
-  if (row["Order ID"])     return "tiktok"
-  if (row["orderNumber"])  return "lazada"
+  if (row["Mã đơn hàng"])            return "shopee"
+  if (row["Order ID"] && row["SKU Subtotal After Discount"]) return "tiktok"
+  if (row["Order ID"] && row["Seller SKU"])                  return "tiktok"
+  if (row["orderNumber"])            return "lazada"
   return "unknown"
 }
 
@@ -157,30 +158,57 @@ function _shopee(row, shop) {
 function _tiktok(row, shop) {
   const order_id = _str(row["Order ID"])
 
-  // Bỏ qua dòng mô tả (row 1 của file TikTok)
+  // Bỏ qua dòng mô tả / header lặp
   if (!order_id || order_id.length < 10 || !/^\d+$/.test(order_id)) return null
 
-  const cancel_type = _str(row["Cancelation/Return Type"])
+  // ── Phân loại trạng thái ─────────────────────────────────────────
+  const order_status = _str(row["Order Status"]).toLowerCase()
+  const cancel_type  = _str(row["Cancelation/Return Type"])
 
   let order_type = "normal"
-  if (cancel_type === "Cancel")        order_type = "cancel"
-  if (cancel_type === "Return/Refund") order_type = "return"
+  // Đơn hủy: Order Status = "cancelled" HOẶC cancel_type = "Cancel"
+  if (order_status === "cancelled" || order_status === "đã hủy" || cancel_type === "Cancel")
+    order_type = "cancel"
+  // Đơn trả hàng: cancel_type = "Return/Refund" (ưu tiên hơn cancel)
+  if (cancel_type === "Return/Refund")
+    order_type = "return"
 
-  const raw_revenue = _num(row["Order Amount"])
+  // ── Doanh thu theo công thức TikTok ─────────────────────────────
+  // SKU Subtotal After Discount = tiền khách trả (sau giảm giá shop + TikTok)
+  const sku_subtotal  = _num(row["SKU Subtotal After Discount"])
+  // SKU Platform Discount = TikTok trợ giá, sẽ bù lại cho shop
+  const platform_disc = _num(row["SKU Platform Discount"])
+
+  // Doanh thu = SKU Subtotal + Platform Discount (TikTok bù lại)
+  const gross_revenue = sku_subtotal + platform_disc
+
+  // Tiền hoàn thực tế
+  const refund_amount = _num(row["Order Refund Amount"])
+
+  // Revenue thực tế:
+  // - Đơn thành công: gross_revenue
+  // - Đơn return: 0 (đã hoàn, refund_amount sẽ trừ riêng)
+  // - Đơn cancel: 0
+  const revenue = order_type === "normal" ? gross_revenue : 0
 
   return {
-    platform:      "tiktok",
+    platform:        "tiktok",
     shop,
     order_id,
-    order_date:    _date(_str(row["Created Time"])),
-    product_name:  _str(row["Product Name"]),
-    sku:           _str(row["Seller SKU"]),
-    qty:           _int(row["Quantity"]),
-    revenue:       order_type === "normal" ? raw_revenue : 0,
-    raw_revenue,
+    order_date:      _date(_str(row["Created Time"])),
+    product_name:    _str(row["Product Name"]),
+    sku:             _str(row["Seller SKU"]),
+    qty:             _int(row["Quantity"]),
+    revenue,
+    raw_revenue:     gross_revenue,     // gross trước hoàn
+    shopee_voucher:  0,                 // không có ở TikTok
+    shopee_subsidy:  platform_disc,     // TikTok platform discount
+    shop_discount:   0,
+    combo_discount:  0,
+    return_amount:   order_type === "return" ? refund_amount || gross_revenue : 0,
     order_type,
-    cancel_reason: cancel_type || null,
-    return_fee:    0,
+    cancel_reason:   cancel_type || null,
+    return_fee:      0,
   }
 }
 
