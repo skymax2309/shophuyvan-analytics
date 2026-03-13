@@ -351,64 +351,6 @@ async function importOrders(request, env, cors) {
   return Response.json({ status: "ok", imported, skipped }, { headers: cors })
 }
 
-    const orderWithCost = {
-      ...o,
-      cost_invoice: product?.cost_invoice || 0,
-      cost_real:    product?.cost_real    || 0,
-    }
-
-    const p = calcProfit(orderWithCost, cfg)
-
-    try {
-      await env.DB.prepare(`
-        INSERT INTO orders
-          (order_id, sku, product_name, shop, platform, order_type,
-           qty, revenue, fee, profit,
-           cost_invoice, cost_real,
-           profit_invoice, profit_real,
-           tax_flat, tax_income,
-           cancel_reason, return_fee,
-           order_date, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
-        ON CONFLICT(order_id, sku) DO UPDATE SET
-          revenue        = excluded.revenue,
-          fee            = excluded.fee,
-          profit         = excluded.profit,
-          profit_invoice = excluded.profit_invoice,
-          profit_real    = excluded.profit_real,
-          tax_flat       = excluded.tax_flat,
-          tax_income     = excluded.tax_income
-      `).bind(
-        o.order_id,
-        o.sku,
-        o.product_name   || "",
-        o.shop           || "",
-        o.platform       || "",
-        o.order_type     || "normal",
-        o.qty            || 1,
-        o.revenue        || 0,
-        p.total_fee,
-        p.profit_real,
-        p.cost_invoice,
-        p.cost_real,
-        p.profit_invoice,
-        p.profit_real,
-        p.tax_flat,
-        p.tax_income,
-        o.cancel_reason  || null,
-        o.return_fee     || 0,
-        o.order_date     || "",
-      ).run()
-      imported++
-    } catch (e) {
-      skipped++
-      console.log("Skip row:", e.message)
-    }
-  }
-
-  return Response.json({ status: "ok", imported, skipped }, { headers: cors })
-}
-
 
 // ════════════════════════════════════════════════════════════════════
 // DASHBOARD — Tổng quan (đếm unique order_id)
@@ -444,7 +386,20 @@ async function dashboard(request, env, cors) {
     ${where.replace("order_type = 'normal' AND ", "").replace("WHERE order_type = 'normal'", "WHERE 1=1")}
   `).bind(...params).first()
 
-  return Response.json({ ...row, ...cancelRow }, { headers: cors })
+  // Thống kê chi tiết breakdown doanh thu (dùng cho báo cáo)
+  const breakdownRow = await env.DB.prepare(`
+    SELECT
+      COUNT(DISTINCT CASE WHEN order_type='normal' THEN order_id END)  AS success_orders,
+      COUNT(DISTINCT CASE WHEN order_type='cancel' THEN order_id END)  AS cancel_orders_count,
+      COUNT(DISTINCT CASE WHEN order_type='return' THEN order_id END)  AS return_orders_count,
+      SUM(CASE WHEN order_type='normal' THEN revenue    ELSE 0 END)    AS revenue_normal,
+      SUM(CASE WHEN order_type='return' THEN raw_revenue ELSE 0 END)   AS revenue_returned,
+      SUM(CASE WHEN order_type='return' THEN return_fee  ELSE 0 END)   AS total_return_shipping
+    FROM orders
+    ${where.replace("order_type = 'normal' AND ", "").replace("WHERE order_type = 'normal'", "WHERE 1=1")}
+  `).bind(...params).first()
+
+  return Response.json({ ...row, ...cancelRow, ...breakdownRow }, { headers: cors })
 }
 
 
@@ -681,7 +636,8 @@ async function exportOrders(request, env, cors) {
 
   const rows = await env.DB.prepare(`
     SELECT order_date, platform, shop, order_id, sku, product_name,
-           qty, revenue, cost_real, fee, profit_real, order_type
+           qty, revenue, raw_revenue, cost_real, fee, profit_real,
+           tax_flat, tax_income, order_type, cancel_reason, return_fee
     FROM orders
     WHERE ${conds.join(" AND ")}
     ORDER BY order_date DESC

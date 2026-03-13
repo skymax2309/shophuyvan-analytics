@@ -59,30 +59,71 @@ function _shopee(row, shop) {
   const order_id = _str(row["Mã đơn hàng"])
   if (!order_id) return null
 
-  const ly_do_huy = _str(row["Lý do hủy"])
-  const tra_hang  = _str(row["Trạng thái Trả hàng/Hoàn tiền"])
+  // ── Phân loại trạng thái theo logic chuẩn ──────────────────────
+  const trang_thai_don   = _str(row["Trạng Thái Đơn Hàng"])
+  const tra_hang_str     = _str(row["Trạng thái Trả hàng/Hoàn tiền"])
+  const ly_do_huy        = _str(row["Lý do hủy"])
+
+  // C. Đơn hủy: cột "Trạng Thái Đơn Hàng" = "Đã hủy" (exact)
+  const is_cancel = trang_thai_don === "Đã hủy" || ly_do_huy !== ""
+
+  // B. Đơn hoàn: cột "Trạng thái Trả hàng/Hoàn tiền" chứa các từ khóa
+  const is_return = /hoàn tiền|trả hàng|chấp thuận/i.test(tra_hang_str)
 
   let order_type = "normal"
-  if (ly_do_huy)                               order_type = "cancel"
-  if (tra_hang === "Đã Chấp Thuận Yêu Cầu")   order_type = "return"
+  if (is_cancel) order_type = "cancel"
+  if (is_return) order_type = "return"   // return ưu tiên hơn cancel
 
-  const raw_revenue = _num(row["Tổng giá bán (sản phẩm)"])
+  // ── Doanh thu thực tế (Net Revenue) theo công thức chuẩn ────────
+  // [A] Tổng giá bán sản phẩm
+  const A = _num(row["Tổng giá bán (sản phẩm)"])
+
+  // [B] Voucher Shopee hoàn lại (Shopee trả thay khách)
+  const B = _num(row["Mã giảm giá của Shopee"])
+
+  // [C] Trợ giá từ Shopee = "Được Shopee trợ giá" × số lượng
+  const shopee_subsidy = _num(row["Được Shopee trợ giá"])
+  const qty            = _int(row["Số lượng"])
+  const C = shopee_subsidy * qty
+
+  // [D] Tiền hoàn (chỉ tính cho đơn return)
+  const D = order_type === "return" ? A : 0
+
+  // [AF] Mã giảm giá của Shop (trừ ra)
+  const AF = _num(row["Mã giảm giá của Shop"])
+
+  // [AK] Giảm giá từ Combo của Shop (trừ ra)
+  const AK = _num(row["Giảm giá từ Combo của Shop"])
+
+  // Net Revenue = A + B + C - D - AF - AK
+  // Chỉ tính cho đơn thành công; cancel = 0, return ghi âm để trừ
+  let net_revenue = 0
+  if (order_type === "normal") {
+    net_revenue = A + B + C - AF - AK
+  } else if (order_type === "return") {
+    net_revenue = -(A + B + C - AF - AK)   // âm để thể hiện tiền bị hoàn
+  }
 
   return {
-    platform:      "shopee",
+    platform:         "shopee",
     shop,
     order_id,
-    order_date:    _date(_str(row["Ngày đặt hàng"])),
-    product_name:  _str(row["Tên sản phẩm"]),
-    sku:           _str(row["SKU phân loại hàng"]),
-    qty:           _int(row["Số lượng"]),
-    revenue:       order_type === "normal" ? raw_revenue : 0,
-    raw_revenue,
+    order_date:       _date(_str(row["Ngày đặt hàng"])),
+    product_name:     _str(row["Tên sản phẩm"]),
+    sku:              _str(row["SKU phân loại hàng"]),
+    qty,
+    revenue:          order_type === "normal" ? net_revenue : 0,
+    raw_revenue:      A,           // giữ lại giá gốc để đối soát
+    shopee_voucher:   B,           // [B]
+    shopee_subsidy:   C,           // [C]
+    shop_discount:    AF,          // [AF]
+    combo_discount:   AK,          // [AK]
+    net_revenue,                   // doanh thu thực cuối cùng
     order_type,
-    cancel_reason: ly_do_huy || null,
-    return_fee:    order_type === "return"
-                     ? _num(row["Phí vận chuyển trả hàng (đơn Trả hàng/hoàn tiền)"])
-                     : 0,
+    cancel_reason:    is_cancel ? (ly_do_huy || trang_thai_don) : null,
+    return_fee:       order_type === "return"
+                        ? _num(row["Phí vận chuyển trả hàng (đơn Trả hàng/hoàn tiền)"])
+                        : 0,
   }
 }
 
