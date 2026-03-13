@@ -44,7 +44,7 @@ export function normalizeOrder(row){
    order_id: row["Mã đơn hàng"],
    sku: row["Mã sản phẩm"],
    qty: Number(row["Số lượng"]),
-   revenue: Number(row["Thành tiền"])
+   revenue: Number(row["Thành tiền"]),
    platform: "shopee"
   }
  }
@@ -64,7 +64,7 @@ export function normalizeOrder(row){
    order_id: row["order_id"],
    sku: row["seller_sku"],
    qty: Number(row["quantity"]),
-   revenue: Number(row["item_price"])
+   revenue: Number(row["item_price"]),
    platform: "lazada"
   }
  }
