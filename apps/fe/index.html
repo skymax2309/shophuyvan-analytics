@@ -77,26 +77,15 @@ async function importFile(){
 
  const rows=XLSX.utils.sheet_to_json(sheet)
 
- const platform=detectPlatform(file.name)
+ const orders = []
 
- const orders=[]
+rows.forEach(r=>{
 
- rows.forEach(r=>{
+ const order = normalizeOrder(r)
 
-  let order=null
+ if(order) orders.push(order)
 
-  if(platform==="shopee")
-   order=parseShopee(r)
-
-  if(platform==="tiktok")
-   order=parseTiktok(r)
-
-  if(platform==="lazada")
-   order=parseLazada(r)
-
-  if(order) orders.push(order)
-
- })
+})
 
  document.getElementById("log").innerHTML=
  "Đã parse "+orders.length+" dòng dữ liệu"
