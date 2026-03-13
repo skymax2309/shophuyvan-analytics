@@ -105,8 +105,18 @@ tr:hover td { background: #fafafa; }
 
   <!-- ══════════ TAB: SKU ══════════ -->
   <div id="tab-sku" class="tab-pane active">
+
+    <!-- Banner tự động import -->
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#1d4ed8">🔄 Tự động đồng bộ SKU từ đơn hàng</div>
+        <div style="font-size:12px;color:#3b82f6;margin-top:2px">Bấm để load toàn bộ SKU duy nhất từ 3 sàn — bạn chỉ cần điền giá vốn.</div>
+      </div>
+      <button class="btn btn-primary" style="background:#2563eb" onclick="importSkusFromOrders()">⬇️ Đồng bộ SKU từ đơn hàng</button>
+    </div>
+
     <div class="card">
-      <div class="card-title">➕ Thêm / Cập nhật SKU</div>
+      <div class="card-title">➕ Thêm / Cập nhật SKU thủ công</div>
       <div class="form-grid">
         <div class="field">
           <label>SKU *</label>
@@ -125,6 +135,34 @@ tr:hover td { background: #fafafa; }
           <input type="number" id="s_cost_real" placeholder="0" step="100">
         </div>
         <button class="btn btn-primary" onclick="saveSku()">💾 Lưu SKU</button>
+      </div>
+    </div>
+
+    <!-- Panel nhập vốn hàng loạt (hiện sau khi đồng bộ) -->
+    <div id="bulkCostPanel" style="display:none">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>📝 Điền giá vốn hàng loạt (<span id="bulkCount">0</span> SKU mới)</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn" style="background:#f3f4f6;color:#555;font-size:12px" onclick="document.getElementById('bulkCostPanel').style.display='none'">✕ Đóng</button>
+            <button class="btn btn-primary" style="font-size:12px" onclick="saveBulkCost()">💾 Lưu tất cả</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px">⚠️ Chỉ hiện SKU chưa có trong danh sách. SKU đã tồn tại sẽ được bỏ qua.</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>SKU</th>
+              <th>Tên sản phẩm (từ đơn hàng)</th>
+              <th style="min-width:160px">Vốn hóa đơn (đ)</th>
+              <th style="min-width:160px">Vốn thực tế (đ)</th>
+            </tr></thead>
+            <tbody id="bulkCostTable"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;text-align:right">
+          <button class="btn btn-primary" onclick="saveBulkCost()">💾 Lưu tất cả</button>
+        </div>
       </div>
     </div>
 
@@ -557,8 +595,91 @@ function exportOrders() {
   showToast("✅ Đã xuất CSV!")
 }
 
-// INIT
-loadSkus()
+// ════════════════════════════
+// IMPORT SKU TỪ ĐƠN HÀNG
+// ════════════════════════════
+let bulkSkuData = []  // SKU mới cần điền vốn
+
+async function importSkusFromOrders() {
+  showToast("⏳ Đang tải danh sách SKU từ đơn hàng...")
+
+  // 1. Load toàn bộ orders từ API
+  const orders = await fetch(API + "/api/export-orders").then(r => r.json())
+
+  // 2. Lọc đơn không hủy
+  const validOrders = orders.filter(o => o.order_type !== "cancel" && o.sku)
+
+  // 3. Gom SKU duy nhất — nếu SKU trùng: ưu tiên tên sản phẩm của đơn gần nhất
+  const skuMap = new Map()
+  for (const o of validOrders) {
+    const sku = (o.sku || "").trim()
+    if (!sku) continue
+    if (!skuMap.has(sku)) {
+      skuMap.set(sku, { sku, product_name: o.product_name || "" })
+    }
+  }
+
+  // 4. Loại bỏ SKU đã có trong danh sách hiện tại
+  const existingSkus = new Set(allSkus.map(s => s.sku))
+  bulkSkuData = [...skuMap.values()].filter(s => !existingSkus.has(s.sku))
+
+  if (bulkSkuData.length === 0) {
+    showToast("✅ Tất cả SKU đã được đồng bộ rồi!")
+    return
+  }
+
+  // 5. Render bảng điền vốn
+  document.getElementById("bulkCount").textContent = bulkSkuData.length
+  document.getElementById("bulkCostTable").innerHTML = bulkSkuData.map((s, i) => `
+    <tr>
+      <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${s.sku}</code></td>
+      <td style="font-size:13px;color:#374151">${s.product_name || "—"}</td>
+      <td>
+        <div class="input-wrap" style="border:1.5px solid #e0e0e0;border-radius:7px;overflow:hidden;display:flex">
+          <input type="number" id="bulk_inv_${i}" placeholder="0" step="100"
+            style="border:none;outline:none;padding:7px 10px;font-size:13px;width:100%;background:transparent">
+          <span style="padding:7px 10px;background:#f8f8f8;font-size:12px;color:#888;border-left:1px solid #e0e0e0">đ</span>
+        </div>
+      </td>
+      <td>
+        <div class="input-wrap" style="border:1.5px solid #e0e0e0;border-radius:7px;overflow:hidden;display:flex">
+          <input type="number" id="bulk_real_${i}" placeholder="0" step="100"
+            style="border:none;outline:none;padding:7px 10px;font-size:13px;width:100%;background:transparent">
+          <span style="padding:7px 10px;background:#f8f8f8;font-size:12px;color:#888;border-left:1px solid #e0e0e0">đ</span>
+        </div>
+      </td>
+    </tr>
+  `).join("")
+
+  document.getElementById("bulkCostPanel").style.display = "block"
+  document.getElementById("bulkCostPanel").scrollIntoView({ behavior: "smooth" })
+  showToast(`✅ Tìm thấy ${bulkSkuData.length} SKU mới — hãy điền giá vốn!`)
+}
+
+async function saveBulkCost() {
+  const items = bulkSkuData.map((s, i) => ({
+    sku:          s.sku,
+    product_name: s.product_name,
+    cost_invoice: parseFloat(document.getElementById("bulk_inv_" + i)?.value) || 0,
+    cost_real:    parseFloat(document.getElementById("bulk_real_" + i)?.value) || 0,
+    is_combo:     0,
+  }))
+
+  let saved = 0
+  for (const item of items) {
+    await fetch(API + "/api/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(item)
+    })
+    saved++
+  }
+
+  showToast(`✅ Đã lưu ${saved} SKU thành công!`)
+  document.getElementById("bulkCostPanel").style.display = "none"
+  bulkSkuData = []
+  loadSkus()
+}
 addComboRow() // Mặc định 1 dòng combo
 </script>
 </body>
