@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>ShopHuyVan — Profit Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+  font-size: 14px;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  background: #1a1a2e;
+  color: white;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  height: 52px;
+  gap: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.topbar .logo { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+
+.topbar nav { display: flex; gap: 4px; margin-left: 8px; }
+.topbar nav a {
+  color: #aaa; text-decoration: none; padding: 6px 12px;
+  border-radius: 6px; font-size: 13px; transition: all 0.15s;
+}
+.topbar nav a:hover, .topbar nav a.active { background: #2d2f4e; color: white; }
+
+.topbar .spacer { flex: 1; }
+
+.btn-settings {
+  background: #4f46e5; color: white; border: none;
+  padding: 7px 14px; border-radius: 6px; cursor: pointer;
+  font-size: 13px; font-weight: 500;
+  text-decoration: none; display: flex; align-items: center; gap: 6px;
+}
+
+/* ── FILTER BAR ── */
+.filter-bar {
+  background: white;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.filter-bar label { font-size: 12px; color: #888; font-weight: 500; }
+
+.filter-bar input[type="date"],
+.filter-bar select {
+  border: 1.5px solid #e0e0e0;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #1a1a2e;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.filter-bar input[type="date"]:focus,
+.filter-bar select:focus { border-color: #4f46e5; }
+
+.btn-filter {
+  background: #4f46e5; color: white; border: none;
+  padding: 7px 18px; border-radius: 7px; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+}
+
+.btn-reset {
+  background: #f3f4f6; color: #555; border: none;
+  padding: 7px 14px; border-radius: 7px; cursor: pointer;
+  font-size: 13px;
+}
+
+.filter-bar .sep { color: #ddd; }
+
+/* ── MAIN ── */
+.main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+
+/* ── KPI CARDS ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.kpi {
+  background: white;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border-left: 4px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi.blue   { border-color: #3b82f6; }
+.kpi.green  { border-color: #10b981; }
+.kpi.purple { border-color: #8b5cf6; }
+.kpi.orange { border-color: #f59e0b; }
+.kpi.red    { border-color: #ef4444; }
+.kpi.teal   { border-color: #14b8a6; }
+
+.kpi-label { font-size: 12px; color: #888; font-weight: 500; margin-bottom: 6px; }
+.kpi-value { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.kpi-sub   { font-size: 11px; color: #999; margin-top: 4px; }
+.kpi-icon  {
+  position: absolute; right: 14px; top: 14px;
+  font-size: 26px; opacity: 0.12;
+}
+
+/* ── SECTION ── */
+.section-title {
+  font-size: 14px; font-weight: 700; color: #374151;
+  margin: 24px 0 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ── 2-COL GRID ── */
+.col2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.col3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+@media (max-width: 900px) {
+  .col2, .col3 { grid-template-columns: 1fr; }
+}
+
+/* ── CHART CARD ── */
+.chart-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.chart-card .card-title {
+  font-size: 13px; font-weight: 700; color: #374151;
+  margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+canvas { max-height: 280px; }
+
+/* ── TABLE ── */
+.table-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin-bottom: 16px;
+}
+
+.table-card .card-title {
+  font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 14px;
+}
+
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; padding: 8px 12px;
+  font-size: 11px; font-weight: 600; color: #888;
+  border-bottom: 2px solid #f0f2f5;
+  white-space: nowrap;
+}
+td {
+  padding: 9px 12px; font-size: 13px;
+  border-bottom: 1px solid #f8f9fa;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafafa; }
+
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 700;
+}
+.badge-shopee  { background: #fff0ed; color: #ee4d2d; }
+.badge-tiktok  { background: #f0f0f0; color: #010101; }
+.badge-lazada  { background: #eef0ff; color: #0f146d; }
+
+.profit-pos { color: #10b981; font-weight: 600; }
+.profit-neg { color: #ef4444; font-weight: 600; }
+
+/* ── CANCEL STATS ── */
+.stat-row {
+  display: flex; justify-content: space-between;
+  align-items: center; padding: 10px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-bar {
+  height: 6px; border-radius: 3px; margin-top: 4px;
+  background: linear-gradient(90deg, #ef4444, #fca5a5);
+}
+
+/* ── PRICE CALC ── */
+.calc-card {
+  background: white; border-radius: 12px;
+  padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin-bottom: 16px;
+}
+
+.calc-result {
+  background: #f8f9ff; border-radius: 10px;
+  padding: 16px; margin-top: 16px;
+}
+
+.calc-row {
+  display: flex; justify-content: space-between;
+  padding: 5px 0; font-size: 13px;
+}
+.calc-row.total {
+  font-weight: 700; font-size: 15px;
+  border-top: 2px solid #e0e0e0; margin-top: 8px; padding-top: 10px;
+}
+.calc-row.loss { color: #ef4444; }
+.calc-row.gain { color: #10b981; }
+
+.calc-inputs { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+
+.inp-group label { font-size: 12px; color: #888; display: block; margin-bottom: 4px; }
+.inp-group input, .inp-group select {
+  width: 100%; border: 1.5px solid #e0e0e0; border-radius: 7px;
+  padding: 8px 10px; font-size: 13px; outline: none;
+}
+.inp-group input:focus, .inp-group select:focus { border-color: #4f46e5; }
+
+.btn-calc {
+  background: #4f46e5; color: white; border: none;
+  padding: 9px 18px; border-radius: 7px; cursor: pointer;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+
+.warning-loss {
+  background: #fef2f2; border: 1px solid #fca5a5;
+  border-radius: 8px; padding: 10px 14px;
+  color: #dc2626; font-weight: 600; font-size: 13px;
+  margin-top: 10px; display: none;
+}
+
+/* ── TAB ── */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.tab {
+  padding: 7px 16px; border-radius: 7px; cursor: pointer;
+  font-size: 13px; font-weight: 500; border: 1.5px solid #e0e0e0;
+  background: white; color: #555; transition: all 0.15s;
+}
+.tab.active { background: #4f46e5; color: white; border-color: #4f46e5; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── LOADING ── */
+.loading {
+  text-align: center; padding: 40px;
+  color: #aaa; font-size: 14px;
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">🛒 ShopHuyVan</div>
+  <nav>
+    <a href="#" class="active" onclick="showTab('dashboard')">📊 Dashboard</a>
+    <a href="#" onclick="showTab('top')">🔥 Top SKU</a>
+    <a href="#" onclick="showTab('cancel')">⚠️ Hủy / Hoàn</a>
+    <a href="#" onclick="showTab('calc')">🧮 Máy tính</a>
+    <a href="index.html">📦 Import</a>
+  </nav>
+  <div class="spacer"></div>
+  <a href="cost-settings.html" class="btn-settings">⚙️ Cài đặt chi phí</a>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <label>Từ ngày</label>
+  <input type="date" id="filterFrom">
+  <label>Đến ngày</label>
+  <input type="date" id="filterTo">
+  <span class="sep">|</span>
+  <label>Sàn</label>
+  <select id="filterPlatform">
+    <option value="">Tất cả</option>
+    <option value="shopee">Shopee</option>
+    <option value="tiktok">TikTok</option>
+    <option value="lazada">Lazada</option>
+  </select>
+  <label>Shop</label>
+  <select id="filterShop">
+    <option value="">Tất cả</option>
+  </select>
+  <button class="btn-filter" onclick="applyFilter()">🔍 Lọc</button>
+  <button class="btn-reset" onclick="resetFilter()">✕ Reset</button>
+  <span id="filterInfo" style="font-size:12px;color:#888;margin-left:8px;"></span>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ── DASHBOARD TAB ── -->
+  <div id="tab-dashboard" class="tab-content active">
+
+    <!-- KPI -->
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="loading">Đang tải dữ liệu...</div>
+    </div>
+
+    <!-- CHARTS ROW 1 -->
+    <div class="col2">
+      <div class="chart-card">
+        <div class="card-title">📈 Doanh thu theo ngày</div>
+        <canvas id="chartRevenue"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">💰 Lợi nhuận theo ngày</div>
+        <canvas id="chartProfit"></canvas>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW 2 -->
+    <div class="col2">
+      <div class="chart-card">
+        <div class="card-title">🏪 Doanh thu theo sàn</div>
+        <canvas id="chartPlatform"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">🏬 Top Shop</div>
+        <canvas id="chartShop"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── TOP TAB ── -->
+  <div id="tab-top" class="tab-content">
+
+    <div class="col2">
+      <div class="table-card">
+        <div class="card-title">🔥 Top SKU theo Doanh thu</div>
+        <table>
+          <thead><tr>
+            <th>#</th><th>SKU</th><th>SL</th>
+            <th>Doanh thu</th><th>Lãi thực</th>
+          </tr></thead>
+          <tbody id="topSkuTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="table-card">
+        <div class="card-title">📦 Top Sản phẩm</div>
+        <table>
+          <thead><tr>
+            <th>#</th><th>Tên SP</th><th>SL</th>
+            <th>Doanh thu</th><th>Lãi thực</th>
+          </tr></thead>
+          <tbody id="topProductTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="card-title">🏪 Doanh thu theo Sàn & Shop</div>
+      <table>
+        <thead><tr>
+          <th>Sàn</th><th>Shop</th>
+          <th>Đơn hàng</th><th>Doanh thu</th><th>Lãi thực</th>
+        </tr></thead>
+        <tbody id="topShopTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- ── CANCEL TAB ── -->
+  <div id="tab-cancel" class="tab-content">
+
+    <div class="col2">
+      <div class="chart-card">
+        <div class="card-title">⚠️ Tỷ lệ hủy / hoàn theo sàn</div>
+        <canvas id="chartCancel"></canvas>
+      </div>
+      <div class="table-card" style="box-shadow:none;padding:0">
+        <div id="cancelStats" class="loading">Đang tải...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── CALC TAB ── -->
+  <div id="tab-calc" class="tab-content">
+
+    <div class="calc-card">
+      <div class="card-title" style="font-size:15px;font-weight:700;margin-bottom:18px">
+        🧮 Máy tính giá bán nhanh
+      </div>
+
+      <div class="calc-inputs">
+        <div class="inp-group">
+          <label>Chọn SKU</label>
+          <select id="calcSku" onchange="onSkuChange()">
+            <option value="">-- Chọn SKU --</option>
+          </select>
+        </div>
+        <div class="inp-group">
+          <label>Sàn bán</label>
+          <select id="calcPlatform">
+            <option value="tiktok">TikTok</option>
+            <option value="shopee">Shopee</option>
+            <option value="lazada">Lazada</option>
+          </select>
+        </div>
+        <div class="inp-group">
+          <label>Giá định bán (đ)</label>
+          <input type="number" id="calcPrice" placeholder="0" step="1000">
+        </div>
+        <button class="btn-calc" onclick="runCalc()">Tính ngay →</button>
+      </div>
+
+      <div id="calcInfo" style="margin-top:12px;font-size:12px;color:#888"></div>
+
+      <div class="calc-result" id="calcResult" style="display:none">
+        <div class="calc-row">
+          <span>💰 Giá bán</span>
+          <span id="r_price">-</span>
+        </div>
+        <div class="calc-row">
+          <span>📦 Vốn thực tế</span>
+          <span id="r_cost_real">-</span>
+        </div>
+        <div class="calc-row">
+          <span>📄 Vốn hóa đơn</span>
+          <span id="r_cost_inv">-</span>
+        </div>
+        <div class="calc-row">
+          <span>🏪 Phí sàn + Ads + Affiliate</span>
+          <span id="r_fee">-</span>
+        </div>
+        <div class="calc-row">
+          <span>🧾 Thuế khoán (1.5%)</span>
+          <span id="r_tax_flat">-</span>
+        </div>
+        <div class="calc-row">
+          <span>📑 Thuế LN (17% Lãi HĐ)</span>
+          <span id="r_tax_inc">-</span>
+        </div>
+        <div class="calc-row total gain" id="r_profit_row">
+          <span>✅ Lãi thực (bỏ túi)</span>
+          <span id="r_profit_real">-</span>
+        </div>
+        <div class="calc-row total">
+          <span>📋 Lãi hóa đơn</span>
+          <span id="r_profit_inv">-</span>
+        </div>
+      </div>
+
+      <div class="warning-loss" id="warnLoss">
+        ⚠️ CẢNH BÁO: Giá bán này bị LỖ! Cần tăng giá lên ít nhất <span id="minPrice">-</span> đ
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
+
+let charts = {}
+let allProducts = []
+let currentFilters = {}
+
+// ════════════════════════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"))
+  document.getElementById("tab-" + name).classList.add("active")
+  document.querySelectorAll(".topbar nav a").forEach((a, i) => {
+    a.classList.toggle("active", i === ["dashboard","top","cancel","calc"].indexOf(name))
+  })
+  if (name === "top") loadTop()
+  if (name === "cancel") loadCancel()
+}
+
+// ════════════════════════════════════════════════════════════════════
+// FILTER
+// ════════════════════════════════════════════════════════════════════
+function getFilterParams() {
+  const p = new URLSearchParams()
+  const from = document.getElementById("filterFrom").value
+  const to   = document.getElementById("filterTo").value
+  const plt  = document.getElementById("filterPlatform").value
+  const shop = document.getElementById("filterShop").value
+  if (from) p.set("from", from)
+  if (to)   p.set("to", to)
+  if (plt)  p.set("platform", plt)
+  if (shop) p.set("shop", shop)
+  return p.toString() ? "?" + p.toString() : ""
+}
+
+function applyFilter() {
+  loadDashboard()
+  const name = document.querySelector(".tab-content.active").id.replace("tab-","")
+  if (name === "top") loadTop()
+  if (name === "cancel") loadCancel()
+}
+
+function resetFilter() {
+  document.getElementById("filterFrom").value = ""
+  document.getElementById("filterTo").value   = ""
+  document.getElementById("filterPlatform").value = ""
+  document.getElementById("filterShop").value = ""
+  applyFilter()
+}
+
+// ════════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════════
+function fmt(n) {
+  if (!n && n !== 0) return "—"
+  return Number(n).toLocaleString("vi-VN") + " đ"
+}
+
+function fmtShort(n) {
+  if (!n) return "0"
+  if (Math.abs(n) >= 1e9) return (n/1e9).toFixed(1) + " tỷ"
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1) + " tr"
+  if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(0) + "k"
+  return n.toLocaleString("vi-VN")
+}
+
+function pct(a, b) {
+  if (!b) return "0%"
+  return (a / b * 100).toFixed(1) + "%"
+}
+
+function profitClass(n) {
+  return n >= 0 ? "profit-pos" : "profit-neg"
+}
+
+function makeChart(id, type, labels, datasets, opts = {}) {
+  if (charts[id]) charts[id].destroy()
+  const ctx = document.getElementById(id)
+  if (!ctx) return
+  charts[id] = new Chart(ctx, {
+    type,
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: opts.legend ?? false },
+        tooltip: {
+          callbacks: {
+            label: ctx => " " + fmtShort(ctx.raw) + " đ"
+          }
+        }
+      },
+      scales: type !== "doughnut" && type !== "pie" ? {
+        y: {
+          ticks: {
+            callback: v => fmtShort(v)
+          }
+        }
+      } : undefined,
+      ...opts.extra
+    }
+  })
+}
+
+// ════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════════════
+async function loadDashboard() {
+  const qs = getFilterParams()
+
+  // Parallel fetch
+  const [dash, revDay, profDay, platforms, shops] = await Promise.all([
+    fetch(API + "/api/dashboard" + qs).then(r => r.json()),
+    fetch(API + "/api/revenue-by-day" + qs).then(r => r.json()),
+    fetch(API + "/api/profit-by-day" + qs).then(r => r.json()),
+    fetch(API + "/api/top-platform" + qs).then(r => r.json()),
+    fetch(API + "/api/top-shop" + qs).then(r => r.json()),
+  ])
+
+  // KPI
+  const totalOrders  = dash.total_orders  || 0
+  const cancelOrders = dash.cancel_orders || 0
+  const returnOrders = dash.return_orders || 0
+  const allOrders    = dash.total_all_orders || totalOrders
+  const cancelRate   = allOrders > 0 ? ((cancelOrders + returnOrders) / allOrders * 100).toFixed(1) : 0
+
+  document.getElementById("kpiGrid").innerHTML = `
+    <div class="kpi blue">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-label">Đơn thành công</div>
+      <div class="kpi-value">${Number(totalOrders).toLocaleString()}</div>
+      <div class="kpi-sub">Tổng ${Number(allOrders).toLocaleString()} đơn</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Doanh thu</div>
+      <div class="kpi-value">${fmtShort(dash.total_revenue)}</div>
+      <div class="kpi-sub">${fmt(dash.total_revenue)}</div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-icon">📄</div>
+      <div class="kpi-label">Lãi hóa đơn</div>
+      <div class="kpi-value ${profitClass(dash.total_profit_invoice)}">${fmtShort(dash.total_profit_invoice)}</div>
+      <div class="kpi-sub">Sau phí + vốn HĐ</div>
+    </div>
+    <div class="kpi teal">
+      <div class="kpi-icon">🏦</div>
+      <div class="kpi-label">Lãi thực tế</div>
+      <div class="kpi-value ${profitClass(dash.total_profit_real)}">${fmtShort(dash.total_profit_real)}</div>
+      <div class="kpi-sub">Sau phí + vốn thực</div>
+    </div>
+    <div class="kpi orange">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-label">Vốn hóa đơn</div>
+      <div class="kpi-value">${fmtShort(dash.total_cost_invoice)}</div>
+      <div class="kpi-sub">Vốn thực: ${fmtShort(dash.total_cost_real)}</div>
+    </div>
+    <div class="kpi orange">
+      <div class="kpi-icon">🏪</div>
+      <div class="kpi-label">Tổng phí sàn</div>
+      <div class="kpi-value">${fmtShort(dash.total_fee)}</div>
+      <div class="kpi-sub">Ads + Commission + Affiliate</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-icon">🧾</div>
+      <div class="kpi-label">Thuế khoán (1.5%)</div>
+      <div class="kpi-value">${fmtShort(dash.total_tax_flat)}</div>
+      <div class="kpi-sub">Thuế LN: ${fmtShort(dash.total_tax_income)}</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-label">Tỷ lệ hủy / hoàn</div>
+      <div class="kpi-value">${cancelRate}%</div>
+      <div class="kpi-sub">Hủy: ${cancelOrders} | Hoàn: ${returnOrders}</div>
+    </div>
+  `
+
+  // Chart: Revenue by day
+  makeChart("chartRevenue", "bar",
+    revDay.map(r => r.d),
+    [{
+      label: "Doanh thu",
+      data: revDay.map(r => r.revenue),
+      backgroundColor: "#3b82f620",
+      borderColor: "#3b82f6",
+      borderWidth: 2,
+      fill: true,
+      tension: 0.3,
+    }],
+    { extra: { plugins: { legend: { display: false } } } }
+  )
+
+  // Chart: Profit by day
+  makeChart("chartProfit", "line",
+    profDay.map(r => r.d),
+    [
+      {
+        label: "Lãi thực",
+        data: profDay.map(r => r.profit_real),
+        borderColor: "#10b981",
+        backgroundColor: "#10b98115",
+        fill: true, tension: 0.3, borderWidth: 2,
+      },
+      {
+        label: "Lãi HĐ",
+        data: profDay.map(r => r.profit_invoice),
+        borderColor: "#8b5cf6",
+        backgroundColor: "transparent",
+        tension: 0.3, borderWidth: 2, borderDash: [4,3],
+      }
+    ],
+    { legend: true }
+  )
+
+  // Chart: Platform doughnut
+  const platformColors = { shopee: "#ee4d2d", tiktok: "#010101", lazada: "#0f146d" }
+  makeChart("chartPlatform", "doughnut",
+    platforms.map(r => r.platform),
+    [{
+      data: platforms.map(r => r.total_revenue),
+      backgroundColor: platforms.map(r => platformColors[r.platform] || "#888"),
+    }],
+    { legend: true }
+  )
+
+  // Chart: Shop bar
+  makeChart("chartShop", "bar",
+    shops.map(r => r.shop),
+    [{
+      label: "Doanh thu",
+      data: shops.map(r => r.total_revenue),
+      backgroundColor: "#4f46e5",
+      borderRadius: 6,
+    }],
+    {}
+  )
+
+  // Update shop filter dropdown
+  const shopSel = document.getElementById("filterShop")
+  const cur = shopSel.value
+  shopSel.innerHTML = '<option value="">Tất cả</option>'
+  shops.forEach(s => {
+    const opt = document.createElement("option")
+    opt.value = s.shop
+    opt.textContent = s.shop
+    if (s.shop === cur) opt.selected = true
+    shopSel.appendChild(opt)
+  })
+}
+
+// ════════════════════════════════════════════════════════════════════
+// TOP SKU / PRODUCT / SHOP
+// ════════════════════════════════════════════════════════════════════
+async function loadTop() {
+  const qs = getFilterParams()
+
+  const [skus, products, shops] = await Promise.all([
+    fetch(API + "/api/top-sku" + qs + (qs ? "&" : "?") + "limit=20").then(r => r.json()),
+    fetch(API + "/api/top-product" + qs + (qs ? "&" : "?") + "limit=20").then(r => r.json()),
+    fetch(API + "/api/top-shop" + qs).then(r => r.json()),
+  ])
+
+  document.getElementById("topSkuTable").innerHTML = skus.map((r, i) => `
+    <tr>
+      <td style="color:#aaa">${i+1}</td>
+      <td><code style="font-size:12px">${r.sku}</code></td>
+      <td>${Number(r.total_qty).toLocaleString()}</td>
+      <td>${fmtShort(r.total_revenue)}</td>
+      <td class="${profitClass(r.total_profit)}">${fmtShort(r.total_profit)}</td>
+    </tr>
+  `).join("")
+
+  document.getElementById("topProductTable").innerHTML = products.map((r, i) => `
+    <tr>
+      <td style="color:#aaa">${i+1}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.product_name}">${r.product_name}</td>
+      <td>${Number(r.total_qty).toLocaleString()}</td>
+      <td>${fmtShort(r.total_revenue)}</td>
+      <td class="${profitClass(r.total_profit)}">${fmtShort(r.total_profit)}</td>
+    </tr>
+  `).join("")
+
+  document.getElementById("topShopTable").innerHTML = shops.map(r => `
+    <tr>
+      <td><span class="badge badge-${r.platform}">${r.platform.toUpperCase()}</span></td>
+      <td>${r.shop}</td>
+      <td>${Number(r.total_orders).toLocaleString()}</td>
+      <td>${fmtShort(r.total_revenue)}</td>
+      <td class="${profitClass(r.total_profit)}">${fmtShort(r.total_profit)}</td>
+    </tr>
+  `).join("")
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CANCEL / RETURN STATS
+// ════════════════════════════════════════════════════════════════════
+async function loadCancel() {
+  const qs = getFilterParams()
+  const [dash, stats] = await Promise.all([
+    fetch(API + "/api/dashboard" + qs).then(r => r.json()),
+    fetch(API + "/api/cancel-stats" + qs).then(r => r.json()),
+  ])
+
+  const total      = dash.total_all_orders || 1
+  const cancelRows = stats.filter(r => r.order_type === "cancel")
+  const returnRows = stats.filter(r => r.order_type === "return")
+
+  const totalCancel = cancelRows.reduce((s,r) => s + r.total_orders, 0)
+  const totalReturn = returnRows.reduce((s,r) => s + r.total_orders, 0)
+
+  // Chart
+  const byPlatform = {}
+  stats.forEach(r => {
+    if (!byPlatform[r.platform]) byPlatform[r.platform] = { cancel: 0, return: 0 }
+    if (r.order_type === "cancel") byPlatform[r.platform].cancel += r.total_orders
+    if (r.order_type === "return") byPlatform[r.platform].return += r.total_orders
+  })
+
+  const plts = Object.keys(byPlatform)
+  makeChart("chartCancel", "bar", plts, [
+    {
+      label: "Đơn hủy",
+      data: plts.map(p => byPlatform[p].cancel),
+      backgroundColor: "#ef444480",
+      borderColor: "#ef4444", borderWidth: 2, borderRadius: 6,
+    },
+    {
+      label: "Đơn hoàn",
+      data: plts.map(p => byPlatform[p].return),
+      backgroundColor: "#f59e0b80",
+      borderColor: "#f59e0b", borderWidth: 2, borderRadius: 6,
+    }
+  ], { legend: true,
+    extra: {
+      plugins: { legend: { display: true } },
+      scales: { y: { ticks: { stepSize: 1 } } }
+    }
+  })
+
+  // Stats panel
+  document.getElementById("cancelStats").innerHTML = `
+    <div style="padding:20px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:14px">📊 Thống kê hủy / hoàn</div>
+      <div class="stat-row">
+        <div>
+          <div style="font-weight:600">Tổng đơn hủy</div>
+          <div class="stat-bar" style="width:${Math.min(100, totalCancel/total*100*5)}%;background:linear-gradient(90deg,#ef4444,#fca5a5)"></div>
+        </div>
+        <div style="font-weight:700;color:#ef4444">${totalCancel} đơn (${pct(totalCancel, total)})</div>
+      </div>
+      <div class="stat-row">
+        <div>
+          <div style="font-weight:600">Tổng đơn hoàn</div>
+          <div class="stat-bar" style="width:${Math.min(100, totalReturn/total*100*5)}%;background:linear-gradient(90deg,#f59e0b,#fde68a)"></div>
+        </div>
+        <div style="font-weight:700;color:#f59e0b">${totalReturn} đơn (${pct(totalReturn, total)})</div>
+      </div>
+      <div class="stat-row">
+        <div style="font-weight:600">Phí trả hàng</div>
+        <div style="font-weight:700;color:#ef4444">${fmt(dash.total_return_fee)}</div>
+      </div>
+      <div style="margin-top:16px;font-size:12px;font-weight:700;color:#888;margin-bottom:8px">LÝ DO HỦY PHỔ BIẾN</div>
+      ${cancelRows.slice(0,5).map(r => `
+        <div class="stat-row">
+          <div style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${r.cancel_reason||'Không rõ'}">
+            <span class="badge badge-${r.platform}" style="margin-right:4px">${r.platform}</span>
+            ${(r.cancel_reason||"Không rõ").substring(0,40)}${(r.cancel_reason||"").length>40?"...":""}
+          </div>
+          <div style="font-weight:600">${r.total_orders} đơn</div>
+        </div>
+      `).join("")}
+    </div>
+  `
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PRICE CALCULATOR
+// ════════════════════════════════════════════════════════════════════
+async function loadProducts() {
+  const data = await fetch(API + "/api/products").then(r => r.json())
+  allProducts = data
+  const sel = document.getElementById("calcSku")
+  data.forEach(p => {
+    const opt = document.createElement("option")
+    opt.value = p.sku
+    opt.textContent = p.sku
+    sel.appendChild(opt)
+  })
+}
+
+function onSkuChange() {
+  const sku = document.getElementById("calcSku").value
+  const p = allProducts.find(x => x.sku === sku)
+  if (p) {
+    document.getElementById("calcInfo").innerHTML =
+      `<b>${p.product_name || sku}</b> &nbsp;|&nbsp; Vốn thực: <b>${fmt(p.cost_real)}</b> &nbsp;|&nbsp; Vốn HĐ: <b>${fmt(p.cost_invoice)}</b>`
+  } else {
+    document.getElementById("calcInfo").innerHTML = ""
+  }
+}
+
+async function runCalc() {
+  const sku      = document.getElementById("calcSku").value
+  const platform = document.getElementById("calcPlatform").value
+  const price    = parseFloat(document.getElementById("calcPrice").value)
+
+  if (!sku || !price) { alert("Chọn SKU và nhập giá!"); return }
+
+  const res = await fetch(API + "/api/price-calc", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku, sell_price: price, platform })
+  }).then(r => r.json())
+
+  document.getElementById("calcResult").style.display = "block"
+  document.getElementById("r_price").textContent      = fmt(res.sell_price)
+  document.getElementById("r_cost_real").textContent  = fmt(res.cost_real)
+  document.getElementById("r_cost_inv").textContent   = fmt(res.cost_invoice)
+  document.getElementById("r_fee").textContent        = fmt(res.total_fee)
+  document.getElementById("r_tax_flat").textContent   = fmt(res.tax_flat)
+  document.getElementById("r_tax_inc").textContent    = fmt(res.tax_income)
+  document.getElementById("r_profit_real").textContent = fmt(res.profit_real)
+  document.getElementById("r_profit_inv").textContent  = fmt(res.profit_invoice)
+
+  const pRow = document.getElementById("r_profit_row")
+  pRow.className = "calc-row total " + (res.is_loss ? "loss" : "gain")
+  document.getElementById("r_profit_real").className = res.is_loss ? "profit-neg" : "profit-pos"
+
+  const warn = document.getElementById("warnLoss")
+  if (res.is_loss) {
+    const minP = Math.ceil(res.cost_real + res.total_fee + res.tax_flat + 1000)
+    document.getElementById("minPrice").textContent = Number(minP).toLocaleString("vi-VN")
+    warn.style.display = "block"
+  } else {
+    warn.style.display = "none"
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════
+async function init() {
+  // Default: tháng hiện tại
+  const now   = new Date()
+  const y     = now.getFullYear()
+  const m     = String(now.getMonth() + 1).padStart(2, "0")
+  document.getElementById("filterFrom").value = `${y}-${m}-01`
+  document.getElementById("filterTo").value   = `${y}-${m}-${String(now.getDate()).padStart(2,"0")}`
+
+  await loadDashboard()
+  await loadProducts()
+}
+
+init()
+</script>
+</body>
+</html>

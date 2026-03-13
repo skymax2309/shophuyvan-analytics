@@ -1,55 +1,396 @@
-<h2>Cost Settings</h2>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Cài Đặt Chi Phí</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
-<table>
-
-<tr>
-<td>Platform Fee %</td>
-<td><input id="platform"></td>
-</tr>
-
-<tr>
-<td>Ads %</td>
-<td><input id="ads"></td>
-</tr>
-
-<tr>
-<td>Affiliate %</td>
-<td><input id="affiliate"></td>
-</tr>
-
-<tr>
-<td>Packaging</td>
-<td><input id="pack"></td>
-</tr>
-
-<tr>
-<td>Operation</td>
-<td><input id="operation"></td>
-</tr>
-
-</table>
-
-<button onclick="save()">Save</button>
-
-<script>
-
-async function save(){
-
- const body={
-  platform_fee:platform.value,
-  ads:ads.value,
-  affiliate:affiliate.value,
-  packaging:pack.value,
-  operation:operation.value
- }
-
- await fetch("/api/cost-settings",{
-  method:"POST",
-  body:JSON.stringify(body)
- })
-
- alert("Saved")
-
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
 }
 
+.topbar {
+  background: #1a1a2e;
+  color: white;
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.topbar a { color: #aaa; text-decoration: none; font-size: 14px; }
+.topbar a:hover { color: white; }
+
+.container { max-width: 900px; margin: 32px auto; padding: 0 20px; }
+
+.card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f2f5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.platform-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+}
+.tag-shopee  { background: #ee4d2d; }
+.tag-tiktok  { background: #010101; }
+.tag-lazada  { background: #0f146d; }
+.tag-chung   { background: #6b7280; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+.field { display: flex; flex-direction: column; gap: 4px; }
+
+.field label {
+  font-size: 13px;
+  color: #555;
+  font-weight: 500;
+}
+
+.field .hint {
+  font-size: 11px;
+  color: #999;
+}
+
+.input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.input-wrap:focus-within { border-color: #4f46e5; }
+
+.input-wrap input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 9px 12px;
+  font-size: 14px;
+  background: transparent;
+}
+
+.input-wrap .unit {
+  padding: 9px 12px;
+  background: #f8f8f8;
+  font-size: 13px;
+  color: #888;
+  border-left: 1px solid #e0e0e0;
+  min-width: 48px;
+  text-align: center;
+}
+
+.btn-save {
+  background: #4f46e5;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.btn-save:hover { background: #4338ca; }
+.btn-save:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #16a34a;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+
+.toast.show { opacity: 1; }
+
+.note {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #92400e;
+  margin-bottom: 20px;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="profit-dashboard.html">← Dashboard</a>
+  <span>⚙️ Cài Đặt Chi Phí</span>
+</div>
+
+<div class="container">
+
+  <div class="note">
+    💡 Nhập phí theo % (ví dụ: 10 = 10%) hoặc số tiền cố định (VNĐ) cho phí theo đơn hàng.
+    Phí này dùng để tính Lợi nhuận và Thuế. Nhớ bấm <b>Lưu</b> sau khi thay đổi.
+  </div>
+
+  <!-- SHOPEE -->
+  <div class="card">
+    <div class="card-title">
+      <span class="platform-tag tag-shopee">SHOPEE</span> Phí sàn Shopee
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label>Phí nền tảng (Commission)</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="shopee_platform_fee" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí quảng cáo Ads</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="shopee_ads" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí hoa hồng liên kết (Affiliate)</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="shopee_affiliate" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIKTOK -->
+  <div class="card">
+    <div class="card-title">
+      <span class="platform-tag tag-tiktok">TIKTOK</span> Phí sàn TikTok
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label>Phí nền tảng (Commission)</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="tiktok_platform_fee" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí quảng cáo Ads</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="tiktok_ads" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí hoa hồng liên kết (Affiliate)</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="tiktok_affiliate" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LAZADA -->
+  <div class="card">
+    <div class="card-title">
+      <span class="platform-tag tag-lazada">LAZADA</span> Phí sàn Lazada
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label>Phí nền tảng (Commission)</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_platform_fee" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí quảng cáo Ads</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_ads" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí hoa hồng liên kết (Affiliate)</label>
+        <span class="hint">% trên doanh thu</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_affiliate" step="0.1" min="0" max="100" placeholder="0">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHI PHÍ CỐ ĐỊNH -->
+  <div class="card">
+    <div class="card-title">
+      <span class="platform-tag tag-chung">CHUNG</span> Chi phí cố định (tính theo từng đơn)
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label>Phí đóng gói (Packaging)</label>
+        <span class="hint">VNĐ / đơn</span>
+        <div class="input-wrap">
+          <input type="number" id="packaging" step="100" min="0" placeholder="0">
+          <span class="unit">đ</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí xử lý đơn (Operation)</label>
+        <span class="hint">VNĐ / đơn</span>
+        <div class="input-wrap">
+          <input type="number" id="operation" step="100" min="0" placeholder="0">
+          <span class="unit">đ</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí nhân công (Labor)</label>
+        <span class="hint">VNĐ / đơn</span>
+        <div class="input-wrap">
+          <input type="number" id="labor" step="100" min="0" placeholder="0">
+          <span class="unit">đ</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THUẾ -->
+  <div class="card">
+    <div class="card-title">🧾 Thuế (cố định theo quy định)</div>
+    <div class="grid">
+      <div class="field">
+        <label>Thuế khoán</label>
+        <span class="hint">Tính trên doanh thu</span>
+        <div class="input-wrap" style="background:#f8f8f8">
+          <input type="number" value="1.5" disabled style="color:#999">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Thuế lợi nhuận</label>
+        <span class="hint">Tính trên Lãi HĐ</span>
+        <div class="input-wrap" style="background:#f8f8f8">
+          <input type="number" value="17" disabled style="color:#999">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-save" id="btnSave" onclick="saveSettings()">
+    💾 Lưu Cài Đặt
+  </button>
+
+</div>
+
+<div class="toast" id="toast">✅ Đã lưu thành công!</div>
+
+<script>
+const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
+
+const FIELDS = [
+  { id: "shopee_platform_fee", type: "pct" },
+  { id: "shopee_ads",          type: "pct" },
+  { id: "shopee_affiliate",    type: "pct" },
+  { id: "tiktok_platform_fee", type: "pct" },
+  { id: "tiktok_ads",          type: "pct" },
+  { id: "tiktok_affiliate",    type: "pct" },
+  { id: "lazada_platform_fee", type: "pct" },
+  { id: "lazada_ads",          type: "pct" },
+  { id: "lazada_affiliate",    type: "pct" },
+  { id: "packaging",           type: "fixed" },
+  { id: "operation",           type: "fixed" },
+  { id: "labor",               type: "fixed" },
+]
+
+async function loadSettings() {
+  try {
+    const data = await fetch(API + "/api/cost-settings").then(r => r.json())
+    for (const row of data) {
+      const el = document.getElementById(row.cost_key)
+      if (el) el.value = row.cost_value
+    }
+  } catch(e) {
+    console.error("Không load được cài đặt:", e)
+  }
+}
+
+async function saveSettings() {
+  const btn = document.getElementById("btnSave")
+  btn.disabled = true
+  btn.textContent = "Đang lưu..."
+
+  const items = FIELDS.map(f => ({
+    cost_key:   f.id,
+    cost_value: parseFloat(document.getElementById(f.id).value) || 0,
+    cost_type:  f.type,
+  }))
+
+  try {
+    await fetch(API + "/api/cost-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(items)
+    })
+    showToast()
+  } catch(e) {
+    alert("Lỗi khi lưu: " + e.message)
+  }
+
+  btn.disabled = false
+  btn.innerHTML = "💾 Lưu Cài Đặt"
+}
+
+function showToast() {
+  const t = document.getElementById("toast")
+  t.classList.add("show")
+  setTimeout(() => t.classList.remove("show"), 2500)
+}
+
+loadSettings()
 </script>
+</body>
+</html>
