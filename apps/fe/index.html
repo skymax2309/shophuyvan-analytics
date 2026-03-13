@@ -47,7 +47,7 @@ button{
 
 <br>
 
-<button onclick="importFile()">Import Excel</button>
+<button id="btnImport">Import Excel</button>
 
 <div id="log"></div>
 
@@ -102,6 +102,7 @@ rows.forEach(r=>{
  document.getElementById("log").innerHTML+="<br>Upload thành công"
 
 }
+document.getElementById("btnImport").addEventListener("click", importFile)
 
 </script>
 
