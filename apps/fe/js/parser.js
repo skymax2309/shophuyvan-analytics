@@ -71,6 +71,13 @@ function _shopee(row, shop) {
   const order_id = _str(row["Mã đơn hàng"])
   if (!order_id) return null
 
+  // DEBUG — xóa sau khi tìm được tên key
+  if (!window._debugged) {
+    window._debugged = true
+    console.log("=== ALL KEYS ===", Object.keys(row))
+    console.log("Shopee subsidy key test:", row["Được Shopee trợ giá"])
+  }
+
   // ── Phân loại trạng thái theo logic chuẩn ──────────────────────
   const trang_thai_don   = _str(row["Trạng Thái Đơn Hàng"])
   const tra_hang_str     = _str(row["Trạng thái Trả hàng/Hoàn tiền"])
