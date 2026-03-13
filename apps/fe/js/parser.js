@@ -101,16 +101,11 @@ function _shopee(row, shop) {
   // [B] Voucher Shopee hoàn lại (Shopee trả thay khách)
   const B = _num(row["Mã giảm giá của Shopee"])
 
-  // [C] Trợ giá từ Shopee
-  // Thử nhiều tên cột vì XLSX.js đôi khi encode khác nhau
-  const shopee_subsidy = _num(
-    row["Được Shopee trợ giá"] ||
-    row["Duoc Shopee tro gia"]  ||
-    row["\u0110\u01b0\u1ee3c Shopee tr\u1ee3 gi\u00e1"] ||
-    0
-  )
-  const qty = _int(row["Số lượng"])
-  const C   = shopee_subsidy * qty
+  // [C] Trợ giá từ Shopee — col index 24
+  // Dùng tên cột trước, fallback sang __index_24 nếu XLSX.js encode khác
+  const shopee_subsidy = _num(_findKey(row, "Được Shopee trợ giá") ?? 0)
+  const qty            = _int(_findKey(row, "Số lượng") ?? row["Số lượng"])
+  const C              = shopee_subsidy * qty
 
   // [D] Tiền hoàn (chỉ tính cho đơn return)
   const D = order_type === "return" ? A : 0
@@ -293,4 +288,26 @@ function _date(val) {
   if (m3) return m3[1]
 
   return ""
+}
+
+// Tìm value theo partial key match (xử lý encoding khác nhau)
+function _findKey(row, keyword) {
+  // Thử exact match trước
+  if (row[keyword] !== undefined) return row[keyword]
+  // Fallback: tìm key có chứa từ khóa ASCII (bỏ dấu)
+  const normalize = s => s.toLowerCase()
+    .replace(/[àáảãạăắằẳẵặâấầẩẫậ]/g, "a")
+    .replace(/[đ]/g, "d")
+    .replace(/[èéẻẽẹêếềểễệ]/g, "e")
+    .replace(/[ìíỉĩị]/g, "i")
+    .replace(/[òóỏõọôốồổỗộơớờởỡợ]/g, "o")
+    .replace(/[ùúủũụưứừửữự]/g, "u")
+    .replace(/[ỳýỷỹỵ]/g, "y")
+    .replace(/\s+/g, " ").trim()
+
+  const normKeyword = normalize(keyword)
+  for (const k of Object.keys(row)) {
+    if (normalize(k) === normKeyword) return row[k]
+  }
+  return undefined
 }
