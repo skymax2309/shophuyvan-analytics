@@ -32,6 +32,9 @@ export default {
    if(url.pathname==="/api/profit-by-sku")
     return profitBySku(env,cors)
 
+   if(url.pathname==="/api/import-orders")
+    return importOrders(request,env,cors)
+
    return new Response("Not found",{status:404})
 
   }catch(e){
@@ -116,4 +119,30 @@ async function profitBySku(env,cors){
  `).all()
 
  return Response.json(rows.results,{headers:cors})
+}
+
+
+async function importOrders(request,env,cors){
+
+ const orders = await request.json()
+
+ for(const o of orders){
+
+  const cost = await env.DB.prepare(`
+   SELECT cost FROM products WHERE sku=?
+  `).bind(o.sku).first()
+
+  const profit = cost
+   ? o.revenue - (cost.cost * o.qty)
+   : o.revenue
+
+  await env.DB.prepare(`
+   INSERT INTO orders (order_id,sku,qty,revenue,profit,created_at)
+   VALUES (?,?,?,?,?,datetime('now'))
+  `).bind(o.order_id, o.sku, o.qty, o.revenue, profit).run()
+
+ }
+
+ return Response.json({status:"ok", imported: orders.length},{headers:cors})
+
 }
