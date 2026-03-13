@@ -7,7 +7,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
-<script type="module" src="./js/parser.js"></script>
 
 <style>
 
@@ -54,7 +53,9 @@ button{
 
 </div>
 
-<script>
+<script type="module">
+
+import { normalizeOrder } from "./js/parser.js"
 
 const API="https://huyvan-worker-api.yourname.workers.dev"
 
