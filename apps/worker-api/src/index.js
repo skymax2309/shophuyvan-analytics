@@ -253,15 +253,91 @@ async function importOrders(request, env, cors) {
   const orders = await request.json()
   const cfg    = await getCostSettings(env)
 
+  // 1. Lấy toàn bộ products 1 lần duy nhất
+  const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real FROM products`).all()
+  const productMap  = {}
+  for (const p of productRows.results) {
+    productMap[p.sku] = p
+  }
+
+  // 2. Tính profit cho từng order (không query DB trong loop)
+  const processed = orders.map(o => {
+    const product = productMap[o.sku] || { cost_invoice: 0, cost_real: 0 }
+    const orderWithCost = { ...o, cost_invoice: product.cost_invoice, cost_real: product.cost_real }
+    const p = calcProfit(orderWithCost, cfg)
+    return {
+      order_id:       o.order_id,
+      sku:            o.sku,
+      product_name:   o.product_name   || "",
+      shop:           o.shop           || "",
+      platform:       o.platform       || "",
+      order_type:     o.order_type     || "normal",
+      qty:            o.qty            || 1,
+      revenue:        o.revenue        || 0,
+      fee:            p.total_fee,
+      profit:         p.profit_real,
+      cost_invoice:   p.cost_invoice,
+      cost_real:      p.cost_real,
+      profit_invoice: p.profit_invoice,
+      profit_real:    p.profit_real,
+      tax_flat:       p.tax_flat,
+      tax_income:     p.tax_income,
+      cancel_reason:  o.cancel_reason  || null,
+      return_fee:     o.return_fee     || 0,
+      raw_revenue:    o.raw_revenue    || 0,
+      order_date:     o.order_date     || "",
+    }
+  })
+
+  // 3. Batch insert — mỗi batch 50 dòng
+  const BATCH = 50
   let imported = 0
   let skipped  = 0
 
-  for (const o of orders) {
+  for (let i = 0; i < processed.length; i += BATCH) {
+    const chunk = processed.slice(i, i + BATCH)
+    const stmts = chunk.map(o =>
+      env.DB.prepare(`
+        INSERT INTO orders
+          (order_id, sku, product_name, shop, platform, order_type,
+           qty, revenue, fee, profit,
+           cost_invoice, cost_real,
+           profit_invoice, profit_real,
+           tax_flat, tax_income,
+           cancel_reason, return_fee, raw_revenue,
+           order_date, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        ON CONFLICT(order_id, sku) DO UPDATE SET
+          revenue        = excluded.revenue,
+          fee            = excluded.fee,
+          profit         = excluded.profit,
+          profit_invoice = excluded.profit_invoice,
+          profit_real    = excluded.profit_real,
+          tax_flat       = excluded.tax_flat,
+          tax_income     = excluded.tax_income,
+          order_date     = excluded.order_date
+      `).bind(
+        o.order_id, o.sku, o.product_name, o.shop, o.platform, o.order_type,
+        o.qty, o.revenue, o.fee, o.profit,
+        o.cost_invoice, o.cost_real,
+        o.profit_invoice, o.profit_real,
+        o.tax_flat, o.tax_income,
+        o.cancel_reason, o.return_fee, o.raw_revenue,
+        o.order_date
+      )
+    )
 
-    // Lấy giá vốn từ bảng products theo SKU
-    const product = await env.DB.prepare(`
-      SELECT cost_invoice, cost_real FROM products WHERE sku = ?
-    `).bind(o.sku).first()
+    try {
+      await env.DB.batch(stmts)
+      imported += chunk.length
+    } catch(e) {
+      skipped += chunk.length
+      console.log("Batch error:", e.message)
+    }
+  }
+
+  return Response.json({ status: "ok", imported, skipped }, { headers: cors })
+}
 
     const orderWithCost = {
       ...o,
