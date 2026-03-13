@@ -195,6 +195,22 @@ body {
           <span class="unit">%</span>
         </div>
       </div>
+      <div class="field">
+        <label>Phí PiShip</label>
+        <span class="hint">VNĐ / đơn hàng (kể cả đơn hoàn)</span>
+        <div class="input-wrap">
+          <input type="number" id="shopee_piship" step="1" min="0" placeholder="1620">
+          <span class="unit">đ</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Dịch Vụ</label>
+        <span class="hint">VNĐ / đơn hàng (kể cả đơn hoàn)</span>
+        <div class="input-wrap">
+          <input type="number" id="shopee_service_fee" step="1" min="0" placeholder="3000">
+          <span class="unit">đ</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -335,6 +351,8 @@ const FIELDS = [
   { id: "shopee_platform_fee", type: "pct" },
   { id: "shopee_ads",          type: "pct" },
   { id: "shopee_affiliate",    type: "pct" },
+  { id: "shopee_piship",       type: "fixed" },
+  { id: "shopee_service_fee",  type: "fixed" },
   { id: "tiktok_platform_fee", type: "pct" },
   { id: "tiktok_ads",          type: "pct" },
   { id: "tiktok_affiliate",    type: "pct" },

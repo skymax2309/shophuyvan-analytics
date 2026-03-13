@@ -105,7 +105,7 @@ button:disabled {
 
 <script type="module">
 
-import { normalizeOrder, parseFileMeta } from "./js/parser.js"
+import { normalizeOrder, parseFileMeta, fillFirstSku } from "./js/parser.js"
 
 const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 
@@ -141,17 +141,20 @@ async function importFile() {
     const rows     = XLSX.utils.sheet_to_json(sheet)
 
     // 3. Normalize từng dòng
-    const orders  = []
-    const skipped = []
+    const rawOrders = []
+    const skipped   = []
 
     rows.forEach((r, i) => {
       const order = normalizeOrder(r, meta)
       if (order) {
-        orders.push(order)
+        rawOrders.push(order)
       } else {
-        skipped.push(i + 2) // +2 vì row 1 = header
+        skipped.push(i + 2)
       }
     })
+
+    // Đánh dấu dòng đầu tiên của mỗi đơn để tính phí per-đơn 1 lần
+    const orders = fillFirstSku(rawOrders)
 
     // 4. Thống kê
     const normal  = orders.filter(o => o.order_type === "normal")
@@ -164,11 +167,18 @@ async function importFile() {
     const uniqueReturn  = [...new Set(returns.map(o => o.order_id))].length
     const totalUnique   = uniqueNormal + uniqueCancel + uniqueReturn
 
-    const totalRevenue   = normal.reduce((s, o) => s + (o.net_revenue ?? o.revenue), 0)
-    const totalVoucher   = normal.reduce((s, o) => s + (o.shopee_voucher || 0), 0)
-    const totalSubsidy   = normal.reduce((s, o) => s + (o.shopee_subsidy || 0), 0)
-    const totalDiscount  = normal.reduce((s, o) => s + (o.shop_discount || 0) + (o.combo_discount || 0), 0)
-    const totalReturnAmt = returns.reduce((s, o) => s + (o.raw_revenue || 0), 0)
+    // [A] tổng giá bán đơn thành công
+    const totalA        = normal.reduce((s, o) => s + (o.raw_revenue || 0), 0)
+    // [B] voucher Shopee hoàn lại
+    const totalB        = normal.reduce((s, o) => s + (o.shopee_voucher || 0), 0)
+    // [C] trợ giá Shopee
+    const totalC        = normal.reduce((s, o) => s + (o.shopee_subsidy || 0), 0)
+    // [D] tiền hoàn = tổng raw_revenue của đơn return
+    const totalD        = returns.reduce((s, o) => s + (o.return_amount || o.raw_revenue || 0), 0)
+    // [AF+AK] giảm giá shop & combo
+    const totalDiscount = normal.reduce((s, o) => s + (o.shop_discount || 0) + (o.combo_discount || 0), 0)
+    // Doanh thu thực = A + B + C - D  (AF/AK đã trừ trong line_revenue rồi, không trừ lại)
+    const totalRevenue  = totalA + totalB + totalC - totalD
     const totalReturnFee = returns.reduce((s, o) => s + o.return_fee, 0)
     const cancelRate    = totalUnique > 0 ? ((uniqueCancel / totalUnique) * 100).toFixed(1) : 0
 
@@ -194,37 +204,28 @@ async function importFile() {
         <span class="summary-value">${uniqueReturn} đơn</span>
       </div>
       <div class="summary-row">
-        <span class="summary-label">💰 Doanh thu (đơn thành công)</span>
-        <span class="summary-value">${fmt(totalRevenue)} đ</span>
+        <span class="summary-label">💰 [A] Tổng giá bán (đơn thành công)</span>
+        <span class="summary-value">${fmt(totalA)} đ</span>
       </div>
-      ${meta.platform === "shopee" && (totalVoucher + totalSubsidy) > 0 ? `
+      ${meta.platform === "shopee" ? `
       <div class="summary-row">
-        <span class="summary-label">🎟️ Voucher Shopee hoàn lại [B]</span>
-        <span class="summary-value">+${fmt(totalVoucher)} đ</span>
+        <span class="summary-label">🎟️ [B] Voucher Shopee hoàn lại</span>
+        <span class="summary-value" style="color:#10b981">+${fmt(totalB)} đ</span>
       </div>
       <div class="summary-row">
-        <span class="summary-label">💸 Shopee trợ giá [C]</span>
-        <span class="summary-value">+${fmt(totalSubsidy)} đ</span>
+        <span class="summary-label">💸 [C] Shopee trợ giá</span>
+        <span class="summary-value" style="color:#10b981">+${fmt(totalC)} đ</span>
       </div>` : ""}
       ${totalDiscount > 0 ? `
       <div class="summary-row">
-        <span class="summary-label">🏷️ Giảm giá shop / combo [AF+AK]</span>
-        <span class="summary-value">-${fmt(totalDiscount)} đ</span>
+        <span class="summary-label">🏷️ [AF+AK] Giảm giá shop / combo</span>
+        <span class="summary-value" style="color:#f59e0b">-${fmt(totalDiscount)} đ</span>
       </div>` : ""}
-      ${totalReturnAmt > 0 ? `
+      ${totalD > 0 ? `
       <div class="summary-row">
-        <span class="summary-label">↩️ Tiền hoàn trả [D]</span>
-        <span class="summary-value" style="color:#ef4444">-${fmt(totalReturnAmt)} đ</span>
+        <span class="summary-label">↩️ [D] Tiền hoàn trả</span>
+        <span class="summary-value" style="color:#ef4444">-${fmt(totalD)} đ</span>
       </div>` : ""}
-      ${totalReturnFee > 0 ? `
-      <div class="summary-row">
-        <span class="summary-label">🚚 Phí vận chuyển trả hàng</span>
-        <span class="summary-value" style="color:#ef4444">-${fmt(totalReturnFee)} đ</span>
-      </div>` : ""}
-      <div class="summary-row" style="border-top:2px solid #e0e0e0;margin-top:6px;padding-top:8px">
-        <span class="summary-label" style="font-weight:700">✅ Doanh thu thực tế = A+B+C-D</span>
-        <span class="summary-value" style="color:#10b981;font-size:16px">${fmt(totalRevenue)} đ</span>
-      </div>
       ${skipped.length > 0 ? `<br><small style="color:#999">⚠️ Bỏ qua ${skipped.length} dòng không hợp lệ</small>` : ""}
       <br>⏳ Đang upload lên server...
     `)

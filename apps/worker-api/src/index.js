@@ -147,12 +147,22 @@ function calcProfit(order, cfg) {
   const adsFee       = rev * pct(cfg, `${platform}_ads`)
   const affiliateFee = rev * pct(cfg, `${platform}_affiliate`)
 
-  // Phí cố định chung
-  const packFee      = num(cfg, "packaging")     * qty
-  const opFee        = num(cfg, "operation")     * qty
-  const laborFee     = num(cfg, "labor")         * qty
+  // Phí cố định chung (per SKU)
+  const packFee    = num(cfg, "packaging") * qty
+  const opFee      = num(cfg, "operation") * qty
+  const laborFee   = num(cfg, "labor")     * qty
 
-  const totalFee = platformFee + adsFee + affiliateFee + packFee + opFee + laborFee
+  // Phí per đơn hàng Shopee — chỉ tính 1 lần ở dòng đầu tiên của đơn
+  // Áp dụng cả đơn thành công lẫn đơn hoàn, không áp dụng đơn hủy
+  const isFirstSku = order.is_first_sku === true || order.is_first_sku === 1
+  const pishipFee  = (platform === "shopee" && isFirstSku && order.order_type !== "cancel")
+                       ? num(cfg, "shopee_piship") : 0
+  const svcFee     = (platform === "shopee" && isFirstSku && order.order_type !== "cancel")
+                       ? num(cfg, "shopee_service_fee") : 0
+
+  const totalFee = platformFee + adsFee + affiliateFee
+                 + packFee + opFee + laborFee
+                 + pishipFee + svcFee
 
   const costInvoice = (order.cost_invoice || 0) * qty
   const costReal    = (order.cost_real    || 0) * qty

@@ -51,6 +51,34 @@ export function normalizeOrder(row, meta = {}) {
   return null
 }
 
+// Đánh dấu dòng SKU đầu tiên của mỗi đơn để tính phí per-đơn
+// is_first_sku = true  → tính phí PiShip + DV
+// is_first_sku = false → không tính (tránh nhân đôi)
+export function fillFirstSku(orders) {
+  const seen = new Set()
+  return orders.map(o => {
+    const isFirst = !seen.has(o.order_id)
+    if (o.order_type !== "cancel") seen.add(o.order_id)
+    return { ...o, is_first_sku: isFirst }
+  })
+}
+
+// Sau khi parse xong toàn bộ orders, gọi hàm này để điền sku_count
+export function fillSkuCount(orders) {
+  // Đếm số dòng SKU per order_id (chỉ đơn không hủy)
+  const countMap = {}
+  orders.forEach(o => {
+    if (o.order_type !== "cancel") {
+      countMap[o.order_id] = (countMap[o.order_id] || 0) + 1
+    }
+  })
+  // Gán sku_count vào từng order
+  return orders.map(o => ({
+    ...o,
+    sku_count: countMap[o.order_id] || 1
+  }))
+}
+
 
 // ════════════════════════════════════════════════════════════════════
 // SHOPEE
@@ -95,14 +123,12 @@ function _shopee(row, shop) {
   // [AK] Giảm giá từ Combo của Shop (trừ ra)
   const AK = _num(row["Giảm giá từ Combo của Shop"])
 
-  // Net Revenue = A + B + C - D - AF - AK
-  // Chỉ tính cho đơn thành công; cancel = 0, return ghi âm để trừ
-  let net_revenue = 0
-  if (order_type === "normal") {
-    net_revenue = A + B + C - AF - AK
-  } else if (order_type === "return") {
-    net_revenue = -(A + B + C - AF - AK)   // âm để thể hiện tiền bị hoàn
-  }
+  // ── Net Revenue per dòng ─────────────────────────────────────────
+  // Đơn thành công : A + B + C - AF - AK  (chưa trừ D, D tính tổng hợp)
+  // Đơn hoàn       : lưu A vào return_amount để tổng hợp trừ sau
+  // Đơn hủy        : 0 hoàn toàn
+  const line_revenue = (order_type === "normal") ? (A + B + C - AF - AK) : 0
+  const return_amount = (order_type === "return") ? A : 0   // [D] per dòng
 
   return {
     platform:         "shopee",
@@ -112,13 +138,13 @@ function _shopee(row, shop) {
     product_name:     _str(row["Tên sản phẩm"]),
     sku:              _str(row["SKU phân loại hàng"]),
     qty,
-    revenue:          order_type === "normal" ? net_revenue : 0,
-    raw_revenue:      A,           // giữ lại giá gốc để đối soát
-    shopee_voucher:   B,           // [B]
-    shopee_subsidy:   C,           // [C]
-    shop_discount:    AF,          // [AF]
-    combo_discount:   AK,          // [AK]
-    net_revenue,                   // doanh thu thực cuối cùng
+    revenue:          line_revenue,
+    raw_revenue:      A,
+    shopee_voucher:   B,
+    shopee_subsidy:   C,
+    shop_discount:    AF,
+    combo_discount:   AK,
+    return_amount,              // [D] — dùng để tổng hợp trừ ở index.html
     order_type,
     cancel_reason:    is_cancel ? (ly_do_huy || trang_thai_don) : null,
     return_fee:       order_type === "return"
