@@ -45,6 +45,7 @@ export function normalizeOrder(row){
    sku: row["Mã sản phẩm"],
    qty: Number(row["Số lượng"]),
    revenue: Number(row["Thành tiền"])
+   platform: "shopee"
   }
  }
 
@@ -53,7 +54,8 @@ export function normalizeOrder(row){
    order_id: row["Order ID"],
    sku: row["SKU"],
    qty: Number(row["Quantity"]),
-   revenue: Number(row["Total Amount"])
+   revenue: Number(row["Total Amount"]),
+   platform: "tiktok"
   }
  }
 
@@ -63,6 +65,7 @@ export function normalizeOrder(row){
    sku: row["seller_sku"],
    qty: Number(row["quantity"]),
    revenue: Number(row["item_price"])
+   platform: "lazada"
   }
  }
 

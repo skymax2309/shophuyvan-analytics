@@ -137,9 +137,9 @@ async function importOrders(request,env,cors){
    : o.revenue
 
   await env.DB.prepare(`
-   INSERT INTO orders (order_id,sku,qty,revenue,profit,created_at)
-   VALUES (?,?,?,?,?,datetime('now'))
-  `).bind(o.order_id, o.sku, o.qty, o.revenue, profit).run()
+   INSERT INTO orders (order_id,sku,qty,revenue,profit,platform,status,created_at)
+   VALUES (?,?,?,?,?,?,?,datetime('now'))
+  `).bind(o.order_id, o.sku, o.qty, o.revenue, profit, o.platform ?? "tiktok", "completed").run()
 
  }
 
