@@ -24,6 +24,12 @@ export default {
       if (url.pathname === "/api/products")
         return handleProducts(request, env, cors)
 
+      if (url.pathname.startsWith("/api/products/") && request.method === "DELETE") {
+        const sku = decodeURIComponent(url.pathname.replace("/api/products/", ""))
+        await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run()
+        return Response.json({ status: "ok" }, { headers: cors })
+      }
+
       // ── Cost Settings ─────────────────────────────────────────────
       if (url.pathname === "/api/cost-settings")
         return handleCostSettings(request, env, cors)
@@ -199,13 +205,19 @@ async function handleProducts(request, env, cors) {
   if (request.method === "POST") {
     const b = await request.json()
     await env.DB.prepare(`
-      INSERT INTO products (sku, product_name, cost_invoice, cost_real)
-      VALUES (?,?,?,?)
+      INSERT INTO products (sku, product_name, cost_invoice, cost_real, is_combo, combo_items, combo_qty)
+      VALUES (?,?,?,?,?,?,?)
       ON CONFLICT(sku) DO UPDATE SET
         product_name = excluded.product_name,
         cost_invoice = excluded.cost_invoice,
-        cost_real    = excluded.cost_real
-    `).bind(b.sku, b.product_name, b.cost_invoice, b.cost_real).run()
+        cost_real    = excluded.cost_real,
+        is_combo     = excluded.is_combo,
+        combo_items  = excluded.combo_items,
+        combo_qty    = excluded.combo_qty
+    `).bind(
+      b.sku, b.product_name, b.cost_invoice, b.cost_real,
+      b.is_combo || 0, b.combo_items || null, b.combo_qty || 1
+    ).run()
     return Response.json({ status: "ok" }, { headers: cors })
   }
 }

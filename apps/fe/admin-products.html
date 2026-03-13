@@ -1,49 +1,565 @@
-<h1>Product Manager</h1>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Quản lý Sản phẩm & SKU</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f0f2f5; color: #1a1a2e; font-size: 14px;
+}
+.topbar {
+  background: #1a1a2e; color: white; padding: 14px 28px;
+  display: flex; align-items: center; gap: 16px; font-size: 16px; font-weight: 600;
+}
+.topbar a { color: #aaa; text-decoration: none; font-size: 14px; margin-right: 8px; }
+.topbar a:hover { color: white; }
+.container { max-width: 1100px; margin: 28px auto; padding: 0 20px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 20px; }
+.tab-btn {
+  padding: 9px 22px; border-radius: 8px; border: 1.5px solid #e0e0e0;
+  background: white; cursor: pointer; font-size: 13px; font-weight: 600; color: #555;
+}
+.tab-btn.active { background: #4f46e5; color: white; border-color: #4f46e5; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+.card {
+  background: white; border-radius: 12px; padding: 24px;
+  margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.card-title {
+  font-size: 15px; font-weight: 700; margin-bottom: 18px;
+  padding-bottom: 10px; border-bottom: 2px solid #f0f2f5;
+}
+.form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 12px; color: #666; font-weight: 500; }
+.field input, .field select {
+  border: 1.5px solid #e0e0e0; border-radius: 7px;
+  padding: 8px 10px; font-size: 13px; outline: none;
+}
+.field input:focus, .field select:focus { border-color: #4f46e5; }
+.btn {
+  padding: 9px 18px; border-radius: 7px; border: none;
+  cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.btn-primary { background: #4f46e5; color: white; }
+.btn-danger  { background: #ef4444; color: white; padding: 5px 12px; font-size: 12px; }
+.btn-edit    { background: #f59e0b; color: white; padding: 5px 12px; font-size: 12px; }
+.btn-primary:hover { background: #4338ca; }
+table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+th {
+  text-align: left; padding: 9px 12px; font-size: 12px;
+  font-weight: 600; color: #888; border-bottom: 2px solid #f0f2f5;
+}
+td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #f8f9fa; }
+tr:hover td { background: #fafafa; }
+.badge-combo { background: #ede9fe; color: #6d28d9; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+.combo-items { font-size: 12px; color: #666; margin-top: 3px; }
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: #16a34a; color: white; padding: 12px 20px;
+  border-radius: 8px; font-size: 14px; font-weight: 500;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+.empty { text-align: center; color: #aaa; padding: 30px; }
+.combo-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.combo-row select, .combo-row input { border: 1.5px solid #e0e0e0; border-radius: 7px; padding: 7px 10px; font-size: 13px; outline: none; }
+.combo-row select:focus, .combo-row input:focus { border-color: #4f46e5; }
+#comboItemsBuilder { margin: 12px 0; }
 
-<input id="sku" placeholder="SKU">
-<input id="name" placeholder="Name">
-<input id="cost" placeholder="Cost">
-<input id="price" placeholder="Price">
+/* Orders table */
+.order-filter { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.order-filter input, .order-filter select { border: 1.5px solid #e0e0e0; border-radius: 7px; padding: 7px 10px; font-size: 13px; outline: none; }
+.tag-normal { background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700; }
+.tag-cancel { background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700; }
+.tag-return { background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700; }
+.tag-shopee { background:#fff0ed;color:#ee4d2d;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700; }
+.tag-tiktok { background:#f0f0f0;color:#010101;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700; }
+.tag-lazada { background:#eef0ff;color:#0f146d;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700; }
+.profit-pos { color:#10b981;font-weight:600; }
+.profit-neg { color:#ef4444;font-weight:600; }
+.pagination { display:flex;gap:6px;align-items:center;margin-top:14px;justify-content:flex-end; }
+.pagination button { padding:5px 12px;border:1.5px solid #e0e0e0;border-radius:6px;background:white;cursor:pointer;font-size:12px; }
+.pagination button.active { background:#4f46e5;color:white;border-color:#4f46e5; }
+.pagination button:disabled { opacity:0.4;cursor:not-allowed; }
+</style>
+</head>
+<body>
 
-<button onclick="add()">Add</button>
+<div class="topbar">
+  <a href="profit-dashboard.html">← Dashboard</a>
+  <span>📦 Quản lý Sản phẩm & Đơn hàng</span>
+</div>
 
-<table id="table"></table>
+<div class="container">
 
-<script type="module">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('sku')">📦 Sản phẩm / SKU</button>
+    <button class="tab-btn" onclick="switchTab('combo')">🎁 Combo</button>
+    <button class="tab-btn" onclick="switchTab('orders')">📋 Toàn bộ đơn hàng</button>
+  </div>
 
-import {getProducts,addProduct} from "./js/api.js"
+  <!-- ══════════ TAB: SKU ══════════ -->
+  <div id="tab-sku" class="tab-pane active">
+    <div class="card">
+      <div class="card-title">➕ Thêm / Cập nhật SKU</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>SKU *</label>
+          <input id="s_sku" placeholder="VD: SP001">
+        </div>
+        <div class="field">
+          <label>Tên sản phẩm *</label>
+          <input id="s_name" placeholder="Tên sản phẩm">
+        </div>
+        <div class="field">
+          <label>Vốn hóa đơn (đ)</label>
+          <input type="number" id="s_cost_inv" placeholder="0" step="100">
+        </div>
+        <div class="field">
+          <label>Vốn thực tế (đ)</label>
+          <input type="number" id="s_cost_real" placeholder="0" step="100">
+        </div>
+        <button class="btn btn-primary" onclick="saveSku()">💾 Lưu SKU</button>
+      </div>
+    </div>
 
-async function load(){
+    <div class="card">
+      <div class="card-title">📋 Danh sách SKU (<span id="skuCount">0</span>)</div>
+      <table>
+        <thead><tr>
+          <th>SKU</th><th>Tên sản phẩm</th>
+          <th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="skuTable"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 
- const data = await getProducts()
+  <!-- ══════════ TAB: COMBO ══════════ -->
+  <div id="tab-combo" class="tab-pane">
+    <div class="card">
+      <div class="card-title">➕ Tạo Combo mới</div>
 
- const t = document.getElementById("table")
+      <div class="form-grid-3">
+        <div class="field">
+          <label>Mã Combo (SKU combo) *</label>
+          <input id="c_sku" placeholder="VD: COMBO-001">
+        </div>
+        <div class="field">
+          <label>Tên Combo *</label>
+          <input id="c_name" placeholder="VD: Combo 10 SP A + 5 SP B">
+        </div>
+        <div class="field">
+          <label>Tổng số lượng combo</label>
+          <input type="number" id="c_qty" placeholder="VD: 1" value="1" min="1">
+        </div>
+        <div></div>
+      </div>
 
- t.innerHTML=""
+      <div style="margin-top:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">🧩 Thành phần SKU trong combo:</div>
+        <div id="comboItemsBuilder"></div>
+        <button class="btn btn-primary" style="margin-top:6px;background:#10b981" onclick="addComboRow()">+ Thêm SKU thành phần</button>
+      </div>
 
- data.forEach(p=>{
-  t.innerHTML +=
-  `<tr>
-   <td>${p.sku}</td>
-   <td>${p.name}</td>
-   <td>${p.cost}</td>
-  </tr>`
- })
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" onclick="saveCombo()">💾 Lưu Combo</button>
+      </div>
+    </div>
 
+    <div class="card">
+      <div class="card-title">🎁 Danh sách Combo (<span id="comboCount">0</span>)</div>
+      <table>
+        <thead><tr>
+          <th>SKU Combo</th><th>Tên Combo</th><th>Số lượng</th>
+          <th>Thành phần</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="comboTable"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════ TAB: ORDERS ══════════ -->
+  <div id="tab-orders" class="tab-pane">
+    <div class="card">
+      <div class="card-title">📋 Toàn bộ đơn hàng chi tiết</div>
+
+      <div class="order-filter">
+        <input type="date" id="o_from" placeholder="Từ ngày">
+        <input type="date" id="o_to" placeholder="Đến ngày">
+        <select id="o_platform">
+          <option value="">Tất cả sàn</option>
+          <option value="shopee">Shopee</option>
+          <option value="tiktok">TikTok</option>
+          <option value="lazada">Lazada</option>
+        </select>
+        <select id="o_type">
+          <option value="">Tất cả loại</option>
+          <option value="normal">Thành công</option>
+          <option value="cancel">Đã hủy</option>
+          <option value="return">Hoàn hàng</option>
+        </select>
+        <input id="o_search" placeholder="🔍 Tìm mã đơn / SKU / tên SP" style="min-width:220px">
+        <button class="btn btn-primary" onclick="loadOrders(1)">🔍 Lọc</button>
+        <button class="btn" style="background:#f3f4f6;color:#555" onclick="resetOrderFilter()">✕ Reset</button>
+        <button class="btn" style="background:#10b981;color:white" onclick="exportOrders()">⬇️ Xuất CSV</button>
+      </div>
+
+      <div id="orderSummary" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Ngày</th><th>Sàn</th><th>Shop</th><th>Mã đơn</th>
+            <th>SKU</th><th>Tên SP</th><th>SL</th>
+            <th>Doanh thu</th><th>Vốn thực</th><th>Phí</th>
+            <th>Lãi thực</th><th>Thuế</th><th>Loại</th>
+          </tr></thead>
+          <tbody id="ordersTable"><tr><td colspan="13" class="empty">Nhấn Lọc để tải đơn hàng</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="pagination" id="orderPagination"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
+let allSkus = []
+let currentOrderPage = 1
+const PAGE_SIZE = 50
+
+// ════════════════════════════
+// TABS
+// ════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll(".tab-pane").forEach(el => el.classList.remove("active"))
+  document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"))
+  document.getElementById("tab-" + name).classList.add("active")
+  document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+    if (["sku","combo","orders"][i] === name) btn.classList.add("active")
+  })
+  if (name === "combo") loadCombos()
+  if (name === "orders") loadOrders(1)
 }
 
-window.add = async function(){
-
- await addProduct({
-  sku:sku.value,
-  name:name.value,
-  cost:cost.value,
-  price:price.value
- })
-
- load()
+// ════════════════════════════
+// HELPERS
+// ════════════════════════════
+function fmt(n) {
+  if (!n && n !== 0) return "—"
+  return Number(n).toLocaleString("vi-VN") + " đ"
+}
+function showToast(msg, isErr = false) {
+  const t = document.getElementById("toast")
+  t.textContent = msg
+  t.style.background = isErr ? "#dc2626" : "#16a34a"
+  t.classList.add("show")
+  setTimeout(() => t.classList.remove("show"), 2500)
 }
 
-load()
+// ════════════════════════════
+// SKU
+// ════════════════════════════
+async function loadSkus() {
+  const data = await fetch(API + "/api/products").then(r => r.json())
+  allSkus = data
+  document.getElementById("skuCount").textContent = data.length
 
+  document.getElementById("skuTable").innerHTML = data.length === 0
+    ? `<tr><td colspan="5" class="empty">Chưa có SKU nào</td></tr>`
+    : data.map(p => `
+      <tr>
+        <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
+        <td>${p.product_name || "—"}</td>
+        <td style="color:#6d28d9;font-weight:600">${fmt(p.cost_invoice)}</td>
+        <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
+        <td>
+          <button class="btn btn-edit" onclick="editSku('${p.sku}','${(p.product_name||"").replace(/'/g,"\\'")}',${p.cost_invoice||0},${p.cost_real||0})">✏️</button>
+          <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="margin-left:4px">🗑️</button>
+        </td>
+      </tr>
+    `).join("")
+}
+
+async function saveSku() {
+  const sku  = document.getElementById("s_sku").value.trim()
+  const name = document.getElementById("s_name").value.trim()
+  const cinv = parseFloat(document.getElementById("s_cost_inv").value) || 0
+  const creal= parseFloat(document.getElementById("s_cost_real").value) || 0
+
+  if (!sku || !name) { showToast("⚠️ Nhập SKU và Tên sản phẩm!", true); return }
+
+  await fetch(API + "/api/products", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal })
+  })
+
+  showToast("✅ Đã lưu SKU: " + sku)
+  document.getElementById("s_sku").value = ""
+  document.getElementById("s_name").value = ""
+  document.getElementById("s_cost_inv").value = ""
+  document.getElementById("s_cost_real").value = ""
+  loadSkus()
+}
+
+function editSku(sku, name, cinv, creal) {
+  document.getElementById("s_sku").value = sku
+  document.getElementById("s_name").value = name
+  document.getElementById("s_cost_inv").value = cinv
+  document.getElementById("s_cost_real").value = creal
+  window.scrollTo({ top: 0, behavior: "smooth" })
+  showToast("✏️ Đang chỉnh sửa SKU: " + sku)
+}
+
+async function deleteSku(sku) {
+  if (!confirm("Xóa SKU " + sku + "?")) return
+  await fetch(API + "/api/products/" + sku, { method: "DELETE" })
+  showToast("🗑️ Đã xóa SKU: " + sku)
+  loadSkus()
+}
+
+// ════════════════════════════
+// COMBO
+// ════════════════════════════
+let comboRows = []
+
+function addComboRow() {
+  comboRows.push({ id: Date.now() })
+  renderComboBuilder()
+}
+
+function removeComboRow(id) {
+  comboRows = comboRows.filter(r => r.id !== id)
+  renderComboBuilder()
+}
+
+function renderComboBuilder() {
+  const builder = document.getElementById("comboItemsBuilder")
+  if (comboRows.length === 0) {
+    builder.innerHTML = `<div style="color:#aaa;font-size:13px">Chưa có thành phần. Nhấn "+ Thêm SKU thành phần"</div>`
+    return
+  }
+  builder.innerHTML = comboRows.map(r => `
+    <div class="combo-row" id="cr-${r.id}">
+      <select id="cr-sku-${r.id}" style="min-width:160px">
+        <option value="">-- Chọn SKU --</option>
+        ${allSkus.filter(s => !s.is_combo).map(s =>
+          `<option value="${s.sku}">${s.sku} — ${s.product_name || ""}</option>`
+        ).join("")}
+      </select>
+      <input type="number" id="cr-qty-${r.id}" placeholder="Số lượng" min="1" value="1" style="width:90px">
+      <button class="btn btn-danger" onclick="removeComboRow(${r.id})">✕</button>
+    </div>
+  `).join("")
+}
+
+async function saveCombo() {
+  const sku  = document.getElementById("c_sku").value.trim()
+  const name = document.getElementById("c_name").value.trim()
+  const qty  = parseInt(document.getElementById("c_qty").value) || 1
+
+  if (!sku || !name) { showToast("⚠️ Nhập mã và tên combo!", true); return }
+  if (comboRows.length === 0) { showToast("⚠️ Thêm ít nhất 1 SKU thành phần!", true); return }
+
+  const items = comboRows.map(r => ({
+    sku: document.getElementById("cr-sku-" + r.id)?.value || "",
+    qty: parseInt(document.getElementById("cr-qty-" + r.id)?.value) || 1,
+  })).filter(i => i.sku)
+
+  if (items.length === 0) { showToast("⚠️ Chọn SKU cho các thành phần!", true); return }
+
+  // Tính vốn combo = tổng (vốn SKU × số lượng)
+  let cost_invoice = 0, cost_real = 0
+  items.forEach(i => {
+    const p = allSkus.find(s => s.sku === i.sku)
+    if (p) {
+      cost_invoice += (p.cost_invoice || 0) * i.qty
+      cost_real    += (p.cost_real    || 0) * i.qty
+    }
+  })
+
+  const payload = {
+    sku, product_name: name,
+    cost_invoice, cost_real,
+    is_combo: 1,
+    combo_items: JSON.stringify(items),
+    combo_qty: qty,
+  }
+
+  await fetch(API + "/api/products", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+
+  showToast("✅ Đã lưu Combo: " + sku)
+  document.getElementById("c_sku").value = ""
+  document.getElementById("c_name").value = ""
+  comboRows = []
+  renderComboBuilder()
+  loadCombos()
+}
+
+async function loadCombos() {
+  const data = await fetch(API + "/api/products").then(r => r.json())
+  const combos = data.filter(p => p.is_combo)
+  document.getElementById("comboCount").textContent = combos.length
+
+  document.getElementById("comboTable").innerHTML = combos.length === 0
+    ? `<tr><td colspan="7" class="empty">Chưa có combo nào</td></tr>`
+    : combos.map(p => {
+        let items = []
+        try { items = JSON.parse(p.combo_items || "[]") } catch(e) {}
+        const itemsHtml = items.map(i => `${i.sku} ×${i.qty}`).join(" + ")
+        return `<tr>
+          <td><code style="font-size:12px;background:#ede9fe;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
+          <td>${p.product_name}</td>
+          <td>${p.combo_qty || 1}</td>
+          <td><div class="combo-items">${itemsHtml || "—"}</div></td>
+          <td style="color:#6d28d9;font-weight:600">${fmt(p.cost_invoice)}</td>
+          <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
+          <td>
+            <button class="btn btn-danger" onclick="deleteSku('${p.sku}')">🗑️</button>
+          </td>
+        </tr>`
+      }).join("")
+}
+
+// ════════════════════════════
+// ORDERS
+// ════════════════════════════
+let allOrdersCache = []
+
+async function loadOrders(page = 1) {
+  currentOrderPage = page
+  document.getElementById("ordersTable").innerHTML =
+    `<tr><td colspan="13" class="empty">Đang tải...</td></tr>`
+
+  const from  = document.getElementById("o_from").value
+  const to    = document.getElementById("o_to").value
+  const plt   = document.getElementById("o_platform").value
+  const type  = document.getElementById("o_type").value
+  const search= document.getElementById("o_search").value.trim().toLowerCase()
+
+  const params = new URLSearchParams()
+  if (from) params.set("from", from)
+  if (to)   params.set("to", to)
+  if (plt)  params.set("platform", plt)
+  const qs = params.toString() ? "?" + params.toString() : ""
+
+  const data = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
+  allOrdersCache = data
+
+  // Client-side filter thêm type + search
+  let filtered = data
+  if (type)   filtered = filtered.filter(o => o.order_type === type)
+  if (search) filtered = filtered.filter(o =>
+    (o.order_id    || "").toLowerCase().includes(search) ||
+    (o.sku         || "").toLowerCase().includes(search) ||
+    (o.product_name|| "").toLowerCase().includes(search) ||
+    (o.shop        || "").toLowerCase().includes(search)
+  )
+
+  const total = filtered.length
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const start = (page - 1) * PAGE_SIZE
+  const paged = filtered.slice(start, start + PAGE_SIZE)
+
+  // Summary
+  const totalRev    = filtered.filter(o=>o.order_type==="normal").reduce((s,o)=>s+(o.revenue||0),0)
+  const totalProfit = filtered.filter(o=>o.order_type==="normal").reduce((s,o)=>s+(o.profit_real||0),0)
+  document.getElementById("orderSummary").innerHTML =
+    `Hiển thị <b>${paged.length}</b> / <b>${total}</b> đơn &nbsp;|&nbsp;
+     Doanh thu: <b style="color:#3b82f6">${fmt(totalRev)}</b> &nbsp;|&nbsp;
+     Lãi thực: <b class="${totalProfit>=0?'profit-pos':'profit-neg'}">${fmt(totalProfit)}</b>`
+
+  if (paged.length === 0) {
+    document.getElementById("ordersTable").innerHTML =
+      `<tr><td colspan="13" class="empty">Không có đơn hàng nào</td></tr>`
+    document.getElementById("orderPagination").innerHTML = ""
+    return
+  }
+
+  document.getElementById("ordersTable").innerHTML = paged.map(o => {
+    const typeClass = o.order_type === "normal" ? "tag-normal" : o.order_type === "cancel" ? "tag-cancel" : "tag-return"
+    const typeLabel = o.order_type === "normal" ? "✓ Thành công" : o.order_type === "cancel" ? "✗ Hủy" : "↩ Hoàn"
+    const pltClass  = "tag-" + (o.platform || "shopee")
+    const tax = (o.tax_flat || 0) + (o.tax_income || 0)
+    return `<tr>
+      <td style="white-space:nowrap">${o.order_date || "—"}</td>
+      <td><span class="${pltClass}">${(o.platform||"").toUpperCase()}</span></td>
+      <td style="font-size:12px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.shop||"—"}</td>
+      <td style="font-size:11px;font-family:monospace">${o.order_id||"—"}</td>
+      <td><code style="font-size:11px">${o.sku||"—"}</code></td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px" title="${o.product_name||""}">${o.product_name||"—"}</td>
+      <td style="text-align:center">${o.qty||1}</td>
+      <td style="text-align:right;color:#3b82f6;font-weight:600">${fmt(o.revenue)}</td>
+      <td style="text-align:right;color:#6d28d9">${fmt(o.cost_real)}</td>
+      <td style="text-align:right;color:#f59e0b">${fmt(o.fee)}</td>
+      <td style="text-align:right" class="${(o.profit_real||0)>=0?'profit-pos':'profit-neg'}">${fmt(o.profit_real)}</td>
+      <td style="text-align:right;color:#ef4444;font-size:12px">${fmt(tax)}</td>
+      <td><span class="${typeClass}">${typeLabel}</span></td>
+    </tr>`
+  }).join("")
+
+  // Pagination
+  if (totalPages <= 1) {
+    document.getElementById("orderPagination").innerHTML = ""
+    return
+  }
+  let pgHtml = `<button onclick="loadOrders(${page-1})" ${page===1?"disabled":""}>‹ Trước</button>`
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || Math.abs(i - page) <= 2) {
+      pgHtml += `<button onclick="loadOrders(${i})" class="${i===page?"active":""}">${i}</button>`
+    } else if (Math.abs(i - page) === 3) {
+      pgHtml += `<span style="padding:0 4px;color:#aaa">...</span>`
+    }
+  }
+  pgHtml += `<button onclick="loadOrders(${page+1})" ${page===totalPages?"disabled":""}>Sau ›</button>`
+  document.getElementById("orderPagination").innerHTML = pgHtml
+}
+
+function resetOrderFilter() {
+  document.getElementById("o_from").value = ""
+  document.getElementById("o_to").value = ""
+  document.getElementById("o_platform").value = ""
+  document.getElementById("o_type").value = ""
+  document.getElementById("o_search").value = ""
+  loadOrders(1)
+}
+
+function exportOrders() {
+  if (allOrdersCache.length === 0) { showToast("⚠️ Chưa có dữ liệu để xuất!", true); return }
+  const rows = [
+    ["Ngày","Sàn","Shop","Mã đơn","SKU","Tên SP","SL","Doanh thu","Vốn thực","Phí","Lãi thực","Loại đơn"],
+    ...allOrdersCache.map(o => [
+      o.order_date, o.platform, o.shop, o.order_id, o.sku, o.product_name,
+      o.qty, o.revenue, o.cost_real, o.fee, o.profit_real, o.order_type
+    ])
+  ]
+  const csv = rows.map(r => r.map(v => `"${(v||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n")
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(blob)
+  a.download = "orders_" + new Date().toISOString().slice(0,10) + ".csv"
+  a.click()
+  showToast("✅ Đã xuất CSV!")
+}
+
+// INIT
+loadSkus()
+addComboRow() // Mặc định 1 dòng combo
 </script>
+</body>
+</html>
