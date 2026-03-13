@@ -657,25 +657,48 @@ async function importSkusFromOrders() {
 }
 
 async function saveBulkCost() {
-  const items = bulkSkuData.map((s, i) => ({
-    sku:          s.sku,
-    product_name: s.product_name,
-    cost_invoice: parseFloat(document.getElementById("bulk_inv_" + i)?.value) || 0,
-    cost_real:    parseFloat(document.getElementById("bulk_real_" + i)?.value) || 0,
-    is_combo:     0,
-  }))
+  if (bulkSkuData.length === 0) { showToast("⚠️ Không có SKU nào để lưu!", true); return }
 
-  let saved = 0
+  // Đọc giá trị input TRƯỚC khi làm bất cứ điều gì khác
+  const items = bulkSkuData.map((s, i) => {
+    const inv  = parseFloat(document.getElementById("bulk_inv_" + i)?.value)
+    const real = parseFloat(document.getElementById("bulk_real_" + i)?.value)
+    return {
+      sku:          s.sku,
+      product_name: s.product_name,
+      cost_invoice: isNaN(inv)  ? 0 : inv,
+      cost_real:    isNaN(real) ? 0 : real,
+      is_combo:     0,
+    }
+  })
+
+  // Hiện trạng thái đang lưu
+  const btnSave = document.querySelector("#bulkCostPanel .btn-primary")
+  if (btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Đang lưu..." }
+
+  let saved = 0, failed = 0
   for (const item of items) {
-    await fetch(API + "/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(item)
-    })
-    saved++
+    try {
+      const res = await fetch(API + "/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item)
+      })
+      if (res.ok) saved++
+      else failed++
+    } catch(e) {
+      failed++
+      console.error("Lỗi lưu SKU", item.sku, e)
+    }
   }
 
-  showToast(`✅ Đã lưu ${saved} SKU thành công!`)
+  if (failed > 0) {
+    showToast(`⚠️ Lưu ${saved} SKU thành công, ${failed} SKU lỗi!`, true)
+  } else {
+    showToast(`✅ Đã lưu ${saved} SKU thành công!`)
+  }
+
+  // Ẩn panel và reset SAU KHI đã lưu xong
   document.getElementById("bulkCostPanel").style.display = "none"
   bulkSkuData = []
   loadSkus()

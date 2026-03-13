@@ -142,28 +142,58 @@ function calcProfit(order, cfg) {
 
   const platform = order.platform || "unknown"
 
-  // Phí % theo sàn (dạng: shopee_platform_fee, tiktok_platform_fee, lazada_platform_fee)
-  const platformFee  = rev * pct(cfg, `${platform}_platform_fee`)
-  const paymentFee   = rev * pct(cfg, `${platform}_payment_fee`)
-  const adsFee       = rev * pct(cfg, `${platform}_ads`)
-  const affiliateFee = rev * pct(cfg, `${platform}_affiliate`)
+ // ── Phí Shopee ───────────────────────────────────────────────────
+  const shopeeCommission = platform === "shopee" ? rev * pct(cfg, "shopee_platform_fee") : 0
+  const shopeePayment    = platform === "shopee" ? rev * pct(cfg, "shopee_payment_fee")  : 0
+  const shopeeAffiliate  = platform === "shopee" ? rev * pct(cfg, "shopee_affiliate")    : 0
+  const shopeeAds        = platform === "shopee" ? rev * pct(cfg, "shopee_ads")          : 0
 
-  // Phí cố định chung (per SKU)
-  const packFee    = num(cfg, "packaging") * qty
-  const opFee      = num(cfg, "operation") * qty
-  const laborFee   = num(cfg, "labor")     * qty
+  // ── Phí TikTok ───────────────────────────────────────────────────
+  const tiktokCommission   = platform === "tiktok" ? rev * pct(cfg, "tiktok_commission")     : 0
+  const tiktokTransaction  = platform === "tiktok" ? rev * pct(cfg, "tiktok_transaction_fee"): 0
+  const tiktokAffiliate    = platform === "tiktok" ? rev * pct(cfg, "tiktok_affiliate")      : 0
+  const tiktokAds          = platform === "tiktok" ? rev * pct(cfg, "tiktok_ads")            : 0
 
-  // Phí per đơn hàng Shopee — chỉ tính 1 lần ở dòng đầu tiên của đơn
-  // Áp dụng cả đơn thành công lẫn đơn hoàn, không áp dụng đơn hủy
+  // ── Phí Lazada ───────────────────────────────────────────────────
+  const lazadaCommission   = platform === "lazada" ? rev * pct(cfg, "lazada_commission")    : 0
+  const lazadaHandling     = platform === "lazada" ? rev * pct(cfg, "lazada_handling_fee")  : 0
+  const lazadaVat          = platform === "lazada" ? rev * pct(cfg, "lazada_vat")           : 0
+  const lazadaPit          = platform === "lazada" ? rev * pct(cfg, "lazada_pit")           : 0
+  const lazadaShippingDiff = platform === "lazada" ? rev * pct(cfg, "lazada_shipping_diff") : 0
+  const lazadaAds          = platform === "lazada" ? rev * pct(cfg, "lazada_ads")           : 0
+
+  // ── Phí cố định chung (per SKU) ──────────────────────────────────
+  const packFee  = num(cfg, "packaging") * qty
+  const opFee    = num(cfg, "operation") * qty
+  const laborFee = num(cfg, "labor")     * qty
+
+  // ── Phí per đơn — chỉ tính dòng đầu tiên ────────────────────────
   const isFirstSku = order.is_first_sku === true || order.is_first_sku === 1
-  const pishipFee  = (platform === "shopee" && isFirstSku && order.order_type !== "cancel")
-                       ? num(cfg, "shopee_piship") : 0
-  const svcFee     = (platform === "shopee" && isFirstSku && order.order_type !== "cancel")
-                       ? num(cfg, "shopee_service_fee") : 0
+  const notCancel  = order.order_type !== "cancel"
 
-  const totalFee = platformFee + paymentFee + adsFee + affiliateFee
+  // Shopee: PiShip + Service fee
+  const pishipFee = (platform === "shopee" && isFirstSku && notCancel)
+                      ? num(cfg, "shopee_piship") : 0
+  const svcFee    = (platform === "shopee" && isFirstSku && notCancel)
+                      ? num(cfg, "shopee_service_fee") : 0
+
+  // TikTok: SFR + Handling fee
+  const tiktokSfr      = (platform === "tiktok" && isFirstSku && notCancel)
+                           ? num(cfg, "tiktok_sfr") : 0
+  const tiktokHandling = (platform === "tiktok" && isFirstSku && notCancel)
+                           ? num(cfg, "tiktok_handling_fee") : 0
+
+  // ── Gộp tất cả phí ───────────────────────────────────────────────
+  const platformFee  = shopeeCommission + tiktokCommission + lazadaCommission
+  const paymentFee   = shopeePayment    + tiktokTransaction
+  const affiliateFee = shopeeAffiliate  + tiktokAffiliate  + lazadaAffiliate
+  const adsFee       = shopeeAds        + tiktokAds        + lazadaAds
+
+  const totalFee = platformFee + paymentFee + affiliateFee + adsFee
+                 + lazadaHandling + lazadaVat + lazadaPit + lazadaShippingDiff
                  + packFee + opFee + laborFee
                  + pishipFee + svcFee
+                 + tiktokSfr + tiktokHandling
 
   const costInvoice = (order.cost_invoice || 0) * qty
   const costReal    = (order.cost_real    || 0) * qty
