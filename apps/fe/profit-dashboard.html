@@ -283,6 +283,7 @@ tr:hover td { background: #fafafa; }
   </nav>
   <div class="spacer"></div>
   <a href="cost-settings.html" class="btn-settings">⚙️ Cài đặt chi phí</a>
+  <button class="btn-settings" onclick="exportData()" style="background:#10b981">⬇️ Xuất Excel</button>
 </div>
 
 <!-- FILTER BAR -->
@@ -929,7 +930,23 @@ async function init() {
   await loadDashboard()
   await loadProducts()
 }
-
+async function exportData() {
+  const qs = getFilterParams()
+  const orders = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
+  const rows = [
+    ["Ngày","Sàn","Shop","Mã đơn","SKU","Tên SP","SL","Doanh thu","Vốn thực","Phí","Lãi thực","Loại đơn"],
+    ...orders.map(o => [
+      o.order_date, o.platform, o.shop, o.order_id, o.sku, o.product_name,
+      o.qty, o.revenue, o.cost_real, o.fee, o.profit_real, o.order_type
+    ])
+  ]
+  const csv = rows.map(r => r.join(",")).join("\n")
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(blob)
+  a.download = "shophuyvan_export.csv"
+  a.click()
+}
 init()
 </script>
 </body>

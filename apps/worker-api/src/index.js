@@ -62,7 +62,10 @@ export default {
 
       // ── Thống kê hủy / hoàn ──────────────────────────────────────
       if (url.pathname === "/api/cancel-stats")
-        return cancelStats(request, env, cors)
+  return cancelStats(request, env, cors)
+
+      if (url.pathname === "/api/export-orders")
+        return exportOrders(request, env, cors)
 
       // ── Máy tính giá bán ─────────────────────────────────────────
       if (url.pathname === "/api/price-calc")
@@ -577,4 +580,25 @@ async function priceCalc(request, env, cors) {
     profit_after_tax: p.profit_after_tax,
     is_loss:         p.profit_real < 0,
   }, { headers: cors })
+}
+
+async function exportOrders(request, env, cors) {
+  const filters = getFilters(new URL(request.url))
+  const conds = ["1=1"]
+  const params = []
+  if (filters.from)     { conds.push(`date(order_date) >= ?`); params.push(filters.from) }
+  if (filters.to)       { conds.push(`date(order_date) <= ?`); params.push(filters.to) }
+  if (filters.platform) { conds.push(`platform = ?`);          params.push(filters.platform) }
+  if (filters.shop)     { conds.push(`shop = ?`);              params.push(filters.shop) }
+
+  const rows = await env.DB.prepare(`
+    SELECT order_date, platform, shop, order_id, sku, product_name,
+           qty, revenue, cost_real, fee, profit_real, order_type
+    FROM orders
+    WHERE ${conds.join(" AND ")}
+    ORDER BY order_date DESC
+    LIMIT 10000
+  `).bind(...params).all()
+
+  return Response.json(rows.results, { headers: cors })
 }
