@@ -167,20 +167,25 @@ async function importFile() {
     const uniqueReturn  = [...new Set(returns.map(o => o.order_id))].length
     const totalUnique   = uniqueNormal + uniqueCancel + uniqueReturn
 
-    // [A] tổng giá bán đơn thành công
-    const totalA        = normal.reduce((s, o) => s + (o.raw_revenue || 0), 0)
-    // [B] voucher Shopee hoàn lại
-    const totalB        = normal.reduce((s, o) => s + (o.shopee_voucher || 0), 0)
-    // [C] trợ giá Shopee
-    const totalC        = normal.reduce((s, o) => s + (o.shopee_subsidy || 0), 0)
-    // [D] tiền hoàn = tổng raw_revenue của đơn return
-    const totalD        = returns.reduce((s, o) => s + (o.return_amount || o.raw_revenue || 0), 0)
-    // [AF+AK] giảm giá shop & combo
-    const totalDiscount = normal.reduce((s, o) => s + (o.shop_discount || 0) + (o.combo_discount || 0), 0)
-    // Doanh thu thực = A + B + C - D  (AF/AK đã trừ trong line_revenue rồi, không trừ lại)
-    const totalRevenue  = totalA + totalB + totalC - totalD
-    const totalReturnFee = returns.reduce((s, o) => s + o.return_fee, 0)
-    const cancelRate    = totalUnique > 0 ? ((uniqueCancel / totalUnique) * 100).toFixed(1) : 0
+    // Tất cả đơn không hủy (thành công + trả hàng)
+    const allNonCancel = orders.filter(o => o.order_type !== "cancel")
+
+    // [A] Tổng giá bán TẤT CẢ đơn không hủy (kể cả return)
+    const totalA         = allNonCancel.reduce((s, o) => s + (o.raw_revenue || 0), 0)
+    // [B] Voucher Shopee (tất cả không hủy)
+    const totalB         = allNonCancel.reduce((s, o) => s + (o.shopee_voucher || 0), 0)
+    // [C] Shopee trợ giá (tất cả không hủy)
+    const totalC         = allNonCancel.reduce((s, o) => s + (o.shopee_subsidy || 0), 0)
+    // [D] Tiền hoàn = raw_revenue của đơn return
+    const totalD         = returns.reduce((s, o) => s + (o.raw_revenue || 0), 0)
+    // [AF] Mã giảm giá Shop (tất cả không hủy)
+    const totalAF        = allNonCancel.reduce((s, o) => s + (o.shop_discount || 0), 0)
+    // [AK] Giảm giá Combo Shop (tất cả không hủy)
+    const totalAK        = allNonCancel.reduce((s, o) => s + (o.combo_discount || 0), 0)
+    // Doanh thu thực = A + B + C - D + AF + AK
+    const totalRevenue   = totalA + totalB + totalC - totalD + totalAF + totalAK
+    const totalReturnFee = returns.reduce((s, o) => s + (o.return_fee || 0), 0)
+    const cancelRate     = totalUnique > 0 ? ((uniqueCancel / totalUnique) * 100).toFixed(1) : 0
 
     // 5. Hiển thị tóm tắt
     const platformTag = `<span class="tag tag-${meta.platform}">${meta.platform.toUpperCase()}</span>`
@@ -204,7 +209,7 @@ async function importFile() {
         <span class="summary-value">${uniqueReturn} đơn</span>
       </div>
       <div class="summary-row">
-        <span class="summary-label">💰 [A] Tổng giá bán (đơn thành công)</span>
+        <span class="summary-label">💰 [A] Tổng giá bán (không hủy)</span>
         <span class="summary-value">${fmt(totalA)} đ</span>
       </div>
       ${meta.platform === "shopee" ? `
@@ -216,16 +221,25 @@ async function importFile() {
         <span class="summary-label">💸 [C] Shopee trợ giá</span>
         <span class="summary-value" style="color:#10b981">+${fmt(totalC)} đ</span>
       </div>` : ""}
-      ${totalDiscount > 0 ? `
+      ${(totalAF + totalAK) > 0 ? `
       <div class="summary-row">
         <span class="summary-label">🏷️ [AF+AK] Giảm giá shop / combo</span>
-        <span class="summary-value" style="color:#f59e0b">-${fmt(totalDiscount)} đ</span>
+        <span class="summary-value" style="color:#10b981">+${fmt(totalAF + totalAK)} đ</span>
       </div>` : ""}
       ${totalD > 0 ? `
       <div class="summary-row">
         <span class="summary-label">↩️ [D] Tiền hoàn trả</span>
         <span class="summary-value" style="color:#ef4444">-${fmt(totalD)} đ</span>
       </div>` : ""}
+      ${totalReturnFee > 0 ? `
+      <div class="summary-row">
+        <span class="summary-label">🚚 Phí vận chuyển trả hàng</span>
+        <span class="summary-value" style="color:#ef4444">-${fmt(totalReturnFee)} đ</span>
+      </div>` : ""}
+      <div class="summary-row" style="border-top:2px solid #e0e0e0;margin-top:6px;padding-top:8px">
+        <span class="summary-label" style="font-weight:700">✅ Doanh thu = A+B+C-D+AF+AK</span>
+        <span class="summary-value" style="color:#10b981;font-size:15px">${fmt(totalRevenue)} đ</span>
+      </div>
       ${skipped.length > 0 ? `<br><small style="color:#999">⚠️ Bỏ qua ${skipped.length} dòng không hợp lệ</small>` : ""}
       <br>⏳ Đang upload lên server...
     `)
