@@ -8,11 +8,11 @@ apps
 │  sku-mapping.html
 │  admin-products.html
 │  cost-settings.html
-│
-│  parser.js
-│  profit-engine.js
-│  sku-manager.js
-│  uploader.js
+│────js
+│    parser.js
+│    profit-engine.js
+│    sku-manager.js
+│    uploader.js
 │
 └─ worker-api
     └ src
