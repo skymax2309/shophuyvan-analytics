@@ -7,102 +7,223 @@
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
-
 <style>
 
-body{
- font-family:Arial;
- padding:40px;
- background:#f5f5f5;
+body {
+  font-family: Arial;
+  padding: 40px;
+  background: #f5f5f5;
 }
 
-.box{
- background:white;
- padding:20px;
- border-radius:10px;
- max-width:500px;
+.box {
+  background: white;
+  padding: 24px;
+  border-radius: 10px;
+  max-width: 560px;
 }
 
-button{
- padding:10px 20px;
- margin-top:10px;
+h2 {
+  margin-top: 0;
 }
 
-#log{
- margin-top:20px;
- font-size:14px;
+input[type="file"] {
+  margin-bottom: 10px;
 }
+
+button {
+  padding: 10px 24px;
+  margin-top: 6px;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+#log {
+  margin-top: 20px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.tag-shopee  { background: #ff6633; color: white; }
+.tag-tiktok  { background: #010101; color: white; }
+.tag-lazada  { background: #0f146d; color: white; }
+.tag-normal  { background: #34a853; color: white; }
+.tag-cancel  { background: #ea4335; color: white; }
+.tag-return  { background: #fbbc04; color: #333;  }
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.summary-label { color: #555; }
+.summary-value { font-weight: bold; }
+
+.error { color: #c62828; }
+.success { color: #2e7d32; }
 
 </style>
-
 </head>
 
 <body>
 
 <div class="box">
 
-<h2>Upload File Bán Hàng</h2>
+  <h2>📦 Upload File Bán Hàng</h2>
 
-<input type="file" id="file">
+  <input type="file" id="file" accept=".xlsx">
+  <br>
+  <button id="btnImport">Import Excel</button>
 
-<br>
-
-<button id="btnImport">Import Excel</button>
-
-<div id="log"></div>
+  <div id="log"></div>
 
 </div>
 
 <script type="module">
 
-import { normalizeOrder } from "./js/parser.js"
+import { normalizeOrder, parseFileMeta } from "./js/parser.js"
 
-const API="https://huyvan-worker-api.nghiemchihuy.workers.dev"
+const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 
-async function importFile(){
+const btn = document.getElementById("btnImport")
+const log = document.getElementById("log")
 
- const file=document.getElementById("file").files[0]
+function setLog(html) { log.innerHTML = html }
+function addLog(html) { log.innerHTML += html }
 
- if(!file){
-  alert("Chọn file trước")
-  return
- }
+btn.addEventListener("click", importFile)
 
- document.getElementById("log").innerHTML="Đang đọc file..."
+async function importFile() {
 
- const data=await file.arrayBuffer()
+  const file = document.getElementById("file").files[0]
 
- const workbook=XLSX.read(data)
+  if (!file) {
+    alert("Vui lòng chọn file trước!")
+    return
+  }
 
- const sheet=workbook.Sheets[workbook.SheetNames[0]]
+  btn.disabled = true
+  setLog("⏳ Đang đọc file <b>" + file.name + "</b>...")
 
- const rows=XLSX.utils.sheet_to_json(sheet)
+  try {
 
- const orders = []
+    // 1. Đọc meta từ tên file (sàn + tên shop)
+    const meta = parseFileMeta(file.name)
 
-rows.forEach(r=>{
+    // 2. Parse Excel
+    const data     = await file.arrayBuffer()
+    const workbook = XLSX.read(data)
+    const sheet    = workbook.Sheets[workbook.SheetNames[0]]
+    const rows     = XLSX.utils.sheet_to_json(sheet)
 
- const order = normalizeOrder(r)
+    // 3. Normalize từng dòng
+    const orders  = []
+    const skipped = []
 
- if(order) orders.push(order)
+    rows.forEach((r, i) => {
+      const order = normalizeOrder(r, meta)
+      if (order) {
+        orders.push(order)
+      } else {
+        skipped.push(i + 2) // +2 vì row 1 = header
+      }
+    })
 
-})
+    // 4. Thống kê
+    const normal  = orders.filter(o => o.order_type === "normal")
+    const cancel  = orders.filter(o => o.order_type === "cancel")
+    const returns = orders.filter(o => o.order_type === "return")
 
- document.getElementById("log").innerHTML=
- "Đã parse "+orders.length+" dòng dữ liệu"
+    // Gộp đơn trùng order_id (chỉ đếm unique order)
+    const uniqueNormal  = [...new Set(normal.map(o => o.order_id))].length
+    const uniqueCancel  = [...new Set(cancel.map(o => o.order_id))].length
+    const uniqueReturn  = [...new Set(returns.map(o => o.order_id))].length
+    const totalUnique   = uniqueNormal + uniqueCancel + uniqueReturn
 
- await fetch(API+"/api/import-orders",{
-  method:"POST",
-  headers:{
-   "Content-Type":"application/json"
-  },
-  body:JSON.stringify(orders)
- })
+    const totalRevenue  = normal.reduce((s, o) => s + o.revenue, 0)
+    const totalReturnFee = returns.reduce((s, o) => s + o.return_fee, 0)
+    const cancelRate    = totalUnique > 0 ? ((uniqueCancel / totalUnique) * 100).toFixed(1) : 0
 
- document.getElementById("log").innerHTML+="<br>Upload thành công"
+    // 5. Hiển thị tóm tắt
+    const platformTag = `<span class="tag tag-${meta.platform}">${meta.platform.toUpperCase()}</span>`
 
+    setLog(`
+      <b>Sàn:</b> ${platformTag} &nbsp; <b>Shop:</b> ${meta.shop}<br><br>
+      <div class="summary-row">
+        <span class="summary-label">📦 Tổng dòng đọc được</span>
+        <span class="summary-value">${orders.length} dòng</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label"><span class="tag tag-normal">✓</span> Đơn thành công</span>
+        <span class="summary-value">${uniqueNormal} đơn</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label"><span class="tag tag-cancel">✗</span> Đơn hủy</span>
+        <span class="summary-value">${uniqueCancel} đơn &nbsp;(${cancelRate}%)</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label"><span class="tag tag-return">↩</span> Trả hàng / Hoàn tiền</span>
+        <span class="summary-value">${uniqueReturn} đơn</span>
+      </div>
+      <div class="summary-row">
+        <span class="summary-label">💰 Doanh thu (đơn thành công)</span>
+        <span class="summary-value">${fmt(totalRevenue)} đ</span>
+      </div>
+      ${totalReturnFee > 0 ? `
+      <div class="summary-row">
+        <span class="summary-label">🚚 Phí trả hàng</span>
+        <span class="summary-value">${fmt(totalReturnFee)} đ</span>
+      </div>` : ""}
+      ${skipped.length > 0 ? `<br><small style="color:#999">⚠️ Bỏ qua ${skipped.length} dòng không hợp lệ</small>` : ""}
+      <br>⏳ Đang upload lên server...
+    `)
+
+    // 6. Upload lên worker
+    const res = await fetch(API + "/api/import-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(orders)
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error("Server lỗi " + res.status + ": " + text)
+    }
+
+    const result = await res.json()
+
+    addLog(`<br><span class="success">✅ Upload thành công — đã lưu <b>${result.imported}</b> dòng vào database!</span>`)
+
+  } catch (err) {
+    addLog(`<br><span class="error">❌ Lỗi: ${err.message}</span>`)
+    console.error(err)
+  }
+
+  btn.disabled = false
 }
-document.getElementById("btnImport").addEventListener("click", importFile)
+
+function fmt(n) {
+  return Number(n).toLocaleString("vi-VN")
+}
 
 </script>
 
