@@ -63,22 +63,6 @@ export function fillFirstSku(orders) {
   })
 }
 
-// Sau khi parse xong toàn bộ orders, gọi hàm này để điền sku_count
-export function fillSkuCount(orders) {
-  // Đếm số dòng SKU per order_id (chỉ đơn không hủy)
-  const countMap = {}
-  orders.forEach(o => {
-    if (o.order_type !== "cancel") {
-      countMap[o.order_id] = (countMap[o.order_id] || 0) + 1
-    }
-  })
-  // Gán sku_count vào từng order
-  return orders.map(o => ({
-    ...o,
-    sku_count: countMap[o.order_id] || 1
-  }))
-}
-
 
 // ════════════════════════════════════════════════════════════════════
 // SHOPEE
@@ -109,10 +93,16 @@ function _shopee(row, shop) {
   // [B] Voucher Shopee hoàn lại (Shopee trả thay khách)
   const B = _num(row["Mã giảm giá của Shopee"])
 
-  // [C] Trợ giá từ Shopee = "Được Shopee trợ giá" × số lượng
-  const shopee_subsidy = _num(row["Được Shopee trợ giá"])
-  const qty            = _int(row["Số lượng"])
-  const C = shopee_subsidy * qty
+  // [C] Trợ giá từ Shopee
+  // Thử nhiều tên cột vì XLSX.js đôi khi encode khác nhau
+  const shopee_subsidy = _num(
+    row["Được Shopee trợ giá"] ||
+    row["Duoc Shopee tro gia"]  ||
+    row["\u0110\u01b0\u1ee3c Shopee tr\u1ee3 gi\u00e1"] ||
+    0
+  )
+  const qty = _int(row["Số lượng"])
+  const C   = shopee_subsidy * qty
 
   // [D] Tiền hoàn (chỉ tính cho đơn return)
   const D = order_type === "return" ? A : 0
