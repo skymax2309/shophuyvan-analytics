@@ -229,15 +229,31 @@ body {
     </div>
     <div class="grid">
       <div class="field">
-        <label>Phí nền tảng (Commission)</label>
-        <span class="hint">% trên doanh thu</span>
+        <label>Phí Hoa Hồng (Commission)</label>
+        <span class="hint">% trên doanh thu — thường 9.87%</span>
         <div class="input-wrap">
-          <input type="number" id="tiktok_platform_fee" step="0.1" min="0" max="100" placeholder="0">
+          <input type="number" id="tiktok_commission" step="0.01" min="0" max="100" placeholder="9.87">
           <span class="unit">%</span>
         </div>
       </div>
       <div class="field">
-        <label>Phí quảng cáo Ads</label>
+        <label>Phí Giao Dịch (Transaction)</label>
+        <span class="hint">% trên doanh thu — thường 5.19%</span>
+        <div class="input-wrap">
+          <input type="number" id="tiktok_transaction_fee" step="0.01" min="0" max="100" placeholder="5.19">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Tiếp Thị Liên Kết (Affiliate)</label>
+        <span class="hint">% trên doanh thu — thường 2.9%</span>
+        <div class="input-wrap">
+          <input type="number" id="tiktok_affiliate" step="0.01" min="0" max="100" placeholder="2.9">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Quảng Cáo Ads</label>
         <span class="hint">% trên doanh thu</span>
         <div class="input-wrap">
           <input type="number" id="tiktok_ads" step="0.1" min="0" max="100" placeholder="0">
@@ -245,11 +261,27 @@ body {
         </div>
       </div>
       <div class="field">
-        <label>Phí hoa hồng liên kết (Affiliate)</label>
-        <span class="hint">% trên doanh thu</span>
+        <label>Phí SFR</label>
+        <span class="hint">VNĐ / đơn hàng (tương tự PiShip Shopee)</span>
         <div class="input-wrap">
-          <input type="number" id="tiktok_affiliate" step="0.1" min="0" max="100" placeholder="0">
-          <span class="unit">%</span>
+          <input type="number" id="tiktok_sfr" step="1" min="0" placeholder="0">
+          <span class="unit">đ</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Xử Lý Đơn</label>
+        <span class="hint">VNĐ / đơn hàng (tương tự DV Shopee)</span>
+        <div class="input-wrap">
+          <input type="number" id="tiktok_handling_fee" step="1" min="0" placeholder="0">
+          <span class="unit">đ</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Vận Chuyển</label>
+        <span class="hint">TikTok bù lại — để 0</span>
+        <div class="input-wrap" style="background:#f8f8f8">
+          <input type="number" value="0" disabled style="color:#999">
+          <span class="unit">đ</span>
         </div>
       </div>
     </div>
@@ -262,26 +294,50 @@ body {
     </div>
     <div class="grid">
       <div class="field">
-        <label>Phí nền tảng (Commission)</label>
-        <span class="hint">% trên doanh thu</span>
+        <label>Phí Cố Định (Commission)</label>
+        <span class="hint">% trên doanh thu — thường 10.68%</span>
         <div class="input-wrap">
-          <input type="number" id="lazada_platform_fee" step="0.1" min="0" max="100" placeholder="0">
+          <input type="number" id="lazada_commission" step="0.01" min="0" max="100" placeholder="10.68">
           <span class="unit">%</span>
         </div>
       </div>
       <div class="field">
-        <label>Phí quảng cáo Ads</label>
+        <label>Phí Xử Lý Đơn Hàng</label>
+        <span class="hint">% trên doanh thu — thường 5.36%</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_handling_fee" step="0.01" min="0" max="100" placeholder="5.36">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Thuế GTGT (VAT)</label>
+        <span class="hint">% trên doanh thu — thường 1.01%</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_vat" step="0.01" min="0" max="100" placeholder="1.01">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Thuế TNCN</label>
+        <span class="hint">% trên doanh thu — thường 0.51%</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_pit" step="0.01" min="0" max="100" placeholder="0.51">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí VC Chênh Lệch</label>
+        <span class="hint">% trên doanh thu — thường 0.15%</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_shipping_diff" step="0.01" min="0" max="100" placeholder="0.15">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Quảng Cáo Ads</label>
         <span class="hint">% trên doanh thu</span>
         <div class="input-wrap">
           <input type="number" id="lazada_ads" step="0.1" min="0" max="100" placeholder="0">
-          <span class="unit">%</span>
-        </div>
-      </div>
-      <div class="field">
-        <label>Phí hoa hồng liên kết (Affiliate)</label>
-        <span class="hint">% trên doanh thu</span>
-        <div class="input-wrap">
-          <input type="number" id="lazada_affiliate" step="0.1" min="0" max="100" placeholder="0">
           <span class="unit">%</span>
         </div>
       </div>
@@ -362,12 +418,18 @@ const FIELDS = [
   { id: "shopee_affiliate",    type: "pct" },
   { id: "shopee_service_fee",  type: "fixed" },
   { id: "shopee_piship",       type: "fixed" },
-  { id: "tiktok_platform_fee", type: "pct" },
-  { id: "tiktok_ads",          type: "pct" },
-  { id: "tiktok_affiliate",    type: "pct" },
-  { id: "lazada_platform_fee", type: "pct" },
-  { id: "lazada_ads",          type: "pct" },
-  { id: "lazada_affiliate",    type: "pct" },
+  { id: "tiktok_commission",    type: "pct"   },
+  { id: "tiktok_transaction_fee", type: "pct" },
+  { id: "tiktok_affiliate",     type: "pct"   },
+  { id: "tiktok_ads",           type: "pct"   },
+  { id: "tiktok_sfr",           type: "fixed" },
+  { id: "tiktok_handling_fee",  type: "fixed" },
+  { id: "lazada_commission",    type: "pct" },
+  { id: "lazada_handling_fee",  type: "pct" },
+  { id: "lazada_vat",           type: "pct" },
+  { id: "lazada_pit",           type: "pct" },
+  { id: "lazada_shipping_diff", type: "pct" },
+  { id: "lazada_ads",           type: "pct" },
   { id: "packaging",           type: "fixed" },
   { id: "operation",           type: "fixed" },
   { id: "labor",               type: "fixed" },

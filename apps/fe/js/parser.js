@@ -217,26 +217,48 @@ function _lazada(row, shop) {
 
   const status = _str(row["status"]).toLowerCase()
 
+  // Phân loại đơn theo chuẩn Lazada
+  // delivered  → thành công
+  // returned   → trả hàng
+  // canceled   → hủy
   let order_type = "normal"
-  if (status === "canceled")          order_type = "cancel"
-  if (status === "package returned")  order_type = "return"
+  if (status === "canceled")                            order_type = "cancel"
+  if (status === "returned" || status === "package returned") order_type = "return"
 
-  const raw_revenue = _num(row["unitPrice"])
+  // [A] Giá trị sản phẩm — khớp với PDF báo cáo Lazada
+  const unit_price       = _num(row["unitPrice"])
+  // [B] Giá thực tế khách thanh toán (sau voucher)
+  const paid_price       = _num(row["paidPrice"])
+  // [C] Giảm giá shop chịu
+  const seller_discount  = _num(row["sellerDiscountTotal"])
+  // [D] Tiền hoàn (đơn return)
+  const refund_amount    = _num(row["refundAmount"])
+
+  // Doanh thu = unitPrice cho đơn delivered
+  // (khớp cách Lazada ghi nhận trong PDF: tổng unitPrice delivered)
+  const revenue = order_type === "normal" ? unit_price : 0
 
   return {
-    platform:      "lazada",
+    platform:        "lazada",
     shop,
     order_id,
-    item_id:       _str(row["orderItemId"]),
-    order_date:    _date(_str(row["createTime"])),
-    product_name:  _str(row["itemName"]),
-    sku:           _str(row["sellerSku"]),
-    qty:           1,
-    revenue:       order_type === "normal" ? raw_revenue : 0,
-    raw_revenue,
+    item_id:         _str(row["orderItemId"]),
+    order_date:      _date(_str(row["createTime"])),
+    product_name:    _str(row["itemName"]),
+    sku:             _str(row["sellerSku"]),
+    qty:             1,
+    revenue,
+    raw_revenue:     unit_price,
+    paid_price,
+    seller_discount,
+    shopee_voucher:  0,
+    shopee_subsidy:  0,
+    shop_discount:   seller_discount,
+    combo_discount:  0,
+    return_amount:   order_type === "return" ? (refund_amount || unit_price) : 0,
     order_type,
-    cancel_reason: order_type !== "normal" ? status : null,
-    return_fee:    0,
+    cancel_reason:   order_type !== "normal" ? status : null,
+    return_fee:      0,
   }
 }
 
