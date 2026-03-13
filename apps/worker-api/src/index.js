@@ -39,7 +39,7 @@ export default {
 
   }catch(e){
 
-   return new Response(e.toString(),{status:500})
+   return new Response(e.toString(),{status:500,headers:cors})
 
   }
 
