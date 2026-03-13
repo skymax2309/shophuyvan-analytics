@@ -170,17 +170,25 @@ body {
     <div class="card-title">
       <span class="platform-tag tag-shopee">SHOPEE</span> Phí sàn Shopee
     </div>
-    <div class="grid">
+<div class="grid">
       <div class="field">
-        <label>Phí nền tảng (Commission)</label>
-        <span class="hint">% trên doanh thu</span>
+        <label>Phí Cố Định (Commission)</label>
+        <span class="hint">% trên doanh thu — thường 11.44%</span>
         <div class="input-wrap">
-          <input type="number" id="shopee_platform_fee" step="0.1" min="0" max="100" placeholder="0">
+          <input type="number" id="shopee_platform_fee" step="0.01" min="0" max="100" placeholder="11.44">
           <span class="unit">%</span>
         </div>
       </div>
       <div class="field">
-        <label>Phí quảng cáo Ads</label>
+        <label>Phí Thanh Toán</label>
+        <span class="hint">% trên doanh thu — thường 5.03%</span>
+        <div class="input-wrap">
+          <input type="number" id="shopee_payment_fee" step="0.01" min="0" max="100" placeholder="5.03">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Quảng Cáo Ads</label>
         <span class="hint">% trên doanh thu</span>
         <div class="input-wrap">
           <input type="number" id="shopee_ads" step="0.1" min="0" max="100" placeholder="0">
@@ -188,26 +196,26 @@ body {
         </div>
       </div>
       <div class="field">
-        <label>Phí hoa hồng liên kết (Affiliate)</label>
-        <span class="hint">% trên doanh thu</span>
+        <label>Phí Tiếp Thị Liên Kết (Affiliate)</label>
+        <span class="hint">% trên doanh thu — thường 1.56%</span>
         <div class="input-wrap">
-          <input type="number" id="shopee_affiliate" step="0.1" min="0" max="100" placeholder="0">
+          <input type="number" id="shopee_affiliate" step="0.01" min="0" max="100" placeholder="1.56">
           <span class="unit">%</span>
         </div>
       </div>
       <div class="field">
-        <label>Phí PiShip</label>
-        <span class="hint">VNĐ / đơn hàng (kể cả đơn hoàn)</span>
+        <label>Phí Dịch Vụ (Freeship Xtra...)</label>
+        <span class="hint">VNĐ / đơn hàng — thường 3,000đ</span>
         <div class="input-wrap">
-          <input type="number" id="shopee_piship" step="1" min="0" placeholder="1620">
+          <input type="number" id="shopee_service_fee" step="1" min="0" placeholder="3000">
           <span class="unit">đ</span>
         </div>
       </div>
       <div class="field">
-        <label>Phí Dịch Vụ</label>
-        <span class="hint">VNĐ / đơn hàng (kể cả đơn hoàn)</span>
+        <label>Phí PiShip</label>
+        <span class="hint">VNĐ / đơn hàng — thường 1,620đ</span>
         <div class="input-wrap">
-          <input type="number" id="shopee_service_fee" step="1" min="0" placeholder="3000">
+          <input type="number" id="shopee_piship" step="1" min="0" placeholder="1620">
           <span class="unit">đ</span>
         </div>
       </div>
@@ -349,10 +357,11 @@ const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 
 const FIELDS = [
   { id: "shopee_platform_fee", type: "pct" },
+  { id: "shopee_payment_fee",  type: "pct" },
   { id: "shopee_ads",          type: "pct" },
   { id: "shopee_affiliate",    type: "pct" },
-  { id: "shopee_piship",       type: "fixed" },
   { id: "shopee_service_fee",  type: "fixed" },
+  { id: "shopee_piship",       type: "fixed" },
   { id: "tiktok_platform_fee", type: "pct" },
   { id: "tiktok_ads",          type: "pct" },
   { id: "tiktok_affiliate",    type: "pct" },

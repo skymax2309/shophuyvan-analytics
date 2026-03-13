@@ -144,6 +144,7 @@ function calcProfit(order, cfg) {
 
   // Phí % theo sàn (dạng: shopee_platform_fee, tiktok_platform_fee, lazada_platform_fee)
   const platformFee  = rev * pct(cfg, `${platform}_platform_fee`)
+  const paymentFee   = rev * pct(cfg, `${platform}_payment_fee`)
   const adsFee       = rev * pct(cfg, `${platform}_ads`)
   const affiliateFee = rev * pct(cfg, `${platform}_affiliate`)
 
@@ -160,7 +161,7 @@ function calcProfit(order, cfg) {
   const svcFee     = (platform === "shopee" && isFirstSku && order.order_type !== "cancel")
                        ? num(cfg, "shopee_service_fee") : 0
 
-  const totalFee = platformFee + adsFee + affiliateFee
+  const totalFee = platformFee + paymentFee + adsFee + affiliateFee
                  + packFee + opFee + laborFee
                  + pishipFee + svcFee
 
@@ -180,15 +181,25 @@ function calcProfit(order, cfg) {
   const taxIncome = profitInvoice > 0 ? profitInvoice * 0.17 : 0
 
   return {
-    revenue:        rev,
-    total_fee:      totalFee,
-    cost_invoice:   costInvoice,
-    cost_real:      costReal,
-    profit_invoice: profitInvoice,
-    profit_real:    profitReal,
-    tax_flat:       taxFlat,
-    tax_income:     taxIncome,
+    revenue:         rev,
+    total_fee:       totalFee,
+    cost_invoice:    costInvoice,
+    cost_real:       costReal,
+    profit_invoice:  profitInvoice,
+    profit_real:     profitReal,
+    tax_flat:        taxFlat,
+    tax_income:      taxIncome,
     profit_after_tax: profitReal - taxFlat - taxIncome,
+    // Chi tiết từng loại phí
+    fee_platform:    platformFee,
+    fee_payment:     paymentFee,
+    fee_affiliate:   affiliateFee,
+    fee_ads:         adsFee,
+    fee_piship:      pishipFee,
+    fee_service:     svcFee,
+    fee_packaging:   packFee,
+    fee_operation:   opFee,
+    fee_labor:       laborFee,
   }
 }
 
@@ -308,6 +319,15 @@ async function importOrders(request, env, cors) {
       return_fee:     o.return_fee     || 0,
       raw_revenue:    o.raw_revenue    || 0,
       order_date:     o.order_date     || "",
+      fee_platform:   p.fee_platform   || 0,
+      fee_payment:    p.fee_payment    || 0,
+      fee_affiliate:  p.fee_affiliate  || 0,
+      fee_ads:        p.fee_ads        || 0,
+      fee_piship:     p.fee_piship     || 0,
+      fee_service:    p.fee_service    || 0,
+      fee_packaging:  p.fee_packaging  || 0,
+      fee_operation:  p.fee_operation  || 0,
+      fee_labor:      p.fee_labor      || 0,
     }
   })
 
@@ -371,16 +391,23 @@ async function dashboard(request, env, cors) {
 
   const row = await env.DB.prepare(`
     SELECT
-      COUNT(DISTINCT order_id)  AS total_orders,
-      SUM(revenue)              AS total_revenue,
-      SUM(fee)                  AS total_fee,
-      SUM(cost_invoice)         AS total_cost_invoice,
-      SUM(cost_real)            AS total_cost_real,
-      SUM(profit_invoice)       AS total_profit_invoice,
-      SUM(profit_real)          AS total_profit_real,
-      SUM(tax_flat)             AS total_tax_flat,
-      SUM(tax_income)           AS total_tax_income,
-      SUM(tax_flat + tax_income) AS total_tax
+      COUNT(DISTINCT order_id)   AS total_orders,
+      SUM(revenue)               AS total_revenue,
+      SUM(fee)                   AS total_fee,
+      SUM(cost_invoice)          AS total_cost_invoice,
+      SUM(cost_real)             AS total_cost_real,
+      SUM(profit_invoice)        AS total_profit_invoice,
+      SUM(profit_real)           AS total_profit_real,
+      SUM(tax_flat)              AS total_tax_flat,
+      SUM(tax_income)            AS total_tax_income,
+      SUM(tax_flat + tax_income) AS total_tax,
+      SUM(fee_platform)          AS total_platform_fee,
+      SUM(fee_payment)           AS total_payment_fee,
+      SUM(fee_affiliate)         AS total_affiliate_fee,
+      SUM(fee_ads)               AS total_ads_fee,
+      SUM(fee_piship)            AS total_piship_fee,
+      SUM(fee_service)           AS total_service_fee,
+      SUM(fee_packaging + fee_operation + fee_labor) AS total_fixed_fee
     FROM orders
     ${where}
   `).bind(...params).first()
