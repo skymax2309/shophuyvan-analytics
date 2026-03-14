@@ -193,6 +193,13 @@ function _tiktok(row, shop) {
   const cancel_reason_raw = _str(row["Cancel Reason"] || "")
   const is_failed_delivery = /giao gói hàng thất bại|failed delivery/i.test(cancel_reason_raw)
 
+  // DEBUG — xóa sau khi xác nhận
+  if (!window._tiktokDebug && cancel_reason_raw) {
+    window._tiktokDebug = true
+    console.log("TikTok Cancel Reason raw:", JSON.stringify(cancel_reason_raw))
+    console.log("ALL KEYS:", Object.keys(row))
+  }
+
   let cancel_fee = 0
   if (order_type === "return")                        cancel_fee = 4620
   else if (order_type === "cancel" && is_failed_delivery) cancel_fee = 1620
