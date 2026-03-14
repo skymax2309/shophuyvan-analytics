@@ -667,11 +667,8 @@ async function parseTiktokExcelClient(file) {
        }
      }
    
-     return {
-       _month,
-       gross_revenue:       total_revenue,
-   
-  return {
+return {
+    _month,
     gross_revenue:       total_revenue,
     refund_amount:       refund_subtotal,
     net_product_revenue: subtotal_after - refund_subtotal,
