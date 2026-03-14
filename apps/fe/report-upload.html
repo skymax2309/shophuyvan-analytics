@@ -131,7 +131,14 @@ body { font-family: -apple-system, sans-serif; background: #f0f2f5; }
       </div>
       <div class="field">
         <label>Shop</label>
-        <input type="text" id="inpShop" placeholder="VD: KHOGIADUNGHUYVAN">
+        <div style="display:flex;gap:6px">
+          <input type="text" id="inpShop" placeholder="VD: KHOGIADUNGHUYVAN"
+            style="flex:1;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none"
+            list="shopList">
+          <datalist id="shopList"></datalist>
+          <button onclick="saveShop()" title="Lưu tên shop"
+            style="background:#10b981;color:white;border:none;border-radius:8px;padding:9px 12px;cursor:pointer;font-size:16px">💾</button>
+        </div>
       </div>
     </div>
 
@@ -178,6 +185,39 @@ body { font-family: -apple-system, sans-serif; background: #f0f2f5; }
 <script>
 const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 let selectedFiles = []
+
+// ── Quản lý danh sách Shop (lưu localStorage) ────────────────────────
+function loadShops() {
+  return JSON.parse(localStorage.getItem("report_shops") || "[]")
+}
+
+function saveShop() {
+  const val = document.getElementById("inpShop").value.trim()
+  if (!val) return
+  const shops = loadShops()
+  if (!shops.includes(val)) {
+    shops.push(val)
+    localStorage.setItem("report_shops", JSON.stringify(shops))
+    renderShopList()
+    showToast("✅ Đã lưu shop: " + val)
+  }
+}
+
+function renderShopList() {
+  const shops = loadShops()
+  document.getElementById("shopList").innerHTML =
+    shops.map(s => `<option value="${s}">`).join("")
+}
+
+function showToast(msg) {
+  const t = document.createElement("div")
+  t.style.cssText = "position:fixed;bottom:24px;right:24px;background:#1a1a2e;color:white;padding:12px 20px;border-radius:8px;font-size:14px;z-index:999"
+  t.textContent = msg
+  document.body.appendChild(t)
+  setTimeout(() => t.remove(), 2500)
+}
+
+renderShopList()
 
 // ── Drag & Drop ──────────────────────────────────────────────────────
 const dropzone = document.getElementById("dropzone")
@@ -239,7 +279,7 @@ async function uploadAll() {
     const ext        = file.name.split(".").pop()
     const month      = detectMonthFromName(file.name)
     const cleanShop  = shop.replace(/\s+/g, "_").toUpperCase() || "SHOP"
-    const newName    = `${platform.toUpperCase()}_${cleanShop}_${month}_${report_type}.${ext}`
+    const newName    = `${platform.toUpperCase()}_${cleanShop}_${month}_${type}.${ext}`
 
     log.innerHTML += `⏳ Đang xử lý <b>${file.name}</b> → <b>${newName}</b>...<br>`
 
