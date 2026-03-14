@@ -252,6 +252,7 @@ async function uploadAll() {
 
         const res = await fetch(API + "/api/upload-report", { method: "POST", body: formData })
         result = await res.json()
+      }
 
       if (result.status === "ok") {
         log.innerHTML += `✅ <b>${file.name}</b> → ${result.r2_key}<br>`
