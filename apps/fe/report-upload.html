@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Upload Báo Cáo Sàn</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -792,6 +793,8 @@ async function loadHistory() {
       <div style="display:flex;gap:8px;align-items:center">
         <a href="${API}/api/report-file?key=${encodeURIComponent(r.r2_key)}"
            style="color:#4f46e5;font-size:12px;text-decoration:none" target="_blank">⬇️ Tải</a>
+        ${r.platform === 'tiktok' && r.report_type === 'income' ? `
+        <button onclick='exportPDF(${JSON.stringify(r)})' style="color:#16a34a;background:none;border:none;cursor:pointer;font-size:12px">📄 PDF</button>` : ""}
         <button onclick="deleteReport(${r.id}, '${r.r2_key}')"
            style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:12px">🗑️ Xóa</button>
       </div>
@@ -813,6 +816,65 @@ async function deleteReport(id, r2Key) {
   } catch(e) {
     alert("Lỗi: " + e.message)
   }
+}
+
+function exportPDF(r) {
+  const { jsPDF } = window.jspdf
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const fmt = n => Math.abs(Math.round(n || 0)).toLocaleString("vi-VN")
+  const L = 20, W = 170
+
+  // Tiêu đề
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(16)
+  doc.text("BAO CAO DOANH THU TIKTOK", 105, 20, { align: "center" })
+  doc.setFontSize(11)
+  doc.setFont("helvetica", "normal")
+  doc.text(`Shop: ${r.shop}   |   Thang: ${r.report_month}`, 105, 28, { align: "center" })
+  doc.line(L, 32, L + W, 32)
+
+  // Bảng số liệu
+  const rows = [
+    ["Doanh thu ban hang", fmt(r.gross_revenue) + "d"],
+    ["  Hang tra lai", fmt(r.refund_amount) + "d"],
+    ["  Doanh thu thuan", fmt(r.net_product_revenue) + "d"],
+    ["---", ""],
+    ["Phi hoa hong (HH)", fmt(r.fee_commission) + "d"],
+    ["Phi thanh toan (TT)", fmt(r.fee_payment) + "d"],
+    ["Phi Affiliate", fmt(r.fee_affiliate) + "d"],
+    ["Phi SFR/PiShip", fmt(r.fee_service) + "d"],
+    ["Phi xu ly don hang", fmt(r.fee_handling) + "d"],
+    ["Tong phi", fmt(r.fee_total) + "d"],
+    ["---", ""],
+    ["Thue GTGT", fmt(r.tax_vat) + "d"],
+    ["Thue TNCN", fmt(r.tax_pit) + "d"],
+    ["Tong thue", fmt(r.tax_total) + "d"],
+    ["---", ""],
+    ["VE TUI (Tong quyet toan)", fmt(r.total_payout) + "d"],
+  ]
+
+  let y = 42
+  rows.forEach(([label, val]) => {
+    if (label === "---") {
+      doc.line(L, y, L + W, y)
+      y += 4
+      return
+    }
+    const isBold = label.startsWith("Tong") || label.startsWith("VE TUI")
+    doc.setFont("helvetica", isBold ? "bold" : "normal")
+    doc.setFontSize(11)
+    doc.text(label, L + 2, y)
+    doc.text(val, L + W - 2, y, { align: "right" })
+    y += 8
+  })
+
+  doc.line(L, y, L + W, y)
+  y += 6
+  doc.setFontSize(9)
+  doc.setFont("helvetica", "italic")
+  doc.text(`Xuat ban: ${new Date().toLocaleDateString("vi-VN")}`, L, y)
+
+  doc.save(`TIKTOK_${r.shop}_${r.report_month}_doanh-thu.pdf`)
 }
 
 loadHistory()
