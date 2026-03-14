@@ -86,6 +86,14 @@ export default {
       if (url.pathname === "/api/reports")
         return getReports(request, env, cors)
 
+      if (url.pathname.startsWith("/api/reports/") && request.method === "DELETE") {
+        const id = url.pathname.replace("/api/reports/", "")
+        const { r2_key } = await request.json()
+        await env.DB.prepare(`DELETE FROM platform_reports WHERE id = ?`).bind(id).run()
+        if (r2_key) await env.STORAGE.delete(r2_key)
+        return Response.json({ status: "ok" }, { headers: cors })
+      }
+
       if (url.pathname === "/api/report-file")
         return getReportFile(request, env, cors)
 

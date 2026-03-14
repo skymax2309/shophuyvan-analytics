@@ -357,35 +357,67 @@ function parseLazadaClient(text) {
 
 // Parse TikTok Excel ở client
 async function parseTiktokExcelClient(file) {
-  const buf = await file.arrayBuffer()
-  const wb  = XLSX.read(buf)
-  const ws  = wb.Sheets[wb.SheetNames[0]]
+  const buf  = await file.arrayBuffer()
+  const wb   = XLSX.read(buf)
+
+  // Dùng sheet "Reports" — chứa tổng hợp, cột label ở B/C/D/E, value ở F (index 5)
+  const ws   = wb.Sheets["Reports"] || wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
 
-  // TikTok income file có cấu trúc: label | value
-  const data = {}
-  rows.forEach(r => {
-    const label = String(r[0] || "").trim()
-    const val   = parseFloat(String(r[1] || "0").replace(/[^0-9.-]/g, "")) || 0
-    if (label.toLowerCase().includes("settlement amount"))  data.gross_revenue  = Math.abs(val)
-    if (label.toLowerCase().includes("commission"))         data.fee_commission  = Math.abs(val)
-    if (label.toLowerCase().includes("transaction fee"))    data.fee_payment     = Math.abs(val)
-    if (label.toLowerCase().includes("affiliate"))          data.fee_affiliate   = Math.abs(val)
-    if (label.toLowerCase().includes("sfr"))                data.fee_piship_sfr  = Math.abs(val)
-    if (label.toLowerCase().includes("order processing"))   data.fee_handling    = Math.abs(val)
-    if (label.toLowerCase().includes("vat"))                data.tax_vat         = Math.abs(val)
-    if (label.toLowerCase().includes("pit"))                data.tax_pit         = Math.abs(val)
-    if (label.toLowerCase().includes("refund"))             data.refund_amount   = Math.abs(val)
-    if (label.toLowerCase().includes("total"))              data.total_payout    = val
-  })
+  const n = (val) => Math.abs(parseFloat(String(val || "0").replace(/[^0-9.-]/g, "")) || 0)
 
-  data.fee_total  = (data.fee_commission || 0) + (data.fee_payment || 0)
-                  + (data.fee_affiliate  || 0) + (data.fee_piship_sfr || 0)
-                  + (data.fee_handling   || 0)
-  data.tax_total  = (data.tax_vat || 0) + (data.tax_pit || 0)
-  data.net_product_revenue = (data.gross_revenue || 0) - (data.refund_amount || 0)
+  // Tìm label ở bất kỳ cột nào trong row, lấy value ở cột 5 (index 5)
+  const find = (keyword) => {
+    for (const r of rows) {
+      const rowText = r.slice(0,5).map(c => String(c || "").toLowerCase()).join(" ")
+      if (rowText.includes(keyword.toLowerCase())) {
+        return n(r[5])
+      }
+    }
+    return 0
+  }
 
-  return data
+  const total_settlement  = find("Total settlement amount")
+  const total_revenue     = find("Total Revenue")
+  const subtotal_after    = find("Subtotal after seller discounts")
+  const refund_subtotal   = find("Refund subtotal after seller discounts")
+  const total_fees        = find("Total Fees")
+  const transaction_fee   = find("Transaction fee")
+  const commission_fee    = find("TikTok Shop commission fee")
+  const seller_shipping   = find("Seller shipping fee")
+  const affiliate_fee     = find("Affiliate Commission")
+  const sfr_reimburse     = find("SFR reimbursement")
+
+  // Thuế — TikTok không tách VAT/PIT rõ ràng trong Reports sheet
+  // Tính ngược: tax = total_revenue - total_fees - total_settlement
+  const tax_total = Math.max(0, total_revenue - total_fees - total_settlement)
+  // Ước tính: VAT ~66.7%, PIT ~33.3% (theo tỷ lệ 1%/0.5%)
+  const tax_vat = Math.round(tax_total * 2 / 3)
+  const tax_pit = tax_total - tax_vat
+
+  const fee_total = transaction_fee + commission_fee + seller_shipping + affiliate_fee
+
+  return {
+    gross_revenue:       total_revenue,
+    refund_amount:       refund_subtotal,
+    net_product_revenue: subtotal_after - refund_subtotal,
+    platform_subsidy:    0,
+    seller_voucher:      0,
+    co_funded_voucher:   0,
+    shipping_net:        -seller_shipping,
+    fee_commission:      commission_fee,
+    fee_payment:         transaction_fee,
+    fee_service:         0,
+    fee_affiliate:       affiliate_fee,
+    fee_piship_sfr:      sfr_reimburse,
+    fee_handling:        0,
+    fee_total,
+    compensation:        0,
+    tax_vat,
+    tax_pit,
+    tax_total,
+    total_payout:        total_settlement,
+  }
 }
 
 async function uploadTiktokJson(file, tiktokData, platform, shop, type) {
@@ -452,10 +484,30 @@ async function loadHistory() {
           &nbsp;|&nbsp; Thuế: ${fmt(r.tax_total)}đ
         </div>
       </div>
-      <a href="${API}/api/report-file?key=${encodeURIComponent(r.r2_key)}"
-         style="color:#4f46e5;font-size:12px;text-decoration:none" target="_blank">⬇️ Tải</a>
+      <div style="display:flex;gap:8px;align-items:center">
+        <a href="${API}/api/report-file?key=${encodeURIComponent(r.r2_key)}"
+           style="color:#4f46e5;font-size:12px;text-decoration:none" target="_blank">⬇️ Tải</a>
+        <button onclick="deleteReport(${r.id}, '${r.r2_key}')"
+           style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:12px">🗑️ Xóa</button>
+      </div>
     </div>`).join("")}
   `
+}
+
+async function deleteReport(id, r2Key) {
+  if (!confirm("Xóa báo cáo này?")) return
+  try {
+    const res = await fetch(API + "/api/reports/" + id, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ r2_key: r2Key })
+    })
+    const data = await res.json()
+    if (data.status === "ok") loadHistory()
+    else alert("Lỗi xóa: " + (data.error || "unknown"))
+  } catch(e) {
+    alert("Lỗi: " + e.message)
+  }
 }
 
 loadHistory()
