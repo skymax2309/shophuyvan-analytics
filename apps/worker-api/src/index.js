@@ -844,11 +844,8 @@ async function uploadReport(request, env, cors) {
     parsed = parseTiktokReport(JSON.parse(parsedJson))
   } else if (ext === "pdf") {
     const text = await extractPdfText(bytes)
-    if (platform === "shopee") parsed = parseShopeeReport(text)
-    if (platform === "lazada") parsed = parseLazadaReport(text)
-    if (platform === "tiktok") parsed = parseTiktokReport({})
-  } else if (ext === "xlsx" || ext === "csv") {
-    parsed = {}
+    // Auto detect loại hóa đơn từ nội dung
+    parsed = autoDetectAndParse(text, platform)
   }
 
   // ── Lưu vào D1 ───────────────────────────────────────────────────
@@ -1007,6 +1004,162 @@ async function extractExcelText(arrayBuffer) {
   // Trả về raw bytes để parse bên ngoài
   // Worker không có thư viện xlsx — dùng cách khác: client parse rồi gửi JSON
   return ""
+}
+
+// ── Detect loại hóa đơn + parse tương ứng ────────────────────────────
+function autoDetectAndParse(text, platform) {
+  // Shopee VAT Invoice (do Công ty TNHH Shopee xuất)
+  if (text.includes("CÔNG TY TNHH SHOPEE") || text.includes("1K26TAC")) {
+    return parseShopeeExpenseInvoice(text)
+  }
+  // TikTok Tax Invoice (do TikTok Pte. Ltd. xuất)
+  if (text.includes("TIKTOK PTE") || text.includes("VNEC") || text.includes("Tokgistic")) {
+    return parseTiktokExpenseInvoice(text)
+  }
+  // Lazada (do Công ty TNHH RECESS xuất)
+  if (text.includes("RECESS") || text.includes("VN33W4TIY8") || text.includes("Lazada")) {
+    return parseLazadaExpenseInvoice(text)
+  }
+  // Shopee doanh thu (báo cáo quyết toán)
+  if (platform === "shopee") return parseShopeeReport(text)
+  if (platform === "lazada") return parseLazadaReport(text)
+  return {}
+}
+
+// Shopee VAT Invoice — hóa đơn chi phí (phí HH, phí giao dịch, PiShip, đấu thầu, rút tiền...)
+function parseShopeeExpenseInvoice(text) {
+  const findAmt = (label) => {
+    const re = new RegExp(label + "[\\s\\S]{0,200}?([\\d\\.]+(?:\\.[\\d]+)?)[\\s]*(?=\\d{1,2}%|Cộng tiền)", "i")
+    const m = text.match(re)
+    if (m) return parseInt(m[1].replace(/\./g, "")) || 0
+    return 0
+  }
+
+  // Tìm "Cộng tiền hàng (Sub total): X"
+  const subMatch = text.match(/Cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
+  const vatMatch = text.match(/Tiền thuế GTGT[^:]*:\s*([\d\.,]+)/)
+  const totalMatch = text.match(/Tổng cộng tiền thanh toán[^:]*:\s*([\d\.,]+)/)
+
+  const sub   = subMatch  ? parseInt(subMatch[1].replace(/[\.]/g, "")) : 0
+  const vat   = vatMatch  ? parseInt(vatMatch[1].replace(/[\.]/g, "")) : 0
+  const total = totalMatch? parseInt(totalMatch[1].replace(/[\.]/g, "")): 0
+
+  // Tìm từng dòng phí
+  const commission  = findAmtLine(text, "Phí hoa hồng cố định")
+  const transaction = findAmtLine(text, "Phí xử lý giao dịch")
+  const service     = findAmtLine(text, "Phí dịch vụ ")
+  const piship      = findAmtLine(text, "Phí dịch vụ PiShip")
+  const ads         = findAmtLine(text, "Phí dịch vụ đấu thầu")
+  const withdrawal  = findAmtLine(text, "Phí rút tiền")
+
+  return {
+    gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
+    platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
+    shipping_net: 0,
+    fee_commission:  commission || ads,
+    fee_payment:     transaction,
+    fee_service:     service,
+    fee_affiliate:   0,
+    fee_piship_sfr:  piship,
+    fee_handling:    withdrawal,
+    fee_total:       sub,
+    compensation:    0,
+    tax_vat:         vat,
+    tax_pit:         0,
+    tax_total:       vat,
+    total_payout:    -total,   // âm vì đây là chi phí phải trả
+  }
+}
+
+// TikTok Tax Invoice — hóa đơn chi phí platform + logistics
+function parseTiktokExpenseInvoice(text) {
+  const findAmt = (label) => {
+    const re = new RegExp(label + "[^\\d]*([\\.\\d]+)[^\\d]*([\\.\\d]+)[^\\d]*([\\.\\d]+)")
+    const m = text.match(re)
+    // Cột 1: excl tax, cột 2: tax, cột 3: incl tax
+    if (m) return parseInt(m[1].replace(/\./g, "")) || 0
+    return 0
+  }
+
+  const subtotalMatch = text.match(/Subtotal \(excluding Tax\)[^\d]*([\d\.,]+)/)
+  const taxMatch      = text.match(/Total Tax[^\d]*([\d\.,]+)/)
+  const totalMatch    = text.match(/Total Amount[^\d]*([\d\.,]+)/)
+
+  const sub   = subtotalMatch ? parseInt(subtotalMatch[1].replace(/[,\.]/g, "").slice(0,-3) + subtotalMatch[1].replace(/[,\.]/g,"").slice(-3)) : 0
+  const tax   = taxMatch      ? parseInt(taxMatch[1].replace(/[,\.]/g,"").slice(0,-3)       + taxMatch[1].replace(/[,\.]/g,"").slice(-3))       : 0
+  const total = totalMatch    ? parseInt(totalMatch[1].replace(/[,\.]/g,"").slice(0,-3)      + totalMatch[1].replace(/[,\.]/g,"").slice(-3))      : 0
+
+  const isLogistics = text.includes("Tokgistic") || text.includes("Logistics fee") || text.includes("delivery shipping fee")
+  const commission  = text.includes("commission fee") ? findAmt("TikTok Shop commission fee") : 0
+  const transaction = text.includes("Transaction fee") ? findAmt("Transaction fee") : 0
+  const sfr         = text.includes("SFR service fee") ? findAmt("SFR service fee") : 0
+  const handling    = text.includes("Order Processing Fee") ? findAmt("Order Processing Fee") : 0
+  const shipping    = isLogistics ? sub : 0
+
+  return {
+    gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
+    platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
+    shipping_net: isLogistics ? -shipping : 0,
+    fee_commission:  commission,
+    fee_payment:     transaction,
+    fee_service:     sfr,
+    fee_affiliate:   0,
+    fee_piship_sfr:  sfr,
+    fee_handling:    handling,
+    fee_total:       sub,
+    compensation:    0,
+    tax_vat:         tax,
+    tax_pit:         0,
+    tax_total:       tax,
+    total_payout:    -total,
+  }
+}
+
+// Lazada VAT Invoice (do RECESS xuất) — phí theo tuần
+function parseLazadaExpenseInvoice(text) {
+  const findLine = (label) => {
+    const re = new RegExp(label + "[^\\d]*([\\.\\d]+)")
+    const m = text.match(re)
+    if (!m) return 0
+    return parseInt(m[1].replace(/\./g, "")) || 0
+  }
+
+  const subMatch   = text.match(/Cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
+  const vatMatch   = text.match(/Tiền thuế GTGT[^(VAT)]*:\s*([\d\.,]+)/)
+  const totalMatch = text.match(/Tổng cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
+
+  const sub   = subMatch   ? parseInt(subMatch[1].replace(/\./g,""))   : 0
+  const vat   = vatMatch   ? parseInt(vatMatch[1].replace(/\./g,""))   : 0
+  const total = totalMatch ? parseInt(totalMatch[1].replace(/\./g,"")) : 0
+
+  const handling   = findLine("Phí Xử lý đơn hàng")
+  const shipping   = findLine("Phí Vận Chuyển")
+  const commission = findLine("Phí Cố Định")
+
+  return {
+    gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
+    platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
+    shipping_net: -shipping,
+    fee_commission:  commission,
+    fee_payment:     0,
+    fee_service:     0,
+    fee_affiliate:   0,
+    fee_piship_sfr:  0,
+    fee_handling:    handling,
+    fee_total:       sub,
+    compensation:    0,
+    tax_vat:         vat,
+    tax_pit:         0,
+    tax_total:       vat,
+    total_payout:    -total,
+  }
+}
+
+function findAmtLine(text, label) {
+  const re = new RegExp(label + "[\\s\\S]{0,100}?([\\d]{1,3}(?:\\.[\\d]{3})+)")
+  const m = text.match(re)
+  if (!m) return 0
+  return parseInt(m[1].replace(/\./g, "")) || 0
 }
 
 // ── Parser Shopee PDF ────────────────────────────────────────────────
