@@ -80,6 +80,15 @@ export default {
       if (url.pathname === "/api/price-calc")
         return priceCalc(request, env, cors)
 
+      if (url.pathname === "/api/upload-report")
+        return uploadReport(request, env, cors)
+
+      if (url.pathname === "/api/reports")
+        return getReports(request, env, cors)
+
+      if (url.pathname === "/api/report-file")
+        return getReportFile(request, env, cors)
+
       return new Response("Not found", { status: 404, headers: cors })
 
     } catch (e) {
@@ -768,3 +777,320 @@ async function exportOrders(request, env, cors) {
 
   return Response.json(rows.results, { headers: cors })
 }
+
+// ════════════════════════════════════════════════════════════════════
+// UPLOAD REPORT — Lưu PDF/Excel báo cáo sàn vào R2 + parse số liệu
+// POST multipart/form-data: file, platform, shop, report_type
+// ════════════════════════════════════════════════════════════════════
+async function uploadReport(request, env, cors) {
+  if (request.method !== "POST")
+    return new Response("Method not allowed", { status: 405, headers: cors })
+
+  const formData    = await request.formData()
+  const file        = formData.get("file")
+  const platform    = formData.get("platform")    || "unknown"
+  const shop        = formData.get("shop")        || ""
+  const report_type = formData.get("report_type") || "income"
+
+  if (!file)
+    return Response.json({ error: "Thiếu file" }, { status: 400, headers: cors })
+
+  // ── Đọc file bytes ───────────────────────────────────────────────
+  const arrayBuffer = await file.arrayBuffer()
+  const bytes       = new Uint8Array(arrayBuffer)
+  const fileName    = file.name
+
+  // ── Xác định tháng từ tên file hoặc ngày hiện tại ────────────────
+  const report_month = detectReportMonth(fileName)
+
+  // ── Cấu trúc R2 key ─────────────────────────────────────────────
+  // {year}-{month}/{report_type}/{platform}/{filename}
+  // VD: 2026-02/Doanh Thu/Shopee/chihuy1984_20260201.pdf
+  const folderType = {
+    income:  "Doanh Thu",
+    expense: "Chi Phí",
+    orders:  "Đơn Hàng",
+  }[report_type] || "Doanh Thu"
+
+  const platformFolder = {
+    shopee: "Shopee",
+    tiktok: "TikTok",
+    lazada: "Lazada",
+  }[platform] || platform
+
+  const r2Key = `${report_month}/${folderType}/${platformFolder}/${fileName}`
+
+  // ── Upload lên R2 ────────────────────────────────────────────────
+  await env.STORAGE.put(r2Key, bytes, {
+    httpMetadata: { contentType: file.type || "application/octet-stream" },
+    customMetadata: { platform, shop, report_month, report_type }
+  })
+
+  // ── Parse số liệu từ nội dung file ───────────────────────────────
+  let parsed = {}
+  const ext = fileName.split(".").pop().toLowerCase()
+
+  // Nếu client đã parse sẵn (TikTok Excel), dùng luôn
+  const parsedJson = formData.get("parsed_json")
+  if (parsedJson) {
+    parsed = parseTiktokReport(JSON.parse(parsedJson))
+  } else if (ext === "pdf") {
+    const text = await extractPdfText(bytes)
+    if (platform === "shopee") parsed = parseShopeeReport(text)
+    if (platform === "lazada") parsed = parseLazadaReport(text)
+    if (platform === "tiktok") parsed = parseTiktokReport({})
+  } else if (ext === "xlsx" || ext === "csv") {
+    parsed = {}
+  }
+
+  // ── Lưu vào D1 ───────────────────────────────────────────────────
+  await env.DB.prepare(`
+    INSERT INTO platform_reports
+      (platform, shop, report_month, report_type, file_name, r2_key,
+       gross_revenue, refund_amount, net_product_revenue,
+       platform_subsidy, seller_voucher, co_funded_voucher,
+       shipping_net,
+       fee_commission, fee_payment, fee_service,
+       fee_affiliate, fee_piship_sfr, fee_handling, fee_total,
+       compensation,
+       tax_vat, tax_pit, tax_total,
+       total_payout, raw_data)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(platform, report_month, file_name) DO UPDATE SET
+      r2_key              = excluded.r2_key,
+      gross_revenue       = excluded.gross_revenue,
+      refund_amount       = excluded.refund_amount,
+      net_product_revenue = excluded.net_product_revenue,
+      platform_subsidy    = excluded.platform_subsidy,
+      seller_voucher      = excluded.seller_voucher,
+      co_funded_voucher   = excluded.co_funded_voucher,
+      shipping_net        = excluded.shipping_net,
+      fee_commission      = excluded.fee_commission,
+      fee_payment         = excluded.fee_payment,
+      fee_service         = excluded.fee_service,
+      fee_affiliate       = excluded.fee_affiliate,
+      fee_piship_sfr      = excluded.fee_piship_sfr,
+      fee_handling        = excluded.fee_handling,
+      fee_total           = excluded.fee_total,
+      compensation        = excluded.compensation,
+      tax_vat             = excluded.tax_vat,
+      tax_pit             = excluded.tax_pit,
+      tax_total           = excluded.tax_total,
+      total_payout        = excluded.total_payout,
+      raw_data            = excluded.raw_data
+  `).bind(
+    platform, shop, report_month, report_type, fileName, r2Key,
+    parsed.gross_revenue       || 0,
+    parsed.refund_amount       || 0,
+    parsed.net_product_revenue || 0,
+    parsed.platform_subsidy    || 0,
+    parsed.seller_voucher      || 0,
+    parsed.co_funded_voucher   || 0,
+    parsed.shipping_net        || 0,
+    parsed.fee_commission      || 0,
+    parsed.fee_payment         || 0,
+    parsed.fee_service         || 0,
+    parsed.fee_affiliate       || 0,
+    parsed.fee_piship_sfr      || 0,
+    parsed.fee_handling        || 0,
+    parsed.fee_total           || 0,
+    parsed.compensation        || 0,
+    parsed.tax_vat             || 0,
+    parsed.tax_pit             || 0,
+    parsed.tax_total           || 0,
+    parsed.total_payout        || 0,
+    JSON.stringify(parsed)
+  ).run()
+
+  return Response.json({
+    status: "ok",
+    r2_key: r2Key,
+    report_month,
+    parsed
+  }, { headers: cors })
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// GET REPORTS — Lấy danh sách báo cáo + số liệu đã parse
+// ════════════════════════════════════════════════════════════════════
+async function getReports(request, env, cors) {
+  const url   = new URL(request.url)
+  const month = url.searchParams.get("month") || null
+  const platform = url.searchParams.get("platform") || null
+
+  const conds  = ["1=1"]
+  const params = []
+  if (month)    { conds.push("report_month = ?"); params.push(month) }
+  if (platform) { conds.push("platform = ?");     params.push(platform) }
+
+  const rows = await env.DB.prepare(`
+    SELECT * FROM platform_reports
+    WHERE ${conds.join(" AND ")}
+    ORDER BY report_month DESC, platform, report_type
+  `).bind(...params).all()
+
+  return Response.json(rows.results, { headers: cors })
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// GET REPORT FILE — Tải file gốc từ R2
+// ════════════════════════════════════════════════════════════════════
+async function getReportFile(request, env, cors) {
+  const url = new URL(request.url)
+  const key = url.searchParams.get("key")
+  if (!key) return new Response("Missing key", { status: 400, headers: cors })
+
+  const obj = await env.STORAGE.get(key)
+  if (!obj) return new Response("File not found", { status: 404, headers: cors })
+
+  const headers = {
+    ...cors,
+    "Content-Type":        obj.httpMetadata?.contentType || "application/octet-stream",
+    "Content-Disposition": `attachment; filename="${key.split("/").pop()}"`,
+  }
+  return new Response(obj.body, { headers })
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// HELPERS — Parse từng loại báo cáo
+// ════════════════════════════════════════════════════════════════════
+
+function detectReportMonth(filename) {
+  // Tìm pattern YYYYMM hoặc YYYY-MM hoặc YYYY_MM trong tên file
+  const m1 = filename.match(/(\d{4})[-_]?(\d{2})/)
+  if (m1) return `${m1[1]}-${m1[2]}`
+  // Fallback: tháng hiện tại
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+}
+
+// Extract text từ PDF (dùng text decoder cơ bản — Worker không có pdf-parse)
+// Cloudflare Worker có thể đọc text layer của PDF nếu không bị encrypt
+async function extractPdfText(bytes) {
+  try {
+    const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes)
+    // Tìm các chuỗi text trong PDF (giữa BT...ET blocks)
+    const matches = []
+    const re = /\(([^)]{1,200})\)/g
+    let m
+    while ((m = re.exec(text)) !== null) {
+      const s = m[1].replace(/\\n/g, "\n").replace(/\\r/g, "").trim()
+      if (s.length > 1) matches.push(s)
+    }
+    return matches.join("\n")
+  } catch {
+    return ""
+  }
+}
+
+async function extractExcelText(arrayBuffer) {
+  // Trả về raw bytes để parse bên ngoài
+  // Worker không có thư viện xlsx — dùng cách khác: client parse rồi gửi JSON
+  return ""
+}
+
+// ── Parser Shopee PDF ────────────────────────────────────────────────
+function parseShopeeReport(text) {
+  const n = (pattern) => {
+    const m = text.match(pattern)
+    return m ? parseFloat(m[1].replace(/[,\.]/g, "").replace(/(\d+)$/, "$1")) : 0
+  }
+
+  // Tìm số sau label — cần xử lý format số VNĐ
+  const findNum = (label) => {
+    const re = new RegExp(label + "[\\s\\S]{0,50}?([\\d,\\.]+)")
+    const m = text.match(re)
+    if (!m) return 0
+    return parseInt(m[1].replace(/[,.]/g, "").replace(/(\d+)$/, (s) => s)) || 0
+  }
+
+  const gross_revenue       = findNum("Giá sản phẩm")
+  const refund_amount       = findNum("Số tiền hoàn lại")
+  const platform_subsidy    = findNum("Sản phẩm được trợ giá từ Shopee")
+  const co_funded_voucher   = findNum("Mã ưu đãi Đồng Tài Trợ do Người Bán chịu")
+  const fee_commission      = findNum("Phí cố định")
+  const fee_service         = findNum("Phí Dịch Vụ")
+  const fee_payment         = findNum("Phí thanh toán")
+  const fee_affiliate       = findNum("Phí hoa hồng Tiếp thị liên kết")
+  const fee_piship_sfr      = findNum("Phí dịch vụ PiShip")
+  const fee_total           = fee_commission + fee_service + fee_payment + fee_affiliate + fee_piship_sfr
+  const tax_vat             = findNum("Thuế GTGT")
+  const tax_pit             = findNum("Thuế TNCN")
+  const tax_total           = tax_vat + tax_pit
+  const total_payout        = findNum("Tổng thanh toán đã chuyển")
+  const net_product_revenue = gross_revenue - refund_amount + platform_subsidy - co_funded_voucher
+
+  return {
+    gross_revenue, refund_amount, net_product_revenue,
+    platform_subsidy, seller_voucher: 0, co_funded_voucher,
+    shipping_net: 0,
+    fee_commission, fee_payment, fee_service,
+    fee_affiliate, fee_piship_sfr, fee_handling: 0, fee_total,
+    compensation: 0,
+    tax_vat, tax_pit, tax_total,
+    total_payout,
+  }
+}
+
+// ── Parser Lazada PDF ────────────────────────────────────────────────
+function parseLazadaReport(text) {
+  const findNum = (label) => {
+    const re = new RegExp(label + "[\\s\\S]{0,80}?([\\d,\\.]+(?:\\.\\d{2})?)")
+    const m = text.match(re)
+    if (!m) return 0
+    return parseFloat(m[1].replace(/,/g, "")) || 0
+  }
+
+  const gross_revenue  = findNum("Giá trị sản phẩm")
+  const fee_commission = findNum("Phí cố định")
+  const fee_handling   = findNum("Phí xử lý đơn hàng")
+  const shipping_net   = findNum("Điều chỉnh phí vận chuyển chênh lệch")
+  const compensation   = findNum("Bồi thường đơn hàng thất lạc")
+  const tax_vat        = findNum("Thuế GTGT nhà bán hàng")
+  const tax_pit        = findNum("Thuế TNCN nhà bán hàng")
+  const tax_total      = tax_vat + tax_pit
+  const fee_total      = fee_commission + fee_handling
+  const total_payout   = findNum("Tổng thanh toán")
+
+  return {
+    gross_revenue, refund_amount: 0, net_product_revenue: gross_revenue,
+    platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
+    shipping_net: -shipping_net,
+    fee_commission, fee_payment: 0, fee_service: 0,
+    fee_affiliate: 0, fee_piship_sfr: 0, fee_handling, fee_total,
+    compensation,
+    tax_vat, tax_pit, tax_total,
+    total_payout,
+  }
+}
+
+// ── Parser TikTok (Excel đã được client convert sang JSON) ───────────
+function parseTiktokReport(data) {
+  // data là object JSON từ client parse Excel
+  return {
+    gross_revenue:       data.gross_revenue       || 0,
+    refund_amount:       data.refund_amount        || 0,
+    net_product_revenue: data.net_product_revenue  || 0,
+    platform_subsidy:    data.platform_subsidy     || 0,
+    seller_voucher:      0,
+    co_funded_voucher:   0,
+    shipping_net:        data.shipping_net         || 0,
+    fee_commission:      data.fee_commission       || 0,
+    fee_payment:         data.fee_payment          || 0,
+    fee_service:         data.fee_service          || 0,
+    fee_affiliate:       data.fee_affiliate        || 0,
+    fee_piship_sfr:      data.fee_piship_sfr       || 0,
+    fee_handling:        data.fee_handling         || 0,
+    fee_total:           data.fee_total            || 0,
+    compensation:        0,
+    tax_vat:             data.tax_vat              || 0,
+    tax_pit:             data.tax_pit              || 0,
+    tax_total:           data.tax_total            || 0,
+    total_payout:        data.total_payout         || 0,
+  }
+}
+
+function parseTiktokExcel(text) { return {} }

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Upload Báo Cáo Sàn</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, sans-serif; background: #f0f2f5; }
+
+.topbar {
+  background: #1a1a2e; color: white;
+  padding: 14px 28px; display: flex; align-items: center; gap: 16px;
+}
+.topbar a { color: #aaa; text-decoration: none; font-size: 14px; }
+.topbar a:hover { color: white; }
+
+.container { max-width: 900px; margin: 32px auto; padding: 0 20px; }
+
+.card {
+  background: white; border-radius: 12px;
+  padding: 24px; margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.card-title {
+  font-size: 15px; font-weight: 700;
+  margin-bottom: 18px; padding-bottom: 10px;
+  border-bottom: 2px solid #f0f2f5;
+}
+
+.upload-zone {
+  border: 2px dashed #d1d5db; border-radius: 10px;
+  padding: 32px; text-align: center; cursor: pointer;
+  transition: all 0.2s; margin-bottom: 16px;
+}
+.upload-zone:hover, .upload-zone.drag { border-color: #4f46e5; background: #f5f3ff; }
+.upload-zone input { display: none; }
+
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 13px; color: #555; font-weight: 500; }
+.field select, .field input {
+  border: 1.5px solid #e0e0e0; border-radius: 8px;
+  padding: 9px 12px; font-size: 14px; outline: none;
+}
+.field select:focus, .field input:focus { border-color: #4f46e5; }
+
+.btn {
+  padding: 10px 24px; border: none; border-radius: 8px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.btn-primary { background: #4f46e5; color: white; }
+.btn-primary:hover { background: #4338ca; }
+.btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+/* File list */
+.file-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; background: #f9fafb;
+  border-radius: 8px; margin-bottom: 8px;
+}
+.file-icon { font-size: 20px; }
+.file-info { flex: 1; }
+.file-name { font-size: 13px; font-weight: 600; }
+.file-meta { font-size: 12px; color: #888; }
+.file-remove { color: #ef4444; cursor: pointer; font-size: 18px; border: none; background: none; }
+
+/* Upload history */
+.history-item {
+  display: grid;
+  grid-template-columns: 80px 100px 1fr auto auto;
+  gap: 12px; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+.history-item:last-child { border-bottom: none; }
+
+.platform-tag {
+  display: inline-block; padding: 2px 8px;
+  border-radius: 12px; font-size: 11px; font-weight: 700; color: white;
+}
+.tag-shopee { background: #ee4d2d; }
+.tag-tiktok { background: #010101; }
+.tag-lazada { background: #0f146d; }
+
+.status-ok  { color: #16a34a; font-weight: 600; }
+.status-err { color: #dc2626; }
+
+.log {
+  margin-top: 16px; padding: 14px; background: #f9fafb;
+  border-radius: 8px; font-size: 13px; line-height: 1.8;
+  display: none;
+}
+.log.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="profit-dashboard.html">← Dashboard</a>
+  <span>📁 Upload Báo Cáo Sàn</span>
+</div>
+
+<div class="container">
+
+  <!-- Upload form -->
+  <div class="card">
+    <div class="card-title">📤 Upload Báo Cáo Mới</div>
+
+    <div class="grid3">
+      <div class="field">
+        <label>Sàn</label>
+        <select id="selPlatform">
+          <option value="shopee">Shopee</option>
+          <option value="tiktok">TikTok</option>
+          <option value="lazada">Lazada</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Loại báo cáo</label>
+        <select id="selType">
+          <option value="income">Doanh Thu</option>
+          <option value="expense">Chi Phí</option>
+          <option value="orders">Đơn Hàng</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Shop</label>
+        <input type="text" id="inpShop" placeholder="VD: KHOGIADUNGHUYVAN">
+      </div>
+    </div>
+
+    <div class="upload-zone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+      <input type="file" id="fileInput" accept=".pdf,.xlsx,.csv" multiple>
+      <div style="font-size:32px;margin-bottom:8px">📄</div>
+      <div style="font-weight:600;margin-bottom:4px">Kéo thả hoặc nhấn để chọn file</div>
+      <div style="font-size:12px;color:#888">Hỗ trợ: PDF (Shopee, Lazada), Excel/CSV (TikTok)</div>
+    </div>
+
+    <div id="fileList"></div>
+
+    <button class="btn btn-primary" id="btnUpload" onclick="uploadAll()" style="margin-top:12px">
+      ⬆️ Upload & Parse
+    </button>
+
+    <div class="log" id="uploadLog"></div>
+  </div>
+
+  <!-- Lịch sử upload -->
+  <div class="card">
+    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📋 Báo Cáo Đã Upload</span>
+      <select id="filterMonth" onchange="loadHistory()" style="border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 10px;font-size:13px;outline:none">
+        <option value="">Tất cả tháng</option>
+      </select>
+    </div>
+
+    <div id="historyList">
+      <div style="text-align:center;color:#aaa;padding:30px">Đang tải...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
+let selectedFiles = []
+
+// ── Drag & Drop ──────────────────────────────────────────────────────
+const dropzone = document.getElementById("dropzone")
+const fileInput = document.getElementById("fileInput")
+
+dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("drag") })
+dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag"))
+dropzone.addEventListener("drop", e => {
+  e.preventDefault()
+  dropzone.classList.remove("drag")
+  addFiles([...e.dataTransfer.files])
+})
+fileInput.addEventListener("change", () => addFiles([...fileInput.files]))
+
+function addFiles(files) {
+  files.forEach(f => {
+    if (!selectedFiles.find(x => x.name === f.name)) selectedFiles.push(f)
+  })
+  renderFileList()
+}
+
+function removeFile(name) {
+  selectedFiles = selectedFiles.filter(f => f.name !== name)
+  renderFileList()
+}
+
+function renderFileList() {
+  const el = document.getElementById("fileList")
+  if (!selectedFiles.length) { el.innerHTML = ""; return }
+
+  el.innerHTML = selectedFiles.map(f => `
+    <div class="file-item">
+      <span class="file-icon">${f.name.endsWith(".pdf") ? "📄" : "📊"}</span>
+      <div class="file-info">
+        <div class="file-name">${f.name}</div>
+        <div class="file-meta">${(f.size / 1024).toFixed(1)} KB</div>
+      </div>
+      <button class="file-remove" onclick="removeFile('${f.name}')">✕</button>
+    </div>
+  `).join("")
+}
+
+// ── Upload ───────────────────────────────────────────────────────────
+async function uploadAll() {
+  if (!selectedFiles.length) { alert("Chọn file trước!"); return }
+
+  const btn = document.getElementById("btnUpload")
+  const log = document.getElementById("uploadLog")
+  btn.disabled = true
+  log.classList.add("show")
+  log.innerHTML = ""
+
+  const platform = document.getElementById("selPlatform").value
+  const type     = document.getElementById("selType").value
+  const shop     = document.getElementById("inpShop").value.trim()
+
+  for (const file of selectedFiles) {
+    log.innerHTML += `⏳ Đang xử lý <b>${file.name}</b>...<br>`
+
+    try {
+      let result
+
+      // TikTok Excel: parse ở client trước, gửi JSON lên Worker
+      if (platform === "tiktok" && (file.name.endsWith(".xlsx") || file.name.endsWith(".csv"))) {
+        const tiktokData = await parseTiktokExcelClient(file)
+        result = await uploadTiktokJson(file, tiktokData, platform, shop, type)
+      } else {
+        // PDF: upload thẳng lên Worker
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("platform", platform)
+        formData.append("shop", shop)
+        formData.append("report_type", type)
+
+        const res = await fetch(API + "/api/upload-report", { method: "POST", body: formData })
+        result = await res.json()
+      }
+
+      if (result.status === "ok") {
+        log.innerHTML += `✅ <b>${file.name}</b> → ${result.r2_key}<br>`
+        log.innerHTML += renderParsed(result.parsed)
+      } else {
+        log.innerHTML += `❌ Lỗi: ${result.error || "Unknown"}<br>`
+      }
+    } catch(e) {
+      log.innerHTML += `❌ ${file.name}: ${e.message}<br>`
+    }
+  }
+
+  selectedFiles = []
+  renderFileList()
+  btn.disabled = false
+  loadHistory()
+}
+
+// Parse TikTok Excel ở client
+async function parseTiktokExcelClient(file) {
+  const buf = await file.arrayBuffer()
+  const wb  = XLSX.read(buf)
+  const ws  = wb.Sheets[wb.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
+
+  // TikTok income file có cấu trúc: label | value
+  const data = {}
+  rows.forEach(r => {
+    const label = String(r[0] || "").trim()
+    const val   = parseFloat(String(r[1] || "0").replace(/[^0-9.-]/g, "")) || 0
+    if (label.toLowerCase().includes("settlement amount"))  data.gross_revenue  = Math.abs(val)
+    if (label.toLowerCase().includes("commission"))         data.fee_commission  = Math.abs(val)
+    if (label.toLowerCase().includes("transaction fee"))    data.fee_payment     = Math.abs(val)
+    if (label.toLowerCase().includes("affiliate"))          data.fee_affiliate   = Math.abs(val)
+    if (label.toLowerCase().includes("sfr"))                data.fee_piship_sfr  = Math.abs(val)
+    if (label.toLowerCase().includes("order processing"))   data.fee_handling    = Math.abs(val)
+    if (label.toLowerCase().includes("vat"))                data.tax_vat         = Math.abs(val)
+    if (label.toLowerCase().includes("pit"))                data.tax_pit         = Math.abs(val)
+    if (label.toLowerCase().includes("refund"))             data.refund_amount   = Math.abs(val)
+    if (label.toLowerCase().includes("total"))              data.total_payout    = val
+  })
+
+  data.fee_total  = (data.fee_commission || 0) + (data.fee_payment || 0)
+                  + (data.fee_affiliate  || 0) + (data.fee_piship_sfr || 0)
+                  + (data.fee_handling   || 0)
+  data.tax_total  = (data.tax_vat || 0) + (data.tax_pit || 0)
+  data.net_product_revenue = (data.gross_revenue || 0) - (data.refund_amount || 0)
+
+  return data
+}
+
+async function uploadTiktokJson(file, tiktokData, platform, shop, type) {
+  // Gửi file + parsed JSON lên Worker
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("platform", platform)
+  formData.append("shop", shop)
+  formData.append("report_type", type)
+  formData.append("parsed_json", JSON.stringify(tiktokData))
+
+  const res = await fetch(API + "/api/upload-report", { method: "POST", body: formData })
+  return res.json()
+}
+
+function renderParsed(p) {
+  if (!p || !Object.keys(p).length) return ""
+  const fmt = n => Math.abs(Math.round(n)).toLocaleString("vi-VN")
+  return `
+    <div style="margin:6px 0 10px 20px;font-size:12px;color:#555;background:#f9fafb;padding:10px;border-radius:6px">
+      💰 Doanh thu: <b>${fmt(p.gross_revenue)}</b>đ &nbsp;|&nbsp;
+      💸 Phí: <b>${fmt(p.fee_total)}</b>đ &nbsp;|&nbsp;
+      🧾 Thuế: <b>${fmt(p.tax_total)}</b>đ &nbsp;|&nbsp;
+      ✅ Về túi: <b>${fmt(p.total_payout)}</b>đ
+    </div>`
+}
+
+// ── History ──────────────────────────────────────────────────────────
+async function loadHistory() {
+  const month = document.getElementById("filterMonth").value
+  const url   = API + "/api/reports" + (month ? `?month=${month}` : "")
+  const rows  = await fetch(url).then(r => r.json())
+
+  // Populate month filter
+  const months = [...new Set(rows.map(r => r.report_month))].sort().reverse()
+  const sel    = document.getElementById("filterMonth")
+  const cur    = sel.value
+  sel.innerHTML = '<option value="">Tất cả tháng</option>'
+                + months.map(m => `<option value="${m}" ${m===cur?"selected":""}>${m}</option>`).join("")
+
+  const el = document.getElementById("historyList")
+  if (!rows.length) {
+    el.innerHTML = '<div style="text-align:center;color:#aaa;padding:30px">Chưa có báo cáo nào</div>'
+    return
+  }
+
+  const typeLabel = { income: "Doanh Thu", expense: "Chi Phí", orders: "Đơn Hàng" }
+  const fmt = n => Math.abs(Math.round(n || 0)).toLocaleString("vi-VN")
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:80px 90px 100px 1fr auto;gap:12px;font-size:11px;font-weight:700;color:#888;padding:0 14px;margin-bottom:6px">
+      <span>Sàn</span><span>Tháng</span><span>Loại</span><span>File / Doanh thu → Về túi</span><span>Tải</span>
+    </div>
+    ${rows.map(r => `
+    <div class="history-item">
+      <span><span class="platform-tag tag-${r.platform}">${r.platform.toUpperCase()}</span></span>
+      <span>${r.report_month}</span>
+      <span>${typeLabel[r.report_type] || r.report_type}</span>
+      <div>
+        <div style="font-weight:600;font-size:12px">${r.file_name}</div>
+        <div style="font-size:11px;color:#888">
+          DT: ${fmt(r.gross_revenue)}đ → 💰 ${fmt(r.total_payout)}đ
+          &nbsp;|&nbsp; Phí: ${fmt(r.fee_total)}đ
+          &nbsp;|&nbsp; Thuế: ${fmt(r.tax_total)}đ
+        </div>
+      </div>
+      <a href="${API}/api/report-file?key=${encodeURIComponent(r.r2_key)}"
+         style="color:#4f46e5;font-size:12px;text-decoration:none" target="_blank">⬇️ Tải</a>
+    </div>`).join("")}
+  `
+}
+
+loadHistory()
+</script>
+</body>
+</html>

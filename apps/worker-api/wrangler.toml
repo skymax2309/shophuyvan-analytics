@@ -16,6 +16,10 @@ database_id = "60d0148f-9133-44a8-ad2f-da4d750995f6"
 binding = "STORAGE"
 bucket_name = "huyvan-storage"
 
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "shophuyvan-reports"
+
 # Optional environment variables
 [vars]
 APP_NAME = "HuyVan Analytics"
