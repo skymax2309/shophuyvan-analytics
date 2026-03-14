@@ -213,7 +213,7 @@ function _tiktok(row, shop) {
     combo_discount:  0,
     return_amount:   order_type === "return" ? refund_amount || gross_revenue : 0,
     order_type,
-    cancel_reason:   cancel_type || cancel_reason_raw || null,
+    cancel_reason:   cancel_reason_raw || cancel_type || null,
     return_fee:      cancel_fee,   // dùng return_fee để lưu phí bị trừ
   }
 }
