@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <title>Upload Báo Cáo Sàn</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
+</script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, sans-serif; background: #f0f2f5; }
@@ -232,16 +237,21 @@ async function uploadAll() {
         const tiktokData = await parseTiktokExcelClient(file)
         result = await uploadTiktokJson(file, tiktokData, platform, shop, type)
       } else {
-        // PDF: upload thẳng lên Worker
+        // PDF: extract text ở client bằng PDF.js, gửi kèm parsed_json
+        const pdfText   = await extractPdfTextClient(file)
+        const parsedData = platform === "shopee" ? parseShopeeClient(pdfText)
+                         : platform === "lazada"  ? parseLazadaClient(pdfText)
+                         : {}
+
         const formData = new FormData()
         formData.append("file", file)
         formData.append("platform", platform)
         formData.append("shop", shop)
         formData.append("report_type", type)
+        formData.append("parsed_json", JSON.stringify(parsedData))
 
         const res = await fetch(API + "/api/upload-report", { method: "POST", body: formData })
         result = await res.json()
-      }
 
       if (result.status === "ok") {
         log.innerHTML += `✅ <b>${file.name}</b> → ${result.r2_key}<br>`
@@ -258,6 +268,90 @@ async function uploadAll() {
   renderFileList()
   btn.disabled = false
   loadHistory()
+}
+
+// Extract text từ PDF bằng PDF.js (client-side)
+async function extractPdfTextClient(file) {
+  const buf      = await file.arrayBuffer()
+  const pdf      = await pdfjsLib.getDocument({ data: buf }).promise
+  const texts    = []
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page    = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    texts.push(content.items.map(t => t.str).join(" "))
+  }
+  return texts.join("\n")
+}
+
+// Parse báo cáo Shopee từ text
+function parseShopeeClient(text) {
+  const findNum = (label) => {
+    // Tìm số gần nhất sau label (có thể có dấu phẩy, chấm)
+    const re = new RegExp(label.replace(/[()]/g, "\\$&") + "[\\s\\S]{0,80}?([\\d,]+)")
+    const m  = text.match(re)
+    if (!m) return 0
+    return parseInt(m[1].replace(/[,.]/g, "")) || 0
+  }
+
+  const gross_revenue    = findNum("Giá sản phẩm")
+  const refund_amount    = findNum("Số tiền hoàn lại")
+  const platform_subsidy = findNum("Sản phẩm được trợ giá từ Shopee")
+  const co_funded_voucher= findNum("Mã ưu đãi Đồng Tài Trợ do Người Bán chịu")
+  const fee_commission   = findNum("Phí cố định")
+  const fee_service      = findNum("Phí Dịch Vụ")
+  const fee_payment      = findNum("Phí thanh toán")
+  const fee_affiliate    = findNum("Phí hoa hồng Tiếp thị liên kết")
+  const fee_piship_sfr   = findNum("Phí dịch vụ PiShip")
+  const fee_total        = fee_commission + fee_service + fee_payment + fee_affiliate + fee_piship_sfr
+  const tax_vat          = findNum("Thuế GTGT")
+  const tax_pit          = findNum("Thuế TNCN")
+  const tax_total        = tax_vat + tax_pit
+  const total_payout     = findNum("Tổng thanh toán đã chuyển")
+  const net_product_revenue = gross_revenue - refund_amount + platform_subsidy - co_funded_voucher
+
+  return {
+    gross_revenue, refund_amount, net_product_revenue,
+    platform_subsidy, seller_voucher: 0, co_funded_voucher,
+    shipping_net: 0,
+    fee_commission, fee_payment, fee_service,
+    fee_affiliate, fee_piship_sfr, fee_handling: 0, fee_total,
+    compensation: 0,
+    tax_vat, tax_pit, tax_total,
+    total_payout,
+  }
+}
+
+// Parse báo cáo Lazada từ text
+function parseLazadaClient(text) {
+  const findNum = (label) => {
+    const re = new RegExp(label.replace(/[()]/g, "\\$&") + "[\\s\\S]{0,100}?([\\d,\\.]+)")
+    const m  = text.match(re)
+    if (!m) return 0
+    return parseFloat(m[1].replace(/,/g, "")) || 0
+  }
+
+  const gross_revenue  = findNum("Giá trị sản phẩm")
+  const fee_commission = findNum("Phí cố định")
+  const fee_handling   = findNum("Phí xử lý đơn hàng")
+  const shipping_net   = findNum("Điều chỉnh phí vận chuyển chênh lệch")
+  const compensation   = findNum("Bồi thường đơn hàng thất lạc")
+  const tax_vat        = findNum("Thuế GTGT nhà bán hàng")
+  const tax_pit        = findNum("Thuế TNCN nhà bán hàng")
+  const fee_total      = fee_commission + fee_handling
+  const tax_total      = tax_vat + tax_pit
+  const total_payout   = findNum("Tổng thanh toán")
+
+  return {
+    gross_revenue, refund_amount: 0,
+    net_product_revenue: gross_revenue,
+    platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
+    shipping_net: -shipping_net,
+    fee_commission, fee_payment: 0, fee_service: 0,
+    fee_affiliate: 0, fee_piship_sfr: 0, fee_handling, fee_total,
+    compensation,
+    tax_vat, tax_pit, tax_total,
+    total_payout,
+  }
 }
 
 // Parse TikTok Excel ở client

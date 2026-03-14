@@ -959,9 +959,18 @@ async function getReportFile(request, env, cors) {
 // ════════════════════════════════════════════════════════════════════
 
 function detectReportMonth(filename) {
-  // Tìm pattern YYYYMM hoặc YYYY-MM hoặc YYYY_MM trong tên file
-  const m1 = filename.match(/(\d{4})[-_]?(\d{2})/)
+  // Pattern YYYY-MM (có dấu gạch)
+  const m1 = filename.match(/(\d{4})-(\d{2})/)
   if (m1) return `${m1[1]}-${m1[2]}`
+
+  // Pattern YYYYMMDD (8 chữ số liền) — VD: 20260201
+  const m2 = filename.match(/(\d{4})(\d{2})\d{2}/)
+  if (m2) return `${m2[1]}-${m2[2]}`
+
+  // Pattern YYYY_MM
+  const m3 = filename.match(/(\d{4})_(\d{2})/)
+  if (m3) return `${m3[1]}-${m3[2]}`
+
   // Fallback: tháng hiện tại
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
