@@ -309,13 +309,16 @@ function showToast(msg, isErr = false) {
 // SKU
 // ════════════════════════════
 async function loadSkus() {
-  const data = await fetch(API + "/api/products").then(r => r.json())
-  allSkus = data
-  document.getElementById("skuCount").textContent = data.length
+  document.getElementById("skuTable").innerHTML =
+    `<tr><td colspan="5" class="empty">Đang tải...</td></tr>`
+  try {
+    const data = await fetch(API + "/api/products").then(r => r.json())
+    allSkus = data
+    document.getElementById("skuCount").textContent = data.filter(p => !p.is_combo).length
 
-  document.getElementById("skuTable").innerHTML = data.length === 0
-    ? `<tr><td colspan="5" class="empty">Chưa có SKU nào</td></tr>`
-    : data.map(p => `
+    document.getElementById("skuTable").innerHTML = data.filter(p => !p.is_combo).length === 0
+      ? `<tr><td colspan="5" class="empty">Chưa có SKU nào</td></tr>`
+      : data.filter(p => !p.is_combo).map(p => ``
       <tr>
         <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
         <td>${p.product_name || "—"}</td>
@@ -326,7 +329,12 @@ async function loadSkus() {
           <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="margin-left:4px">🗑️</button>
         </td>
       </tr>
-    `).join("")
+    ``).join("")
+  } catch(e) {
+    document.getElementById("skuTable").innerHTML =
+      `<tr><td colspan="5" class="empty" style="color:#ef4444">❌ Lỗi tải dữ liệu: ${e.message}</td></tr>`
+    console.error("loadSkus error:", e)
+  }
 }
 
 async function saveSku() {
