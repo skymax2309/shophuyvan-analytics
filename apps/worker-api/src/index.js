@@ -189,7 +189,7 @@ function calcProfit(order, cfg) {
   // ── Gộp tất cả phí ───────────────────────────────────────────────
   const platformFee  = shopeeCommission + tiktokCommission + lazadaCommission
   const paymentFee   = shopeePayment    + tiktokTransaction
-  const affiliateFee = shopeeAffiliate  + tiktokAffiliate  + lazadaAffiliate
+  const affiliateFee = shopeeAffiliate  + tiktokAffiliate
   const adsFee       = shopeeAds        + tiktokAds        + lazadaAds
 
   const totalFee = platformFee + paymentFee + affiliateFee + adsFee
