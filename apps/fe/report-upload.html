@@ -529,7 +529,7 @@ function parseTiktokExpenseClient(text) {
 
 function parseLazadaExpenseClient(text) {
   const findLine = (label) => {
-    const re = new RegExp(label + "[\\s\\S]{0,50}?([\\d]{1,3}(?:\\.[\\d]{3})+)")
+    const re = new RegExp(label + "[\\s\\S]{0,80}?(\\d{1,3}(?:\\.\\d{3})+)")
     const m = text.match(re)
     return m ? parseInt(m[1].replace(/\./g,"")) : 0
   }
@@ -546,7 +546,7 @@ function parseLazadaExpenseClient(text) {
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
     shipping_net:    0,
     fee_commission:   findLine("Phí Cố Định"),
-    fee_payment:      findLine("Phí Vận Chuyển"),
+    fee_payment:      findLine("Phí Vận Chuy[eê]n"),
     fee_service: 0, fee_affiliate: 0, fee_piship_sfr: 0,
     fee_handling:     findLine("Phí Xử lý đơn hàng"),
     fee_total: sub, compensation: 0,
