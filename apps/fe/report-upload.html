@@ -386,7 +386,17 @@ function smartRename(pdfText, filename, platform, shop, type) {
     else if (pdfText.includes("RECESS") || pdfText.includes("VN33W4TIY8")) {
       // Quảng cáo / Trợ hiển thị
       if (pdfText.includes("Trợ Hiển Thị") || pdfText.includes("Sponsored") || pdfText.includes("quảng cáo")) {
-        feeType = "phi-quang-cao"
+        const mWeekAds = pdfText.match(/\((\d{2})\/(\d{2})\/\d{4}\s*-\s*(\d{2})\/(\d{2})\/\d{4}\)/)
+                      || pdfText.match(/(\d{2})(\d{2})\d{4}\s*-\s*(\d{2})(\d{2})\d{4}/)
+        if (mWeekAds) {
+          const startDay = parseInt(mWeekAds[1])
+          const weekNum  = startDay <= 7 ? "tuan1" : startDay <= 14 ? "tuan2"
+                         : startDay <= 21 ? "tuan3" : "tuan4"
+          feeType = `phi-quang-cao-${weekNum}`
+        } else {
+          feeType = "phi-quang-cao"
+        }
+      }
       } else {
         // Lấy khoảng thời gian VD: "02/02/2026 - 08/02/2026" → tuan1
         const mWeek = pdfText.match(/\((\d{2})\/(\d{2})\/\d{4}\s*-\s*(\d{2})\/(\d{2})\/\d{4}\)/)
