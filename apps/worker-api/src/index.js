@@ -481,7 +481,7 @@ async function dashboard(request, env, cors) {
       COUNT(DISTINCT CASE WHEN order_type='return' THEN order_id END) AS return_orders,
       COUNT(DISTINCT order_id) AS total_all_orders,
       SUM(CASE WHEN order_type='return' THEN return_fee ELSE 0 END) AS total_return_fee,
-      SUM(CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee > 0 THEN return_fee ELSE 0 END) AS total_tiktok_cancel_fee,
+      SUM(CASE WHEN platform='tiktok' AND (order_type='cancel' OR order_type='return') AND return_fee > 0 THEN return_fee ELSE 0 END) AS total_tiktok_cancel_fee,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 1620 THEN order_id END) AS tiktok_failed_delivery_count,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='return' THEN order_id END) AS tiktok_return_count,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 0 THEN order_id END) AS tiktok_free_cancel_count
