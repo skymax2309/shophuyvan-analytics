@@ -603,25 +603,14 @@ let bulkSkuData = []  // SKU mới cần điền vốn
 async function importSkusFromOrders() {
   showToast("⏳ Đang tải danh sách SKU từ đơn hàng...")
 
-  // 1. Load toàn bộ orders từ API
-  const orders = await fetch(API + "/api/export-orders").then(r => r.json())
+  // 1. Gọi endpoint mới — DB trả về SKU unique trực tiếp, rất nhanh
+  const allOrderSkus = await fetch(API + "/api/unique-skus").then(r => r.json())
 
-  // 2. Lọc đơn không hủy
-  const validOrders = orders.filter(o => o.order_type !== "cancel" && o.sku)
-
-  // 3. Gom SKU duy nhất — nếu SKU trùng: ưu tiên tên sản phẩm của đơn gần nhất
-  const skuMap = new Map()
-  for (const o of validOrders) {
-    const sku = (o.sku || "").trim()
-    if (!sku) continue
-    if (!skuMap.has(sku)) {
-      skuMap.set(sku, { sku, product_name: o.product_name || "" })
-    }
-  }
-
-  // 4. Loại bỏ SKU đã có trong danh sách hiện tại
+  // 2. Loại bỏ SKU đã có trong danh sách hiện tại
   const existingSkus = new Set(allSkus.map(s => s.sku))
-  bulkSkuData = [...skuMap.values()].filter(s => !existingSkus.has(s.sku))
+  bulkSkuData = allOrderSkus
+    .filter(s => !existingSkus.has(s.sku))
+    .map(s => ({ sku: s.sku, product_name: s.product_name || "" }))
 
   if (bulkSkuData.length === 0) {
     showToast("✅ Tất cả SKU đã được đồng bộ rồi!")

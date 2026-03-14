@@ -53,6 +53,9 @@ export default {
       // ── Top SKU ───────────────────────────────────────────────────
       if (url.pathname === "/api/top-sku")
         return topSku(request, env, cors)
+	
+	if (url.pathname === "/api/unique-skus")
+        return uniqueSkus(request, env, cors)
 
       // ── Top sản phẩm ──────────────────────────────────────────────
       if (url.pathname === "/api/top-product")
@@ -531,6 +534,25 @@ async function profitByDay(request, env, cors) {
   return Response.json(rows.results, { headers: cors })
 }
 
+// ════════════════════════════════════════════════════════════════════
+// UNIQUE SKUS — danh sách SKU + tên SP duy nhất từ orders
+// Dùng cho: đồng bộ SKU, dropdown chọn SKU
+// ════════════════════════════════════════════════════════════════════
+async function uniqueSkus(request, env, cors) {
+  const rows = await env.DB.prepare(`
+    SELECT
+      sku,
+      product_name,
+      MAX(order_date) AS last_order_date
+    FROM orders
+    WHERE sku IS NOT NULL AND sku != ''
+      AND order_type != 'cancel'
+    GROUP BY sku
+    ORDER BY sku
+  `).all()
+
+  return Response.json(rows.results, { headers: cors })
+}
 
 // ════════════════════════════════════════════════════════════════════
 // TOP SKU
@@ -724,7 +746,7 @@ async function exportOrders(request, env, cors) {
     FROM orders
     WHERE ${conds.join(" AND ")}
     ORDER BY order_date DESC
-    LIMIT 10000
+    LIMIT ${parseInt(new URL(request.url).searchParams.get("limit") || "10000")}
   `).bind(...params).all()
 
   return Response.json(rows.results, { headers: cors })
