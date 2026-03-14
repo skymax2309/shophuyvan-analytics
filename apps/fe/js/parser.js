@@ -186,6 +186,17 @@ function _tiktok(row, shop) {
   // - Đơn cancel: 0
   const revenue = order_type === "normal" ? gross_revenue : 0
 
+  // ── Phân loại phí đơn hủy TikTok ────────────────────────────────
+  // Mức 0đ   : hủy sớm, chưa giao shipper
+  // Mức 1620đ: "Failed Delivery" — shipper không giao được
+  // Mức 4620đ: "Return/Refund" — khách trả hàng (1620 SFR + 3000 xử lý)
+  const cancel_reason_raw = _str(row["Cancel Reason"] || "")
+  const is_failed_delivery = /giao gói hàng thất bại|failed delivery/i.test(cancel_reason_raw)
+
+  let cancel_fee = 0
+  if (order_type === "return")                        cancel_fee = 4620
+  else if (order_type === "cancel" && is_failed_delivery) cancel_fee = 1620
+
   return {
     platform:        "tiktok",
     shop,
@@ -195,15 +206,15 @@ function _tiktok(row, shop) {
     sku:             _str(row["Seller SKU"]),
     qty:             _int(row["Quantity"]),
     revenue,
-    raw_revenue:     gross_revenue,     // gross trước hoàn
-    shopee_voucher:  0,                 // không có ở TikTok
-    shopee_subsidy:  platform_disc,     // TikTok platform discount
+    raw_revenue:     gross_revenue,
+    shopee_voucher:  0,
+    shopee_subsidy:  platform_disc,
     shop_discount:   0,
     combo_discount:  0,
     return_amount:   order_type === "return" ? refund_amount || gross_revenue : 0,
     order_type,
-    cancel_reason:   cancel_type || null,
-    return_fee:      0,
+    cancel_reason:   cancel_type || cancel_reason_raw || null,
+    return_fee:      cancel_fee,   // dùng return_fee để lưu phí bị trừ
   }
 }
 
