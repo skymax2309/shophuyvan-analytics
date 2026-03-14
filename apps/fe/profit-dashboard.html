@@ -648,13 +648,13 @@ async function loadDashboard() {
       <div class="kpi-value">${fmtShort(dash.total_fee)}</div>
       <div class="kpi-sub" id="feeSubLabel">Commission + Thanh toán + Affiliate + DV + PiShip</div>
       <div id="feeDetail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:1.9;border-top:1px solid #fde68a;padding-top:6px">
-        <div style="display:flex;justify-content:space-between"><span>📌 Commission</span><span>${fmtShort(dash.total_platform_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>💳 Thanh toán</span><span>${fmtShort(dash.total_payment_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🤝 Affiliate</span><span>${fmtShort(dash.total_affiliate_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>📢 Ads</span><span>${fmtShort(dash.total_ads_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip</span><span>${fmtShort(dash.total_piship_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🛎️ Dịch vụ</span><span>${fmtShort(dash.total_service_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>📦 Đóng gói/Op/Labor</span><span>${fmtShort(dash.total_fixed_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>📌 Hoa hồng sàn (Commission)</span><span>${fmtShort(dash.total_platform_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>💳 Phí thanh toán / giao dịch</span><span>${fmtShort(dash.total_payment_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🤝 Tiếp thị liên kết (Affiliate)</span><span>${fmtShort(dash.total_affiliate_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>📢 Quảng cáo (Ads)</span><span>${fmtShort(dash.total_ads_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip / SFR (phí vận chuyển sàn)</span><span>${fmtShort(dash.total_piship_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🛎️ Phí dịch vụ / xử lý đơn</span><span>${fmtShort(dash.total_service_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>📦 Chi phí vận hành (đóng gói + xử lý + nhân công)</span><span>${fmtShort(dash.total_fixed_fee)}</span></div>
       </div>
     </div>
     <div class="kpi red">
