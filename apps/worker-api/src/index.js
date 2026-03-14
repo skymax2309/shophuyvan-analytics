@@ -377,8 +377,11 @@ async function importOrders(request, env, cors) {
            profit_invoice, profit_real,
            tax_flat, tax_income,
            cancel_reason, return_fee, raw_revenue,
-           order_date, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+           order_date, created_at,
+           fee_platform, fee_payment, fee_affiliate, fee_ads,
+           fee_piship, fee_service, fee_packaging, fee_operation, fee_labor,
+           is_first_sku)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(order_id, sku) DO UPDATE SET
           revenue        = excluded.revenue,
           fee            = excluded.fee,
@@ -387,6 +390,15 @@ async function importOrders(request, env, cors) {
           profit_real    = excluded.profit_real,
           tax_flat       = excluded.tax_flat,
           tax_income     = excluded.tax_income,
+          fee_platform   = excluded.fee_platform,
+          fee_payment    = excluded.fee_payment,
+          fee_affiliate  = excluded.fee_affiliate,
+          fee_ads        = excluded.fee_ads,
+          fee_piship     = excluded.fee_piship,
+          fee_service    = excluded.fee_service,
+          fee_packaging  = excluded.fee_packaging,
+          fee_operation  = excluded.fee_operation,
+          fee_labor      = excluded.fee_labor,
           order_date     = excluded.order_date
       `).bind(
         o.order_id, o.sku, o.product_name, o.shop, o.platform, o.order_type,
@@ -395,7 +407,11 @@ async function importOrders(request, env, cors) {
         o.profit_invoice, o.profit_real,
         o.tax_flat, o.tax_income,
         o.cancel_reason, o.return_fee, o.raw_revenue,
-        o.order_date
+        o.order_date,
+        o.fee_platform || 0, o.fee_payment || 0, o.fee_affiliate || 0, o.fee_ads || 0,
+        o.fee_piship   || 0, o.fee_service  || 0, o.fee_packaging || 0,
+        o.fee_operation|| 0, o.fee_labor    || 0,
+        o.is_first_sku ? 1 : 0
       )
     )
 
