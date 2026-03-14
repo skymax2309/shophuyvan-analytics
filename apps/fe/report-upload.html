@@ -544,9 +544,10 @@ function parseLazadaExpenseClient(text) {
   return {
     gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
-    shipping_net:    -findLine("Phí Vận Chuyển"),
+    shipping_net:    0,
     fee_commission:   findLine("Phí Cố Định"),
-    fee_payment: 0, fee_service: 0, fee_affiliate: 0, fee_piship_sfr: 0,
+    fee_payment:      findLine("Phí Vận Chuyển"),
+    fee_service: 0, fee_affiliate: 0, fee_piship_sfr: 0,
     fee_handling:     findLine("Phí Xử lý đơn hàng"),
     fee_total: sub, compensation: 0,
     tax_vat: vat, tax_pit: 0, tax_total: vat,
