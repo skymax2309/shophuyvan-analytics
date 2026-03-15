@@ -548,10 +548,10 @@ function parseLazadaExpenseClient(text) {
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
     shipping_net:    0,
     fee_commission:   findLine("Phí Cố Định"),
-    fee_payment:      findLine("Phí Vận Chuy[eê]n"),
+    fee_payment:      findLine("Phí Vận Chuyển"),
     fee_service: 0, fee_affiliate: 0, fee_piship_sfr: 0,
     fee_handling:     findLine("Phí Xử lý đơn hàng"),
-    fee_total: sub, compensation: 0,
+    fee_total: total, compensation: 0,
     tax_vat: vat, tax_pit: 0, tax_total: vat,
     total_payout: -total,
   }
@@ -824,7 +824,12 @@ async function exportPDF(r) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const fontUrl = "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Me5Q.ttf"
   const fontBytes = await fetch(fontUrl).then(res => res.arrayBuffer())
-  const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontBytes)))
+  const fontBase64 = (() => {
+    const bytes = new Uint8Array(fontBytes)
+    let binary = ""
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+    return btoa(binary)
+  })()
   doc.addFileToVFS("Roboto.ttf", fontBase64)
   doc.addFont("Roboto.ttf", "Roboto", "normal")
   doc.setFont("Roboto", "normal")
