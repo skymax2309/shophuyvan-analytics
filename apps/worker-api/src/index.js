@@ -43,6 +43,14 @@ export default {
         return dashboard(request, env, cors)
       if (url.pathname === "/api/recalc-cost" && request.method === "POST")
         return recalcCost(request, env, cors)
+      if (url.pathname === "/api/parse-invoice" && request.method === "POST")
+        return parseInvoiceAI(request, env, cors)
+      if (url.pathname === "/api/save-invoice" && request.method === "POST")
+        return saveInvoice(request, env, cors)
+      if (url.pathname === "/api/invoices")
+        return listInvoices(request, env, cors)
+      if (url.pathname === "/api/invoice-file")
+        return getInvoiceFile(request, env, cors)
 
       // ── Doanh thu theo ngày ───────────────────────────────────────
       if (url.pathname === "/api/revenue-by-day")
@@ -1303,6 +1311,161 @@ async function recalcCost(request, env, cors) {
   }
 
   return Response.json({ status: "ok", updated }, { headers: cors })
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PARSE INVOICE bằng Claude AI
+// ════════════════════════════════════════════════════════════════════
+async function parseInvoiceAI(request, env, cors) {
+  const formData = await request.formData()
+  const file = formData.get("file")
+  if (!file) return Response.json({ error: "No file" }, { status: 400, headers: cors })
+
+  const bytes = await file.arrayBuffer()
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)))
+
+  const prompt = `Đây là hóa đơn mua hàng. Hãy trích xuất thông tin và trả về JSON duy nhất (không có text khác):
+{
+  "supplier": "tên nhà cung cấp",
+  "invoice_no": "số hóa đơn",
+  "invoice_date": "ngày hóa đơn dạng YYYY-MM-DD",
+  "total_amount": số tiền tổng thanh toán (số nguyên),
+  "items": [
+    {
+      "name": "tên sản phẩm",
+      "qty": số lượng (số nguyên),
+      "unit": "đơn vị tính",
+      "unit_price": đơn giá trước thuế (số nguyên),
+      "amount": thành tiền trước thuế (số nguyên),
+      "vat_rate": phần trăm thuế (số nguyên, vd: 8),
+      "amount_after_vat": thành tiền sau thuế (số nguyên)
+    }
+  ]
+}
+Chỉ trả về JSON, không giải thích thêm.`
+
+  // Rotation nhiều API key — thử lần lượt đến khi thành công
+  const geminiKeys = [
+    env.GEMINI_API_KEY_1,
+    env.GEMINI_API_KEY_2,
+    env.GEMINI_API_KEY_3,
+    env.GEMINI_API_KEY_4,
+    env.GEMINI_API_KEY_5,
+  ].filter(Boolean) // bỏ qua key chưa set
+
+  if (!geminiKeys.length) {
+    return Response.json({ error: "Chưa cấu hình GEMINI_API_KEY" }, { status: 500, headers: cors })
+  }
+
+  let text = "{}"
+  let lastError = ""
+
+  for (const key of geminiKeys) {
+    try {
+      const aiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { inline_data: { mime_type: "application/pdf", data: base64 } },
+                { text: prompt }
+              ]
+            }]
+          })
+        }
+      )
+      const aiData = await aiRes.json()
+
+      // Kiểm tra lỗi quota/rate limit
+      if (aiData.error) {
+        const code = aiData.error.code || 0
+        const msg  = aiData.error.message || ""
+        if (code === 429 || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")) {
+          lastError = `Key hết quota, thử key tiếp...`
+          continue // thử key tiếp theo
+        }
+        lastError = msg
+        break // lỗi khác thì dừng
+      }
+
+      text = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}"
+      break // thành công, thoát vòng lặp
+
+    } catch(e) {
+      lastError = e.message
+      continue
+    }
+  }
+
+  if (text === "{}") {
+    return Response.json({ error: "Tất cả API key đều hết quota: " + lastError }, { status: 429, headers: cors })
+  }
+  try {
+    const clean = text.replace(/```json|```/g, "").trim()
+    const parsed = JSON.parse(clean)
+    return Response.json(parsed, { headers: cors })
+  } catch(e) {
+    return Response.json({ error: "AI parse failed", raw: text }, { status: 500, headers: cors })
+  }
+}
+
+async function saveInvoice(request, env, cors) {
+  const formData = await request.formData()
+  const file = formData.get("file")
+  const dataStr = formData.get("data")
+  if (!file || !dataStr) return Response.json({ error: "Missing data" }, { status: 400, headers: cors })
+
+  const data = JSON.parse(dataStr)
+  const bytes = await file.arrayBuffer()
+  const r2Key = `invoices/${data.invoice_date || "unknown"}/${data.invoice_no || Date.now()}_${file.name}`
+
+  // Lưu file lên R2
+  await env.STORAGE.put(r2Key, bytes, {
+    httpMetadata: { contentType: "application/pdf" },
+    customMetadata: { supplier: data.supplier || "", invoice_no: data.invoice_no || "" }
+  })
+
+  // Lưu vào DB
+  await env.DB.prepare(`
+    INSERT INTO purchase_invoices (supplier, invoice_no, invoice_date, total_amount, item_count, r2_key)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(invoice_no) DO UPDATE SET
+      total_amount = excluded.total_amount,
+      r2_key = excluded.r2_key
+  `).bind(
+    data.supplier || "", data.invoice_no || "", data.invoice_date || "",
+    data.total_amount || 0, data.items.length, r2Key
+  ).run()
+
+  // Cập nhật giá vốn mới nhất vào products
+  const stmts = data.items.map(item =>
+    env.DB.prepare(`
+      UPDATE products SET cost_invoice = ? WHERE sku = ?
+    `).bind(item.unit_price, item.sku)
+  )
+  if (stmts.length) await env.DB.batch(stmts)
+
+  return Response.json({ status: "ok", updated: data.items.length }, { headers: cors })
+}
+
+async function listInvoices(request, env, cors) {
+  const rows = await env.DB.prepare(`
+    SELECT * FROM purchase_invoices ORDER BY invoice_date DESC LIMIT 100
+  `).all()
+  return Response.json(rows.results, { headers: cors })
+}
+
+async function getInvoiceFile(request, env, cors) {
+  const key = new URL(request.url).searchParams.get("key")
+  if (!key) return new Response("Missing key", { status: 400, headers: cors })
+  const obj = await env.STORAGE.get(key)
+  if (!obj) return new Response("Not found", { status: 404, headers: cors })
+  return new Response(obj.body, {
+    headers: { ...cors, "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${key.split("/").pop()}"` }
+  })
 }
 
 function parseTiktokExcel(text) { return {} }

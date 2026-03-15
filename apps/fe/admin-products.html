@@ -101,6 +101,7 @@ tr:hover td { background: #fafafa; }
     <button class="tab-btn active" onclick="switchTab('sku')">📦 Sản phẩm / SKU</button>
     <button class="tab-btn" onclick="switchTab('combo')">🎁 Combo</button>
     <button class="tab-btn" onclick="switchTab('orders')">📋 Toàn bộ đơn hàng</button>
+    <button class="tab-btn" onclick="switchTab('invoice')">🧾 Hóa Đơn Nhập Hàng</button>
   </div>
 
   <!-- ══════════ TAB: SKU ══════════ -->
@@ -221,6 +222,58 @@ tr:hover td { background: #fafafa; }
       </table>
     </div>
   </div>
+  
+  <div id="tab-invoice" class="tab-pane">
+    <div class="card">
+      <div class="card-title">🧾 Upload Hóa Đơn Nhập Hàng</div>
+      <div id="inv-dropzone" onclick="document.getElementById('inv-file').click()"
+        style="border:2px dashed #d1d5db;border-radius:10px;padding:28px;text-align:center;cursor:pointer;margin-bottom:12px">
+        <input type="file" id="inv-file" accept=".pdf" style="display:none" onchange="handleInvFile(this.files[0])">
+        <div style="font-size:32px">📄</div>
+        <div style="font-weight:600;margin-top:6px">Kéo thả hoặc nhấn để chọn PDF hóa đơn</div>
+        <div id="inv-filename" style="font-size:12px;color:#888;margin-top:4px">Hỗ trợ hóa đơn từ mọi nhà cung cấp</div>
+      </div>
+      <button onclick="uploadInvoice()" id="inv-btn"
+        style="background:#4f46e5;color:white;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;font-weight:600">
+        🤖 Phân tích bằng AI
+      </button>
+      <div id="inv-log" style="margin-top:12px;font-size:13px;color:#555;min-height:20px"></div>
+    </div>
+
+    <!-- Bảng xác nhận map SKU -->
+    <div class="card" id="inv-confirm-card" style="display:none">
+      <div class="card-title">✅ Xác nhận sản phẩm & SKU</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px">AI đã phân tích hóa đơn. Chọn SKU tương ứng cho từng sản phẩm rồi nhấn Lưu.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f3f4f6">
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Tên SP trong HĐ</th>
+            <th style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb">SL</th>
+            <th style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb">Đơn giá</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">SKU gợi ý</th>
+            <th style="padding:8px;text-align:center;border-bottom:1px solid #e5e7eb">Bỏ qua</th>
+          </tr>
+        </thead>
+        <tbody id="inv-items-table"></tbody>
+      </table>
+      <div style="margin-top:14px;display:flex;gap:10px">
+        <button onclick="confirmInvoice()"
+          style="background:#16a34a;color:white;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-weight:600">
+          💾 Lưu & Cập nhật giá vốn
+        </button>
+        <button onclick="document.getElementById('inv-confirm-card').style.display='none'"
+          style="background:#e5e7eb;color:#333;border:none;border-radius:8px;padding:10px 16px;cursor:pointer">
+          Hủy
+        </button>
+      </div>
+    </div>
+
+    <!-- Danh sách hóa đơn đã lưu -->
+    <div class="card">
+      <div class="card-title">📋 Hóa Đơn Đã Lưu</div>
+      <div id="inv-list">Đang tải...</div>
+    </div>
+  </div>
 
   <!-- ══════════ TAB: ORDERS ══════════ -->
   <div id="tab-orders" class="tab-pane">
@@ -284,10 +337,11 @@ function switchTab(name) {
   document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"))
   document.getElementById("tab-" + name).classList.add("active")
   document.querySelectorAll(".tab-btn").forEach((btn, i) => {
-    if (["sku","combo","orders"][i] === name) btn.classList.add("active")
+    if (["sku","combo","orders","invoice"][i] === name) btn.classList.add("active")
   })
   if (name === "combo") loadCombos()
   if (name === "orders") loadOrders(1)
+  if (name === "invoice") loadInvoices()
 }
 
 // ════════════════════════════
@@ -699,6 +753,159 @@ async function saveBulkCost() {
   document.getElementById("bulkCostPanel").style.display = "none"
   bulkSkuData = []
   loadSkus()
+}
+// ════════════════════════════
+// HÓA ĐƠN NHẬP HÀNG
+// ════════════════════════════
+let invFile = null
+let invParsed = []
+
+function handleInvFile(file) {
+  if (!file) return
+  invFile = file
+  document.getElementById("inv-filename").textContent = "📄 " + file.name
+  document.getElementById("inv-dropzone").style.borderColor = "#4f46e5"
+}
+
+async function uploadInvoice() {
+  if (!invFile) { alert("Chọn file PDF trước!"); return }
+  const btn = document.getElementById("inv-btn")
+  const log = document.getElementById("inv-log")
+  btn.disabled = true
+  btn.textContent = "⏳ Đang phân tích..."
+  log.innerHTML = "🤖 AI đang đọc hóa đơn..."
+
+  try {
+    const formData = new FormData()
+    formData.append("file", invFile)
+    const res = await fetch(API + "/api/parse-invoice", { method: "POST", body: formData })
+    const data = await res.json()
+    if (!data.items || !data.items.length) {
+      log.innerHTML = "❌ Không tìm thấy sản phẩm trong hóa đơn!"
+      return
+    }
+    invParsed = data
+    log.innerHTML = `✅ Tìm thấy <b>${data.items.length}</b> sản phẩm | Nhà CC: <b>${data.supplier || "?"}</b> | Ngày: <b>${data.invoice_date || "?"}</b>`
+    renderInvConfirm(data)
+  } catch(e) {
+    log.innerHTML = "❌ Lỗi: " + e.message
+  } finally {
+    btn.disabled = false
+    btn.textContent = "🤖 Phân tích bằng AI"
+  }
+}
+
+async function renderInvConfirm(data) {
+  // Lấy danh sách SKU hiện có để gợi ý
+  const skus = await fetch(API + "/api/products").then(r => r.json())
+  const tbody = document.getElementById("inv-items-table")
+  tbody.innerHTML = data.items.map((item, i) => {
+    // Tìm SKU gần giống nhất
+    const name = (item.name || "").toLowerCase()
+    const suggestions = skus
+      .filter(s => !s.is_combo)
+      .map(s => ({ s, score: similarity(name, (s.product_name || "").toLowerCase()) }))
+      .filter(x => x.score > 0.2)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+
+    const opts = `<option value="">-- Chọn SKU --</option>` +
+      suggestions.map(x => `<option value="${x.s.sku}" ${x.score > 0.5 ? "selected" : ""}>${x.s.sku} — ${x.s.product_name}</option>`).join("") +
+      skus.filter(s => !s.is_combo && !suggestions.find(x => x.s.sku === s.sku))
+           .map(s => `<option value="${s.sku}">${s.sku} — ${s.product_name}</option>`).join("")
+
+    return `<tr style="border-bottom:1px solid #f3f4f6">
+      <td style="padding:8px;max-width:240px;font-size:12px">${item.name}</td>
+      <td style="padding:8px;text-align:right">${item.qty}</td>
+      <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(item.unit_price).toLocaleString("vi-VN")}đ</td>
+      <td style="padding:8px">
+        <select id="inv-sku-${i}" style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;font-size:12px">
+          ${opts}
+        </select>
+      </td>
+      <td style="padding:8px;text-align:center">
+        <input type="checkbox" id="inv-skip-${i}">
+      </td>
+    </tr>`
+  }).join("")
+  document.getElementById("inv-confirm-card").style.display = "block"
+}
+
+function similarity(a, b) {
+  // Jaccard similarity theo từ
+  const wa = new Set(a.split(/\s+/).filter(Boolean))
+  const wb = new Set(b.split(/\s+/).filter(Boolean))
+  const inter = [...wa].filter(w => wb.has(w)).length
+  const union = new Set([...wa, ...wb]).size
+  return union ? inter / union : 0
+}
+
+async function confirmInvoice() {
+  const items = invParsed.items.map((item, i) => {
+    const sku = document.getElementById(`inv-sku-${i}`)?.value || ""
+    const skip = document.getElementById(`inv-skip-${i}`)?.checked
+    return { ...item, sku, skip }
+  }).filter(x => !x.skip && x.sku)
+
+  if (!items.length) { alert("Chưa chọn SKU nào!"); return }
+
+  const payload = {
+    supplier:     invParsed.supplier,
+    invoice_no:   invParsed.invoice_no,
+    invoice_date: invParsed.invoice_date,
+    total_amount: invParsed.total_amount,
+    items
+  }
+
+  try {
+    const formData = new FormData()
+    formData.append("file", invFile)
+    formData.append("data", JSON.stringify(payload))
+    const res = await fetch(API + "/api/save-invoice", { method: "POST", body: formData })
+    const result = await res.json()
+    if (result.status === "ok") {
+      showToast(`✅ Đã lưu hóa đơn & cập nhật ${result.updated} SKU!`)
+      document.getElementById("inv-confirm-card").style.display = "none"
+      document.getElementById("inv-log").innerHTML = ""
+      invFile = null
+      document.getElementById("inv-filename").textContent = "Hỗ trợ hóa đơn từ mọi nhà cung cấp"
+      loadInvoices()
+      loadSkus()
+    } else {
+      alert("Lỗi: " + result.error)
+    }
+  } catch(e) {
+    alert("Lỗi: " + e.message)
+  }
+}
+
+async function loadInvoices() {
+  const el = document.getElementById("inv-list")
+  el.innerHTML = "Đang tải..."
+  try {
+    const data = await fetch(API + "/api/invoices").then(r => r.json())
+    if (!data.length) { el.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px">Chưa có hóa đơn nào</div>'; return }
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#f3f4f6">
+        <th style="padding:8px;text-align:left">Nhà CC</th>
+        <th style="padding:8px;text-align:left">Số HĐ</th>
+        <th style="padding:8px;text-align:left">Ngày</th>
+        <th style="padding:8px;text-align:right">Tổng tiền</th>
+        <th style="padding:8px;text-align:center">SP</th>
+        <th style="padding:8px">Tải</th>
+      </tr></thead>
+      <tbody>${data.map(inv => `<tr style="border-bottom:1px solid #f3f4f6">
+        <td style="padding:8px">${inv.supplier || "?"}</td>
+        <td style="padding:8px;font-family:monospace">${inv.invoice_no || "?"}</td>
+        <td style="padding:8px">${inv.invoice_date || "?"}</td>
+        <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(inv.total_amount||0).toLocaleString("vi-VN")}đ</td>
+        <td style="padding:8px;text-align:center">${inv.item_count || 0}</td>
+        <td style="padding:8px"><a href="${API}/api/invoice-file?key=${encodeURIComponent(inv.r2_key)}" target="_blank" style="color:#4f46e5">⬇️ Tải</a></td>
+      </tr>`).join("")}</tbody>
+    </table>`
+  } catch(e) {
+    el.innerHTML = "❌ " + e.message
+  }
 }
 loadSkus()
 addComboRow() // Mặc định 1 dòng combo
