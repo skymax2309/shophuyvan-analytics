@@ -41,6 +41,8 @@ export default {
       // ── Dashboard (tổng quan) ─────────────────────────────────────
       if (url.pathname === "/api/dashboard")
         return dashboard(request, env, cors)
+      if (url.pathname === "/api/recalc-cost" && request.method === "POST")
+        return recalcCost(request, env, cors)
 
       // ── Doanh thu theo ngày ───────────────────────────────────────
       if (url.pathname === "/api/revenue-by-day")
@@ -1117,8 +1119,9 @@ function parseTiktokExpenseInvoice(text) {
 
 // Lazada VAT Invoice (do RECESS xuất) — phí theo tuần
 function parseLazadaExpenseInvoice(text) {
+  text = text.normalize("NFC")
   const findLine = (label) => {
-    const re = new RegExp(label + "[^\\d]*([\\.\\d]+)")
+    const re = new RegExp(label + "[ \\t]{1,200}(\\d{1,3}(?:\\.\\d{3})+)")
     const m = text.match(re)
     if (!m) return 0
     return parseInt(m[1].replace(/\./g, "")) || 0
@@ -1139,14 +1142,14 @@ function parseLazadaExpenseInvoice(text) {
   return {
     gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
-    shipping_net: -shipping,
+    shipping_net:    0,
     fee_commission:  commission,
-    fee_payment:     0,
+    fee_payment:     shipping,
     fee_service:     0,
     fee_affiliate:   0,
     fee_piship_sfr:  0,
     fee_handling:    handling,
-    fee_total:       sub,
+    fee_total:       total,
     compensation:    0,
     tax_vat:         vat,
     tax_pit:         0,
@@ -1261,6 +1264,45 @@ function parseTiktokReport(data) {
     tax_total:           data.tax_total            || 0,
     total_payout:        data.total_payout         || 0,
   }
+}
+
+async function recalcCost(request, env, cors) {
+  const cfg = await getCostSettings(env)
+  const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real FROM products`).all()
+  const productMap = {}
+  for (const p of productRows.results) productMap[p.sku] = p
+
+  const orders = await env.DB.prepare(`SELECT * FROM orders`).all()
+  const BATCH = 50
+  let updated = 0
+
+  for (let i = 0; i < orders.results.length; i += BATCH) {
+    const chunk = orders.results.slice(i, i + BATCH)
+    const stmts = chunk.map(o => {
+      const product = productMap[o.sku] || { cost_invoice: 0, cost_real: 0 }
+      const orderWithCost = { ...o, cost_invoice: product.cost_invoice, cost_real: product.cost_real }
+      const p = calcProfit(orderWithCost, cfg)
+      return env.DB.prepare(`
+        UPDATE orders SET
+          cost_invoice   = ?,
+          cost_real      = ?,
+          profit_invoice = ?,
+          profit_real    = ?,
+          fee            = ?,
+          profit         = ?
+        WHERE order_id = ? AND sku = ?
+      `).bind(
+        p.cost_invoice, p.cost_real,
+        p.profit_invoice, p.profit_real,
+        p.total_fee, p.profit_real,
+        o.order_id, o.sku
+      )
+    })
+    await env.DB.batch(stmts)
+    updated += chunk.length
+  }
+
+  return Response.json({ status: "ok", updated }, { headers: cors })
 }
 
 function parseTiktokExcel(text) { return {} }
