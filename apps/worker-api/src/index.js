@@ -1368,7 +1368,7 @@ Chỉ trả về JSON, không giải thích thêm.`
   for (const key of geminiKeys) {
     try {
       const aiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${key}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1389,11 +1389,11 @@ Chỉ trả về JSON, không giải thích thêm.`
         const code = aiData.error.code || 0
         const msg  = aiData.error.message || ""
         if (code === 429 || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")) {
-          lastError = `Key hết quota, thử key tiếp...`
-          continue // thử key tiếp theo
+          lastError = `429: ${msg}`
+          continue
         }
-        lastError = msg
-        break // lỗi khác thì dừng
+        // Lỗi khác — trả về chi tiết để debug
+        return Response.json({ error: msg, code, raw: aiData }, { status: 500, headers: cors })
       }
 
       text = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}"
