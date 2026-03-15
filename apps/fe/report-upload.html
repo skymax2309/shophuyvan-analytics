@@ -529,6 +529,7 @@ function parseTiktokExpenseClient(text) {
 }
 
 function parseLazadaExpenseClient(text) {
+  text = text.normalize("NFC")
   const findLine = (label) => {
     const re = new RegExp(label + "[ \\t]{1,200}(\\d{1,3}(?:\\.\\d{3})+)")
     const m = text.match(re)
@@ -818,62 +819,61 @@ async function deleteReport(id, r2Key) {
   }
 }
 
-function exportPDF(r) {
+async function exportPDF(r) {
   const { jsPDF } = window.jspdf
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-  const fmt = n => Math.abs(Math.round(n || 0)).toLocaleString("vi-VN")
-  const L = 20, W = 170
+  const fontUrl = "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Me5Q.ttf"
+  const fontBytes = await fetch(fontUrl).then(res => res.arrayBuffer())
+  const fontBase64 = btoa(String.fromCharCode(...new Uint8Array(fontBytes)))
+  doc.addFileToVFS("Roboto.ttf", fontBase64)
+  doc.addFont("Roboto.ttf", "Roboto", "normal")
+  doc.setFont("Roboto", "normal")
 
-  // Tiêu đề
-  doc.setFont("helvetica", "bold")
-  doc.setFontSize(16)
-  doc.text("BAO CAO DOANH THU TIKTOK", 105, 20, { align: "center" })
-  doc.setFontSize(11)
-  doc.setFont("helvetica", "normal")
-  doc.text(`Shop: ${r.shop}   |   Thang: ${r.report_month}`, 105, 28, { align: "center" })
-  doc.line(L, 32, L + W, 32)
+  const fmt = n => {
+    const abs = Math.abs(Math.round(n || 0))
+    const sign = (n || 0) < 0 ? "-" : ""
+    return sign + abs.toLocaleString("vi-VN") + "đ"
+  }
+  const L = 15, W = 180
 
-  // Bảng số liệu
-  const rows = [
-    ["Doanh thu ban hang", fmt(r.gross_revenue) + "d"],
-    ["  Hang tra lai", fmt(r.refund_amount) + "d"],
-    ["  Doanh thu thuan", fmt(r.net_product_revenue) + "d"],
-    ["---", ""],
-    ["Phi hoa hong (HH)", fmt(r.fee_commission) + "d"],
-    ["Phi thanh toan (TT)", fmt(r.fee_payment) + "d"],
-    ["Phi Affiliate", fmt(r.fee_affiliate) + "d"],
-    ["Phi SFR/PiShip", fmt(r.fee_service) + "d"],
-    ["Phi xu ly don hang", fmt(r.fee_handling) + "d"],
-    ["Tong phi", fmt(r.fee_total) + "d"],
-    ["---", ""],
-    ["Thue GTGT", fmt(r.tax_vat) + "d"],
-    ["Thue TNCN", fmt(r.tax_pit) + "d"],
-    ["Tong thue", fmt(r.tax_total) + "d"],
-    ["---", ""],
-    ["VE TUI (Tong quyet toan)", fmt(r.total_payout) + "d"],
+  doc.setFontSize(14)
+  doc.text("BÁO CÁO DOANH THU TIKTOK", 105, 15, { align: "center" })
+  doc.setFontSize(9)
+  doc.text(`Shop: ${r.shop}   |   Tháng: ${r.report_month}   |   Tiền tệ: VND   |   Múi giờ: UTC+7`, 105, 22, { align: "center" })
+  doc.line(L, 25, L + W, 25)
+
+  const items = [
+    [0, "Tổng quyết toán",                    r.total_payout,                              true],
+    [1, "Doanh thu bán hàng",                  r.gross_revenue,                             false],
+    [2, "Doanh thu sau chiết khấu",             r.net_product_revenue + r.refund_amount,     false],
+    [2, "Hàng trả lại",                         -r.refund_amount,                            false],
+    [1, "Tổng phí",                             -r.fee_total,                                false],
+    [2, "Phí thanh toán",                       -r.fee_payment,                              false],
+    [2, "Phí hoa hồng",                         -r.fee_commission,                           false],
+    [2, "Phí vận chuyển",                        r.shipping_net,                              false],
+    [2, "Phí Affiliate",                         -r.fee_affiliate,                            false],
+    [2, "Phí dịch vụ SFR",                       -r.fee_service,                              false],
+    [2, "Phí xử lý đơn hàng",                    -r.fee_handling,                             false],
+    [2, "Thuế GTGT (TikTok khấu trừ)",           -r.tax_vat,                                 false],
+    [2, "Thuế TNCN (TikTok khấu trừ)",           -r.tax_pit,                                 false],
+    [1, "Tổng điều chỉnh",                       -(r.compensation || 0),                      false],
+    [2, "Chi phí quảng cáo TikTok Ads",          -(r.compensation || 0),                      false],
   ]
 
-  let y = 42
-  rows.forEach(([label, val]) => {
-    if (label === "---") {
-      doc.line(L, y, L + W, y)
-      y += 4
-      return
-    }
-    const isBold = label.startsWith("Tong") || label.startsWith("VE TUI")
-    doc.setFont("helvetica", isBold ? "bold" : "normal")
-    doc.setFontSize(11)
-    doc.text(label, L + 2, y)
-    doc.text(val, L + W - 2, y, { align: "right" })
-    y += 8
+  let y = 33
+  items.forEach(([level, label, val, bold]) => {
+    if (val === 0) return
+    doc.setFontSize(bold ? 10 : 9)
+    doc.text(label, L + level * 5, y)
+    doc.text(fmt(val), L + W, y, { align: "right" })
+    y += 6
+    if (y > 270) { doc.addPage(); y = 20 }
   })
 
   doc.line(L, y, L + W, y)
-  y += 6
-  doc.setFontSize(9)
-  doc.setFont("helvetica", "italic")
-  doc.text(`Xuat ban: ${new Date().toLocaleDateString("vi-VN")}`, L, y)
-
+  y += 5
+  doc.setFontSize(8)
+  doc.text(`Xuất bản: ${new Date().toLocaleDateString("vi-VN")}`, L, y)
   doc.save(`TIKTOK_${r.shop}_${r.report_month}_doanh-thu.pdf`)
 }
 
