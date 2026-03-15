@@ -1322,7 +1322,12 @@ async function parseInvoiceAI(request, env, cors) {
   if (!file) return Response.json({ error: "No file" }, { status: 400, headers: cors })
 
   const bytes = await file.arrayBuffer()
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)))
+  const base64 = (() => {
+    const arr = new Uint8Array(bytes)
+    let binary = ""
+    for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i])
+    return btoa(binary)
+  })()
 
   const prompt = `Đây là hóa đơn mua hàng. Hãy trích xuất thông tin và trả về JSON duy nhất (không có text khác):
 {
