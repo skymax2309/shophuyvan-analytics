@@ -43,6 +43,8 @@ export default {
         return dashboard(request, env, cors)
       if (url.pathname === "/api/recalc-cost" && request.method === "POST")
         return recalcCost(request, env, cors)
+	if (url.pathname === "/api/update-cost-prices" && request.method === "POST")
+        return updateCostPrices(request, env, cors)
       if (url.pathname === "/api/parse-invoice" && request.method === "POST")
         return parseInvoiceAI(request, env, cors)
       if (url.pathname === "/api/save-invoice" && request.method === "POST")
@@ -1332,7 +1334,7 @@ async function parseInvoiceAI(request, env, cors) {
   const prompt = `Đây là hóa đơn mua hàng. Hãy trích xuất thông tin và trả về JSON duy nhất (không có text khác):
 {
   "supplier": "tên nhà cung cấp",
-  "buyer": "tên người mua hàng",
+  "buyer": "mã số thuế người mua (chỉ lấy dãy số, ví dụ: 079084002835)",
   "invoice_no": "số hóa đơn",
   "invoice_date": "ngày hóa đơn dạng YYYY-MM-DD",
   "total_amount": số tiền tổng thanh toán (số nguyên),
@@ -1451,15 +1453,49 @@ async function saveInvoice(request, env, cors) {
     JSON.stringify(data.items.map(i => ({ name: i.name, qty: i.qty, unit_price: i.unit_price, sku: i.sku })))
   ).run()
 
-  // Cập nhật giá vốn mới nhất vào products
-  const stmts = data.items.map(item =>
-    env.DB.prepare(`
-      UPDATE products SET cost_invoice = ? WHERE sku = ?
-    `).bind(item.unit_price, item.sku)
-  )
-  if (stmts.length) await env.DB.batch(stmts)
+  // Lấy giá vốn hiện tại để so sánh
+  const skuList = data.items.map(i => i.sku).filter(Boolean)
+  let priceChanges = []
+  let autoUpdated = 0
 
-  return Response.json({ status: "ok", updated: data.items.length }, { headers: cors })
+  if (skuList.length) {
+    const existing = await env.DB.prepare(
+      `SELECT sku, cost_invoice FROM products WHERE sku IN (${skuList.map(()=>"?").join(",")})`
+    ).bind(...skuList).all()
+
+    const existingMap = {}
+    for (const p of existing.results) existingMap[p.sku] = p.cost_invoice
+
+    const autoStmts = []
+    for (const item of data.items) {
+      if (!item.sku) continue
+      const oldPrice = existingMap[item.sku]
+      if (oldPrice === undefined) {
+        // SKU chưa có giá → cập nhật luôn
+        autoStmts.push(
+          env.DB.prepare(`UPDATE products SET cost_invoice = ? WHERE sku = ?`)
+            .bind(item.unit_price, item.sku)
+        )
+        autoUpdated++
+      } else if (oldPrice !== item.unit_price) {
+        // Giá thay đổi → báo để xác nhận
+        priceChanges.push({
+          sku: item.sku,
+          name: item.name,
+          old_price: oldPrice,
+          new_price: item.unit_price
+        })
+      }
+      // Giá không đổi → bỏ qua
+    }
+    if (autoStmts.length) await env.DB.batch(autoStmts)
+  }
+
+  return Response.json({
+    status: "ok",
+    updated: autoUpdated,
+    price_changes: priceChanges  // danh sách SKU có giá thay đổi
+  }, { headers: cors })
 }
 
 async function listInvoices(request, env, cors) {
@@ -1477,6 +1513,17 @@ async function getInvoiceFile(request, env, cors) {
   return new Response(obj.body, {
     headers: { ...cors, "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${key.split("/").pop()}"` }
   })
+}
+
+async function updateCostPrices(request, env, cors) {
+  const items = await request.json()
+  if (!items?.length) return Response.json({ updated: 0 }, { headers: cors })
+  const stmts = items.map(item =>
+    env.DB.prepare(`UPDATE products SET cost_invoice = ? WHERE sku = ?`)
+      .bind(item.new_price, item.sku)
+  )
+  await env.DB.batch(stmts)
+  return Response.json({ status: "ok", updated: items.length }, { headers: cors })
 }
 
 function parseTiktokExcel(text) { return {} }
