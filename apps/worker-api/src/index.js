@@ -1332,6 +1332,7 @@ async function parseInvoiceAI(request, env, cors) {
   const prompt = `Đây là hóa đơn mua hàng. Hãy trích xuất thông tin và trả về JSON duy nhất (không có text khác):
 {
   "supplier": "tên nhà cung cấp",
+  "buyer": "tên người mua hàng",
   "invoice_no": "số hóa đơn",
   "invoice_date": "ngày hóa đơn dạng YYYY-MM-DD",
   "total_amount": số tiền tổng thanh toán (số nguyên),
@@ -1424,6 +1425,8 @@ async function saveInvoice(request, env, cors) {
   if (!file || !dataStr) return Response.json({ error: "Missing data" }, { status: 400, headers: cors })
 
   const data = JSON.parse(dataStr)
+  // Lấy buyer từ data (AI parse ra)
+  const buyer = data.buyer || ""
   const bytes = await file.arrayBuffer()
   const r2Key = `invoices/${data.invoice_date || "unknown"}/${data.invoice_no || Date.now()}_${file.name}`
 
@@ -1435,13 +1438,14 @@ async function saveInvoice(request, env, cors) {
 
   // Lưu vào DB
   await env.DB.prepare(`
-    INSERT INTO purchase_invoices (supplier, invoice_no, invoice_date, total_amount, item_count, r2_key)
-    VALUES (?, ?, ?, ?, ?, ?)
+   INSERT INTO purchase_invoices (supplier, buyer, invoice_no, invoice_date, total_amount, item_count, r2_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(invoice_no) DO UPDATE SET
       total_amount = excluded.total_amount,
+      buyer = excluded.buyer,
       r2_key = excluded.r2_key
   `).bind(
-    data.supplier || "", data.invoice_no || "", data.invoice_date || "",
+    data.supplier || "", buyer, data.invoice_no || "", data.invoice_date || "",
     data.total_amount || 0, data.items.length, r2Key
   ).run()
 

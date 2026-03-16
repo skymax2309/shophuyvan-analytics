@@ -819,6 +819,9 @@ async function renderInvConfirm(data) {
       <td style="padding:8px;text-align:right">${item.qty}</td>
       <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(item.unit_price).toLocaleString("vi-VN")}đ</td>
       <td style="padding:8px">
+        <input type="text" id="inv-search-${i}" placeholder="🔍 Tìm SKU..."
+          oninput="filterSkuOptions(${i}, this.value, ${JSON.stringify(skus.filter(s=>!s.is_combo))})"
+          style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;font-size:12px;margin-bottom:4px">
         <select id="inv-sku-${i}" style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;font-size:12px">
           ${opts}
         </select>
@@ -829,6 +832,20 @@ async function renderInvConfirm(data) {
     </tr>`
   }).join("")
   document.getElementById("inv-confirm-card").style.display = "block"
+}
+
+function filterSkuOptions(i, keyword, allSkus) {
+  const sel = document.getElementById(`inv-sku-${i}`)
+  const cur = sel.value
+  const kw = keyword.toLowerCase()
+  const filtered = kw
+    ? allSkus.filter(s =>
+        s.sku.toLowerCase().includes(kw) ||
+        (s.product_name || "").toLowerCase().includes(kw)
+      )
+    : allSkus
+  sel.innerHTML = `<option value="">-- Chọn SKU --</option>` +
+    filtered.map(s => `<option value="${s.sku}" ${s.sku === cur ? "selected" : ""}>${s.sku} — ${s.product_name}</option>`).join("")
 }
 
 function similarity(a, b) {
