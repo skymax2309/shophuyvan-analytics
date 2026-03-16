@@ -894,7 +894,7 @@ async function uploadReport(request, env, cors) {
        compensation,
        tax_vat, tax_pit, tax_total,
        total_payout, raw_data)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(platform, report_month, file_name) DO UPDATE SET
       r2_key              = excluded.r2_key,
       gross_revenue       = excluded.gross_revenue,
@@ -910,6 +910,7 @@ async function uploadReport(request, env, cors) {
       fee_affiliate       = excluded.fee_affiliate,
       fee_piship_sfr      = excluded.fee_piship_sfr,
       fee_handling        = excluded.fee_handling,
+      fee_ads             = excluded.fee_ads,
       fee_total           = excluded.fee_total,
       compensation        = excluded.compensation,
       tax_vat             = excluded.tax_vat,
@@ -932,6 +933,7 @@ async function uploadReport(request, env, cors) {
     parsed.fee_affiliate       || 0,
     parsed.fee_piship_sfr      || 0,
     parsed.fee_handling        || 0,
+    parsed.fee_ads             || 0,
     parsed.fee_total           || 0,
     parsed.compensation        || 0,
     parsed.tax_vat             || 0,
@@ -971,6 +973,7 @@ async function getReportSummary(request, env, cors) {
       SUM(fee_piship_sfr)   AS total_fee_piship,
       SUM(fee_service)      AS total_fee_service,
       SUM(fee_handling)     AS total_fee_handling,
+      SUM(COALESCE(fee_ads,0)) AS total_fee_ads,
       SUM(fee_total)        AS total_fee_report,
       SUM(tax_total)        AS total_tax_report,
       SUM(total_payout)     AS total_payout
@@ -1142,15 +1145,17 @@ function parseShopeeExpenseInvoice(text) {
   const withdrawal  = findAmtLine(text, "Phí rút tiền")
 
   return {
+    return {
     gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
     shipping_net: 0,
-    fee_commission:  commission || ads,
+    fee_commission:  commission,
     fee_payment:     transaction,
     fee_service:     service,
     fee_affiliate:   0,
     fee_piship_sfr:  piship,
     fee_handling:    withdrawal,
+    fee_ads:         ads,
     fee_total:       sub,
     compensation:    0,
     tax_vat:         vat,
@@ -1288,7 +1293,7 @@ function parseShopeeReport(text) {
     platform_subsidy, seller_voucher: 0, co_funded_voucher,
     shipping_net: 0,
     fee_commission, fee_payment, fee_service,
-    fee_affiliate, fee_piship_sfr, fee_handling: 0, fee_total,
+       fee_affiliate, fee_piship_sfr, fee_handling, fee_ads, fee_total,
     compensation: 0,
     tax_vat, tax_pit, tax_total,
     total_payout,
