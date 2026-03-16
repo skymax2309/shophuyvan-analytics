@@ -185,64 +185,64 @@ tr:hover td { background: #fafafa; }
           style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:280px;outline:none">
       </div>
 	  
-	  <!-- Panel nhóm giá -->
-      <div id="sku-group-panel" style="display:none;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:10px;padding:16px;margin-bottom:16px">
-        <div style="font-weight:700;color:#6d28d9;margin-bottom:10px">🔗 Tạo / Quản lý nhóm giá vốn</div>
+	  <!-- 4 TAB phân loại SKU -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0">
+        <button class="sku-tab-btn active" onclick="switchSkuTab('no-price')" id="stab-no-price"
+          style="padding:7px 14px;border:none;border-bottom:2px solid #f59e0b;background:none;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">
+          ⚠️ Chưa có giá (<span id="skuNoPriceCount">0</span>)
+        </button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('partial')" id="stab-partial"
+          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
+          🔶 Còn thiếu 1 giá (<span id="skuPartialCount">0</span>)
+        </button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('has-price')" id="stab-has-price"
+          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
+          ✅ Đủ giá vốn (<span id="skuHasPriceCount">0</span>)
+        </button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('groups')" id="stab-groups"
+          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
+          🔗 Nhóm giá (<span id="skuGroupCount">0</span>)
+        </button>
+      </div>
 
-        <!-- Tạo nhóm mới -->
-        <div id="group-create-area" style="display:none;background:white;border-radius:8px;padding:12px;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Đặt tên nhóm và nhập giá vốn chung:</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <input id="group-name-input" placeholder="Tên nhóm (VD: Giá đỡ K232)"
-              style="flex:1;min-width:160px;border:1px solid #e5e7eb;border-radius:6px;padding:7px 10px;font-size:13px">
-            <input id="group-inv-input" type="number" placeholder="Vốn HĐ"
-              style="width:120px;border:1px solid #e5e7eb;border-radius:6px;padding:7px 10px;font-size:13px">
-            <input id="group-real-input" type="number" placeholder="Vốn thực"
-              style="width:120px;border:1px solid #e5e7eb;border-radius:6px;padding:7px 10px;font-size:13px">
-            <button onclick="saveNewGroup()"
-              style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600">
-              💾 Lưu nhóm
-            </button>
-          </div>
-          <div id="group-selected-list" style="margin-top:8px;font-size:12px;color:#555"></div>
-        </div>
+      <!-- Tab: Chưa có giá -->
+      <div id="sku-tab-no-price">
+        <table>
+          <thead><tr style="background:#fef3c7">
+            <th style="width:32px"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)"></th>
+            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuNoPriceTable"></tbody>
+        </table>
+      </div>
 
-        <!-- Danh sách nhóm đã có -->
+      <!-- Tab: Còn thiếu 1 giá -->
+      <div id="sku-tab-partial" style="display:none">
+        <table>
+          <thead><tr style="background:#ffedd5">
+            <th style="width:32px"><input type="checkbox" id="chk-all-partial" onchange="toggleAllCheck('partial',this.checked)"></th>
+            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuPartialTable"></tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Đủ giá vốn -->
+      <div id="sku-tab-has-price" style="display:none">
+        <table>
+          <thead><tr style="background:#dcfce7">
+            <th style="width:32px"><input type="checkbox" id="chk-all-has" onchange="toggleAllCheck('has',this.checked)"></th>
+            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuHasPriceTable"></tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Nhóm giá -->
+      <div id="sku-tab-groups" style="display:none">
         <div id="group-list-area">Đang tải nhóm...</div>
       </div>
 
-      <!-- Bảng SKU CHƯA có giá vốn -->
-
-      <!-- Bảng SKU CHƯA có giá vốn -->
-      <div id="sku-no-price-section">
-        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:13px;font-weight:600;color:#92400e">
-          ⚠️ SKU chưa có giá vốn (<span id="skuNoPriceCount">0</span>)
-          <span style="font-weight:400;font-size:12px;margin-left:8px">— Cần nhập giá vốn để tính lợi nhuận chính xác</span>
-        </div>
-        <table style="margin-bottom:16px">
-          <thead><tr style="background:#fef3c7">
-            <th style="width:32px"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)" style="display:none"></th>
-            <th>SKU</th><th>Tên sản phẩm</th>
-            <th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-          </tr></thead>
-          <tbody id="skuNoPriceTable"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
-        </table>
-      </div>
-
-      <!-- Bảng SKU ĐÃ có giá vốn -->
-      <div id="sku-has-price-section">
-        <div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:13px;font-weight:600;color:#166534">
-          ✅ SKU đã có giá vốn (<span id="skuHasPriceCount">0</span>)
-        </div>
-        <table>
-          <thead><tr style="background:#dcfce7">
-            <th style="width:32px"><input type="checkbox" id="chk-all-has" onchange="toggleAllCheck('has',this.checked)" style="display:none"></th>
-            <th>SKU</th><th>Tên sản phẩm</th>
-            <th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-          </tr></thead>
-          <tbody id="skuHasPriceTable"><tr><td colspan="5" class="empty">Đang tải...</td></tr></tbody>
-        </table>
-      </div>
     </div>
   </div>
 
@@ -440,6 +440,23 @@ async function loadSkus() {
   }
 }
 
+let _currentSkuTab = "no-price"
+
+function switchSkuTab(tab) {
+  _currentSkuTab = tab
+  document.querySelectorAll(".sku-tab-btn").forEach(b => {
+    b.style.borderBottomColor = "transparent"
+    b.style.color = "#888"
+  })
+  const colors = { "no-price": "#f59e0b", "partial": "#f97316", "has-price": "#16a34a", "groups": "#8b5cf6" }
+  const btn = document.getElementById("stab-" + tab)
+  btn.style.borderBottomColor = colors[tab] || "#4f46e5"
+  btn.style.color = "#333"
+  document.querySelectorAll("[id^='sku-tab-']").forEach(el => el.style.display = "none")
+  document.getElementById("sku-tab-" + tab).style.display = ""
+  if (tab === "groups") loadSkuGroups()
+}
+
 function renderSkuTables() {
   const kw = (document.getElementById("sku-search")?.value || "").toLowerCase().trim()
   const skus = allSkus.filter(p => !p.is_combo && !/combo/i.test(p.sku || ""))
@@ -451,25 +468,24 @@ function renderSkuTables() {
       )
     : skus
 
-  const hasPrice  = filtered.filter(p => (p.cost_invoice || 0) > 0 || (p.cost_real || 0) > 0)
-  const noPrice   = filtered.filter(p => !(p.cost_invoice || 0) && !(p.cost_real || 0))
+  // Phân loại 3 nhóm
+  const noPrice   = filtered.filter(p => !(p.cost_invoice||0) && !(p.cost_real||0))
+  const partial   = filtered.filter(p => ((p.cost_invoice||0) > 0) !== ((p.cost_real||0) > 0))
+  const hasPrice  = filtered.filter(p => (p.cost_invoice||0) > 0 && (p.cost_real||0) > 0)
 
   document.getElementById("skuCount").textContent = skus.length
   document.getElementById("skuNoPriceCount").textContent = noPrice.length
+  document.getElementById("skuPartialCount").textContent = partial.length
   document.getElementById("skuHasPriceCount").textContent = hasPrice.length
-
-  // Ẩn section nếu không có dữ liệu sau filter
-  document.getElementById("sku-no-price-section").style.display = noPrice.length || !kw ? "" : "none"
-  document.getElementById("sku-has-price-section").style.display = hasPrice.length ? "" : "none"
 
   const rowHtml = (p) => `
     <tr id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g,'_')}">
-      <td><input type="checkbox" class="sku-chk" data-sku="${p.sku}" style="display:none" onchange="updateGroupHint()"></td>
+      <td><input type="checkbox" class="sku-chk" data-sku="${p.sku}" onchange="updateGroupHint()"></td>
       <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
-      <td>${p.product_name || "—"}</td>
+      <td style="font-size:13px">${p.product_name || "—"}</td>
       <td style="color:#6d28d9;font-weight:600">${fmt(p.cost_invoice)}</td>
       <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
-      <td>
+      <td style="white-space:nowrap">
         <button class="btn btn-edit" onclick="editSku('${p.sku}','${(p.product_name||"").replace(/'/g,"\\'")}',${p.cost_invoice||0},${p.cost_real||0})">✏️</button>
         <button onclick="moveToCombo('${p.sku}')"
           style="margin-left:4px;padding:4px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px"
@@ -478,13 +494,11 @@ function renderSkuTables() {
       </td>
     </tr>`
 
-  document.getElementById("skuNoPriceTable").innerHTML = noPrice.length
-    ? noPrice.map(rowHtml).join("")
-    : `<tr><td colspan="5" class="empty">${kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!"}</td></tr>`
+  const empty = (msg) => `<tr><td colspan="6" class="empty">${msg}</td></tr>`
 
-  document.getElementById("skuHasPriceTable").innerHTML = hasPrice.length
-    ? hasPrice.map(rowHtml).join("")
-    : `<tr><td colspan="5" class="empty">Chưa có SKU nào có giá vốn</td></tr>`
+  document.getElementById("skuNoPriceTable").innerHTML  = noPrice.length  ? noPrice.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!")
+  document.getElementById("skuPartialTable").innerHTML  = partial.length  ? partial.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "✅ Không có SKU nào thiếu giá!")
+  document.getElementById("skuHasPriceTable").innerHTML = hasPrice.length ? hasPrice.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "Chưa có SKU nào đủ giá vốn")
 }
 
 async function saveSku() {
@@ -579,7 +593,7 @@ let _groupMode = false
 
 function showGroupPanel() {
   _groupMode = true
-  document.getElementById("sku-group-panel").style.display = "block"
+  document.getElementById("sku-group-panel") && (document.getElementById("sku-group-panel").style.display = "block")
   document.getElementById("btn-group-mode").style.display = "none"
   document.getElementById("btn-group-cancel").style.display = ""
   document.getElementById("group-select-hint").style.display = ""
@@ -661,37 +675,111 @@ async function saveNewGroup() {
 
 async function loadSkuGroups() {
   const el = document.getElementById("group-list-area")
-  const data = await fetch(API + "/api/sku-groups").then(r => r.json())
-  if (!data.length) {
-    el.innerHTML = `<div style="color:#aaa;font-size:13px">Chưa có nhóm nào. Chọn SKU bên dưới để tạo nhóm.</div>`
+  const [groups, products] = await Promise.all([
+    fetch(API + "/api/sku-groups").then(r => r.json()),
+    fetch(API + "/api/products").then(r => r.json())
+  ])
+  document.getElementById("skuGroupCount").textContent = groups.length
+
+  // Nút tạo nhóm mới (chọn từ bảng SKU bên dưới)
+  let html = `
+    <div style="margin-bottom:12px;background:#f5f3ff;border-radius:8px;padding:10px 14px;font-size:13px;color:#6d28d9">
+      💡 Chuyển sang tab khác, tích chọn các SKU rồi bấm <b>🔗 Gộp nhóm giá</b> để tạo nhóm mới
+    </div>`
+
+  if (!groups.length) {
+    el.innerHTML = html + `<div style="color:#aaa;text-align:center;padding:20px">Chưa có nhóm nào</div>`
     return
   }
-  el.innerHTML = data.map(g => {
+
+  html += groups.map(g => {
     const skus = (() => { try { return JSON.parse(g.skus) } catch{ return [] } })()
-    // Lấy giá vốn từ SKU đầu tiên trong nhóm
-    const firstSku = allSkus.find(s => s.sku === skus[0])
-    return `<div style="background:white;border-radius:8px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <div style="flex:1">
-        <div style="font-weight:700;color:#6d28d9;font-size:13px">${g.group_name}</div>
-        <div style="font-size:11px;color:#888;margin-top:2px">${skus.join(" · ")}</div>
-        ${firstSku ? `<div style="font-size:11px;color:#555;margin-top:2px">Vốn HĐ: <b>${fmt(firstSku.cost_invoice)}</b> | Vốn thực: <b>${fmt(firstSku.cost_real)}</b></div>` : ""}
-      </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input type="number" id="g-inv-${g.id}" placeholder="Vốn HĐ" value="${firstSku?.cost_invoice || 0}"
-          style="width:100px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px">
-        <input type="number" id="g-real-${g.id}" placeholder="Vốn thực" value="${firstSku?.cost_real || 0}"
-          style="width:100px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px">
-        <button onclick="updateGroupPriceUI('${g.group_name}', ${g.id})"
-          style="padding:5px 12px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
-          💾 Cập nhật
-        </button>
-        <button onclick="deleteGroup('${g.group_name}')"
-          style="padding:5px 10px;background:#ef4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">
-          🗑️
-        </button>
+    const firstSku = products.find(s => s.sku === skus[0])
+    const inv  = firstSku?.cost_invoice || 0
+    const real = firstSku?.cost_real    || 0
+
+    const skuTags = skus.map(sku => `
+      <span style="display:inline-flex;align-items:center;gap:3px;background:#ede9fe;color:#6d28d9;
+        padding:2px 8px;border-radius:12px;font-size:11px;font-family:monospace;margin:2px">
+        ${sku}
+        <button onclick="removeSkuFromGroup('${g.group_name}','${sku}')"
+          style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:12px;padding:0;line-height:1">×</button>
+      </span>`).join("")
+
+    return `
+    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+        <div style="flex:1">
+          <div style="font-weight:700;color:#6d28d9;font-size:14px;margin-bottom:6px">${g.group_name}</div>
+          <div style="margin-bottom:8px">${skuTags}</div>
+          <button onclick="addSkuToGroupUI('${g.group_name}')"
+            style="padding:3px 10px;border:1px dashed #8b5cf6;background:none;color:#8b5cf6;border-radius:6px;font-size:12px;cursor:pointer">
+            + Thêm SKU
+          </button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;color:#888;margin-bottom:2px">Vốn HĐ</div>
+            <input type="number" id="g-inv-${g.id}" value="${inv}"
+              style="width:100px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:13px">
+          </div>
+          <div>
+            <div style="font-size:11px;color:#888;margin-bottom:2px">Vốn thực</div>
+            <input type="number" id="g-real-${g.id}" value="${real}"
+              style="width:100px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:13px">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-self:flex-end">
+            <button onclick="updateGroupPriceUI('${g.group_name}',${g.id})"
+              style="padding:6px 12px;background:#16a34a;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">
+              💾 Cập nhật giá
+            </button>
+            <button onclick="deleteGroup('${g.group_name}')"
+              style="padding:6px 12px;background:#ef4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">
+              🗑️ Xóa nhóm
+            </button>
+          </div>
+        </div>
       </div>
     </div>`
   }).join("")
+
+  el.innerHTML = html
+}
+
+async function removeSkuFromGroup(groupName, sku) {
+  const data = await fetch(API + "/api/sku-groups").then(r => r.json())
+  const g = data.find(x => x.group_name === groupName)
+  if (!g) return
+  const skus = JSON.parse(g.skus || "[]").filter(s => s !== sku)
+  await fetch(API + "/api/sku-groups", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ group_name: groupName, skus })
+  })
+  showToast(`✅ Đã xóa ${sku} khỏi nhóm`)
+  loadSkuGroups()
+}
+
+function addSkuToGroupUI(groupName) {
+  const kw = prompt(`Nhập SKU muốn thêm vào nhóm "${groupName}":`)
+  if (!kw) return
+  const found = allSkus.find(s => s.sku.toLowerCase() === kw.trim().toLowerCase())
+  if (!found) { showToast("⚠️ Không tìm thấy SKU: " + kw, true); return }
+  addSkuToGroup(groupName, found.sku)
+}
+
+async function addSkuToGroup(groupName, sku) {
+  const data = await fetch(API + "/api/sku-groups").then(r => r.json())
+  const g = data.find(x => x.group_name === groupName)
+  if (!g) return
+  const skus = [...new Set([...JSON.parse(g.skus || "[]"), sku])]
+  await fetch(API + "/api/sku-groups", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ group_name: groupName, skus })
+  })
+  showToast(`✅ Đã thêm ${sku} vào nhóm`)
+  loadSkuGroups()
 }
 
 async function updateGroupPriceUI(groupName, id) {
