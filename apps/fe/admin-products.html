@@ -430,6 +430,9 @@ function renderSkuTables() {
       <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
       <td>
         <button class="btn btn-edit" onclick="editSku('${p.sku}','${(p.product_name||"").replace(/'/g,"\\'")}',${p.cost_invoice||0},${p.cost_real||0})">✏️</button>
+        <button onclick="moveToCombo('${p.sku}')"
+          style="margin-left:4px;padding:4px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px"
+          title="Chuyển sang Combo">📦→</button>
         <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="margin-left:4px">🗑️</button>
       </td>
     </tr>`
@@ -528,6 +531,19 @@ function renderComboBuilder() {
   `).join("")
 }
 
+async function moveToCombo(sku) {
+  if (!confirm(`Chuyển "${sku}" sang mục Combo?`)) return
+  const p = allSkus.find(s => s.sku === sku)
+  if (!p) return
+  await fetch(API + "/api/products", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...p, is_combo: 1 })
+  })
+  showToast(`✅ Đã chuyển ${sku} sang Combo!`)
+  loadSkus()
+}
+
 function filterComboSku(rowId, keyword) {
   const sel = document.getElementById(`cr-sku-${rowId}`)
   const cur = sel.value
@@ -594,7 +610,22 @@ async function saveCombo() {
 
 async function loadCombos() {
   const data = await fetch(API + "/api/products").then(r => r.json())
-  allSkus = data // cập nhật allSkus để recalc đúng giá
+  allSkus = data
+
+  // Tự động đánh dấu is_combo=1 cho SKU tên có chữ "combo" nhưng chưa được đánh dấu
+  const needMark = data.filter(p => !p.is_combo && /combo/i.test(p.sku || ""))
+  if (needMark.length) {
+    await Promise.all(needMark.map(p =>
+      fetch(API + "/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...p, is_combo: 1 })
+      })
+    ))
+    // Load lại sau khi cập nhật
+    return loadCombos()
+  }
+
   const combos = data.filter(p => p.is_combo)
   document.getElementById("comboCount").textContent = combos.length
 
@@ -947,14 +978,21 @@ async function uploadInvoice() {
 }
 
 async function renderInvConfirm(data) {
-  const skus = await fetch(API + "/api/products").then(r => r.json())
-  window._invSkus = skus.filter(s => !s.is_combo) // lưu global để filterSkuOptions dùng
+  const [skus, skuMapRows] = await Promise.all([
+    fetch(API + "/api/products").then(r => r.json()),
+    fetch(API + "/api/sku-map").then(r => r.json())
+  ])
+  window._invSkus = skus.filter(s => !s.is_combo)
+  const skuMap = {}
+  for (const m of skuMapRows) skuMap[m.invoice_name.trim()] = m.sku
+
   const tbody = document.getElementById("inv-items-table")
 
   tbody.innerHTML = data.items.map((item, i) => {
     const name = (item.name || "").toLowerCase()
+    const nameTrimmed = (item.name || "").trim()
+    const mappedSku = skuMap[nameTrimmed] || ""
 
-    // Gợi ý theo similarity — ưu tiên score cao nhất lên đầu
     const scored = window._invSkus
       .map(s => ({ s, score: similarity(name, (s.product_name || "").toLowerCase()) }))
       .sort((a, b) => b.score - a.score)
@@ -962,7 +1000,8 @@ async function renderInvConfirm(data) {
     const topSuggestions = scored.filter(x => x.score > 0.15).slice(0, 8)
     const rest = scored.filter(x => x.score <= 0.15)
     const bestScore = topSuggestions[0]?.score || 0
-    const autoSelected = bestScore > 0.4 ? topSuggestions[0].s.sku : ""
+    const autoSelected = mappedSku || (bestScore > 0.4 ? topSuggestions[0].s.sku : "")
+    const isMapped = !!mappedSku
 
     const opts = `<option value="">-- Chọn SKU --</option>` +
       topSuggestions.map(x =>
@@ -988,7 +1027,8 @@ async function renderInvConfirm(data) {
           style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px">
           ${opts}
         </select>
-        ${autoSelected ? `<div style="font-size:11px;color:#16a34a;margin-top:2px">✅ Tự gợi ý: ${autoSelected}</div>` : ""}
+        ${isMapped ? `<div style="font-size:11px;color:#4f46e5;margin-top:2px;font-weight:600">🔗 Đã map trước: ${autoSelected}</div>`
+          : autoSelected ? `<div style="font-size:11px;color:#16a34a;margin-top:2px">✅ Tự gợi ý: ${autoSelected}</div>` : ""}
       </td>
       <td style="padding:8px;text-align:center">
         <input type="checkbox" id="inv-skip-${i}">
@@ -1214,16 +1254,20 @@ function renderInvoiceList(data) {
         <th style="padding:8px;text-align:left">Số HĐ</th>
         <th style="padding:8px;text-align:left">Ngày</th>
         <th style="padding:8px;text-align:right">Tổng tiền</th>
-        <th style="padding:8px;text-align:left;min-width:280px">Sản phẩm</th>
+        <th style="padding:8px;text-align:left;min-width:320px">Sản phẩm & SKU</th>
         <th style="padding:8px">Tải</th>
       </tr></thead>
       <tbody>${data.map(inv => {
         const items = (() => { try { return JSON.parse(inv.items_json || "[]") } catch{ return [] } })()
         const itemsHtml = items.length
-          ? items.map(it => `<div style="padding:2px 0;border-bottom:1px dashed #f0f0f0;font-size:11px">
-              <span style="color:#6d28d9;font-weight:600">${it.sku || "—"}</span>
-              <span style="color:#555"> — ${it.name || "?"}</span>
-              <span style="float:right;color:#888">SL: ${it.qty} | ${Number(it.unit_price||0).toLocaleString("vi-VN")}đ</span>
+          ? items.map(it => `<div style="padding:3px 0;border-bottom:1px dashed #f0f0f0;font-size:11px;display:flex;justify-content:space-between;gap:8px">
+              <div style="flex:1">
+                ${it.sku
+                  ? `<span style="background:#ede9fe;color:#6d28d9;font-weight:700;padding:1px 5px;border-radius:4px;font-family:monospace">${it.sku}</span> `
+                  : `<span style="color:#ef4444;font-size:10px">⚠️ chưa map</span> `}
+                <span style="color:#555">${it.name || "?"}</span>
+              </div>
+              <div style="color:#888;white-space:nowrap">SL: ${it.qty} | ${Number(it.unit_price||0).toLocaleString("vi-VN")}đ</div>
             </div>`).join("")
           : `<span style="color:#aaa;font-size:11px">Chưa có dữ liệu</span>`
         return `<tr style="border-bottom:2px solid #e5e7eb">

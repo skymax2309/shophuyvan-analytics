@@ -45,6 +45,8 @@ export default {
         return recalcCost(request, env, cors)
 	if (url.pathname === "/api/update-cost-prices" && request.method === "POST")
         return updateCostPrices(request, env, cors)
+	if (url.pathname === "/api/sku-map" && request.method === "GET")
+        return getSkuMap(request, env, cors)
       if (url.pathname === "/api/parse-invoice" && request.method === "POST")
         return parseInvoiceAI(request, env, cors)
       if (url.pathname === "/api/save-invoice" && request.method === "POST")
@@ -1334,7 +1336,7 @@ async function parseInvoiceAI(request, env, cors) {
   const prompt = `Đây là hóa đơn mua hàng. Hãy trích xuất thông tin và trả về JSON duy nhất (không có text khác):
 {
   "supplier": "tên nhà cung cấp",
-  "buyer": "mã số thuế người mua (chỉ lấy dãy số, ví dụ: 079084002835)",
+  "buyer": "mã số thuế người mua hàng (Tax code của người mua, chỉ lấy dãy số liền, ví dụ: 079084002835 hoặc 0101243150)",
   "invoice_no": "số hóa đơn",
   "invoice_date": "ngày hóa đơn dạng YYYY-MM-DD",
   "total_amount": số tiền tổng thanh toán (số nguyên),
@@ -1452,6 +1454,16 @@ async function saveInvoice(request, env, cors) {
     data.total_amount || 0, data.items.length, r2Key,
     JSON.stringify(data.items.map(i => ({ name: i.name, qty: i.qty, unit_price: i.unit_price, sku: i.sku })))
   ).run()
+  
+  // Lưu mapping tên SP hóa đơn → SKU để lần sau tự nhận
+  const mapStmts = data.items
+    .filter(i => i.sku && i.name)
+    .map(i => env.DB.prepare(`
+      INSERT INTO invoice_sku_map (invoice_name, sku)
+      VALUES (?, ?)
+      ON CONFLICT(invoice_name) DO UPDATE SET sku = excluded.sku
+    `).bind(i.name.trim(), i.sku))
+  if (mapStmts.length) await env.DB.batch(mapStmts)
 
   // Lấy giá vốn hiện tại để so sánh
   const skuList = data.items.map(i => i.sku).filter(Boolean)
@@ -1524,6 +1536,11 @@ async function updateCostPrices(request, env, cors) {
   )
   await env.DB.batch(stmts)
   return Response.json({ status: "ok", updated: items.length }, { headers: cors })
+}
+
+async function getSkuMap(request, env, cors) {
+  const rows = await env.DB.prepare(`SELECT invoice_name, sku FROM invoice_sku_map`).all()
+  return Response.json(rows.results, { headers: cors })
 }
 
 function parseTiktokExcel(text) { return {} }
