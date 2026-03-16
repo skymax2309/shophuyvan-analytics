@@ -677,11 +677,22 @@ async function loadDashboard() {
         <div style="display:flex;justify-content:space-between"><span>📦 Chi phí vận hành (đóng gói + xử lý + nhân công)</span><span>${fmtShort(dash.total_fixed_fee)}</span></div>
       </div>
     </div>
-    <div class="kpi red">
+    <div class="kpi red" style="cursor:pointer" onclick="this.querySelector('.tax-detail').style.display=this.querySelector('.tax-detail').style.display==='none'?'block':'none'">
       <div class="kpi-icon">🧾</div>
-      <div class="kpi-label">Thuế khoán (1.5%)</div>
+      <div class="kpi-label">Thuế khoán (1.5%) <span style="font-size:10px;opacity:0.6">▼ chi tiết</span></div>
       <div class="kpi-value">${fmtShort(dash.total_tax_flat)}</div>
       <div class="kpi-sub">Thuế LN: ${fmtShort(dash.total_tax_income)}</div>
+      <div class="tax-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #fca5a5;padding-top:6px">
+        <div style="color:#888;margin-bottom:2px">📌 Thuế khoán 1.5%</div>
+        <div>${fmt(dash.total_revenue)} × 1.5%</div>
+        <div>= <b>${fmt(dash.total_tax_flat)}</b> ≈ <b>${fmtShort(dash.total_tax_flat)}</b></div>
+        <div style="color:#888;margin-top:6px;margin-bottom:2px">📌 Thuế LN 17%</div>
+        <div>${fmt(dash.total_profit_invoice)} × 17%</div>
+        <div>= <b>${fmt(dash.total_tax_income)}</b> ≈ <b>${fmtShort(dash.total_tax_income)}</b></div>
+        <div style="border-top:1px solid #fca5a5;margin-top:6px;padding-top:6px;font-weight:700">
+          Tổng thuế: ${fmtShort(dash.total_tax_flat + dash.total_tax_income)}
+        </div>
+      </div>
     </div>
     <div class="kpi red">
       <div class="kpi-icon">⚠️</div>

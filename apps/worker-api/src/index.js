@@ -249,10 +249,10 @@ function calcProfit(order, cfg) {
   const profitReal    = rev - costReal    - totalFee
 
   // Thuế khoán 1.5% trên doanh thu
-  const taxFlat = rev * 0.015
+  const taxFlat = (order.order_type === 'normal') ? rev * 0.015 : 0
 
   // Thuế lợi nhuận 17% trên Lãi HĐ (chỉ khi lãi > 0)
-  const taxIncome = profitInvoice > 0 ? profitInvoice * 0.17 : 0
+  const taxIncome = (order.order_type === 'normal' && profitInvoice > 0) ? profitInvoice * 0.17 : 0
 
   return {
     revenue:         rev,
