@@ -609,13 +609,19 @@ function makeChart(id, type, labels, datasets, opts = {}) {
 async function loadDashboard() {
   const qs = getFilterParams()
 
+  // Lấy month từ filter để query report-summary
+  const fromVal = document.getElementById("filterFrom").value || ""
+  const reportMonth = fromVal ? fromVal.substring(0, 7) : ""
+  const rqs = reportMonth ? "?month=" + reportMonth : ""
+
   // Parallel fetch
-  const [dash, revDay, profDay, platforms, shops] = await Promise.all([
+  const [dash, revDay, profDay, platforms, shops, rptSum] = await Promise.all([
     fetch(API + "/api/dashboard" + qs).then(r => r.json()),
     fetch(API + "/api/revenue-by-day" + qs).then(r => r.json()),
     fetch(API + "/api/profit-by-day" + qs).then(r => r.json()),
     fetch(API + "/api/top-platform" + qs).then(r => r.json()),
     fetch(API + "/api/top-shop" + qs).then(r => r.json()),
+    fetch(API + "/api/report-summary" + rqs).then(r => r.json()).catch(() => ({})),
   ])
 
   // KPI
@@ -632,11 +638,19 @@ async function loadDashboard() {
       <div class="kpi-value">${Number(totalOrders).toLocaleString()}</div>
       <div class="kpi-sub">Tổng ${Number(allOrders).toLocaleString()} đơn</div>
     </div>
-    <div class="kpi green">
+    <div class="kpi green" style="cursor:pointer" onclick="this.querySelector('.rev-detail').style.display=this.querySelector('.rev-detail').style.display==='none'?'block':'none'">
       <div class="kpi-icon">💰</div>
-      <div class="kpi-label">Doanh thu</div>
-      <div class="kpi-value">${fmtShort(dash.total_revenue)}</div>
-      <div class="kpi-sub">${fmt(dash.total_revenue)}</div>
+      <div class="kpi-label">Doanh thu <span style="font-size:10px;opacity:0.6">▼ chi tiết</span></div>
+      <div class="kpi-value">${fmtShort(rptSum.total_gross_revenue || dash.total_revenue)}</div>
+      <div class="kpi-sub">${fmt(rptSum.total_gross_revenue || dash.total_revenue)}</div>
+      <div class="rev-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #6ee7b7;padding-top:6px">
+        <div style="display:flex;justify-content:space-between"><span>📄 DT từ báo cáo sàn</span><span style="font-weight:700">${fmt(rptSum.total_gross_revenue || 0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>📦 DT từ đơn hàng import</span><span>${fmt(dash.total_revenue)}</span></div>
+        <div style="display:flex;justify-content:space-between;color:${Math.abs((rptSum.total_gross_revenue||0) - dash.total_revenue) < 1000 ? '#10b981' : '#f59e0b'}">
+          <span>Chênh lệch</span>
+          <span>${fmt((rptSum.total_gross_revenue||0) - dash.total_revenue)}</span>
+        </div>
+      </div>
     </div>
     <div class="kpi purple" style="cursor:pointer" onclick="this.querySelector('.lhd-detail').style.display=this.querySelector('.lhd-detail').style.display==='none'?'block':'none'">
       <div class="kpi-icon">📄</div>

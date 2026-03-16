@@ -110,6 +110,9 @@ export default {
       if (url.pathname === "/api/reports")
         return getReports(request, env, cors)
 
+      if (url.pathname === "/api/report-summary")
+        return getReportSummary(request, env, cors)
+
       if (url.pathname.startsWith("/api/reports/") && request.method === "DELETE") {
         const id = url.pathname.replace("/api/reports/", "")
         const { r2_key } = await request.json()
@@ -943,6 +946,28 @@ async function uploadReport(request, env, cors) {
   }, { headers: cors })
 }
 
+async function getReportSummary(request, env, cors) {
+  const url2 = new URL(request.url)
+  const month    = url2.searchParams.get("month")    || ""
+  const platform = url2.searchParams.get("platform") || ""
+
+  const conds  = ["report_type = 'income'"]
+  const params = []
+  if (month)    { conds.push("report_month = ?"); params.push(month) }
+  if (platform) { conds.push("platform = ?");     params.push(platform) }
+
+  const row = await env.DB.prepare(`
+    SELECT
+      SUM(gross_revenue) AS total_gross_revenue,
+      SUM(fee_total)     AS total_fee_report,
+      SUM(tax_total)     AS total_tax_report,
+      SUM(total_payout)  AS total_payout
+    FROM platform_reports
+    WHERE ${conds.join(" AND ")}
+  `).bind(...params).first()
+
+  return Response.json(row || {}, { headers: cors })
+}
 
 // ════════════════════════════════════════════════════════════════════
 // GET REPORTS — Lấy danh sách báo cáo + số liệu đã parse
