@@ -242,8 +242,11 @@ function calcProfit(order, cfg) {
   const costInvoice = (order.cost_invoice || 0) * qty
   const costReal    = (order.cost_real    || 0) * qty
 
-  // Lãi HĐ = doanh thu - vốn HĐ - phí
-  const profitInvoice = rev - costInvoice - totalFee
+  // Phí có hóa đơn (không gồm vận hành)
+  const feeWithInvoice = totalFee - packFee - opFee - laborFee
+
+  // Lãi HĐ = doanh thu - vốn HĐ - phí có HĐ (không trừ phí vận hành)
+  const profitInvoice = rev - costInvoice - feeWithInvoice
 
   // Lãi Thực = doanh thu - vốn Thực - phí
   const profitReal    = rev - costReal    - totalFee
@@ -253,6 +256,7 @@ function calcProfit(order, cfg) {
 
   // Thuế lợi nhuận 17% trên Lãi HĐ (chỉ khi lãi > 0)
   const taxIncome = (order.order_type === 'normal' && profitInvoice > 0) ? profitInvoice * 0.17 : 0
+  // Lưu ý: taxIncome tính trên profitInvoice đã loại phí vận hành
 
   return {
     revenue:         rev,
