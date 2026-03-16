@@ -55,6 +55,8 @@ export default {
         return updateGroupPrice(request, env, cors)
       if (url.pathname === "/api/sku-groups/delete" && request.method === "POST")
         return deleteSkuGroup(request, env, cors)
+	if (url.pathname === "/api/invoices/delete" && request.method === "POST")
+        return deleteInvoice(request, env, cors)
       if (url.pathname === "/api/parse-invoice" && request.method === "POST")
         return parseInvoiceAI(request, env, cors)
       if (url.pathname === "/api/save-invoice" && request.method === "POST")
@@ -1585,6 +1587,14 @@ async function updateGroupPrice(request, env, cors) {
 async function deleteSkuGroup(request, env, cors) {
   const { group_name } = await request.json()
   await env.DB.prepare(`DELETE FROM sku_groups WHERE group_name = ?`).bind(group_name).run()
+  return Response.json({ status: "ok" }, { headers: cors })
+}
+
+async function deleteInvoice(request, env, cors) {
+  const { id, r2_key } = await request.json()
+  if (!id) return Response.json({ error: "Missing id" }, { status: 400, headers: cors })
+  await env.DB.prepare(`DELETE FROM purchase_invoices WHERE id = ?`).bind(id).run()
+  if (r2_key) await env.STORAGE.delete(r2_key)
   return Response.json({ status: "ok" }, { headers: cors })
 }
 

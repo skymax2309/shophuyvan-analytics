@@ -180,6 +180,23 @@ tr:hover td { background: #fafafa; }
           </button>
           <span id="group-select-hint" style="display:none;font-size:12px;color:#8b5cf6;font-weight:600"></span>
         </div>
+        <!-- Form tạo nhóm — hiện khi đã chọn SKU -->
+        <div id="group-create-area" style="display:none;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px;margin-top:8px;width:100%">
+          <div style="font-size:13px;font-weight:600;color:#6d28d9;margin-bottom:8px">Đặt tên nhóm và nhập giá vốn chung:</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input id="group-name-input" placeholder="Tên nhóm (VD: Giá đỡ K232)"
+              style="flex:1;min-width:160px;border:1px solid #c4b5fd;border-radius:6px;padding:7px 10px;font-size:13px">
+            <input id="group-inv-input" type="number" placeholder="Vốn HĐ"
+              style="width:110px;border:1px solid #c4b5fd;border-radius:6px;padding:7px 10px;font-size:13px">
+            <input id="group-real-input" type="number" placeholder="Vốn thực"
+              style="width:110px;border:1px solid #c4b5fd;border-radius:6px;padding:7px 10px;font-size:13px">
+            <button onclick="saveNewGroup()"
+              style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600">
+              💾 Lưu nhóm
+            </button>
+          </div>
+          <div id="group-selected-list" style="margin-top:6px;font-size:12px;color:#6d28d9"></div>
+        </div>
         <input id="sku-search" type="text" placeholder="🔍 Tìm SKU hoặc tên sản phẩm..."
           oninput="renderSkuTables()"
           style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:280px;outline:none">
@@ -1437,6 +1454,17 @@ async function confirmInvoice() {
 
 let _allInvoices = []
 
+async function deleteInvoice(id, r2Key) {
+  if (!confirm("Xóa hóa đơn này? File PDF cũng sẽ bị xóa.")) return
+  await fetch(API + "/api/invoices/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, r2_key: r2Key })
+  })
+  showToast("✅ Đã xóa hóa đơn!")
+  loadInvoices()
+}
+
 async function loadInvoices() {
   const el = document.getElementById("inv-list")
   el.innerHTML = "Đang tải..."
@@ -1607,7 +1635,11 @@ function renderInvoiceList(data) {
           <td style="padding:8px">${inv.invoice_date || "?"}</td>
           <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(inv.total_amount||0).toLocaleString("vi-VN")}đ</td>
           <td style="padding:8px;min-width:280px">${itemsHtml}</td>
-          <td style="padding:8px;white-space:nowrap"><a href="${API}/api/invoice-file?key=${encodeURIComponent(inv.r2_key)}" target="_blank" style="color:#4f46e5">⬇️ Tải</a></td>
+          <td style="padding:8px;white-space:nowrap;display:flex;gap:6px;align-items:center">
+          <a href="${API}/api/invoice-file?key=${encodeURIComponent(inv.r2_key)}" target="_blank" style="color:#4f46e5;font-size:12px">⬇️ Tải</a>
+          <button onclick="deleteInvoice(${inv.id},'${inv.r2_key}')"
+            style="padding:3px 8px;background:#ef4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px">🗑️</button>
+        </td>
         </tr>`
       }).join("")}</tbody>
     </table>`
