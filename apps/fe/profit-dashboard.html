@@ -616,10 +616,11 @@ async function loadDashboard() {
   const shopVal    = document.getElementById("filterShop")?.value    || ""
   const reportMonth = fromVal ? fromVal.substring(0, 7) : ""
 
-  // Build query string cho report-summary (lọc theo sàn nếu có)
+  // Build query string cho report-summary (lọc theo tháng + sàn + shop)
   const rqsParts = []
   if (reportMonth) rqsParts.push("month=" + reportMonth)
   if (platVal)     rqsParts.push("platform=" + platVal)
+  if (shopVal)     rqsParts.push("shop=" + encodeURIComponent(shopVal))
   const rqs = rqsParts.length ? "?" + rqsParts.join("&") : ""
 
   // Build query string cho operation-costs (lọc theo kỳ + sàn + shop)
@@ -638,7 +639,7 @@ async function loadDashboard() {
     fetch(API + "/api/top-platform" + qs).then(r => r.json()),
     fetch(API + "/api/top-shop" + qs).then(r => r.json()),
     fetch(API + "/api/report-summary" + rqs).then(r => r.json()).catch(() => ({})),
-    fetch(API + "/api/operation-costs" + oqs).then(r => r.json()).catch(() => []),
+    fetch(API + "/api/operation-costs" + oqs).then(r => r.json()).then(d => d.costs || d).catch(() => []),
   ])
 
   // KPI
@@ -760,19 +761,23 @@ async function loadDashboard() {
         </div>
         ` : ''}
         <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">🏭 Chi phí vận hành:</div>
-        ${opCosts.length > 0 ? opCosts.map(c => `
-          <div style="display:flex;justify-content:space-between;align-items:baseline">
-            <span>${c.cost_name || c.cost_key}</span>
-            <span style="text-align:right">
-              <span style="color:#aaa;font-size:10px">${fmtShort(c.cost_value)}/${c.calc_type==='per_month'?'tháng':'đơn'} × ${c.calc_type==='per_month'? c.months+'tháng' : c.total_orders+'đơn'} = </span>
-              <b>${fmtShort(c.actual_amount||0)}</b>
-            </span>
+${opCosts.length > 0 ? opCosts.map(c => `
+          <div style="margin-bottom:3px">
+            <div style="display:flex;justify-content:space-between;font-weight:600">
+              <span>${c.cost_name || c.cost_key}${c.shop ? ` <span style="background:#6b7280;color:white;border-radius:3px;padding:1px 4px;font-size:9px">${c.shop}</span>` : ''}</span>
+              <span style="color:#f59e0b">${fmtShort(c.actual_amount||0)}</span>
+            </div>
+            <div style="font-size:10px;color:#aaa;padding-left:4px">
+              ${fmtShort(c.cost_value)}/${c.calc_type==='per_month'?'tháng':'đơn'}
+              ${c.calc_type==='per_month'
+                ? ` × ${c.months}th${c.note && c.note!=='toàn bộ' ? ` × ${c.note}` : ''}`
+                : ` × ${c.total_orders} đơn`}
+            </div>
           </div>`).join("") : '<div style="color:#aaa">Chưa có chi phí vận hành</div>'}
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px">
           <span>Tổng vận hành (kỳ này)</span>
           <span>${fmtShort(opCosts.reduce((s,c)=>s+(c.actual_amount||0),0))}</span>
         </div>
-        <div style="font-size:10px;color:#aaa">Theo DB (recalc): ${fmtShort(dash.total_fixed_fee)}</div>
       </div>
     </div>
     <div class="kpi red" style="cursor:pointer" onclick="this.querySelector('.tax-detail').style.display=this.querySelector('.tax-detail').style.display==='none'?'block':'none'">

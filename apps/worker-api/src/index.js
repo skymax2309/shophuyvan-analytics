@@ -955,11 +955,13 @@ async function getReportSummary(request, env, cors) {
   const url2 = new URL(request.url)
   const month    = url2.searchParams.get("month")    || ""
   const platform = url2.searchParams.get("platform") || ""
+  const shop     = url2.searchParams.get("shop")     || ""
 
   const conds  = ["report_type = 'income'"]
   const params = []
   if (month)    { conds.push("report_month = ?"); params.push(month) }
   if (platform) { conds.push("platform = ?");     params.push(platform) }
+  if (shop)     { conds.push("shop = ?");          params.push(shop) }
 
   const where = "WHERE " + conds.join(" AND ")
 
@@ -1034,18 +1036,79 @@ async function getOperationCosts(request, env, cors) {
     months = Math.max(1, diff)
   }
 
+  // Lấy tổng doanh thu TẤT CẢ shop trong kỳ (để tính tỷ lệ phân bổ)
+  let revenueRatio = 1  // mặc định 100% nếu không filter shop
+  if (shop) {
+    const allRevConds = ["order_type = 'normal'"]
+    const allRevParams = []
+    if (from)     { allRevConds.push("order_date >= ?"); allRevParams.push(from) }
+    if (to)       { allRevConds.push("order_date <= ?"); allRevParams.push(to) }
+    if (platform) { allRevConds.push("platform = ?");   allRevParams.push(platform) }
+
+    const allRevRow = await env.DB.prepare(`
+      SELECT SUM(revenue) AS total FROM orders WHERE ${allRevConds.join(" AND ")}
+    `).bind(...allRevParams).first()
+
+    const shopRevRow = await env.DB.prepare(`
+      SELECT SUM(revenue) AS total FROM orders WHERE ${allRevConds.join(" AND ")} AND shop = ?
+    `).bind(...allRevParams, shop).first()
+
+    const allRev  = allRevRow?.total  || 0
+    const shopRev = shopRevRow?.total || 0
+    revenueRatio = allRev > 0 ? shopRev / allRev : 0
+  }
+
+  // Đếm tổng đơn TẤT CẢ shop (để tính per_order ratio)
+  let totalOrdersAll = totalOrders
+  if (shop) {
+    const allOrdConds = ["order_type = 'normal'"]
+    const allOrdParams = []
+    if (from)     { allOrdConds.push("order_date >= ?"); allOrdParams.push(from) }
+    if (to)       { allOrdConds.push("order_date <= ?"); allOrdParams.push(to) }
+    if (platform) { allOrdConds.push("platform = ?");   allOrdParams.push(platform) }
+    const allOrdRow = await env.DB.prepare(`
+      SELECT COUNT(DISTINCT order_id) AS total FROM orders WHERE ${allOrdConds.join(" AND ")}
+    `).bind(...allOrdParams).first()
+    totalOrdersAll = allOrdRow?.total || 0
+  }
+
   const costs = (rows.results || []).map(c => {
-    // Kiểm tra filter sàn/shop
-    if (platform && c.platform && c.platform !== platform) return null
-    if (shop && c.shop && c.shop !== shop) return null
-    const actualAmount = c.calc_type === "per_month"
-      ? c.cost_value * months
-      : c.cost_value * totalOrders
-    return { ...c, actual_amount: actualAmount, total_orders: totalOrders, months }
+    // Chi phí gán riêng cho shop/sàn cụ thể → chỉ hiện khi đúng filter
+    const costHasShop     = c.shop     && c.shop !== ""
+    const costHasPlatform = c.platform && c.platform !== ""
+    if (costHasPlatform && platform && c.platform !== platform) return null
+    if (costHasShop     && shop     && c.shop     !== shop)     return null
+
+    let actualAmount = 0
+    let note = ""
+
+    if (costHasShop) {
+      // Chi phí gán cho shop cụ thể → tính 100%
+      actualAmount = c.calc_type === "per_month"
+        ? c.cost_value * months
+        : c.cost_value * totalOrders
+      note = "riêng shop này"
+    } else {
+      // Chi phí chung → phân bổ theo tỷ lệ doanh thu (per_month) hoặc số đơn (per_order)
+      if (c.calc_type === "per_month") {
+        const baseAmount = c.cost_value * months
+        actualAmount = shop ? Math.round(baseAmount * revenueRatio) : baseAmount
+        note = shop
+          ? `${(revenueRatio*100).toFixed(1)}% DT (${fmtNum(shopVal||shop)} / tổng)`
+          : "toàn bộ"
+      } else {
+        actualAmount = c.cost_value * (shop ? totalOrders : totalOrdersAll)
+        note = shop ? `${totalOrders} đơn shop này` : `${totalOrdersAll} đơn tổng`
+      }
+    }
+
+    return { ...c, actual_amount: actualAmount, total_orders: totalOrders, months, note, revenue_ratio: revenueRatio }
   }).filter(Boolean)
 
-  return Response.json(costs, { headers: cors })
+  return Response.json({ costs, revenue_ratio: revenueRatio, total_orders: totalOrders, months }, { headers: cors })
 }
+
+function fmtNum(n) { return Number(n||0).toLocaleString("vi-VN") }
 
 // ════════════════════════════════════════════════════════════════════
 // GET REPORTS — Lấy danh sách báo cáo + số liệu đã parse
