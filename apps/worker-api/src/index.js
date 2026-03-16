@@ -1438,15 +1438,17 @@ async function saveInvoice(request, env, cors) {
 
   // Lưu vào DB
   await env.DB.prepare(`
-   INSERT INTO purchase_invoices (supplier, buyer, invoice_no, invoice_date, total_amount, item_count, r2_key)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+   INSERT INTO purchase_invoices (supplier, buyer, invoice_no, invoice_date, total_amount, item_count, r2_key, items_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(invoice_no) DO UPDATE SET
-      total_amount = excluded.total_amount,
-      buyer = excluded.buyer,
-      r2_key = excluded.r2_key
+      total_amount  = excluded.total_amount,
+      buyer         = excluded.buyer,
+      r2_key        = excluded.r2_key,
+      items_json    = excluded.items_json
   `).bind(
     data.supplier || "", buyer, data.invoice_no || "", data.invoice_date || "",
-    data.total_amount || 0, data.items.length, r2Key
+    data.total_amount || 0, data.items.length, r2Key,
+    JSON.stringify(data.items.map(i => ({ name: i.name, qty: i.qty, unit_price: i.unit_price, sku: i.sku })))
   ).run()
 
   // Cập nhật giá vốn mới nhất vào products

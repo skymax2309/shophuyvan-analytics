@@ -896,33 +896,86 @@ async function confirmInvoice() {
   }
 }
 
+let _allInvoices = []
+
 async function loadInvoices() {
   const el = document.getElementById("inv-list")
   el.innerHTML = "Đang tải..."
   try {
-    const data = await fetch(API + "/api/invoices").then(r => r.json())
-    if (!data.length) { el.innerHTML = '<div style="color:#aaa;text-align:center;padding:20px">Chưa có hóa đơn nào</div>'; return }
-    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="background:#f3f4f6">
-        <th style="padding:8px;text-align:left">Nhà CC</th>
-        <th style="padding:8px;text-align:left">Số HĐ</th>
-        <th style="padding:8px;text-align:left">Ngày</th>
-        <th style="padding:8px;text-align:right">Tổng tiền</th>
-        <th style="padding:8px;text-align:center">SP</th>
-        <th style="padding:8px">Tải</th>
-      </tr></thead>
-      <tbody>${data.map(inv => `<tr style="border-bottom:1px solid #f3f4f6">
-        <td style="padding:8px">${inv.supplier || "?"}</td>
-        <td style="padding:8px;font-family:monospace">${inv.invoice_no || "?"}</td>
-        <td style="padding:8px">${inv.invoice_date || "?"}</td>
-        <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(inv.total_amount||0).toLocaleString("vi-VN")}đ</td>
-        <td style="padding:8px;text-align:center">${inv.item_count || 0}</td>
-        <td style="padding:8px"><a href="${API}/api/invoice-file?key=${encodeURIComponent(inv.r2_key)}" target="_blank" style="color:#4f46e5">⬇️ Tải</a></td>
-      </tr>`).join("")}</tbody>
-    </table>`
+    _allInvoices = await fetch(API + "/api/invoices").then(r => r.json())
+    renderInvoiceList(_allInvoices)
   } catch(e) {
     el.innerHTML = "❌ " + e.message
   }
+}
+
+function filterInvoices() {
+  const kw    = document.getElementById("inv-filter-kw").value.toLowerCase()
+  const month = document.getElementById("inv-filter-month").value
+  const filtered = _allInvoices.filter(inv => {
+    const matchKw = !kw ||
+      (inv.supplier || "").toLowerCase().includes(kw) ||
+      (inv.buyer || "").toLowerCase().includes(kw) ||
+      (inv.invoice_no || "").toLowerCase().includes(kw)
+    const matchMonth = !month || (inv.invoice_date || "").startsWith(month)
+    return matchKw && matchMonth
+  })
+  renderInvoiceList(filtered)
+}
+
+function renderInvoiceList(data) {
+  const el = document.getElementById("inv-list")
+
+  // Bộ lọc
+  const months = [...new Set(_allInvoices.map(i => (i.invoice_date||"").slice(0,7)))].sort().reverse()
+  const filterHtml = `
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <input id="inv-filter-kw" type="text" placeholder="🔍 Tìm nhà CC / người mua / số HĐ..."
+        oninput="filterInvoices()"
+        style="flex:1;min-width:200px;border:1px solid #e5e7eb;border-radius:6px;padding:7px 10px;font-size:13px">
+      <select id="inv-filter-month" onchange="filterInvoices()"
+        style="border:1px solid #e5e7eb;border-radius:6px;padding:7px 10px;font-size:13px">
+        <option value="">Tất cả tháng</option>
+        ${months.map(m => `<option value="${m}">${m}</option>`).join("")}
+      </select>
+    </div>`
+
+  if (!data.length) {
+    el.innerHTML = filterHtml + '<div style="color:#aaa;text-align:center;padding:20px">Không tìm thấy hóa đơn nào</div>'
+    return
+  }
+
+  el.innerHTML = filterHtml + `
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:#f3f4f6">
+        <th style="padding:8px;text-align:left">Nhà CC</th>
+        <th style="padding:8px;text-align:left">Người mua</th>
+        <th style="padding:8px;text-align:left">Số HĐ</th>
+        <th style="padding:8px;text-align:left">Ngày</th>
+        <th style="padding:8px;text-align:right">Tổng tiền</th>
+        <th style="padding:8px;text-align:left;min-width:280px">Sản phẩm</th>
+        <th style="padding:8px">Tải</th>
+      </tr></thead>
+      <tbody>${data.map(inv => {
+        const items = (() => { try { return JSON.parse(inv.items_json || "[]") } catch{ return [] } })()
+        const itemsHtml = items.length
+          ? items.map(it => `<div style="padding:2px 0;border-bottom:1px dashed #f0f0f0;font-size:11px">
+              <span style="color:#6d28d9;font-weight:600">${it.sku || "—"}</span>
+              <span style="color:#555"> — ${it.name || "?"}</span>
+              <span style="float:right;color:#888">SL: ${it.qty} | ${Number(it.unit_price||0).toLocaleString("vi-VN")}đ</span>
+            </div>`).join("")
+          : `<span style="color:#aaa;font-size:11px">Chưa có dữ liệu</span>`
+        return `<tr style="border-bottom:2px solid #e5e7eb">
+          <td style="padding:8px;max-width:180px;font-size:12px">${inv.supplier || "?"}</td>
+          <td style="padding:8px;font-size:12px;color:#555">${inv.buyer || "—"}</td>
+          <td style="padding:8px;font-family:monospace">${inv.invoice_no || "?"}</td>
+          <td style="padding:8px">${inv.invoice_date || "?"}</td>
+          <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(inv.total_amount||0).toLocaleString("vi-VN")}đ</td>
+          <td style="padding:8px;min-width:280px">${itemsHtml}</td>
+          <td style="padding:8px;white-space:nowrap"><a href="${API}/api/invoice-file?key=${encodeURIComponent(inv.r2_key)}" target="_blank" style="color:#4f46e5">⬇️ Tải</a></td>
+        </tr>`
+      }).join("")}</tbody>
+    </table>`
 }
 loadSkus()
 addComboRow() // Mặc định 1 dòng combo
