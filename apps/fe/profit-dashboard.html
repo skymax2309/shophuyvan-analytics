@@ -646,7 +646,8 @@ async function loadDashboard() {
       <div class="lhd-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #c4b5fd;padding-top:6px">
         <div style="display:flex;justify-content:space-between"><span>Doanh thu</span><span>${fmt(dash.total_revenue)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>− Vốn HĐ</span><span style="color:#ef4444">− ${fmt(dash.total_cost_invoice)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>− Tổng phí</span><span style="color:#ef4444">− ${fmt(dash.total_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>− Phí sàn (có HĐ)</span><span style="color:#ef4444">− ${fmt(dash.total_fee - dash.total_fixed_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa"><span>&nbsp;&nbsp;(không tính phí vận hành ${fmtShort(dash.total_fixed_fee)})</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #c4b5fd;margin-top:4px;padding-top:4px"><span>= Lãi HĐ</span><span>${fmt(dash.total_profit_invoice)}</span></div>
       </div>
     </div>
