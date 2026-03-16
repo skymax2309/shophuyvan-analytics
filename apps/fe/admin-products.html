@@ -1014,7 +1014,36 @@ async function renderInvConfirm(data) {
         `<option value="${x.s.sku}">${x.s.sku} — ${x.s.product_name}</option>`
       ).join("")
 
-    return `<tr style="border-bottom:1px solid #f3f4f6">
+    // Tìm tên SP thực tế từ SKU đã map
+    const mappedSkuInfo = mappedSku ? window._invSkus.find(s => s.sku === mappedSku) : null
+
+    if (isMapped) {
+      // Đã map trước → hiện luôn, không cần chọn lại
+      return `<tr style="border-bottom:1px solid #f3f4f6;background:#f5f3ff">
+        <td style="padding:8px;max-width:220px;font-size:12px;color:#888">${item.name}</td>
+        <td style="padding:8px;text-align:right">${item.qty}</td>
+        <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(item.unit_price).toLocaleString("vi-VN")}đ</td>
+        <td style="padding:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div>
+              <span style="background:#ede9fe;color:#6d28d9;font-weight:700;padding:2px 8px;border-radius:6px;font-family:monospace;font-size:12px">${mappedSku}</span>
+              <div style="font-size:12px;color:#333;margin-top:3px">${mappedSkuInfo?.product_name || ""}</div>
+              <div style="font-size:11px;color:#4f46e5;margin-top:1px">🔗 Đã map sẵn</div>
+            </div>
+            <button onclick="unlockInvRow(${i})"
+              style="padding:3px 8px;border:1px solid #e5e7eb;border-radius:6px;background:white;color:#888;font-size:11px;cursor:pointer;white-space:nowrap">
+              ✏️ Đổi
+            </button>
+          </div>
+          <input type="hidden" id="inv-sku-${i}" value="${mappedSku}">
+        </td>
+        <td style="padding:8px;text-align:center">
+          <input type="checkbox" id="inv-skip-${i}">
+        </td>
+      </tr>`
+    }
+
+    return `<tr style="border-bottom:1px solid #f3f4f6" id="inv-row-${i}">
       <td style="padding:8px;max-width:220px;font-size:12px">${item.name}</td>
       <td style="padding:8px;text-align:right">${item.qty}</td>
       <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(item.unit_price).toLocaleString("vi-VN")}đ</td>
@@ -1027,8 +1056,7 @@ async function renderInvConfirm(data) {
           style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px">
           ${opts}
         </select>
-        ${isMapped ? `<div style="font-size:11px;color:#4f46e5;margin-top:2px;font-weight:600">🔗 Đã map trước: ${autoSelected}</div>`
-          : autoSelected ? `<div style="font-size:11px;color:#16a34a;margin-top:2px">✅ Tự gợi ý: ${autoSelected}</div>` : ""}
+        ${autoSelected ? `<div style="font-size:11px;color:#16a34a;margin-top:2px">✅ Tự gợi ý: ${autoSelected}</div>` : ""}
       </td>
       <td style="padding:8px;text-align:center">
         <input type="checkbox" id="inv-skip-${i}">
@@ -1037,6 +1065,33 @@ async function renderInvConfirm(data) {
   }).join("")
 
   document.getElementById("inv-confirm-card").style.display = "block"
+}
+
+function unlockInvRow(i) {
+  const row = document.getElementById(`inv-row-${i}`)
+  // Tìm tr chứa nút Đổi và thay thế bằng dropdown
+  const allRows = document.querySelectorAll("#inv-items-table tr")
+  // Re-render dòng đó thành dạng có thể chọn SKU
+  const hiddenSku = document.getElementById(`inv-sku-${i}`)?.value || ""
+  const skuList = window._invSkus || []
+  const opts = `<option value="">-- Chọn SKU --</option>` +
+    skuList.map(s => `<option value="${s.sku}" ${s.sku === hiddenSku ? "selected" : ""}>${s.sku} — ${s.product_name}</option>`).join("")
+
+  // Tìm ô td thứ 4 của dòng có hidden input inv-sku-i
+  const hiddenInput = document.getElementById(`inv-sku-${i}`)
+  if (!hiddenInput) return
+  const td = hiddenInput.closest("td")
+  td.innerHTML = `
+    <input type="text" id="inv-search-${i}"
+      placeholder="🔍 Gõ SKU hoặc tên để lọc..."
+      oninput="filterSkuOptions(${i}, this.value)"
+      style="width:100%;border:1px solid #c7d2fe;border-radius:6px;padding:5px 8px;font-size:12px;margin-bottom:5px;outline:none">
+    <select id="inv-sku-${i}"
+      style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px">
+      ${opts}
+    </select>`
+  // Xóa màu nền tím của dòng đã map
+  hiddenInput.closest("tr").style.background = ""
 }
 
 function filterSkuOptions(i, keyword) {
