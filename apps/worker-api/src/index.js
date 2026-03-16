@@ -1311,12 +1311,15 @@ async function recalcCost(request, env, cors) {
           profit_invoice = ?,
           profit_real    = ?,
           fee            = ?,
-          profit         = ?
+          profit         = ?,
+          tax_flat       = ?,
+          tax_income     = ?
         WHERE order_id = ? AND sku = ?
       `).bind(
         p.cost_invoice, p.cost_real,
         p.profit_invoice, p.profit_real,
         p.total_fee, p.profit_real,
+        p.tax_flat, p.tax_income,
         o.order_id, o.sku
       )
     })

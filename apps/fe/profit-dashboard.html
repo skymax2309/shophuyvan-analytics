@@ -687,7 +687,7 @@ async function loadDashboard() {
         <div>${fmt(dash.total_revenue)} × 1.5%</div>
         <div>= <b>${fmt(dash.total_tax_flat)}</b> ≈ <b>${fmtShort(dash.total_tax_flat)}</b></div>
         <div style="color:#888;margin-top:6px;margin-bottom:2px">📌 Thuế LN 17%</div>
-        <div>${fmt(dash.total_profit_invoice)} × 17%</div>
+        <div>${fmt(dash.total_tax_income / 0.17)} × 17%</div>
         <div>= <b>${fmt(dash.total_tax_income)}</b> ≈ <b>${fmtShort(dash.total_tax_income)}</b></div>
         <div style="border-top:1px solid #fca5a5;margin-top:6px;padding-top:6px;font-weight:700">
           Tổng thuế: ${fmtShort(dash.total_tax_flat + dash.total_tax_income)}
