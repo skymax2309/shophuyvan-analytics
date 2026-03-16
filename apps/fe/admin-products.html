@@ -1076,6 +1076,7 @@ async function confirmInvoice() {
 
   const payload = {
     supplier:     invParsed.supplier,
+    buyer:        invParsed.buyer || "",
     invoice_no:   invParsed.invoice_no,
     invoice_date: invParsed.invoice_date,
     total_amount: invParsed.total_amount,
@@ -1225,21 +1226,25 @@ function renderInvoiceList(data) {
         ${months.map(m => `<option value="${m}">${m}</option>`).join("")}
       </select>
     </div>
-    ${mstList.length ? `
     <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <span style="font-size:12px;color:#888;white-space:nowrap">MST người mua:</span>
-      <button onclick="document.getElementById('inv-filter-mst').value='';filterInvoices()"
-        id="inv-mst-all"
+      <button onclick="document.getElementById('inv-filter-mst').value='';filterInvoices();document.querySelectorAll('.mst-btn').forEach(b=>b.style.background='white')"
         style="padding:4px 10px;border-radius:20px;border:1px solid #4f46e5;background:#4f46e5;color:white;font-size:12px;cursor:pointer">
         Tất cả
       </button>
       ${mstList.map(mst => `
-        <button onclick="document.getElementById('inv-filter-mst').value=this.dataset.mst==='active'?'':'${mst}';filterInvoices()"
-          style="padding:4px 10px;border-radius:20px;border:1px solid #e5e7eb;background:white;color:#333;font-size:12px;cursor:pointer;font-family:monospace">
+        <button class="mst-btn" onclick="
+          const cur=document.getElementById('inv-filter-mst').value;
+          document.getElementById('inv-filter-mst').value=cur==='${mst}'?'':'${mst}';
+          document.querySelectorAll('.mst-btn').forEach(b=>b.style.background='white');
+          if(cur!=='${mst}')this.style.background='#ede9fe';
+          filterInvoices()"
+          style="padding:4px 10px;border-radius:20px;border:1px solid #6d28d9;background:white;color:#6d28d9;font-size:12px;cursor:pointer;font-family:monospace">
           ${mst}
         </button>`).join("")}
+      ${!mstList.length ? `<span style="font-size:11px;color:#aaa;font-style:italic">Chưa có dữ liệu MST — upload lại hóa đơn để cập nhật</span>` : ""}
       <input type="hidden" id="inv-filter-mst" value="">
-    </div>` : `<input type="hidden" id="inv-filter-mst" value="">`}`
+    </div>`
 
   if (!data.length) {
     el.innerHTML = filterHtml + '<div style="color:#aaa;text-align:center;padding:20px">Không tìm thấy hóa đơn nào</div>'
