@@ -647,8 +647,8 @@ async function loadDashboard() {
         <div style="display:flex;justify-content:space-between"><span>Doanh thu</span><span>${fmt(dash.total_revenue)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>− Vốn HĐ</span><span style="color:#ef4444">− ${fmt(dash.total_cost_invoice)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>− Phí sàn (có HĐ)</span><span style="color:#ef4444">− ${fmt(dash.total_fee - dash.total_fixed_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa"><span>&nbsp;&nbsp;(không tính phí vận hành ${fmtShort(dash.total_fixed_fee)})</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #c4b5fd;margin-top:4px;padding-top:4px"><span>= Lãi HĐ</span><span>${fmt(dash.total_profit_invoice)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;padding-left:8px"><span>↳ Không tính phí vận hành: ${fmt(dash.total_fixed_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #c4b5fd;margin-top:4px;padding-top:4px"><span>= Lãi HĐ</span><span>${fmt(dash.total_revenue - dash.total_cost_invoice - (dash.total_fee - dash.total_fixed_fee))}</span></div>
       </div>
     </div>
     <div class="kpi teal" style="cursor:pointer" onclick="this.querySelector('.ltt-detail').style.display=this.querySelector('.ltt-detail').style.display==='none'?'block':'none'">
