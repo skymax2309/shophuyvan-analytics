@@ -796,41 +796,55 @@ async function uploadInvoice() {
 }
 
 async function renderInvConfirm(data) {
-  // Lấy danh sách SKU hiện có để gợi ý
   const skus = await fetch(API + "/api/products").then(r => r.json())
+  window._invSkus = skus.filter(s => !s.is_combo) // lưu global để filterSkuOptions dùng
   const tbody = document.getElementById("inv-items-table")
+
   tbody.innerHTML = data.items.map((item, i) => {
-    // Tìm SKU gần giống nhất
     const name = (item.name || "").toLowerCase()
-    const suggestions = skus
-      .filter(s => !s.is_combo)
+
+    // Gợi ý theo similarity — ưu tiên score cao nhất lên đầu
+    const scored = window._invSkus
       .map(s => ({ s, score: similarity(name, (s.product_name || "").toLowerCase()) }))
-      .filter(x => x.score > 0.2)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
+
+    const topSuggestions = scored.filter(x => x.score > 0.15).slice(0, 8)
+    const rest = scored.filter(x => x.score <= 0.15)
+    const bestScore = topSuggestions[0]?.score || 0
+    const autoSelected = bestScore > 0.4 ? topSuggestions[0].s.sku : ""
 
     const opts = `<option value="">-- Chọn SKU --</option>` +
-      suggestions.map(x => `<option value="${x.s.sku}" ${x.score > 0.5 ? "selected" : ""}>${x.s.sku} — ${x.s.product_name}</option>`).join("") +
-      skus.filter(s => !s.is_combo && !suggestions.find(x => x.s.sku === s.sku))
-           .map(s => `<option value="${s.sku}">${s.sku} — ${s.product_name}</option>`).join("")
+      topSuggestions.map(x =>
+        `<option value="${x.s.sku}" ${x.s.sku === autoSelected ? "selected" : ""}>
+          ⭐ ${x.s.sku} — ${x.s.product_name}
+        </option>`
+      ).join("") +
+      (topSuggestions.length ? `<option disabled>──────────────</option>` : "") +
+      rest.map(x =>
+        `<option value="${x.s.sku}">${x.s.sku} — ${x.s.product_name}</option>`
+      ).join("")
 
     return `<tr style="border-bottom:1px solid #f3f4f6">
-      <td style="padding:8px;max-width:240px;font-size:12px">${item.name}</td>
+      <td style="padding:8px;max-width:220px;font-size:12px">${item.name}</td>
       <td style="padding:8px;text-align:right">${item.qty}</td>
       <td style="padding:8px;text-align:right;color:#6d28d9;font-weight:600">${Number(item.unit_price).toLocaleString("vi-VN")}đ</td>
       <td style="padding:8px">
-        <input type="text" id="inv-search-${i}" placeholder="🔍 Tìm SKU..."
-          oninput="filterSkuOptions(${i}, this.value, ${JSON.stringify(skus.filter(s=>!s.is_combo))})"
-          style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;font-size:12px;margin-bottom:4px">
-        <select id="inv-sku-${i}" style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;font-size:12px">
+        <input type="text" id="inv-search-${i}"
+          placeholder="🔍 Gõ SKU hoặc tên để lọc..."
+          oninput="filterSkuOptions(${i}, this.value)"
+          style="width:100%;border:1px solid #c7d2fe;border-radius:6px;padding:5px 8px;font-size:12px;margin-bottom:5px;outline:none">
+        <select id="inv-sku-${i}"
+          style="width:100%;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px">
           ${opts}
         </select>
+        ${autoSelected ? `<div style="font-size:11px;color:#16a34a;margin-top:2px">✅ Tự gợi ý: ${autoSelected}</div>` : ""}
       </td>
       <td style="padding:8px;text-align:center">
         <input type="checkbox" id="inv-skip-${i}">
       </td>
     </tr>`
   }).join("")
+
   document.getElementById("inv-confirm-card").style.display = "block"
 }
 
@@ -846,6 +860,23 @@ function filterSkuOptions(i, keyword, allSkus) {
     : allSkus
   sel.innerHTML = `<option value="">-- Chọn SKU --</option>` +
     filtered.map(s => `<option value="${s.sku}" ${s.sku === cur ? "selected" : ""}>${s.sku} — ${s.product_name}</option>`).join("")
+}
+
+function filterSkuOptions(i, keyword) {
+  const sel  = document.getElementById(`inv-sku-${i}`)
+  const cur  = sel.value
+  const kw   = keyword.toLowerCase().trim()
+  const all  = window._invSkus || []
+  const filtered = kw
+    ? all.filter(s =>
+        s.sku.toLowerCase().includes(kw) ||
+        (s.product_name || "").toLowerCase().includes(kw)
+      )
+    : all
+  sel.innerHTML = `<option value="">-- Chọn SKU --</option>` +
+    filtered.map(s =>
+      `<option value="${s.sku}" ${s.sku === cur ? "selected" : ""}>${s.sku} — ${s.product_name}</option>`
+    ).join("")
 }
 
 function similarity(a, b) {
