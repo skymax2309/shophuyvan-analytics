@@ -999,13 +999,52 @@ async function getReportSummary(request, env, cors) {
 }
 
 async function getOperationCosts(request, env, cors) {
+  const url3   = new URL(request.url)
+  const from   = url3.searchParams.get("from")     || ""
+  const to     = url3.searchParams.get("to")       || ""
+  const platform = url3.searchParams.get("platform") || ""
+  const shop   = url3.searchParams.get("shop")     || ""
+
   const rows = await env.DB.prepare(`
     SELECT cost_key, cost_value, cost_name, calc_type, platform, shop
     FROM cost_settings
     WHERE cost_key LIKE 'custom_%'
     ORDER BY cost_name
   `).all()
-  return Response.json(rows.results || [], { headers: cors })
+
+  // Đếm số đơn thành công trong kỳ lọc (để tính per_order)
+  const orderConds = ["order_type = 'normal'"]
+  const orderParams = []
+  if (from)     { orderConds.push("order_date >= ?"); orderParams.push(from) }
+  if (to)       { orderConds.push("order_date <= ?"); orderParams.push(to) }
+  if (platform) { orderConds.push("platform = ?");   orderParams.push(platform) }
+  if (shop)     { orderConds.push("shop = ?");        orderParams.push(shop) }
+
+  const orderRow = await env.DB.prepare(`
+    SELECT COUNT(DISTINCT order_id) AS total_orders
+    FROM orders WHERE ${orderConds.join(" AND ")}
+  `).bind(...orderParams).first()
+  const totalOrders = orderRow?.total_orders || 0
+
+  // Tính số tháng trong kỳ
+  let months = 1
+  if (from && to) {
+    const d1 = new Date(from), d2 = new Date(to)
+    const diff = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1
+    months = Math.max(1, diff)
+  }
+
+  const costs = (rows.results || []).map(c => {
+    // Kiểm tra filter sàn/shop
+    if (platform && c.platform && c.platform !== platform) return null
+    if (shop && c.shop && c.shop !== shop) return null
+    const actualAmount = c.calc_type === "per_month"
+      ? c.cost_value * months
+      : c.cost_value * totalOrders
+    return { ...c, actual_amount: actualAmount, total_orders: totalOrders, months }
+  }).filter(Boolean)
+
+  return Response.json(costs, { headers: cors })
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1145,7 +1184,6 @@ function parseShopeeExpenseInvoice(text) {
   const withdrawal  = findAmtLine(text, "Phí rút tiền")
 
   return {
-    return {
     gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
     shipping_net: 0,
@@ -1161,7 +1199,7 @@ function parseShopeeExpenseInvoice(text) {
     tax_vat:         vat,
     tax_pit:         0,
     tax_total:       vat,
-    total_payout:    -total,   // âm vì đây là chi phí phải trả
+    total_payout:    -total,
   }
 }
 

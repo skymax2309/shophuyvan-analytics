@@ -610,9 +610,25 @@ async function loadDashboard() {
   const qs = getFilterParams()
 
   // Lấy month từ filter để query report-summary
-  const fromVal = document.getElementById("filterFrom").value || ""
+  const fromVal    = document.getElementById("filterFrom").value  || ""
+  const toVal      = document.getElementById("filterTo").value    || ""
+  const platVal    = document.getElementById("filterPlatform")?.value || ""
+  const shopVal    = document.getElementById("filterShop")?.value    || ""
   const reportMonth = fromVal ? fromVal.substring(0, 7) : ""
-  const rqs = reportMonth ? "?month=" + reportMonth : ""
+
+  // Build query string cho report-summary (lọc theo sàn nếu có)
+  const rqsParts = []
+  if (reportMonth) rqsParts.push("month=" + reportMonth)
+  if (platVal)     rqsParts.push("platform=" + platVal)
+  const rqs = rqsParts.length ? "?" + rqsParts.join("&") : ""
+
+  // Build query string cho operation-costs (lọc theo kỳ + sàn + shop)
+  const oqsParts = []
+  if (fromVal)  oqsParts.push("from=" + fromVal)
+  if (toVal)    oqsParts.push("to="   + toVal)
+  if (platVal)  oqsParts.push("platform=" + platVal)
+  if (shopVal)  oqsParts.push("shop=" + encodeURIComponent(shopVal))
+  const oqs = oqsParts.length ? "?" + oqsParts.join("&") : ""
 
   // Parallel fetch
   const [dash, revDay, profDay, platforms, shops, rptSum, opCosts] = await Promise.all([
@@ -622,7 +638,7 @@ async function loadDashboard() {
     fetch(API + "/api/top-platform" + qs).then(r => r.json()),
     fetch(API + "/api/top-shop" + qs).then(r => r.json()),
     fetch(API + "/api/report-summary" + rqs).then(r => r.json()).catch(() => ({})),
-    fetch(API + "/api/operation-costs").then(r => r.json()).catch(() => []),
+    fetch(API + "/api/operation-costs" + oqs).then(r => r.json()).catch(() => []),
   ])
 
   // KPI
@@ -666,11 +682,19 @@ async function loadDashboard() {
       <div class="kpi-value ${profitClass(dash.total_profit_invoice)}">${fmtShort(dash.total_profit_invoice)}</div>
       <div class="kpi-sub">Sau phí + vốn HĐ</div>
       <div class="lhd-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #c4b5fd;padding-top:6px">
+        <div style="font-weight:700;color:#888;margin-bottom:2px">📦 Theo đơn import:</div>
         <div style="display:flex;justify-content:space-between"><span>Doanh thu</span><span>${fmt(dash.total_revenue)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>− Vốn HĐ</span><span style="color:#ef4444">− ${fmt(dash.total_cost_invoice)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>− Phí sàn (có HĐ)</span><span style="color:#ef4444">− ${fmt(dash.total_fee - dash.total_fixed_fee)}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;padding-left:8px"><span>↳ Không tính phí vận hành: ${fmt(dash.total_fixed_fee)}</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #c4b5fd;margin-top:4px;padding-top:4px"><span>= Lãi HĐ</span><span>${fmt(dash.total_revenue - dash.total_cost_invoice - (dash.total_fee - dash.total_fixed_fee))}</span></div>
+        ${rptSum.total_gross_revenue ? `
+        <div style="font-weight:700;color:#888;margin-top:8px;margin-bottom:2px">📄 Theo báo cáo sàn:</div>
+        <div style="display:flex;justify-content:space-between"><span>DT báo cáo</span><span>${fmt(rptSum.total_gross_revenue)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>− Vốn HĐ</span><span style="color:#ef4444">− ${fmt(dash.total_cost_invoice)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>− Phí BC sàn</span><span style="color:#ef4444">− ${fmt(rptSum.total_fee_report||0)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #c4b5fd;margin-top:4px;padding-top:4px;color:#8b5cf6"><span>= Lãi HĐ (BC)</span><span>${fmt((rptSum.total_gross_revenue||0) - dash.total_cost_invoice - (rptSum.total_fee_report||0))}</span></div>
+        ` : ''}
       </div>
     </div>
     <div class="kpi teal" style="cursor:pointer" onclick="this.querySelector('.ltt-detail').style.display=this.querySelector('.ltt-detail').style.display==='none'?'block':'none'">
@@ -679,10 +703,19 @@ async function loadDashboard() {
       <div class="kpi-value ${profitClass(dash.total_profit_real)}">${fmtShort(dash.total_profit_real)}</div>
       <div class="kpi-sub">Sau phí + vốn thực</div>
       <div class="ltt-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #99f6e4;padding-top:6px">
+        <div style="font-weight:700;color:#888;margin-bottom:2px">📦 Theo đơn import:</div>
         <div style="display:flex;justify-content:space-between"><span>Doanh thu</span><span>${fmt(dash.total_revenue)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>− Vốn thực</span><span style="color:#ef4444">− ${fmt(dash.total_cost_real)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>− Tổng phí</span><span style="color:#ef4444">− ${fmt(dash.total_fee)}</span></div>
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #99f6e4;margin-top:4px;padding-top:4px"><span>= Lãi thực</span><span>${fmt(dash.total_profit_real)}</span></div>
+        ${rptSum.total_gross_revenue ? `
+        <div style="font-weight:700;color:#888;margin-top:8px;margin-bottom:2px">📄 Theo báo cáo sàn:</div>
+        <div style="display:flex;justify-content:space-between"><span>DT báo cáo</span><span>${fmt(rptSum.total_gross_revenue)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>− Vốn thực</span><span style="color:#ef4444">− ${fmt(dash.total_cost_real)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>− Phí BC sàn</span><span style="color:#ef4444">− ${fmt(rptSum.total_fee_report||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>− Vận hành</span><span style="color:#ef4444">− ${fmt(opCosts.reduce((s,c)=>s+(c.actual_amount||0),0))}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #99f6e4;margin-top:4px;padding-top:4px;color:#14b8a6"><span>= Lãi thực (BC)</span><span>${fmt((rptSum.total_gross_revenue||0) - dash.total_cost_real - (rptSum.total_fee_report||0) - opCosts.reduce((s,c)=>s+(c.actual_amount||0),0))}</span></div>
+        ` : ''}
       </div>
     </div>
     <div class="kpi orange">
@@ -728,11 +761,18 @@ async function loadDashboard() {
         ` : ''}
         <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">🏭 Chi phí vận hành:</div>
         ${opCosts.length > 0 ? opCosts.map(c => `
-          <div style="display:flex;justify-content:space-between">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
             <span>${c.cost_name || c.cost_key}</span>
-            <span>${fmtShort(c.cost_value)} đ/${c.calc_type==='per_month'?'tháng':'đơn'}</span>
+            <span style="text-align:right">
+              <span style="color:#aaa;font-size:10px">${fmtShort(c.cost_value)}/${c.calc_type==='per_month'?'tháng':'đơn'} × ${c.calc_type==='per_month'? c.months+'tháng' : c.total_orders+'đơn'} = </span>
+              <b>${fmtShort(c.actual_amount||0)}</b>
+            </span>
           </div>`).join("") : '<div style="color:#aaa">Chưa có chi phí vận hành</div>'}
-        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px"><span>Tổng vận hành</span><span>${fmtShort(dash.total_fixed_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px">
+          <span>Tổng vận hành (kỳ này)</span>
+          <span>${fmtShort(opCosts.reduce((s,c)=>s+(c.actual_amount||0),0))}</span>
+        </div>
+        <div style="font-size:10px;color:#aaa">Theo DB (recalc): ${fmtShort(dash.total_fixed_fee)}</div>
       </div>
     </div>
     <div class="kpi red" style="cursor:pointer" onclick="this.querySelector('.tax-detail').style.display=this.querySelector('.tax-detail').style.display==='none'?'block':'none'">
