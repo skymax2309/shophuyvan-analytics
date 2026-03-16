@@ -593,32 +593,25 @@ let _groupMode = false
 
 function showGroupPanel() {
   _groupMode = true
-  document.getElementById("sku-group-panel") && (document.getElementById("sku-group-panel").style.display = "block")
   document.getElementById("btn-group-mode").style.display = "none"
   document.getElementById("btn-group-cancel").style.display = ""
   document.getElementById("group-select-hint").style.display = ""
-  // Hiện checkbox
-  document.querySelectorAll(".sku-chk").forEach(c => c.style.display = "")
-  document.getElementById("chk-all-no").style.display = ""
-  document.getElementById("chk-all-has").style.display = ""
-  loadSkuGroups()
   updateGroupHint()
 }
 
 function cancelGroupMode() {
   _groupMode = false
-  document.getElementById("sku-group-panel").style.display = "none"
   document.getElementById("btn-group-mode").style.display = ""
   document.getElementById("btn-group-cancel").style.display = "none"
   document.getElementById("group-select-hint").style.display = "none"
-  document.getElementById("group-create-area").style.display = "none"
-  document.querySelectorAll(".sku-chk").forEach(c => { c.style.display = "none"; c.checked = false })
-  document.getElementById("chk-all-no").style.display = "none"
-  document.getElementById("chk-all-has").style.display = "none"
+  const ca = document.getElementById("group-create-area")
+  if (ca) ca.style.display = "none"
+  document.querySelectorAll(".sku-chk").forEach(c => c.checked = false)
 }
 
 function toggleAllCheck(type, checked) {
-  const tbody = type === "no" ? "skuNoPriceTable" : "skuHasPriceTable"
+  const map = { no: "skuNoPriceTable", partial: "skuPartialTable", has: "skuHasPriceTable" }
+  const tbody = map[type] || "skuNoPriceTable"
   document.querySelectorAll(`#${tbody} .sku-chk`).forEach(c => c.checked = checked)
   updateGroupHint()
 }
@@ -626,14 +619,16 @@ function toggleAllCheck(type, checked) {
 function updateGroupHint() {
   const selected = getSelectedSkus()
   const hint = document.getElementById("group-select-hint")
+  if (!hint) return
+  const ca   = document.getElementById("group-create-area")
+  const sl   = document.getElementById("group-selected-list")
   if (selected.length > 0) {
     hint.textContent = `✓ Đã chọn ${selected.length} SKU`
-    document.getElementById("group-create-area").style.display = "block"
-    document.getElementById("group-selected-list").textContent =
-      "SKU: " + selected.join(", ")
+    if (ca) ca.style.display = "block"
+    if (sl) sl.textContent = "SKU: " + selected.join(", ")
   } else {
     hint.textContent = "Tích chọn các SKU cùng giá vốn"
-    document.getElementById("group-create-area").style.display = "none"
+    if (ca) ca.style.display = "none"
   }
 }
 
