@@ -113,6 +113,9 @@ export default {
       if (url.pathname === "/api/report-summary")
         return getReportSummary(request, env, cors)
 
+      if (url.pathname === "/api/operation-costs")
+        return getOperationCosts(request, env, cors)
+
       if (url.pathname.startsWith("/api/reports/") && request.method === "DELETE") {
         const id = url.pathname.replace("/api/reports/", "")
         const { r2_key } = await request.json()
@@ -956,17 +959,50 @@ async function getReportSummary(request, env, cors) {
   if (month)    { conds.push("report_month = ?"); params.push(month) }
   if (platform) { conds.push("platform = ?");     params.push(platform) }
 
+  const where = "WHERE " + conds.join(" AND ")
+
+  // Tổng hợp
   const row = await env.DB.prepare(`
     SELECT
-      SUM(gross_revenue) AS total_gross_revenue,
-      SUM(fee_total)     AS total_fee_report,
-      SUM(tax_total)     AS total_tax_report,
-      SUM(total_payout)  AS total_payout
+      SUM(gross_revenue)    AS total_gross_revenue,
+      SUM(fee_commission)   AS total_fee_commission,
+      SUM(fee_payment)      AS total_fee_payment,
+      SUM(fee_affiliate)    AS total_fee_affiliate,
+      SUM(fee_piship_sfr)   AS total_fee_piship,
+      SUM(fee_service)      AS total_fee_service,
+      SUM(fee_handling)     AS total_fee_handling,
+      SUM(fee_total)        AS total_fee_report,
+      SUM(tax_total)        AS total_tax_report,
+      SUM(total_payout)     AS total_payout
     FROM platform_reports
-    WHERE ${conds.join(" AND ")}
+    ${where}
   `).bind(...params).first()
 
-  return Response.json(row || {}, { headers: cors })
+  // Chi tiết theo từng shop
+  const shops = await env.DB.prepare(`
+    SELECT
+      shop, platform,
+      SUM(gross_revenue)  AS gross_revenue,
+      SUM(fee_total)      AS fee_total,
+      SUM(tax_total)      AS tax_total,
+      SUM(total_payout)   AS total_payout
+    FROM platform_reports
+    ${where}
+    GROUP BY shop, platform
+    ORDER BY gross_revenue DESC
+  `).bind(...params).all()
+
+  return Response.json({ ...row, shops: shops.results || [] }, { headers: cors })
+}
+
+async function getOperationCosts(request, env, cors) {
+  const rows = await env.DB.prepare(`
+    SELECT cost_key, cost_value, cost_name, calc_type, platform, shop
+    FROM cost_settings
+    WHERE cost_key LIKE 'custom_%'
+    ORDER BY cost_name
+  `).all()
+  return Response.json(rows.results || [], { headers: cors })
 }
 
 // ════════════════════════════════════════════════════════════════════

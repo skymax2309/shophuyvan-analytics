@@ -615,13 +615,14 @@ async function loadDashboard() {
   const rqs = reportMonth ? "?month=" + reportMonth : ""
 
   // Parallel fetch
-  const [dash, revDay, profDay, platforms, shops, rptSum] = await Promise.all([
+  const [dash, revDay, profDay, platforms, shops, rptSum, opCosts] = await Promise.all([
     fetch(API + "/api/dashboard" + qs).then(r => r.json()),
     fetch(API + "/api/revenue-by-day" + qs).then(r => r.json()),
     fetch(API + "/api/profit-by-day" + qs).then(r => r.json()),
     fetch(API + "/api/top-platform" + qs).then(r => r.json()),
     fetch(API + "/api/top-shop" + qs).then(r => r.json()),
     fetch(API + "/api/report-summary" + rqs).then(r => r.json()).catch(() => ({})),
+    fetch(API + "/api/operation-costs").then(r => r.json()).catch(() => []),
   ])
 
   // KPI
@@ -643,12 +644,19 @@ async function loadDashboard() {
       <div class="kpi-label">Doanh thu <span style="font-size:10px;opacity:0.6">▼ chi tiết</span></div>
       <div class="kpi-value">${fmtShort(rptSum.total_gross_revenue || dash.total_revenue)}</div>
       <div class="kpi-sub">${fmt(rptSum.total_gross_revenue || dash.total_revenue)}</div>
-      <div class="rev-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #6ee7b7;padding-top:6px">
-        <div style="display:flex;justify-content:space-between"><span>📄 DT từ báo cáo sàn</span><span style="font-weight:700">${fmt(rptSum.total_gross_revenue || 0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>📦 DT từ đơn hàng import</span><span>${fmt(dash.total_revenue)}</span></div>
-        <div style="display:flex;justify-content:space-between;color:${Math.abs((rptSum.total_gross_revenue||0) - dash.total_revenue) < 1000 ? '#10b981' : '#f59e0b'}">
-          <span>Chênh lệch</span>
-          <span>${fmt((rptSum.total_gross_revenue||0) - dash.total_revenue)}</span>
+      <div class="rev-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:1.8;border-top:1px solid #6ee7b7;padding-top:6px">
+        <div style="font-weight:700;color:#888;margin-bottom:4px">📄 Theo báo cáo sàn:</div>
+        ${(rptSum.shops||[]).map(s => `
+          <div style="display:flex;justify-content:space-between;padding-left:8px">
+            <span><span style="background:${s.platform==='shopee'?'#ee4d2d':s.platform==='tiktok'?'#333':'#0f146d'};color:white;border-radius:3px;padding:1px 5px;font-size:10px">${s.platform.toUpperCase()}</span> ${s.shop}</span>
+            <span style="font-weight:600">${fmt(s.gross_revenue)}</span>
+          </div>`).join("")}
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #6ee7b7;margin-top:4px;padding-top:4px">
+          <span>Tổng BC sàn</span><span>${fmt(rptSum.total_gross_revenue||0)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:4px"><span>📦 DT đơn import</span><span>${fmt(dash.total_revenue)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;color:${Math.abs((rptSum.total_gross_revenue||0)-dash.total_revenue)<10000?'#10b981':'#f59e0b'}">
+          <span>Chênh lệch</span><span>${fmt((rptSum.total_gross_revenue||0)-dash.total_revenue)}</span>
         </div>
       </div>
     </div>
@@ -695,13 +703,29 @@ async function loadDashboard() {
       <div class="kpi-value">${fmtShort(dash.total_fee)}</div>
       <div class="kpi-sub" id="feeSubLabel">Commission + Thanh toán + Affiliate + DV + PiShip</div>
       <div id="feeDetail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:1.9;border-top:1px solid #fde68a;padding-top:6px">
+        <div style="font-weight:700;color:#888;margin-bottom:2px">📊 Phí từ đơn hàng (tính toán):</div>
         <div style="display:flex;justify-content:space-between"><span>📌 Hoa hồng sàn (Commission)</span><span>${fmtShort(dash.total_platform_fee)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>💳 Phí thanh toán / giao dịch</span><span>${fmtShort(dash.total_payment_fee)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>🤝 Tiếp thị liên kết (Affiliate)</span><span>${fmtShort(dash.total_affiliate_fee)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>📢 Quảng cáo (Ads)</span><span>${fmtShort(dash.total_ads_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip / SFR (phí vận chuyển sàn)</span><span>${fmtShort(dash.total_piship_fee)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip / SFR</span><span>${fmtShort(dash.total_piship_fee)}</span></div>
         <div style="display:flex;justify-content:space-between"><span>🛎️ Phí dịch vụ / xử lý đơn</span><span>${fmtShort(dash.total_service_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>📦 Chi phí vận hành (đóng gói + xử lý + nhân công)</span><span>${fmtShort(dash.total_fixed_fee)}</span></div>
+        ${rptSum.total_fee_report ? `
+        <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">📄 Phí từ báo cáo sàn:</div>
+        <div style="display:flex;justify-content:space-between"><span>📌 Commission (BC)</span><span>${fmtShort(rptSum.total_fee_commission||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>💳 Thanh toán (BC)</span><span>${fmtShort(rptSum.total_fee_payment||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🤝 Affiliate (BC)</span><span>${fmtShort(rptSum.total_fee_affiliate||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip/SFR (BC)</span><span>${fmtShort(rptSum.total_fee_piship||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🛎️ Xử lý đơn (BC)</span><span>${fmtShort(rptSum.total_fee_service||0)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700"><span>Tổng phí BC sàn</span><span>${fmtShort(rptSum.total_fee_report)}</span></div>
+        ` : ''}
+        <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">🏭 Chi phí vận hành:</div>
+        ${opCosts.length > 0 ? opCosts.map(c => `
+          <div style="display:flex;justify-content:space-between">
+            <span>${c.cost_name || c.cost_key}</span>
+            <span>${fmtShort(c.cost_value)} đ/${c.calc_type==='per_month'?'tháng':'đơn'}</span>
+          </div>`).join("") : '<div style="color:#aaa">Chưa có chi phí vận hành</div>'}
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px"><span>Tổng vận hành</span><span>${fmtShort(dash.total_fixed_fee)}</span></div>
       </div>
     </div>
     <div class="kpi red" style="cursor:pointer" onclick="this.querySelector('.tax-detail').style.display=this.querySelector('.tax-detail').style.display==='none'?'block':'none'">
