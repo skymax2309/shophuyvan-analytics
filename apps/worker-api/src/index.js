@@ -890,7 +890,7 @@ async function uploadReport(request, env, cors) {
        platform_subsidy, seller_voucher, co_funded_voucher,
        shipping_net,
        fee_commission, fee_payment, fee_service,
-       fee_affiliate, fee_piship_sfr, fee_handling, fee_total,
+       fee_affiliate, fee_piship_sfr, fee_handling, fee_ads, fee_total,
        compensation,
        tax_vat, tax_pit, tax_total,
        total_payout, raw_data)
