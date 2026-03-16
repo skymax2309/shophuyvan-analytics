@@ -1094,7 +1094,7 @@ async function getOperationCosts(request, env, cors) {
         const baseAmount = c.cost_value * months
         actualAmount = shop ? Math.round(baseAmount * revenueRatio) : baseAmount
         note = shop
-          ? `${(revenueRatio*100).toFixed(1)}% DT (${fmtNum(shopVal||shop)} / tổng)`
+          ? `${(revenueRatio*100).toFixed(1)}% DT shop này`
           : "toàn bộ"
       } else {
         actualAmount = c.cost_value * (shop ? totalOrders : totalOrdersAll)
@@ -1257,7 +1257,7 @@ function parseShopeeExpenseInvoice(text) {
     fee_piship_sfr:  piship,
     fee_handling:    withdrawal,
     fee_ads:         ads,
-    fee_total:       sub,
+    fee_total:       sub > 0 ? sub : (commission + transaction + service + piship + ads + withdrawal),
     compensation:    0,
     tax_vat:         vat,
     tax_pit:         0,
