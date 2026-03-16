@@ -47,6 +47,14 @@ export default {
         return updateCostPrices(request, env, cors)
 	if (url.pathname === "/api/sku-map" && request.method === "GET")
         return getSkuMap(request, env, cors)
+	if (url.pathname === "/api/sku-groups" && request.method === "GET")
+        return getSkuGroups(request, env, cors)
+      if (url.pathname === "/api/sku-groups" && request.method === "POST")
+        return saveSkuGroup(request, env, cors)
+      if (url.pathname === "/api/sku-groups/update-price" && request.method === "POST")
+        return updateGroupPrice(request, env, cors)
+      if (url.pathname === "/api/sku-groups/delete" && request.method === "POST")
+        return deleteSkuGroup(request, env, cors)
       if (url.pathname === "/api/parse-invoice" && request.method === "POST")
         return parseInvoiceAI(request, env, cors)
       if (url.pathname === "/api/save-invoice" && request.method === "POST")
@@ -1541,6 +1549,43 @@ async function updateCostPrices(request, env, cors) {
 async function getSkuMap(request, env, cors) {
   const rows = await env.DB.prepare(`SELECT invoice_name, sku FROM invoice_sku_map`).all()
   return Response.json(rows.results, { headers: cors })
+}
+
+async function getSkuGroups(request, env, cors) {
+  const rows = await env.DB.prepare(`SELECT * FROM sku_groups ORDER BY group_name`).all()
+  return Response.json(rows.results, { headers: cors })
+}
+
+async function saveSkuGroup(request, env, cors) {
+  const { group_name, skus } = await request.json()
+  if (!group_name || !skus?.length)
+    return Response.json({ error: "Missing data" }, { status: 400, headers: cors })
+  await env.DB.prepare(`
+    INSERT INTO sku_groups (group_name, skus) VALUES (?, ?)
+    ON CONFLICT(group_name) DO UPDATE SET skus = excluded.skus
+  `).bind(group_name, JSON.stringify(skus)).run()
+  return Response.json({ status: "ok" }, { headers: cors })
+}
+
+async function updateGroupPrice(request, env, cors) {
+  const { group_name, cost_invoice, cost_real } = await request.json()
+  if (!group_name) return Response.json({ error: "Missing group_name" }, { status: 400, headers: cors })
+  const row = await env.DB.prepare(`SELECT skus FROM sku_groups WHERE group_name = ?`).bind(group_name).first()
+  if (!row) return Response.json({ error: "Group not found" }, { status: 404, headers: cors })
+  const skus = JSON.parse(row.skus || "[]")
+  if (!skus.length) return Response.json({ status: "ok", updated: 0 }, { headers: cors })
+  const stmts = skus.map(sku =>
+    env.DB.prepare(`UPDATE products SET cost_invoice = ?, cost_real = ? WHERE sku = ?`)
+      .bind(cost_invoice, cost_real, sku)
+  )
+  await env.DB.batch(stmts)
+  return Response.json({ status: "ok", updated: skus.length }, { headers: cors })
+}
+
+async function deleteSkuGroup(request, env, cors) {
+  const { group_name } = await request.json()
+  await env.DB.prepare(`DELETE FROM sku_groups WHERE group_name = ?`).bind(group_name).run()
+  return Response.json({ status: "ok" }, { headers: cors })
 }
 
 function parseTiktokExcel(text) { return {} }
