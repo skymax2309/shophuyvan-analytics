@@ -2,8 +2,15 @@ const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 let selectedFiles = []
 
 // ── Quản lý danh sách Shop (lưu localStorage) ────────────────────────
-function loadShops() {
-  return JSON.parse(localStorage.getItem("report_shops") || "[]")
+async function loadShops() {
+  try {
+    const shops = await fetch(API + "/api/top-shop").then(r => r.json())
+    const names = [...new Set(shops.map(s => s.shop))]
+    document.getElementById("shopList").innerHTML =
+      names.map(s => `<option value="${s}">`).join("")
+  } catch(e) {
+    console.error("Không load được danh sách shop:", e)
+  }
 }
 
 function saveShop() {
@@ -18,11 +25,6 @@ function saveShop() {
   }
 }
 
-function renderShopList() {
-  const shops = loadShops()
-  document.getElementById("shopList").innerHTML =
-    shops.map(s => `<option value="${s}">`).join("")
-}
 
 function showToast(msg) {
   const t = document.createElement("div")
@@ -32,7 +34,7 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 2500)
 }
 
-renderShopList()
+loadShops()
 
 // ── Drag & Drop ──────────────────────────────────────────────────────
 const dropzone = document.getElementById("dropzone")
