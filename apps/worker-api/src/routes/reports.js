@@ -304,7 +304,7 @@ async function getOperationCosts(request, env, cors) {
     return { ...c, actual_amount: actualAmount, total_orders: totalOrders, months, note, shop_ratio: shopRatio }
   }).filter(Boolean)
 
-  return Response.json({ costs, revenue_ratio: revenueRatio, total_orders: totalOrders, months }, { headers: cors })
+  return Response.json({ costs, total_orders: totalOrders, months }, { headers: cors })
 }
 
 function fmtNum(n) { return Number(n||0).toLocaleString("vi-VN") }

@@ -1,25 +1,71 @@
-├── extracted_project
-│   ├── shophuyvan-analytics-main
-│   │   ├── .gitignore
-│   │   ├── cau truc file.txt
-│   │   ├── schema.sql
-│   │   ├── apps
-│   │   │   ├── fe
-│   │   │   │   ├── admin-products.html
-│   │   │   │   ├── cost-settings.html
-│   │   │   │   ├── index.html
-│   │   │   │   ├── package-lock.json
-│   │   │   │   ├── package.json
-│   │   │   │   ├── profit-dashboard.html
-│   │   │   │   ├── report-upload.html
-│   │   │   │   ├── wrangler.jsonc
-│   │   │   │   ├── js
-│   │   │   │   │   ├── api.js
-│   │   │   │   │   ├── parser.js
-│   │   │   │   │   ├── profit-engine.js
-│   │   │   ├── worker-api
-│   │   │   │   ├── package-lock.json
-│   │   │   │   ├── package.json
-│   │   │   │   ├── wrangler.toml
-│   │   │   │   ├── src
-│   │   │   │   │   ├── index.js
+├── .gitignore
+├── cau truc file.txt
+├── project_structure.txt
+├── schema.sql
+│
+├── apps/
+│   ├── fe/
+│   │   ├── index.html
+│   │   ├── package.json
+│   │   ├── package-lock.json
+│   │   ├── wrangler.jsonc
+│   │   │
+│   │   ├── css/
+│   │   │   ├── admin.css
+│   │   │   └── dashboard.css
+│   │   │   └── report-upload.css
+│   │   │
+│   │   ├── js/
+│   │   │   ├── report-upload.js
+│   │   │   ├── parser.js
+│   │   │   │
+│   │   │   ├── utils/
+│   │   │   │   ├── api.js
+│   │   │   │   └── format.js
+│   │   │   │
+│   │   │   ├── components/
+│   │   │   │   ├── ChartRenderer.js
+│   │   │   │   ├── DateRangePicker.js
+│   │   │   │   └── ShopTreePicker.js
+│   │   │   │
+│   │   │   ├── dashboard/
+│   │   │   │   ├── filters.js
+│   │   │   │   └── main.js
+│   │   │   │
+│   │   │   └── admin/
+│   │   │       ├── combo-manager.js
+│   │   │       ├── invoice-manager.js
+│   │   │       ├── main.js
+│   │   │       ├── order-manager.js
+│   │   │       └── sku-manager.js
+│   │   │
+│   │   └── pages/
+│   │       ├── admin-products.html
+│   │       ├── cost-settings.html
+│   │       ├── profit-dashboard.html
+│   │       └── report-upload.html
+│   │
+│   └── worker-api/
+│       ├── package.json
+│       ├── package-lock.json
+│       ├── wrangler.toml
+│       │
+│       └── src/
+│           ├── index.js
+│           │
+│           ├── routes/
+│           │   ├── dashboard.js
+│           │   ├── invoices.js
+│           │   ├── orders.js
+│           │   ├── products.js
+│           │   └── reports.js
+│           │
+│           ├── handlers/
+│           │   └── report-parsers.js
+│           │
+│           └── utils/
+│               ├── db.js
+│               └── filters.js
+│
+└── backup/
+    └── backup.sql
