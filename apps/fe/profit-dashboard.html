@@ -624,7 +624,9 @@ function getFilterParams() {
   if (from) p.set("from", from)
   if (to)   p.set("to", to)
   if (plt)  p.set("platform", plt)
-  if (shop) p.set("shop", shop)
+  if (shop) {
+    shop.split(",").forEach(s => p.append("shop", s.trim()))
+  }
   return p.toString() ? "?" + p.toString() : ""
 }
 
@@ -1541,14 +1543,13 @@ function syncShopFilter() {
   if (keys.length === 0) {
     document.getElementById("filterPlatform").value = ""
     document.getElementById("filterShop").value = ""
-    return
+  } else {
+    const platforms = [...new Set(keys.map(k => k.split("::")[0]))]
+    document.getElementById("filterPlatform").value = platforms.length === 1 ? platforms[0] : ""
+    const shops = keys.map(k => k.split("::")[1])
+    document.getElementById("filterShop").value = shops.join(",")
   }
-  // lấy platform duy nhất nếu chỉ chọn 1 platform
-  const platforms = [...new Set(keys.map(k => k.split("::")[0]))]
-  document.getElementById("filterPlatform").value = platforms.length === 1 ? platforms[0] : ""
-  // lấy shop duy nhất nếu chỉ chọn 1 shop
-  const shops = keys.map(k => k.split("::")[1])
-  document.getElementById("filterShop").value = shops.length === 1 ? shops[0] : ""
+  applyFilter()
 }
 
 // Đóng picker khi click ngoài
