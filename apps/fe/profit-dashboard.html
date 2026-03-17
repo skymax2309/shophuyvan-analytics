@@ -691,6 +691,11 @@ function fmtShort(n) {
   return n.toLocaleString("vi-VN")
 }
 
+function fmtFull(n) {
+  if (!n && n !== 0) return "—"
+  return Number(n).toLocaleString("vi-VN") + " đ"
+}
+
 function pct(a, b) {
   if (!b) return "0%"
   return (a / b * 100).toFixed(1) + "%"
@@ -872,13 +877,13 @@ async function loadDashboard() {
         <div style="display:flex;justify-content:space-between"><span>🛎️ Phí dịch vụ / xử lý đơn</span><span>${fmtShort(dash.total_service_fee)}</span></div>
         ${rptSum.total_fee_report ? `
         <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">📄 Phí từ báo cáo sàn:</div>
-        <div style="display:flex;justify-content:space-between"><span>📌 Commission (BC)</span><span>${fmtShort(rptSum.total_fee_commission||0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>💳 Thanh toán (BC)</span><span>${fmtShort(rptSum.total_fee_payment||0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🤝 Affiliate (BC)</span><span>${fmtShort(rptSum.total_fee_affiliate||0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip/SFR (BC)</span><span>${fmtShort(rptSum.total_fee_piship||0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🛎️ Xử lý đơn (BC)</span><span>${fmtShort(rptSum.total_fee_service||0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>📢 Quảng cáo/Đấu thầu (BC)</span><span>${fmtShort(rptSum.total_fee_ads||0)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:2px;padding-top:4px"><span>Tổng phí BC sàn</span><span>${fmtShort(rptSum.total_fee_report)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>📌 Phí HH Cố Định (BC)</span><span>${fmtFull(rptSum.total_fee_commission||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>💳 Thanh toán (BC)</span><span>${fmtFull(rptSum.total_fee_payment||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🤝 Affiliate (BC)</span><span>${fmtFull(rptSum.total_fee_affiliate||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip/SFR (BC)</span><span>${fmtFull(rptSum.total_fee_piship||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>🛎️ Xử lý đơn (BC)</span><span>${fmtFull(rptSum.total_fee_service||0)}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>📢 Quảng cáo/Đấu thầu (BC)</span><span>${fmtFull(rptSum.total_fee_ads||0)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:2px;padding-top:4px"><span>Tổng phí BC sàn</span><span>${fmtFull(rptSum.total_fee_report)}</span></div>
         <div style="border-top:1px dashed #fde68a;margin-top:6px;padding-top:4px;font-weight:700;color:#10b981">
           💡 Lãi HĐ (theo BC) = ${fmtShort(rptSum.total_gross_revenue||0)} − ${fmtShort(dash.total_cost_invoice)} − ${fmtShort(rptSum.total_fee_report)} = <span style="color:#8b5cf6">${fmtShort((rptSum.total_gross_revenue||0) - dash.total_cost_invoice - (rptSum.total_fee_report||0))}</span>
         </div>
