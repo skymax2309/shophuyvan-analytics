@@ -885,7 +885,7 @@ async function uploadReport(request, env, cors) {
   } else if (ext === "pdf") {
     const text = await extractPdfText(bytes)
     // Auto detect loại hóa đơn từ nội dung
-    parsed = autoDetectAndParse(text, platform)
+    parsed = autoDetectAndParse(text, platform, report_type)
   }
 
   // ── Lưu vào D1 ───────────────────────────────────────────────────
@@ -1216,20 +1216,32 @@ async function extractExcelText(arrayBuffer) {
 }
 
 // ── Detect loại hóa đơn + parse tương ứng ────────────────────────────
-function autoDetectAndParse(text, platform) {
+function autoDetectAndParse(text, platform, reportType) {
+  console.log("[autoDetectAndParse] platform:", platform, "reportType:", reportType,
+    "hasShopee:", text.includes("CÔNG TY TNHH SHOPEE"),
+    "has1K26TAC:", text.includes("1K26TAC"),
+    "hasDauThau:", text.includes("đấu thầu"),
+    "textLen:", text.length)
+
   // Shopee VAT Invoice (do Công ty TNHH Shopee xuất)
   if (text.includes("CÔNG TY TNHH SHOPEE") || text.includes("1K26TAC")) {
+    console.log("[autoDetectAndParse] → parseShopeeExpenseInvoice")
     return parseShopeeExpenseInvoice(text)
   }
-  // TikTok Tax Invoice (do TikTok Pte. Ltd. xuất)
+  // Fallback theo reportType từ tên file (phi-dau-thau, phi-san, phi-rut-tien)
+  if (reportType && reportType.startsWith("phi-") && platform === "shopee") {
+    console.log("[autoDetectAndParse] → parseShopeeExpenseInvoice (by reportType fallback)")
+    return parseShopeeExpenseInvoice(text)
+  }
+  // TikTok Tax Invoice
   if (text.includes("TIKTOK PTE") || text.includes("VNEC") || text.includes("Tokgistic")) {
     return parseTiktokExpenseInvoice(text)
   }
-  // Lazada (do Công ty TNHH RECESS xuất)
+  // Lazada
   if (text.includes("RECESS") || text.includes("VN33W4TIY8") || text.includes("Lazada")) {
     return parseLazadaExpenseInvoice(text)
   }
-  // Shopee doanh thu (báo cáo quyết toán)
+  // Shopee doanh thu
   if (platform === "shopee") return parseShopeeReport(text)
   if (platform === "lazada") return parseLazadaReport(text)
   return {}
