@@ -1000,18 +1000,15 @@ async function getReportSummary(request, env, cors) {
     WHERE report_type = 'income' ${baseWhere}
   `).bind(...baseParams).first()
 
-// Tổng hợp phí đấu thầu — lấy fee_total từ các file phi-dau-thau
+// Chỉ lấy fee_total từ đúng file phi-dau-thau
   const adsRow = await env.DB.prepare(`
-    SELECT
-      SUM(COALESCE(fee_ads,0))   AS total_fee_ads,
-      SUM(COALESCE(fee_total,0)) AS total_fee_dau_thau
+    SELECT SUM(COALESCE(fee_total,0)) AS total_fee_dau_thau
     FROM platform_reports
-    WHERE report_type != 'income' ${baseWhere}
+    WHERE report_type = 'phi-dau-thau' ${baseWhere}
   `).bind(...baseParams).first()
 
-  // Ưu tiên fee_total của file đấu thầu (= sub total trước thuế = số tiền thực tế)
   const total_fee_ads = (row?.total_fee_ads_income || 0)
-    + (adsRow?.total_fee_dau_thau || adsRow?.total_fee_ads || 0)
+    + (adsRow?.total_fee_dau_thau || 0)
 
  // Chi tiết theo từng shop
   const shops = await env.DB.prepare(`
