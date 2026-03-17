@@ -128,6 +128,7 @@ body { font-family: -apple-system, sans-serif; background: #f0f2f5; }
           <option value="income">Doanh Thu</option>
           <option value="expense">Chi Phí</option>
           <option value="orders">Đơn Hàng</option>
+          <option value="phi-dau-thau">Quảng Cáo</option>
         </select>
       </div>
       <div class="field">
@@ -367,6 +368,9 @@ function smartRename(pdfText, filename, platform, shop, type) {
   if (!month) month = detectMonthFromName(filename)
 
   // ── Detect loại phí từ NỘI DUNG ──────────────────────────────────
+  // Nếu user đã chọn đúng loại, dùng luôn không cần detect
+  if (type === "phi-dau-thau") return `${platform.toUpperCase()}_${cleanShop}_${month}_phi-dau-thau.${ext}`
+
   let feeType = type  // default: income / expense / orders
 
   if (type === "expense" || type === "income") {
@@ -764,7 +768,7 @@ async function loadHistory() {
     return
   }
 
-  const typeLabel = { income: "Doanh Thu", expense: "Chi Phí", orders: "Đơn Hàng" }
+  const typeLabel = { income: "Doanh Thu", expense: "Chi Phí", orders: "Đơn Hàng", "phi-dau-thau": "Quảng Cáo" }
   const fmt = n => Math.abs(Math.round(n || 0)).toLocaleString("vi-VN")
 
   el.innerHTML = `
