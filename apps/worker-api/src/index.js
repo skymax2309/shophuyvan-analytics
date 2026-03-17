@@ -963,31 +963,40 @@ async function getReportSummary(request, env, cors) {
   const platform = url2.searchParams.get("platform") || ""
   const shop     = url2.searchParams.get("shop")     || ""
 
-  const conds  = ["report_type = 'income'"]
-  const params = []
-  if (month)    { conds.push("report_month = ?"); params.push(month) }
-  if (platform) { conds.push("platform = ?");     params.push(platform) }
-  if (shop)     { conds.push("shop = ?");          params.push(shop) }
+  const baseParams = []
+  const baseConds  = []
+  if (month)    { baseConds.push("report_month = ?"); baseParams.push(month) }
+  if (platform) { baseConds.push("platform = ?");     baseParams.push(platform) }
+  if (shop)     { baseConds.push("shop = ?");          baseParams.push(shop) }
 
-  const where = "WHERE " + conds.join(" AND ")
+  const baseWhere = baseConds.length ? "AND " + baseConds.join(" AND ") : ""
 
-  // Tổng hợp
+  // Tổng hợp doanh thu — chỉ từ income
   const row = await env.DB.prepare(`
     SELECT
-      SUM(gross_revenue)    AS total_gross_revenue,
-      SUM(fee_commission)   AS total_fee_commission,
-      SUM(fee_payment)      AS total_fee_payment,
-      SUM(fee_affiliate)    AS total_fee_affiliate,
-      SUM(fee_piship_sfr)   AS total_fee_piship,
-      SUM(fee_service)      AS total_fee_service,
-      SUM(fee_handling)     AS total_fee_handling,
-      SUM(COALESCE(fee_ads,0)) AS total_fee_ads,
-      SUM(fee_total)        AS total_fee_report,
-      SUM(tax_total)        AS total_tax_report,
-      SUM(total_payout)     AS total_payout
+      SUM(gross_revenue)       AS total_gross_revenue,
+      SUM(fee_commission)      AS total_fee_commission,
+      SUM(fee_payment)         AS total_fee_payment,
+      SUM(fee_affiliate)       AS total_fee_affiliate,
+      SUM(fee_piship_sfr)      AS total_fee_piship,
+      SUM(fee_service)         AS total_fee_service,
+      SUM(fee_handling)        AS total_fee_handling,
+      SUM(COALESCE(fee_ads,0)) AS total_fee_ads_income,
+      SUM(fee_total)           AS total_fee_report,
+      SUM(tax_total)           AS total_tax_report,
+      SUM(total_payout)        AS total_payout
     FROM platform_reports
-    ${where}
-  `).bind(...params).first()
+    WHERE report_type = 'income' ${baseWhere}
+  `).bind(...baseParams).first()
+
+  // Tổng hợp phí đấu thầu — từ tất cả file chi phí
+  const adsRow = await env.DB.prepare(`
+    SELECT SUM(COALESCE(fee_ads,0)) AS total_fee_ads
+    FROM platform_reports
+    WHERE report_type != 'income' ${baseWhere}
+  `).bind(...baseParams).first()
+
+  const total_fee_ads = (row?.total_fee_ads_income || 0) + (adsRow?.total_fee_ads || 0)
 
   // Chi tiết theo từng shop
   const shops = await env.DB.prepare(`
@@ -1003,7 +1012,7 @@ async function getReportSummary(request, env, cors) {
     ORDER BY gross_revenue DESC
   `).bind(...params).all()
 
-  return Response.json({ ...row, shops: shops.results || [] }, { headers: cors })
+  return Response.json({ ...row, total_fee_ads, shops: shops.results || [] }, { headers: cors })
 }
 
 async function getOperationCosts(request, env, cors) {
