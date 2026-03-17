@@ -882,9 +882,11 @@ async function uploadReport(request, env, cors) {
   const parsedJson = formData.get("parsed_json")
   if (parsedJson) {
     parsed = parseTiktokReport(JSON.parse(parsedJson))
-  } else if (ext === "pdf") {
-    const text = await extractPdfText(bytes)
-    // Auto detect loại hóa đơn từ nội dung
+} else if (ext === "pdf") {
+    // Ưu tiên dùng text đã parse từ client (pdf.js) — chính xác hơn
+    const clientText = formData.get("pdf_text") || ""
+    const text = clientText.length > 50 ? clientText : await extractPdfText(bytes)
+    console.log("[pdf parse] source:", clientText.length > 50 ? "client pdf.js" : "server regex", "textLen:", text.length, "preview:", text.substring(0, 200))
     parsed = autoDetectAndParse(text, platform, report_type)
   }
 

@@ -306,6 +306,7 @@ async function uploadAll() {
         formData.append("shop", shop)
         formData.append("report_type", type)
         formData.append("parsed_json", JSON.stringify(parsedData))
+        formData.append("pdf_text", pdfText)
 
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 30000)
