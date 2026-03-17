@@ -998,7 +998,7 @@ async function getReportSummary(request, env, cors) {
 
   const total_fee_ads = (row?.total_fee_ads_income || 0) + (adsRow?.total_fee_ads || 0)
 
-  // Chi tiết theo từng shop
+ // Chi tiết theo từng shop
   const shops = await env.DB.prepare(`
     SELECT
       shop, platform,
@@ -1007,10 +1007,10 @@ async function getReportSummary(request, env, cors) {
       SUM(tax_total)      AS tax_total,
       SUM(total_payout)   AS total_payout
     FROM platform_reports
-    ${where}
+    WHERE report_type = 'income' ${baseWhere}
     GROUP BY shop, platform
     ORDER BY gross_revenue DESC
-  `).bind(...params).all()
+  `).bind(...baseParams).all()
 
   return Response.json({ ...row, total_fee_ads, shops: shops.results || [] }, { headers: cors })
 }

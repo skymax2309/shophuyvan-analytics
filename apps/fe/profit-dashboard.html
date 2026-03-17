@@ -1279,6 +1279,7 @@ function toggleDRP() {
 }
 
 function closeDRP() {
+  console.log("=== closeDRP called ===", new Error().stack)
   document.getElementById("drpPanel").classList.remove("open")
   document.getElementById("drpInput").classList.remove("active")
 }
@@ -1343,6 +1344,7 @@ function drpHover(ts) {
 function drpClickDay(ts, event) {
   event.stopPropagation()
   event.preventDefault()
+  console.log("=== drpClickDay ===", new Date(ts).toLocaleDateString(), "selecting:", drpState.selecting, "start:", drpState.start)
   if (!drpState.selecting || drpState.start === null) {
     drpState.start = ts; drpState.end = null; drpState.selecting = true
   } else {
@@ -1439,6 +1441,7 @@ function toggleShopPicker() {
 }
 
 function closeShopPicker() {
+  console.log("=== closeShopPicker called ===", new Error().stack)
   document.getElementById("shopPickerPanel").classList.remove("open")
   document.getElementById("shopPickerInput").classList.remove("active")
 }
@@ -1478,6 +1481,7 @@ function toggleShop(p, shop, e) {
 
 function renderShopPanel() {
   const panel = document.getElementById("shopPickerPanel")
+  console.log("=== renderShopPanel === panel open?", panel.classList.contains("open"))
   panel.innerHTML = shopTreeData.map(({ platform: p, shops }) => {
     const cfg = PLAT_ICONS[p] || { bg: "#888", icon: "🏪" }
     const selCount = shops.filter(s => selectedShops[p + "::" + s]).length
