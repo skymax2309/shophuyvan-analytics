@@ -649,10 +649,11 @@ async function recalcCost() {
 }
 
 function applyFilter() {
-  loadDashboard()
   const name = document.querySelector(".tab-content.active").id.replace("tab-","")
-  if (name === "top") loadTop()
-  if (name === "cancel") loadCancel()
+  const promises = [loadDashboard()]
+  if (name === "top") promises.push(loadTop())
+  if (name === "cancel") promises.push(loadCancel())
+  return Promise.all(promises)
 }
 
 function resetFilter() {
@@ -1557,7 +1558,15 @@ function syncShopFilter() {
     const shops = keys.map(k => k.split("::")[1])
     document.getElementById("filterShop").value = shops.join(",")
   }
-  applyFilter()
+  // Lưu trạng thái panel trước khi gọi applyFilter
+  const shopPanelOpen = document.getElementById("shopPickerPanel").classList.contains("open")
+  applyFilter().finally(() => {
+    // Sau khi load xong, mở lại panel nếu trước đó đang mở
+    if (shopPanelOpen) {
+      document.getElementById("shopPickerPanel").classList.add("open")
+      document.getElementById("shopPickerInput").classList.add("active")
+    }
+  })
 }
 
 // Đóng picker khi click ngoài
@@ -1565,7 +1574,7 @@ document.addEventListener("mousedown", e => {
   const drpWrap = document.getElementById("drpWrap")
   const shopWrap = document.getElementById("shopPickerWrap")
   if (drpWrap && !drpWrap.contains(e.target)) closeDRP()
-  if (shopWrap && !shopWrap.contains(e.target)) closeShopPicker()
+  if (shopWrap && !shopWrap.contains(e.target) && !drpState.selecting) closeShopPicker()
 })
 
 initDRP()
