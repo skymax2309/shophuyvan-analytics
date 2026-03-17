@@ -1425,7 +1425,9 @@ function buildShopTree(shops) {
     if (!map[p].includes(s.shop)) map[p].push(s.shop)
   })
   shopTreeData = Object.keys(map).map(p => ({ platform: p, shops: map[p] }))
-  renderShopPanel()
+  // Chỉ render lại panel khi panel đang đóng — tránh đóng panel khi user đang chọn
+  const isOpen = document.getElementById("shopPickerPanel").classList.contains("open")
+  if (!isOpen) renderShopPanel()
 }
 
 function toggleShopPicker() {
@@ -1558,15 +1560,7 @@ function syncShopFilter() {
     const shops = keys.map(k => k.split("::")[1])
     document.getElementById("filterShop").value = shops.join(",")
   }
-  // Lưu trạng thái panel trước khi gọi applyFilter
-  const shopPanelOpen = document.getElementById("shopPickerPanel").classList.contains("open")
-  applyFilter().finally(() => {
-    // Sau khi load xong, mở lại panel nếu trước đó đang mở
-    if (shopPanelOpen) {
-      document.getElementById("shopPickerPanel").classList.add("open")
-      document.getElementById("shopPickerInput").classList.add("active")
-    }
-  })
+  applyFilter()
 }
 
 // Đóng picker khi click ngoài
@@ -1574,7 +1568,7 @@ document.addEventListener("mousedown", e => {
   const drpWrap = document.getElementById("drpWrap")
   const shopWrap = document.getElementById("shopPickerWrap")
   if (drpWrap && !drpWrap.contains(e.target)) closeDRP()
-  if (shopWrap && !shopWrap.contains(e.target) && !drpState.selecting) closeShopPicker()
+  if (shopWrap && !shopWrap.contains(e.target)) closeShopPicker()
 })
 
 initDRP()
