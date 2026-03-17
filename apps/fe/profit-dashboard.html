@@ -1481,7 +1481,8 @@ function toggleShop(p, shop, e) {
 
 function renderShopPanel() {
   const panel = document.getElementById("shopPickerPanel")
-  console.log("=== renderShopPanel === panel open?", panel.classList.contains("open"))
+  const wasOpen = panel.classList.contains("open")
+  console.log("=== renderShopPanel === panel open?", wasOpen)
   panel.innerHTML = shopTreeData.map(({ platform: p, shops }) => {
     const cfg = PLAT_ICONS[p] || { bg: "#888", icon: "🏪" }
     const selCount = shops.filter(s => selectedShops[p + "::" + s]).length
@@ -1508,6 +1509,7 @@ function renderShopPanel() {
         }).join("")}
       </div>`
   }).join("")
+  if (wasOpen) panel.classList.add("open")
 }
 
 function renderShopTags() {
@@ -1587,9 +1589,17 @@ function syncShopFilter() {
 
 // Đóng picker khi click ngoài
 document.addEventListener("click", e => {
-  const drpWrap = document.getElementById("drpWrap")
+  const drpPanel = document.getElementById("drpPanel")
+  const drpInput = document.getElementById("drpInput")
   const shopWrap = document.getElementById("shopPickerWrap")
-  if (drpWrap && !drpWrap.contains(e.target)) closeDRP()
+
+  // Chỉ đóng DRP nếu click nằm ngoài cả panel lẫn input trigger
+  const drpOpen = drpPanel && drpPanel.classList.contains("open")
+  if (drpOpen && !drpPanel.contains(e.target) && !drpInput.contains(e.target)) {
+    closeDRP()
+  }
+
+  // Chỉ đóng shop nếu click nằm ngoài wrap
   if (shopWrap && !shopWrap.contains(e.target)) {
     const panel = document.getElementById("shopPickerPanel")
     if (panel && panel.classList.contains("open")) closeShopPicker()
