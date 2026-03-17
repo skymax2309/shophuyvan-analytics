@@ -1509,24 +1509,36 @@ function renderShopPanel() {
 
 function renderShopTags() {
   const input = document.getElementById("shopPickerInput")
-  const ph    = document.getElementById("shopPickerPlaceholder")
-  const clr   = document.getElementById("shopPickerClear")
   const panelWasOpen = document.getElementById("shopPickerPanel").classList.contains("open")
-  const keys  = Object.keys(selectedShops)
+  const keys = Object.keys(selectedShops)
+
+  // Xóa hết nội dung, giữ lại ph và clr bằng cách tạo mới
+  input.innerHTML = ""
+
   if (keys.length === 0) {
-    ph.style.display = ""; clr.style.display = "none"
-    input.innerHTML = ""
-    input.appendChild(ph); input.appendChild(clr)
+    const ph = document.createElement("span")
+    ph.id = "shopPickerPlaceholder"
+    ph.className = "shop-picker-placeholder"
+    ph.textContent = "Tất cả shop"
+    input.appendChild(ph)
   } else {
-    ph.style.display = "none"; clr.style.display = ""
-    const tagsHtml = keys.map(k => {
-      const [plat, shop] = k.split("::")
-      return `<span class="shop-tag"><span>${shop}</span><span class="tag-x" onclick="removeShopTag('${k}', event)">×</span></span>`
-    }).join("")
-    input.innerHTML = tagsHtml
-    input.appendChild(clr)
+    keys.forEach(k => {
+      const shop = k.split("::")[1]
+      const tag = document.createElement("span")
+      tag.className = "shop-tag"
+      tag.innerHTML = `<span>${shop}</span><span class="tag-x" onclick="removeShopTag('${k}', event)">×</span>`
+      input.appendChild(tag)
+    })
   }
-  // Giữ panel mở nếu trước đó đang mở
+
+  const clr = document.createElement("span")
+  clr.id = "shopPickerClear"
+  clr.className = "shop-picker-clear"
+  clr.textContent = "×"
+  clr.style.display = keys.length > 0 ? "" : "none"
+  clr.onclick = e => clearShopPicker(e)
+  input.appendChild(clr)
+
   if (panelWasOpen) {
     document.getElementById("shopPickerPanel").classList.add("open")
     input.classList.add("active")
@@ -1564,7 +1576,7 @@ function syncShopFilter() {
 }
 
 // Đóng picker khi click ngoài
-document.addEventListener("mousedown", e => {
+document.addEventListener("click", e => {
   const drpWrap = document.getElementById("drpWrap")
   const shopWrap = document.getElementById("shopPickerWrap")
   if (drpWrap && !drpWrap.contains(e.target)) closeDRP()
