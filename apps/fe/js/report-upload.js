@@ -6,22 +6,11 @@ async function loadShops() {
   try {
     const shops = await fetch(API + "/api/top-shop").then(r => r.json())
     const names = [...new Set(shops.map(s => s.shop))]
-    document.getElementById("shopList").innerHTML =
-      names.map(s => `<option value="${s}">`).join("")
+    document.getElementById("inpShop").innerHTML =
+      '<option value="">-- Chọn shop --</option>' +
+      names.map(s => `<option value="${s}">${s}</option>`).join("")
   } catch(e) {
     console.error("Không load được danh sách shop:", e)
-  }
-}
-
-function saveShop() {
-  const val = document.getElementById("inpShop").value.trim()
-  if (!val) return
-  const shops = loadShops()
-  if (!shops.includes(val)) {
-    shops.push(val)
-    localStorage.setItem("report_shops", JSON.stringify(shops))
-    renderShopList()
-    showToast("✅ Đã lưu shop: " + val)
   }
 }
 

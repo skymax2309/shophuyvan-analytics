@@ -46,12 +46,10 @@
       <div class="field">
         <label>Shop</label>
         <div style="display:flex;gap:6px">
-          <input type="text" id="inpShop" placeholder="VD: KHOGIADUNGHUYVAN"
-            style="flex:1;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none"
-            list="shopList">
-          <datalist id="shopList"></datalist>
-          <button onclick="saveShop()" title="Lưu tên shop"
-            style="background:#10b981;color:white;border:none;border-radius:8px;padding:9px 12px;cursor:pointer;font-size:16px">💾</button>
+          <select id="inpShop"
+          style="flex:1;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none">
+          <option value="">-- Đang tải shop... --</option>
+         </select>
         </div>
       </div>
     </div>
