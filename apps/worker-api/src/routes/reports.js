@@ -239,26 +239,22 @@ async function getOperationCosts(request, env, cors) {
     months = Math.max(1, diff)
   }
 
-  // Lấy tổng doanh thu TẤT CẢ shop trong kỳ (để tính tỷ lệ phân bổ)
-  let revenueRatio = 1  // mặc định 100% nếu không filter shop
+  // Đếm số shop duy nhất trong kỳ (để chia đều chi phí chung)
+  let shopRatio = 1  // mặc định 100% nếu không filter shop
+  let totalShops = 1
   if (shop) {
-    const allRevConds = ["order_type = 'normal'"]
-    const allRevParams = []
-    if (from)     { allRevConds.push("order_date >= ?"); allRevParams.push(from) }
-    if (to)       { allRevConds.push("order_date <= ?"); allRevParams.push(to) }
-    if (platform) { allRevConds.push("platform = ?");   allRevParams.push(platform) }
+    const allShopConds = ["order_type = 'normal'"]
+    const allShopParams = []
+    if (from)     { allShopConds.push("order_date >= ?"); allShopParams.push(from) }
+    if (to)       { allShopConds.push("order_date <= ?"); allShopParams.push(to) }
+    if (platform) { allShopConds.push("platform = ?");   allShopParams.push(platform) }
 
-    const allRevRow = await env.DB.prepare(`
-      SELECT SUM(revenue) AS total FROM orders WHERE ${allRevConds.join(" AND ")}
-    `).bind(...allRevParams).first()
+    const allShopRow = await env.DB.prepare(`
+      SELECT COUNT(DISTINCT shop) AS total FROM orders WHERE ${allShopConds.join(" AND ")}
+    `).bind(...allShopParams).first()
 
-    const shopRevRow = await env.DB.prepare(`
-      SELECT SUM(revenue) AS total FROM orders WHERE ${allRevConds.join(" AND ")} AND shop = ?
-    `).bind(...allRevParams, shop).first()
-
-    const allRev  = allRevRow?.total  || 0
-    const shopRev = shopRevRow?.total || 0
-    revenueRatio = allRev > 0 ? shopRev / allRev : 0
+    totalShops = allShopRow?.total || 1
+    shopRatio  = 1 / totalShops
   }
 
   // Đếm tổng đơn TẤT CẢ shop (để tính per_order ratio)
@@ -295,9 +291,9 @@ async function getOperationCosts(request, env, cors) {
       // Chi phí chung → phân bổ theo tỷ lệ doanh thu (per_month) hoặc số đơn (per_order)
       if (c.calc_type === "per_month") {
         const baseAmount = c.cost_value * months
-        actualAmount = shop ? Math.round(baseAmount * revenueRatio) : baseAmount
+        actualAmount = shop ? Math.round(baseAmount * shopRatio) : baseAmount
         note = shop
-          ? `${(revenueRatio*100).toFixed(1)}% DT shop này`
+          ? `chia đều ${totalShops} shop`
           : "toàn bộ"
       } else {
         actualAmount = c.cost_value * (shop ? totalOrders : totalOrdersAll)
@@ -305,7 +301,7 @@ async function getOperationCosts(request, env, cors) {
       }
     }
 
-    return { ...c, actual_amount: actualAmount, total_orders: totalOrders, months, note, revenue_ratio: revenueRatio }
+    return { ...c, actual_amount: actualAmount, total_orders: totalOrders, months, note, shop_ratio: shopRatio }
   }).filter(Boolean)
 
   return Response.json({ costs, revenue_ratio: revenueRatio, total_orders: totalOrders, months }, { headers: cors })
