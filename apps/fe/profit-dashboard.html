@@ -1261,6 +1261,7 @@ function toggleFeeDetail() {
 // ════════════════════════════════════════════════════════════════════
 const drpState = { start: null, end: null, selecting: false, hovered: null }
 let drpMonth1, drpMonth2
+let _justClickedInside = false
 
 function initDRP() {
   const now = new Date()
@@ -1342,6 +1343,7 @@ function drpHover(ts) {
 }
 
 function drpClickDay(ts, event) {
+  _justClickedInside = true
   event.stopPropagation()
   event.preventDefault()
   console.log("=== drpClickDay ===", new Date(ts).toLocaleDateString(), "selecting:", drpState.selecting, "start:", drpState.start)
@@ -1470,6 +1472,7 @@ function togglePlatform(p, e) {
 }
 
 function toggleShop(p, shop, e) {
+  _justClickedInside = true
   e.stopPropagation()
   const key = p + "::" + shop
   if (selectedShops[key]) delete selectedShops[key]
@@ -1589,17 +1592,12 @@ function syncShopFilter() {
 
 // Đóng picker khi click ngoài
 document.addEventListener("click", e => {
+  if (_justClickedInside) { _justClickedInside = false; return }
   const drpPanel = document.getElementById("drpPanel")
   const drpInput = document.getElementById("drpInput")
   const shopWrap = document.getElementById("shopPickerWrap")
-
-  // Chỉ đóng DRP nếu click nằm ngoài cả panel lẫn input trigger
   const drpOpen = drpPanel && drpPanel.classList.contains("open")
-  if (drpOpen && !drpPanel.contains(e.target) && !drpInput.contains(e.target)) {
-    closeDRP()
-  }
-
-  // Chỉ đóng shop nếu click nằm ngoài wrap
+  if (drpOpen && !drpPanel.contains(e.target) && !drpInput.contains(e.target)) closeDRP()
   if (shopWrap && !shopWrap.contains(e.target)) {
     const panel = document.getElementById("shopPickerPanel")
     if (panel && panel.classList.contains("open")) closeShopPicker()
