@@ -1318,7 +1318,7 @@ function renderCal(elId, { year, month }, isLeft) {
     if (s && ts === s) cls += " range-start"
     if (e && ts === e) cls += " range-end"
     if (lo && hi && ts > lo && ts < hi) cls += " in-range"
-    html += `<div class="${cls}" onclick="drpClickDay(${ts})" onmouseenter="drpHover(${ts})">${d}</div>`
+    html += `<div class="${cls}" onclick="drpClickDay(${ts}, event)" onmouseenter="drpHover(${ts})">${d}</div>`
   }
   html += "</div>"
   el.innerHTML = html
@@ -1339,7 +1339,8 @@ function drpHover(ts) {
   if (drpState.selecting) { drpState.hovered = ts; renderDRP() }
 }
 
-function drpClickDay(ts) {
+function drpClickDay(ts, event) {
+  event.stopPropagation()
   if (!drpState.selecting || drpState.start === null) {
     drpState.start = ts; drpState.end = null; drpState.selecting = true
   } else {
@@ -1430,8 +1431,9 @@ function toggleShopPicker() {
   const panel = document.getElementById("shopPickerPanel")
   const input = document.getElementById("shopPickerInput")
   const isOpen = panel.classList.contains("open")
-  closeAllPickers()
+  closeDRP()
   if (!isOpen) { panel.classList.add("open"); input.classList.add("active") }
+  else { closeShopPicker() }
 }
 
 function closeShopPicker() {
@@ -1506,20 +1508,26 @@ function renderShopTags() {
   const input = document.getElementById("shopPickerInput")
   const ph    = document.getElementById("shopPickerPlaceholder")
   const clr   = document.getElementById("shopPickerClear")
+  const panelWasOpen = document.getElementById("shopPickerPanel").classList.contains("open")
   const keys  = Object.keys(selectedShops)
   if (keys.length === 0) {
     ph.style.display = ""; clr.style.display = "none"
     input.innerHTML = ""
     input.appendChild(ph); input.appendChild(clr)
-    return
+  } else {
+    ph.style.display = "none"; clr.style.display = ""
+    const tagsHtml = keys.map(k => {
+      const [plat, shop] = k.split("::")
+      return `<span class="shop-tag"><span>${shop}</span><span class="tag-x" onclick="removeShopTag('${k}', event)">×</span></span>`
+    }).join("")
+    input.innerHTML = tagsHtml
+    input.appendChild(clr)
   }
-  ph.style.display = "none"; clr.style.display = ""
-  const tagsHtml = keys.map(k => {
-    const [plat, shop] = k.split("::")
-    return `<span class="shop-tag"><span>${shop}</span><span class="tag-x" onclick="removeShopTag('${k}', event)">×</span></span>`
-  }).join("")
-  input.innerHTML = tagsHtml
-  input.appendChild(clr)
+  // Giữ panel mở nếu trước đó đang mở
+  if (panelWasOpen) {
+    document.getElementById("shopPickerPanel").classList.add("open")
+    input.classList.add("active")
+  }
 }
 
 function removeShopTag(key, e) {
@@ -1549,7 +1557,8 @@ function syncShopFilter() {
     const shops = keys.map(k => k.split("::")[1])
     document.getElementById("filterShop").value = shops.join(",")
   }
-  applyFilter()
+  // Delay để panel không bị đóng trước khi applyFilter chạy
+  setTimeout(() => applyFilter(), 0)
 }
 
 // Đóng picker khi click ngoài
