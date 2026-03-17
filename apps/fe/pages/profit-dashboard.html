@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>ShopHuyVan — Profit Dashboard</title>
+<!-- Chart.js phải load TRƯỚC main.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="../css/dashboard.css">
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">🛒 ShopHuyVan</div>
+  <nav>
+    <a href="#" class="active" onclick="showTab('dashboard')">📊 Dashboard</a>
+    <a href="#" onclick="showTab('top')">🔥 Top SKU</a>
+    <a href="#" onclick="showTab('cancel')">⚠️ Hủy / Hoàn</a>
+    <a href="#" onclick="showTab('calc')">🧮 Máy tính</a>
+    <a href="admin-products.html">📦 Sản phẩm</a>
+    <a href="report-upload.html">📁 Báo Cáo</a>
+    <a href="index.html">⬆️ Import</a>
+  </nav>
+  <div class="spacer"></div>
+  <a href="cost-settings.html" class="btn-settings">⚙️ Cài đặt chi phí</a>
+  <button class="btn-settings" onclick="exportData()" style="background:#10b981">⬇️ Xuất Excel</button>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <!-- DATE RANGE PICKER -->
+  <div class="daterange-wrap" id="drpWrap">
+    <div class="daterange-input" id="drpInput" onclick="toggleDRP()">
+      <span>📅</span>
+      <span id="drpLabel">Chọn khoảng ngày</span>
+      <span class="clear-btn" id="drpClear" onclick="clearDRP(event)" style="display:none">×</span>
+    </div>
+    <div class="daterange-panel" id="drpPanel">
+      <div class="drp-presets">
+        <div class="drp-preset" onclick="applyPreset('today')">Hôm nay</div>
+        <div class="drp-preset" onclick="applyPreset('yesterday')">Hôm qua</div>
+        <div class="drp-preset" onclick="applyPreset('thisweek')">Tuần này</div>
+        <div class="drp-preset" onclick="applyPreset('thismonth')">Tháng này</div>
+        <div class="drp-preset" onclick="applyPreset('lastmonth')">Tháng trước</div>
+        <div class="drp-preset" onclick="applyPreset('last7')">7 ngày qua</div>
+        <div class="drp-preset" onclick="applyPreset('last30')">30 ngày qua</div>
+      </div>
+      <div class="drp-calendars">
+        <div class="drp-cal" id="drpCal1"></div>
+        <div class="drp-cal" id="drpCal2"></div>
+      </div>
+    </div>
+  </div>
+  <span class="sep">|</span>
+  <!-- SHOP TREE PICKER -->
+  <div class="shop-picker-wrap" id="shopPickerWrap">
+    <div class="shop-picker-input" id="shopPickerInput" onclick="toggleShopPicker()">
+      <span class="shop-picker-placeholder" id="shopPickerPlaceholder">Tất cả shop</span>
+      <span class="shop-picker-clear" id="shopPickerClear" onclick="clearShopPicker(event)" style="display:none">×</span>
+    </div>
+    <div class="shop-picker-panel" id="shopPickerPanel"></div>
+  </div>
+  <!-- Hidden inputs để getFilterParams() hoạt động -->
+  <input type="hidden" id="filterFrom">
+  <input type="hidden" id="filterTo">
+  <input type="hidden" id="filterPlatform">
+  <input type="hidden" id="filterShop">
+  <button class="btn-filter" onclick="applyFilter()">🔍 Lọc</button>
+  <button class="btn-reset" onclick="resetFilter()">✕ Reset</button>
+  <button onclick="recalcCost()" style="margin-left:8px;padding:8px 14px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px">🔄 Cập nhật vốn</button>
+  <span id="filterInfo" style="font-size:12px;color:#888;margin-left:8px;"></span>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ── DASHBOARD TAB ── -->
+  <div id="tab-dashboard" class="tab-content active">
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="loading">Đang tải dữ liệu...</div>
+    </div>
+    <div class="col2">
+      <div class="chart-card">
+        <div class="card-title">📈 Doanh thu theo ngày</div>
+        <canvas id="chartRevenue"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">💰 Lợi nhuận theo ngày</div>
+        <canvas id="chartProfit"></canvas>
+      </div>
+    </div>
+    <div class="col2">
+      <div class="chart-card">
+        <div class="card-title">🏪 Doanh thu theo sàn</div>
+        <canvas id="chartPlatform"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="card-title">🏬 Top Shop</div>
+        <canvas id="chartShop"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TOP TAB ── -->
+  <div id="tab-top" class="tab-content">
+    <div class="col2">
+      <div class="table-card">
+        <div class="card-title">🔥 Top SKU theo Doanh thu</div>
+        <table>
+          <thead><tr><th>#</th><th>SKU</th><th>SL</th><th>Doanh thu</th><th>Lãi thực</th></tr></thead>
+          <tbody id="topSkuTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="table-card">
+        <div class="card-title">📦 Top Sản phẩm</div>
+        <table>
+          <thead><tr><th>#</th><th>Tên SP</th><th>SL</th><th>Doanh thu</th><th>Lãi thực</th></tr></thead>
+          <tbody id="topProductTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="table-card">
+      <div class="card-title">🏪 Doanh thu theo Sàn & Shop</div>
+      <table>
+        <thead><tr><th>Sàn</th><th>Shop</th><th>Đơn hàng</th><th>Doanh thu</th><th>Lãi thực</th></tr></thead>
+        <tbody id="topShopTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── CANCEL TAB ── -->
+  <div id="tab-cancel" class="tab-content">
+    <div class="col2">
+      <div class="chart-card">
+        <div class="card-title">⚠️ Tỷ lệ hủy / hoàn theo sàn</div>
+        <canvas id="chartCancel"></canvas>
+      </div>
+      <div class="table-card" style="box-shadow:none;padding:0">
+        <div id="cancelStats" class="loading">Đang tải...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CALC TAB ── -->
+  <div id="tab-calc" class="tab-content">
+    <div class="calc-card">
+      <div class="card-title" style="font-size:15px;font-weight:700;margin-bottom:18px">
+        🧮 Máy tính giá bán nhanh
+      </div>
+      <div class="calc-inputs">
+        <div class="inp-group">
+          <label>Chọn SKU</label>
+          <select id="calcSku" onchange="onSkuChange()">
+            <option value="">-- Chọn SKU --</option>
+          </select>
+        </div>
+        <div class="inp-group">
+          <label>Sàn bán</label>
+          <select id="calcPlatform">
+            <option value="tiktok">TikTok</option>
+            <option value="shopee">Shopee</option>
+            <option value="lazada">Lazada</option>
+          </select>
+        </div>
+        <div class="inp-group">
+          <label>Giá định bán (đ)</label>
+          <input type="number" id="calcPrice" placeholder="0" step="1000">
+        </div>
+        <button class="btn-calc" onclick="runCalc()">Tính ngay →</button>
+      </div>
+      <div id="calcInfo" style="margin-top:12px;font-size:12px;color:#888"></div>
+      <div class="calc-result" id="calcResult" style="display:none">
+        <div class="calc-row"><span>💰 Giá bán</span><span id="r_price">-</span></div>
+        <div class="calc-row"><span>📦 Vốn thực tế</span><span id="r_cost_real">-</span></div>
+        <div class="calc-row"><span>📄 Vốn hóa đơn</span><span id="r_cost_inv">-</span></div>
+        <div class="calc-row"><span>🏪 Phí sàn + Ads + Affiliate</span><span id="r_fee">-</span></div>
+        <div class="calc-row"><span>🧾 Thuế khoán (1.5%)</span><span id="r_tax_flat">-</span></div>
+        <div class="calc-row"><span>📑 Thuế LN (17% Lãi HĐ)</span><span id="r_tax_inc">-</span></div>
+        <div class="calc-row total gain" id="r_profit_row">
+          <span>✅ Lãi thực (bỏ túi)</span><span id="r_profit_real">-</span>
+        </div>
+        <div class="calc-row total"><span>📋 Lãi hóa đơn</span><span id="r_profit_inv">-</span></div>
+      </div>
+      <div class="warning-loss" id="warnLoss">
+        ⚠️ CẢNH BÁO: Giá bán này bị LỖ! Cần tăng giá lên ít nhất <span id="minPrice">-</span> đ
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCRIPTS — thứ tự load rất quan trọng!
+     1. utils (không phụ thuộc gì)
+     2. components (phụ thuộc utils)
+     3. dashboard/filters (phụ thuộc components)
+     4. dashboard/main (phụ thuộc tất cả)
+═══════════════════════════════════════════════════════ -->
+<script src="../js/utils/api.js"></script>
+<script src="../js/utils/format.js"></script>
+<script src="../js/components/ChartRenderer.js"></script>
+<script src="../js/components/DateRangePicker.js"></script>
+<script src="../js/components/ShopTreePicker.js"></script>
+<script src="../js/dashboard/filters.js"></script>
+<script src="../js/dashboard/main.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,25 @@
+├── extracted_project
+│   ├── shophuyvan-analytics-main
+│   │   ├── .gitignore
+│   │   ├── cau truc file.txt
+│   │   ├── schema.sql
+│   │   ├── apps
+│   │   │   ├── fe
+│   │   │   │   ├── admin-products.html
+│   │   │   │   ├── cost-settings.html
+│   │   │   │   ├── index.html
+│   │   │   │   ├── package-lock.json
+│   │   │   │   ├── package.json
+│   │   │   │   ├── profit-dashboard.html
+│   │   │   │   ├── report-upload.html
+│   │   │   │   ├── wrangler.jsonc
+│   │   │   │   ├── js
+│   │   │   │   │   ├── api.js
+│   │   │   │   │   ├── parser.js
+│   │   │   │   │   ├── profit-engine.js
+│   │   │   ├── worker-api
+│   │   │   │   ├── package-lock.json
+│   │   │   │   ├── package.json
+│   │   │   │   ├── wrangler.toml
+│   │   │   │   ├── src
+│   │   │   │   │   ├── index.js

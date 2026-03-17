@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Quản lý Sản phẩm & SKU</title>
+<link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+
+<div class="topbar">
+  <a href="profit-dashboard.html">← Dashboard</a>
+  <span>📦 Quản lý Sản phẩm & Đơn hàng</span>
+</div>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('sku')">📦 Sản phẩm / SKU</button>
+    <button class="tab-btn" onclick="switchTab('combo')">🎁 Combo</button>
+    <button class="tab-btn" onclick="switchTab('orders')">📋 Toàn bộ đơn hàng</button>
+    <button class="tab-btn" onclick="switchTab('invoice')">🧾 Hóa Đơn Nhập Hàng</button>
+  </div>
+
+  <!-- ══════════ TAB: SKU ══════════ -->
+  <div id="tab-sku" class="tab-pane active">
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#1d4ed8">🔄 Tự động đồng bộ SKU từ đơn hàng</div>
+        <div style="font-size:12px;color:#3b82f6;margin-top:2px">Bấm để load toàn bộ SKU duy nhất từ 3 sàn — bạn chỉ cần điền giá vốn.</div>
+      </div>
+      <button class="btn btn-primary" style="background:#2563eb" onclick="importSkusFromOrders()">⬇️ Đồng bộ SKU từ đơn hàng</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">➕ Thêm / Cập nhật SKU thủ công</div>
+      <div class="form-grid">
+        <div class="field"><label>SKU *</label><input id="s_sku" placeholder="VD: SP001"></div>
+        <div class="field"><label>Tên sản phẩm *</label><input id="s_name" placeholder="Tên sản phẩm"></div>
+        <div class="field"><label>Vốn hóa đơn (đ)</label><input type="number" id="s_cost_inv" placeholder="0" step="100"></div>
+        <div class="field"><label>Vốn thực tế (đ)</label><input type="number" id="s_cost_real" placeholder="0" step="100"></div>
+        <button class="btn btn-primary" onclick="saveSku()">💾 Lưu SKU</button>
+      </div>
+    </div>
+
+    <!-- Panel nhập vốn hàng loạt -->
+    <div id="bulkCostPanel" style="display:none">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>📝 Điền giá vốn hàng loạt (<span id="bulkCount">0</span> SKU mới)</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn" style="background:#f3f4f6;color:#555;font-size:12px" onclick="document.getElementById('bulkCostPanel').style.display='none'">✕ Đóng</button>
+            <button class="btn btn-primary" style="font-size:12px" onclick="saveBulkCost()">💾 Lưu tất cả</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:12px">⚠️ Chỉ hiện SKU chưa có trong danh sách. SKU đã tồn tại sẽ được bỏ qua.</div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>SKU</th>
+              <th>Tên sản phẩm (từ đơn hàng)</th>
+              <th style="min-width:160px">Vốn hóa đơn (đ)</th>
+              <th style="min-width:160px">Vốn thực tế (đ)</th>
+            </tr></thead>
+            <tbody id="bulkCostTable"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;text-align:right">
+          <button class="btn btn-primary" onclick="saveBulkCost()">💾 Lưu tất cả</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="card-title" style="margin:0">📋 Danh sách SKU (<span id="skuCount">0</span>)</div>
+          <button onclick="showGroupPanel()" id="btn-group-mode"
+            style="padding:5px 12px;background:#8b5cf6;color:white;border:none;border-radius:7px;font-size:12px;cursor:pointer">
+            🔗 Gộp nhóm giá
+          </button>
+          <button onclick="cancelGroupMode()" id="btn-group-cancel"
+            style="display:none;padding:5px 12px;background:#e5e7eb;color:#333;border:none;border-radius:7px;font-size:12px;cursor:pointer">
+            ✕ Hủy
+          </button>
+          <span id="group-select-hint" style="display:none;font-size:12px;color:#8b5cf6;font-weight:600"></span>
+        </div>
+        <div id="group-create-area" style="display:none;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:10px 14px;margin-top:8px;width:100%">
+          <div style="font-size:13px;font-weight:600;color:#6d28d9;margin-bottom:8px">Đặt tên nhóm và nhập giá vốn chung:</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input id="group-name-input" placeholder="Tên nhóm (VD: Giá đỡ K232)"
+              style="flex:1;min-width:160px;border:1px solid #c4b5fd;border-radius:6px;padding:7px 10px;font-size:13px">
+            <input id="group-inv-input" type="number" placeholder="Vốn HĐ"
+              style="width:110px;border:1px solid #c4b5fd;border-radius:6px;padding:7px 10px;font-size:13px">
+            <input id="group-real-input" type="number" placeholder="Vốn thực"
+              style="width:110px;border:1px solid #c4b5fd;border-radius:6px;padding:7px 10px;font-size:13px">
+            <button onclick="saveNewGroup()"
+              style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600">
+              💾 Lưu nhóm
+            </button>
+          </div>
+          <div id="group-selected-list" style="margin-top:6px;font-size:12px;color:#6d28d9"></div>
+        </div>
+        <input id="sku-search" type="text" placeholder="🔍 Tìm SKU hoặc tên sản phẩm..."
+          oninput="renderSkuTables()"
+          style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:280px;outline:none">
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0">
+        <button class="sku-tab-btn active" onclick="switchSkuTab('no-price')" id="stab-no-price"
+          style="padding:7px 14px;border:none;border-bottom:2px solid #f59e0b;background:none;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">
+          ⚠️ Chưa có giá (<span id="skuNoPriceCount">0</span>)
+        </button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('partial')" id="stab-partial"
+          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
+          🔶 Còn thiếu 1 giá (<span id="skuPartialCount">0</span>)
+        </button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('has-price')" id="stab-has-price"
+          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
+          ✅ Đủ giá vốn (<span id="skuHasPriceCount">0</span>)
+        </button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('groups')" id="stab-groups"
+          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
+          🔗 Nhóm giá (<span id="skuGroupCount">0</span>)
+        </button>
+      </div>
+
+      <div id="sku-tab-no-price">
+        <table>
+          <thead><tr style="background:#fef3c7">
+            <th style="width:32px"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)"></th>
+            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuNoPriceTable"></tbody>
+        </table>
+      </div>
+      <div id="sku-tab-partial" style="display:none">
+        <table>
+          <thead><tr style="background:#ffedd5">
+            <th style="width:32px"><input type="checkbox" id="chk-all-partial" onchange="toggleAllCheck('partial',this.checked)"></th>
+            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuPartialTable"></tbody>
+        </table>
+      </div>
+      <div id="sku-tab-has-price" style="display:none">
+        <table>
+          <thead><tr style="background:#dcfce7">
+            <th style="width:32px"><input type="checkbox" id="chk-all-has" onchange="toggleAllCheck('has',this.checked)"></th>
+            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuHasPriceTable"></tbody>
+        </table>
+      </div>
+      <div id="sku-tab-groups" style="display:none">
+        <div id="group-list-area">Đang tải nhóm...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ TAB: COMBO ══════════ -->
+  <div id="tab-combo" class="tab-pane">
+    <div class="card">
+      <div class="card-title">➕ Tạo Combo mới</div>
+      <div class="form-grid-3">
+        <div class="field"><label>Mã Combo (SKU combo) *</label><input id="c_sku" placeholder="VD: COMBO-001"></div>
+        <div class="field"><label>Tên Combo *</label><input id="c_name" placeholder="VD: Combo 10 SP A + 5 SP B"></div>
+        <div class="field"><label>Tổng số lượng combo</label><input type="number" id="c_qty" placeholder="VD: 1" value="1" min="1"></div>
+        <div></div>
+      </div>
+      <div style="margin-top:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">🧩 Thành phần SKU trong combo:</div>
+        <div id="comboItemsBuilder"></div>
+        <button class="btn btn-primary" style="margin-top:6px;background:#10b981" onclick="addComboRow()">+ Thêm SKU thành phần</button>
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" onclick="saveCombo()">💾 Lưu Combo</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🎁 Danh sách Combo (<span id="comboCount">0</span>)</div>
+      <table>
+        <thead><tr>
+          <th>SKU Combo</th><th>Tên Combo</th><th>Số lượng</th>
+          <th>Thành phần</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+        </tr></thead>
+        <tbody id="comboTable"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════ TAB: INVOICE ══════════ -->
+  <div id="tab-invoice" class="tab-pane">
+    <div class="card">
+      <div class="card-title">🧾 Upload Hóa Đơn Nhập Hàng</div>
+      <div id="inv-dropzone" onclick="document.getElementById('inv-file').click()"
+        style="border:2px dashed #d1d5db;border-radius:10px;padding:28px;text-align:center;cursor:pointer;margin-bottom:12px">
+        <input type="file" id="inv-file" accept=".pdf" style="display:none" onchange="handleInvFile(this.files[0])">
+        <div style="font-size:32px">📄</div>
+        <div style="font-weight:600;margin-top:6px">Kéo thả hoặc nhấn để chọn PDF hóa đơn</div>
+        <div id="inv-filename" style="font-size:12px;color:#888;margin-top:4px">Hỗ trợ hóa đơn từ mọi nhà cung cấp</div>
+      </div>
+      <button onclick="uploadInvoice()" id="inv-btn"
+        style="background:#4f46e5;color:white;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;font-weight:600">
+        🤖 Phân tích bằng AI
+      </button>
+      <div id="inv-log" style="margin-top:12px;font-size:13px;color:#555;min-height:20px"></div>
+    </div>
+    <div class="card" id="inv-confirm-card" style="display:none">
+      <div class="card-title">✅ Xác nhận sản phẩm & SKU</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px">AI đã phân tích hóa đơn. Chọn SKU tương ứng cho từng sản phẩm rồi nhấn Lưu.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#f3f4f6">
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Tên SP trong HĐ</th>
+            <th style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb">SL</th>
+            <th style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb">Đơn giá</th>
+            <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">SKU gợi ý</th>
+            <th style="padding:8px;text-align:center;border-bottom:1px solid #e5e7eb">Bỏ qua</th>
+          </tr>
+        </thead>
+        <tbody id="inv-items-table"></tbody>
+      </table>
+      <div style="margin-top:14px;display:flex;gap:10px">
+        <button onclick="confirmInvoice()"
+          style="background:#16a34a;color:white;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-weight:600">
+          💾 Lưu & Cập nhật giá vốn
+        </button>
+        <button onclick="document.getElementById('inv-confirm-card').style.display='none'"
+          style="background:#e5e7eb;color:#333;border:none;border-radius:8px;padding:10px 16px;cursor:pointer">
+          Hủy
+        </button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 Hóa Đơn Đã Lưu</div>
+      <div id="inv-list">Đang tải...</div>
+    </div>
+  </div>
+
+  <!-- ══════════ TAB: ORDERS ══════════ -->
+  <div id="tab-orders" class="tab-pane">
+    <div class="card">
+      <div class="card-title">📋 Toàn bộ đơn hàng chi tiết</div>
+      <div class="order-filter">
+        <input type="date" id="o_from">
+        <input type="date" id="o_to">
+        <select id="o_platform">
+          <option value="">Tất cả sàn</option>
+          <option value="shopee">Shopee</option>
+          <option value="tiktok">TikTok</option>
+          <option value="lazada">Lazada</option>
+        </select>
+        <select id="o_type">
+          <option value="">Tất cả loại</option>
+          <option value="normal">Thành công</option>
+          <option value="cancel">Đã hủy</option>
+          <option value="return">Hoàn hàng</option>
+        </select>
+        <input id="o_search" placeholder="🔍 Tìm mã đơn / SKU / tên SP" style="min-width:220px">
+        <button class="btn btn-primary" onclick="loadOrders(1)">🔍 Lọc</button>
+        <button class="btn" style="background:#f3f4f6;color:#555" onclick="resetOrderFilter()">✕ Reset</button>
+        <button class="btn" style="background:#10b981;color:white" onclick="exportOrders()">⬇️ Xuất CSV</button>
+      </div>
+      <div id="orderSummary" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Ngày</th><th>Sàn</th><th>Shop</th><th>Mã đơn</th>
+            <th>SKU</th><th>Tên SP</th><th>SL</th>
+            <th>Doanh thu</th><th>Vốn thực</th><th>Phí</th>
+            <th>Lãi thực</th><th>Thuế</th><th>Loại</th>
+          </tr></thead>
+          <tbody id="ordersTable"><tr><td colspan="13" class="empty">Nhấn Lọc để tải đơn hàng</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="orderPagination"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     SCRIPTS — thứ tự load rất quan trọng!
+     1. utils  — không phụ thuộc gì
+     2. admin managers — phụ thuộc utils
+     3. admin/main — phụ thuộc tất cả (init cuối cùng)
+═══════════════════════════════════════════════════════ -->
+<script src="../js/utils/api.js"></script>
+<script src="../js/utils/format.js"></script>
+<script src="../js/admin/sku-manager.js"></script>
+<script src="../js/admin/combo-manager.js"></script>
+<script src="../js/admin/order-manager.js"></script>
+<script src="../js/admin/invoice-manager.js"></script>
+<script src="../js/admin/main.js"></script>
+
+</body>
+</html>
