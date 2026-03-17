@@ -1398,7 +1398,7 @@ function applyPreset(key) {
   else if (key === "last30") { s = d(-29); e = now.getTime() }
   drpState.start = s; drpState.end = e; drpState.selecting = false
   document.querySelectorAll(".drp-preset").forEach(el => el.classList.remove("active"))
-  event.target.classList.add("active")
+  if (event && event.target) event.target.classList.add("active")
   commitDRP()
   closeDRP()
   applyFilter()
