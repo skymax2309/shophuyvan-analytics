@@ -1557,14 +1557,15 @@ function syncShopFilter() {
     const shops = keys.map(k => k.split("::")[1])
     document.getElementById("filterShop").value = shops.join(",")
   }
-  // Delay để panel không bị đóng trước khi applyFilter chạy
-  setTimeout(() => applyFilter(), 0)
+  applyFilter()
 }
 
 // Đóng picker khi click ngoài
-document.addEventListener("click", e => {
-  if (!document.getElementById("drpWrap")?.contains(e.target)) closeDRP()
-  if (!document.getElementById("shopPickerWrap")?.contains(e.target)) closeShopPicker()
+document.addEventListener("mousedown", e => {
+  const drpWrap = document.getElementById("drpWrap")
+  const shopWrap = document.getElementById("shopPickerWrap")
+  if (drpWrap && !drpWrap.contains(e.target)) closeDRP()
+  if (shopWrap && !shopWrap.contains(e.target)) closeShopPicker()
 })
 
 initDRP()
