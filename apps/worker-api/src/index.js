@@ -969,7 +969,16 @@ async function getReportSummary(request, env, cors) {
   const baseConds  = []
   if (month)    { baseConds.push("report_month = ?"); baseParams.push(month) }
   if (platform) { baseConds.push("platform = ?");     baseParams.push(platform) }
-  if (shop)     { baseConds.push("shop = ?");          baseParams.push(shop) }
+  if (shop) {
+    const shopList = shop.split(",").map(s => s.trim()).filter(Boolean)
+    if (shopList.length === 1) {
+      baseConds.push("shop = ?")
+      baseParams.push(shopList[0])
+    } else {
+      baseConds.push(`shop IN (${shopList.map(() => "?").join(",")})`)
+      shopList.forEach(s => baseParams.push(s))
+    }
+  }
 
   const baseWhere = baseConds.length ? "AND " + baseConds.join(" AND ") : ""
 
@@ -991,14 +1000,18 @@ async function getReportSummary(request, env, cors) {
     WHERE report_type = 'income' ${baseWhere}
   `).bind(...baseParams).first()
 
-  // Tổng hợp phí đấu thầu — từ tất cả file chi phí
+// Tổng hợp phí đấu thầu — lấy fee_total từ các file phi-dau-thau
   const adsRow = await env.DB.prepare(`
-    SELECT SUM(COALESCE(fee_ads,0)) AS total_fee_ads
+    SELECT
+      SUM(COALESCE(fee_ads,0))   AS total_fee_ads,
+      SUM(COALESCE(fee_total,0)) AS total_fee_dau_thau
     FROM platform_reports
     WHERE report_type != 'income' ${baseWhere}
   `).bind(...baseParams).first()
 
-  const total_fee_ads = (row?.total_fee_ads_income || 0) + (adsRow?.total_fee_ads || 0)
+  // Ưu tiên fee_total của file đấu thầu (= sub total trước thuế = số tiền thực tế)
+  const total_fee_ads = (row?.total_fee_ads_income || 0)
+    + (adsRow?.total_fee_dau_thau || adsRow?.total_fee_ads || 0)
 
  // Chi tiết theo từng shop
   const shops = await env.DB.prepare(`
