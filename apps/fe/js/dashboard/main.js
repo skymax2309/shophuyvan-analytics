@@ -177,6 +177,7 @@ async function loadDashboard() {
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:2px;padding-top:4px">
           <span>Tổng phí BC sàn</span><span>${fmtFull(rptSum.total_fee_report)}</span>
         </div>
+        ` : ""}
       </div>
     </div>
     <div class="kpi red" style="cursor:pointer" onclick="this.querySelector('.tax-detail').style.display=this.querySelector('.tax-detail').style.display==='none'?'block':'none'">
