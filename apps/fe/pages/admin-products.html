@@ -19,6 +19,7 @@
     <button class="tab-btn" onclick="switchTab('combo')">🎁 Combo</button>
     <button class="tab-btn" onclick="switchTab('orders')">📋 Toàn bộ đơn hàng</button>
     <button class="tab-btn" onclick="switchTab('invoice')">🧾 Hóa Đơn Nhập Hàng</button>
+    <button class="tab-btn" onclick="switchTab('loss')">🔴 Đơn âm tiền</button>
   </div>
 
   <!-- ══════════ TAB: SKU ══════════ -->
@@ -268,13 +269,63 @@
           <thead><tr>
             <th>Ngày</th><th>Sàn</th><th>Shop</th><th>Mã đơn</th>
             <th>SKU</th><th>Tên SP</th><th>SL</th>
-            <th>Doanh thu</th><th>Vốn thực</th><th>Phí</th>
-            <th>Lãi thực</th><th>Thuế</th><th>Loại</th>
+            <th>Doanh thu</th><th>Vốn thực</th>
+            <th title="Hoa hồng sàn">Commission</th>
+            <th title="Phí thanh toán">TT</th>
+            <th title="Affiliate">Aff</th>
+            <th title="Quảng cáo">Ads</th>
+            <th title="PiShip/SFR">PiShip</th>
+            <th title="Phí dịch vụ">DV</th>
+            <th title="Tổng phí">Tổng phí</th>
+            <th title="Thuế khoán 1.5%">Thuế KH</th>
+            <th title="Thuế lợi nhuận 17%">Thuế LN</th>
+            <th>Lãi thực</th><th>Loại</th>
           </tr></thead>
           <tbody id="ordersTable"><tr><td colspan="13" class="empty">Nhấn Lọc để tải đơn hàng</td></tr></tbody>
         </table>
       </div>
       <div class="pagination" id="orderPagination"></div>
+    </div>
+  </div>
+
+<!-- ══════════ TAB: LOSS ORDERS ══════════ -->
+  <div id="tab-loss" class="tab-pane">
+    <div class="card">
+      <div class="card-title">🔴 Đơn hàng bị âm tiền</div>
+      <div class="order-filter">
+        <input type="date" id="l_from">
+        <input type="date" id="l_to">
+        <select id="l_platform">
+          <option value="">Tất cả sàn</option>
+          <option value="shopee">Shopee</option>
+          <option value="tiktok">TikTok</option>
+          <option value="lazada">Lazada</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadLossOrders(1)">🔍 Lọc</button>
+        <button class="btn" style="background:#f3f4f6;color:#555" onclick="resetLossFilter()">✕ Reset</button>
+      </div>
+      <div id="lossSummary" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr style="background:#fff1f2">
+            <th>Ngày</th><th>Sàn</th><th>Shop</th><th>Mã đơn</th>
+            <th>SKU</th><th>Tên SP</th><th>SL</th>
+            <th>Doanh thu</th><th>Vốn thực</th>
+            <th title="Hoa hồng sàn">Commission</th>
+            <th title="Phí thanh toán">TT</th>
+            <th title="Affiliate">Aff</th>
+            <th title="Quảng cáo">Ads</th>
+            <th title="PiShip/SFR">PiShip</th>
+            <th title="Phí dịch vụ">DV</th>
+            <th title="Tổng phí">Tổng phí</th>
+            <th title="Thuế khoán 1.5%">Thuế KH</th>
+            <th title="Thuế lợi nhuận 17%">Thuế LN</th>
+            <th>Lãi thực</th><th>Loại</th>
+          </tr></thead>
+          <tbody id="lossTable"><tr><td colspan="20" class="empty">Nhấn Lọc để tải đơn âm tiền</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="lossPagination"></div>
     </div>
   </div>
 

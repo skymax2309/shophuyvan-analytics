@@ -134,7 +134,9 @@ async function exportOrders(request, env, cors) {
   const rows = await env.DB.prepare(`
     SELECT order_date, platform, shop, order_id, sku, product_name,
            qty, revenue, raw_revenue, cost_real, fee, profit_real,
-           tax_flat, tax_income, order_type, cancel_reason, return_fee
+           tax_flat, tax_income, order_type, cancel_reason, return_fee,
+           fee_platform, fee_payment, fee_affiliate, fee_ads,
+           fee_piship, fee_service, fee_packaging, fee_operation, fee_labor
     FROM orders
     WHERE ${conds.join(" AND ")}
     ORDER BY order_date DESC
