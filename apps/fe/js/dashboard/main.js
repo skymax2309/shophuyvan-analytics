@@ -177,31 +177,6 @@ async function loadDashboard() {
         <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:2px;padding-top:4px">
           <span>Tổng phí BC sàn</span><span>${fmtFull(rptSum.total_fee_report)}</span>
         </div>
-        <div style="border-top:1px dashed #fde68a;margin-top:6px;padding-top:4px;font-weight:700;color:#10b981">
-          💡 Lãi HĐ (theo BC) = ${fmtShort(rptSum.total_gross_revenue || 0)} − ${fmtShort(dash.total_cost_invoice)} − ${fmtShort(rptSum.total_fee_report)} = <span style="color:#8b5cf6">${fmtShort((rptSum.total_gross_revenue || 0) - dash.total_cost_invoice - (rptSum.total_fee_report || 0))}</span>
-        </div>
-        <div style="font-weight:700;color:#10b981">
-          💡 Lãi thực (theo BC) = ${fmtShort(rptSum.total_gross_revenue || 0)} − ${fmtShort(dash.total_cost_real)} − ${fmtShort(rptSum.total_fee_report)} − ${fmtShort(dash.total_fixed_fee)} = <span style="color:#14b8a6">${fmtShort((rptSum.total_gross_revenue || 0) - dash.total_cost_real - (rptSum.total_fee_report || 0) - dash.total_fixed_fee)}</span>
-        </div>` : ""}
-        <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">🏭 Chi phí vận hành:</div>
-        ${opCosts.length > 0 ? opCosts.map(c => `
-          <div style="margin-bottom:3px">
-            <div style="display:flex;justify-content:space-between;font-weight:600">
-              <span>${c.cost_name || c.cost_key}${c.shop ? ` <span style="background:#6b7280;color:white;border-radius:3px;padding:1px 4px;font-size:9px">${c.shop}</span>` : ""}</span>
-              <span style="color:#f59e0b">${fmtShort(c.actual_amount || 0)}</span>
-            </div>
-            <div style="font-size:10px;color:#aaa;padding-left:4px">
-              ${fmtShort(c.cost_value)}/${c.calc_type === "per_month" ? "tháng" : "đơn"}
-              ${c.calc_type === "per_month"
-                ? ` × ${c.months}th${c.note && c.note !== "toàn bộ" ? ` × ${c.note}` : ""}`
-                : ` × ${c.total_orders} đơn`}
-            </div>
-          </div>`).join("")
-        : '<div style="color:#aaa">Chưa có chi phí vận hành</div>'}
-        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px">
-          <span>Tổng vận hành (kỳ này)</span>
-          <span>${fmtShort(opCosts.reduce((s, c) => s + (c.actual_amount || 0), 0))}</span>
-        </div>
       </div>
     </div>
     <div class="kpi red" style="cursor:pointer" onclick="this.querySelector('.tax-detail').style.display=this.querySelector('.tax-detail').style.display==='none'?'block':'none'">
@@ -226,6 +201,32 @@ async function loadDashboard() {
       <div class="kpi-label">Tỷ lệ hủy / hoàn</div>
       <div class="kpi-value">${cancelRate}%</div>
       <div class="kpi-sub">Hủy: ${cancelOrders} | Hoàn: ${returnOrders}</div>
+    </div>
+    <div class="kpi" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-left:4px solid #22c55e;cursor:pointer" onclick="this.querySelector('.op-detail').style.display=this.querySelector('.op-detail').style.display==='none'?'block':'none'">
+      <div class="kpi-icon">🏭</div>
+      <div class="kpi-label">Chi phí vận hành <span style="font-size:10px;opacity:0.6">▼ chi tiết</span></div>
+      <div class="kpi-value" style="color:#16a34a">${fmtShort(opCosts.reduce((s, c) => s + (c.actual_amount || 0), 0))}</div>
+      <div class="kpi-sub">Kỳ này: ${opCosts.length} khoản</div>
+      <div class="op-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:1.9;border-top:1px solid #86efac;padding-top:6px">
+        ${opCosts.length > 0 ? opCosts.map(c => `
+          <div style="margin-bottom:3px">
+            <div style="display:flex;justify-content:space-between;font-weight:600">
+              <span>${c.cost_name || c.cost_key}${c.shop ? ` <span style="background:#6b7280;color:white;border-radius:3px;padding:1px 4px;font-size:9px">${c.shop}</span>` : ""}</span>
+              <span style="color:#16a34a">${fmtShort(c.actual_amount || 0)}</span>
+            </div>
+            <div style="font-size:10px;color:#aaa;padding-left:4px">
+              ${fmtShort(c.cost_value)}/${c.calc_type === "per_month" ? "tháng" : "đơn"}
+              ${c.calc_type === "per_month"
+                ? ` × ${c.months}th${c.note && c.note !== "toàn bộ" ? ` × ${c.note}` : ""}`
+                : ` × ${c.total_orders} đơn`}
+            </div>
+          </div>`).join("")
+        : '<div style="color:#aaa">Chưa có chi phí vận hành</div>'}
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #86efac;margin-top:4px;padding-top:4px">
+          <span>Tổng vận hành (kỳ này)</span>
+          <span style="color:#16a34a">${fmtShort(opCosts.reduce((s, c) => s + (c.actual_amount || 0), 0))}</span>
+        </div>
+      </div>
     </div>
   `
 

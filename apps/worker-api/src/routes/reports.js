@@ -250,8 +250,8 @@ async function getOperationCosts(request, env, cors) {
     if (platform) { allShopConds.push("platform = ?");   allShopParams.push(platform) }
 
     const allShopRow = await env.DB.prepare(`
-      SELECT COUNT(DISTINCT shop) AS total FROM orders WHERE ${allShopConds.join(" AND ")}
-    `).bind(...allShopParams).first()
+      SELECT COUNT(DISTINCT shop) AS total FROM orders WHERE order_type = 'normal'
+    `).first()
 
     totalShops = allShopRow?.total || 1
     shopRatio  = 1 / totalShops
