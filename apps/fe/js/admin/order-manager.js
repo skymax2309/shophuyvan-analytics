@@ -22,44 +22,86 @@ async function loadOrders(page = 1) {
   if (plt)  params.set("platform", plt)
   const qs = params.toString() ? "?" + params.toString() : ""
 
-  const data = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
-  allOrdersCache = data
+const rawData = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
+  allOrdersCache = rawData
 
-  let filtered = data
-  if (type)   filtered = filtered.filter(o => o.order_type === type)
-  if (search) filtered = filtered.filter(o =>
-    (o.order_id    || "").toLowerCase().includes(search) ||
-    (o.sku         || "").toLowerCase().includes(search) ||
-    (o.product_name|| "").toLowerCase().includes(search) ||
-    (o.shop        || "").toLowerCase().includes(search)
+  // ── Gom theo order_id → mỗi đơn 1 dòng, items là mảng SKU ──────
+  const orderMap = new Map()
+  for (const row of rawData) {
+    if (!orderMap.has(row.order_id)) {
+      orderMap.set(row.order_id, {
+        order_id:     row.order_id,
+        order_date:   row.order_date,
+        platform:     row.platform,
+        shop:         row.shop,
+        order_type:   row.order_type,
+        cancel_reason:row.cancel_reason,
+        return_fee:   row.return_fee   || 0,
+        revenue:      0, cost_real: 0, fee: 0,
+        profit_real:  0, tax_flat:  0, tax_income: 0,
+        fee_platform: 0, fee_payment: 0, fee_affiliate: 0,
+        fee_ads: 0, fee_piship: 0, fee_service: 0,
+        items: []
+      })
+    }
+    const ord = orderMap.get(row.order_id)
+    // Cộng dồn tổng đơn
+    ord.revenue      += row.revenue      || 0
+    ord.cost_real    += row.cost_real    || 0
+    ord.fee          += row.fee          || 0
+    ord.profit_real  += row.profit_real  || 0
+    ord.tax_flat     += row.tax_flat     || 0
+    ord.tax_income   += row.tax_income   || 0
+    ord.fee_platform += row.fee_platform || 0
+    ord.fee_payment  += row.fee_payment  || 0
+    ord.fee_affiliate+= row.fee_affiliate|| 0
+    ord.fee_ads      += row.fee_ads      || 0
+    ord.fee_piship   += row.fee_piship   || 0
+    ord.fee_service  += row.fee_service  || 0
+    // Lưu item
+    if (row.sku) ord.items.push({
+      sku: row.sku, product_name: row.product_name,
+      qty: row.qty, revenue: row.revenue, cost_real: row.cost_real,
+      fee: row.fee, profit_real: row.profit_real
+    })
+  }
+
+  let grouped = [...orderMap.values()]
+
+  // ── Filter ───────────────────────────────────────────────────────
+  if (type)   grouped = grouped.filter(o => o.order_type === type)
+  if (search) grouped = grouped.filter(o =>
+    (o.order_id || "").toLowerCase().includes(search) ||
+    (o.shop     || "").toLowerCase().includes(search) ||
+    o.items.some(i =>
+      (i.sku          || "").toLowerCase().includes(search) ||
+      (i.product_name || "").toLowerCase().includes(search)
+    )
   )
 
-  const total      = filtered.length
+  const total      = grouped.length
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const start      = (page - 1) * PAGE_SIZE
-  const paged      = filtered.slice(start, start + PAGE_SIZE)
+  const paged      = grouped.slice(start, start + PAGE_SIZE)
 
-  const normalOrders = filtered.filter(o => o.order_type === "normal")
-  const cancelOrders = filtered.filter(o => o.order_type === "cancel")
-  const returnOrders = filtered.filter(o => o.order_type === "return")
+  const normalOrders = grouped.filter(o => o.order_type === "normal")
+  const cancelOrders = grouped.filter(o => o.order_type === "cancel")
+  const returnOrders = grouped.filter(o => o.order_type === "return")
 
-  const totalRev        = normalOrders.reduce((s, o) => s + (o.revenue     || 0), 0)
-  const totalProfit     = normalOrders.reduce((s, o) => s + (o.profit_real || 0), 0)
-  const totalCancelFee  = cancelOrders.reduce((s, o) => s + (o.return_fee  || 0), 0)
-  const totalReturnFee  = returnOrders.reduce((s, o) => s + (o.return_fee  || 0), 0)
-
-  const uniqueCancel = [...new Set(cancelOrders.map(o => o.order_id))].length
-  const uniqueReturn = [...new Set(returnOrders.map(o => o.order_id))].length
+  const totalRev       = normalOrders.reduce((s, o) => s + (o.revenue     || 0), 0)
+  const totalProfit    = normalOrders.reduce((s, o) => s + (o.profit_real || 0), 0)
+  const totalCancelFee = cancelOrders.reduce((s, o) => s + (o.return_fee  || 0), 0)
+  const totalReturnFee = returnOrders.reduce((s, o) => s + (o.return_fee  || 0), 0)
 
   document.getElementById("orderSummary").innerHTML =
     `Hiển thị <b>${paged.length}</b> / <b>${total}</b> đơn &nbsp;|&nbsp;
      Doanh thu: <b style="color:#3b82f6">${fmt(totalRev)}</b> &nbsp;|&nbsp;
      Lãi thực: <b class="${totalProfit >= 0 ? "profit-pos" : "profit-neg"}">${fmt(totalProfit)}</b>
-     ${uniqueCancel > 0 ? `&nbsp;|&nbsp;
-     ✗ Hủy: <b style="color:#ef4444">${uniqueCancel} đơn</b>
+     ${cancelOrders.length > 0 ? `&nbsp;|&nbsp;
+     ✗ Hủy: <b style="color:#ef4444">${cancelOrders.length} đơn</b>
      ${totalCancelFee > 0 ? `(-<b style="color:#ef4444">${fmt(totalCancelFee)}</b>)` : ""}` : ""}
-     ${uniqueReturn > 0 ? `&nbsp;|&nbsp;
-     ↩ Hoàn: <b style="color:#f59e0b">${uniqueReturn} đơn</b>
+     ${returnOrders.length > 0 ? `&nbsp;|&nbsp;
+     ↩ Hoàn: <b style="color:#f59e0b">${returnOrders.length} đơn</b>
      (-<b style="color:#f59e0b">${fmt(totalReturnFee)}</b>)` : ""}`
 
   if (paged.length === 0) {
@@ -69,7 +111,7 @@ async function loadOrders(page = 1) {
     return
   }
 
-  document.getElementById("ordersTable").innerHTML = paged.map(o => renderOrderRow(o)).join("")
+  document.getElementById("ordersTable").innerHTML = paged.map(o => renderGroupedOrderRow(o)).join("")
 
   if (totalPages <= 1) {
     document.getElementById("orderPagination").innerHTML = ""
@@ -85,6 +127,82 @@ async function loadOrders(page = 1) {
   }
   pgHtml += `<button onclick="loadOrders(${page + 1})" ${page === totalPages ? "disabled" : ""}>Sau ›</button>`
   document.getElementById("orderPagination").innerHTML = pgHtml
+}
+
+function renderGroupedOrderRow(o) {
+  const typeClass = o.order_type === "normal" ? "tag-normal" : o.order_type === "cancel" ? "tag-cancel" : "tag-return"
+  const typeLabel = o.order_type === "normal" ? "✓ Thành công" : o.order_type === "cancel" ? "✗ Hủy" : "↩ Hoàn"
+  const pltClass  = "tag-" + (o.platform || "shopee")
+  const hasItems  = o.items && o.items.length > 1
+  const uid       = o.order_id.replace(/[^a-z0-9]/gi, "")
+
+  // Dòng đơn hàng chính
+  const mainRow = `<tr style="${(o.profit_real||0)<0?'background:#fff1f2':''}" ${hasItems ? `style="cursor:pointer" onclick="toggleOrderItems('${uid}')"` : ""}>
+    <td style="white-space:nowrap">
+      ${hasItems ? `<span id="expand_${uid}" style="color:#6b7280;margin-right:4px;font-size:10px">▶</span>` : ""}
+      ${o.order_date || "—"}
+    </td>
+    <td><span class="${pltClass}">${(o.platform||"").toUpperCase()}</span></td>
+    <td style="font-size:12px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.shop||"—"}</td>
+    <td style="font-size:11px;font-family:monospace">${o.order_id||"—"}</td>
+    <td style="text-align:center;color:#6b7280;font-size:12px">${o.items.length} SKU</td>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">
+      ${o.items.map(i => i.product_name||"").filter(Boolean).join(", ").substring(0,50) || "—"}
+    </td>
+    <td style="text-align:center">${o.items.reduce((s,i)=>s+(i.qty||1),0)}</td>
+    <td style="text-align:right;color:#3b82f6;font-weight:600">${fmt(o.revenue)}</td>
+    <td style="text-align:right;color:#6d28d9">${fmt(o.cost_real)}</td>
+    <td style="text-align:right;color:#f59e0b;font-size:11px">${fmt(o.fee_platform)}</td>
+    <td style="text-align:right;color:#f59e0b;font-size:11px">${fmt(o.fee_payment)}</td>
+    <td style="text-align:right;color:#f59e0b;font-size:11px">${fmt(o.fee_affiliate)}</td>
+    <td style="text-align:right;color:#f59e0b;font-size:11px">${fmt(o.fee_ads)}</td>
+    <td style="text-align:right;color:#f59e0b;font-size:11px">${fmt(o.fee_piship)}</td>
+    <td style="text-align:right;color:#f59e0b;font-size:11px">${fmt(o.fee_service)}</td>
+    <td style="text-align:right;color:#f59e0b;font-weight:600">${fmt(o.fee)}</td>
+    <td style="text-align:right;color:#ef4444;font-size:11px">${fmt(o.tax_flat)}</td>
+    <td style="text-align:right;color:#ef4444;font-size:11px">${fmt(o.tax_income)}</td>
+    <td style="text-align:right;font-weight:700" class="${(o.profit_real||0)>=0?'profit-pos':'profit-neg'}">${fmt(o.profit_real)}</td>
+    <td><span class="${typeClass}">${typeLabel}</span></td>
+  </tr>`
+
+  // Các dòng SKU expand (ẩn mặc định)
+  const itemRows = hasItems ? `<tr id="items_${uid}" style="display:none">
+    <td colspan="20" style="padding:0;background:#f8fafc">
+      <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <thead><tr style="background:#e2e8f0">
+          <td style="padding:4px 8px;color:#64748b">SKU</td>
+          <td style="padding:4px 8px;color:#64748b">Tên SP</td>
+          <td style="padding:4px 8px;color:#64748b;text-align:center">SL</td>
+          <td style="padding:4px 8px;color:#64748b;text-align:right">Doanh thu</td>
+          <td style="padding:4px 8px;color:#64748b;text-align:right">Vốn thực</td>
+          <td style="padding:4px 8px;color:#64748b;text-align:right">Phí</td>
+          <td style="padding:4px 8px;color:#64748b;text-align:right">Lãi thực</td>
+        </tr></thead>
+        <tbody>
+          ${o.items.map(i => `<tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:4px 8px;font-family:monospace">${i.sku||"—"}</td>
+            <td style="padding:4px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i.product_name||"—"}</td>
+            <td style="padding:4px 8px;text-align:center">${i.qty||1}</td>
+            <td style="padding:4px 8px;text-align:right;color:#3b82f6">${fmt(i.revenue)}</td>
+            <td style="padding:4px 8px;text-align:right;color:#6d28d9">${fmt(i.cost_real)}</td>
+            <td style="padding:4px 8px;text-align:right;color:#f59e0b">${fmt(i.fee)}</td>
+            <td style="padding:4px 8px;text-align:right" class="${(i.profit_real||0)>=0?'profit-pos':'profit-neg'}">${fmt(i.profit_real)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </td>
+  </tr>` : ""
+
+  return mainRow + itemRows
+}
+
+function toggleOrderItems(uid) {
+  const row    = document.getElementById("items_" + uid)
+  const icon   = document.getElementById("expand_" + uid)
+  if (!row) return
+  const isOpen = row.style.display !== "none"
+  row.style.display  = isOpen ? "none" : "table-row"
+  if (icon) icon.textContent = isOpen ? "▶" : "▼"
 }
 
 function renderOrderRow(o) {
