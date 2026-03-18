@@ -103,23 +103,73 @@
 
   <!-- ── TOP TAB ── -->
   <div id="tab-top" class="tab-content">
-    <div class="col2">
+
+    <!-- Filter riêng cho tab Top SKU -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:white;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
+      <span style="font-weight:600;font-size:13px;color:#374151">🔍 Lọc SKU:</span>
+      <select id="skuFilterPlatform" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+        <option value="">Tất cả sàn</option>
+        <option value="shopee">Shopee</option>
+        <option value="tiktok">TikTok</option>
+        <option value="lazada">Lazada</option>
+      </select>
+      <select id="skuFilterShop" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:160px">
+        <option value="">Tất cả shop</option>
+      </select>
+      <select id="skuFilterSort" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px">
+        <option value="qty">Sắp xếp: Số lượng bán (nhiều → ít)</option>
+        <option value="revenue">Sắp xếp: Doanh thu (cao → thấp)</option>
+        <option value="profit">Sắp xếp: Lãi thực (cao → thấp)</option>
+      </select>
+      <input type="text" id="skuFilterSearch" placeholder="🔎 Tìm SKU / tên SP..." style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;min-width:200px">
+      <button onclick="loadTopSkuFull()" style="padding:6px 16px;background:#4f46e5;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer">Lọc</button>
+      <span id="skuFilterCount" style="font-size:12px;color:#6b7280"></span>
+    </div>
+
+    <!-- Bảng toàn bộ SKU -->
+    <div class="table-card" style="overflow-x:auto">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>📊 Toàn bộ SKU đã bán</span>
+        <span id="skuTotalSummary" style="font-size:12px;color:#6b7280;font-weight:400"></span>
+      </div>
+      <table style="width:100%">
+        <thead>
+          <tr style="background:#f8fafc">
+            <th style="width:40px">#</th>
+            <th>SKU</th>
+            <th>Tên sản phẩm</th>
+            <th style="text-align:center">Sàn</th>
+            <th style="text-align:center">Số lượng bán</th>
+            <th style="text-align:center">Số đơn</th>
+            <th style="text-align:right">Doanh thu</th>
+            <th style="text-align:right">Lãi thực</th>
+            <th style="text-align:right">% Lãi</th>
+          </tr>
+        </thead>
+        <tbody id="topSkuFullTable">
+          <tr><td colspan="9" style="text-align:center;padding:20px;color:#9ca3af">Nhấn Lọc để xem dữ liệu</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Top SKU + Top SP cũ (gọn lại) -->
+    <div class="col2" style="margin-top:16px">
       <div class="table-card">
-        <div class="card-title">🔥 Top SKU theo Doanh thu</div>
+        <div class="card-title">🔥 Top 20 SKU theo Doanh thu</div>
         <table>
           <thead><tr><th>#</th><th>SKU</th><th>SL</th><th>Doanh thu</th><th>Lãi thực</th></tr></thead>
           <tbody id="topSkuTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
         </table>
       </div>
       <div class="table-card">
-        <div class="card-title">📦 Top Sản phẩm</div>
+        <div class="card-title">📦 Top 20 Sản phẩm</div>
         <table>
           <thead><tr><th>#</th><th>Tên SP</th><th>SL</th><th>Doanh thu</th><th>Lãi thực</th></tr></thead>
           <tbody id="topProductTable"><tr><td colspan="5" class="loading">...</td></tr></tbody>
         </table>
       </div>
     </div>
-    <div class="table-card">
+    <div class="table-card" style="margin-top:16px">
       <div class="card-title">🏪 Doanh thu theo Sàn & Shop</div>
       <table>
         <thead><tr><th>Sàn</th><th>Shop</th><th>Đơn hàng</th><th>Doanh thu</th><th>Lãi thực</th></tr></thead>

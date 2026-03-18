@@ -135,36 +135,13 @@ function _shopee(row, shop) {
   // [A] Tổng giá bán sản phẩm
   const A = _num(row["Tổng giá bán (sản phẩm)"])
 
-  // Voucher Shopee (B): Shopee tự chịu, KHÔNG bù lại cho shop → B = 0
-  // Trợ giá Shopee (C): tương tự → C = 0
-  // Doanh thu shop = đúng bằng "Tổng giá bán (sản phẩm)" = A
-  const B   = 0
-  const C   = 0
   const qty = _int(_findKey(row, "Số lượng") ?? row["Số lượng"])
 
-  // [D] Tiền hoàn (chỉ tính cho đơn return)
-  const D = order_type === "return" ? A : 0
-
-  // [AF] Mã giảm giá của Shop (trừ ra)
-  const AF = _num(row["Mã giảm giá của Shop"])
-
-  // [AK] Giảm giá từ Combo của Shop (trừ ra)
-  const AK = _num(row["Giảm giá từ Combo của Shop"])
-
-  // ── Net Revenue per dòng ─────────────────────────────────────────
-  // Revenue = A (giá bán dòng này) + B_dòng + C_dòng - AF_dòng - AK_dòng
-  // B, C, AF, AK đều là tổng cả đơn → phân bổ theo tỷ lệ A/A_order
-  // A_order = tổng giá bán TẤT CẢ sản phẩm trong đơn (không phải tổng tiền KH trả)
-  const A_order_correct = _num(row["Tổng giá trị đơn hàng (VND)"])
-  const ratio_correct   = (A_order_correct > 0) ? A / A_order_correct : 1
-
-  const B_line  = Math.round(_num(row["Mã giảm giá của Shopee"])          * ratio_correct)
-  const C_line  = Math.round(_num(_findKey(row, "Được Shopee trợ giá")??0) * ratio_correct)
-  const AF_line = Math.round(_num(row["Mã giảm giá của Shop"])             * ratio_correct)
-  const AK_line = Math.round(_num(row["Giảm giá từ Combo của Shop"])       * ratio_correct)
-
-  // Revenue đúng = A của dòng này + phần voucher/trợ giá được phân bổ
-  const line_revenue  = (order_type === "normal") ? (A + B_line + C_line - AF_line - AK_line) : 0
+  // Doanh thu = đúng A (Tổng giá bán sản phẩm từng dòng)
+  // Không cộng/trừ voucher Shopee vì:
+  // - Voucher Shopee: Shopee tự chịu, không bù lại cho shop
+  // - Giảm giá shop: đã được tính vào giá bán rồi
+  const line_revenue  = (order_type === "normal") ? A : 0
   const return_amount = (order_type === "return") ? A : 0
 
   // Đã gửi hàng = đã đóng gói → tính pack fee khi hủy/hoàn

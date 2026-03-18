@@ -5,7 +5,7 @@ import { handleProducts, handleCostSettings } from './routes/products.js'
 import { importOrders, exportOrders, recalcCost, importOrdersV2 } from './routes/orders.js'
 import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          topSku, topProduct, topShop, topPlatform,
-         cancelStats, priceCalc }        from './routes/dashboard.js'
+         cancelStats, priceCalc, topSkuFull } from './routes/dashboard.js'
 import { uploadReport, getReportSummary, getOperationCosts,
          getReports, getReportFile }     from './routes/reports.js'
 import { parseInvoiceAI, saveInvoice, listInvoices, getInvoiceFile,
@@ -94,6 +94,9 @@ export default {
       // ── Top SKU ───────────────────────────────────────────────────
       if (url.pathname === "/api/top-sku")
         return topSku(request, env, cors)
+
+      if (url.pathname === "/api/top-sku-full")
+        return topSkuFull(request, env, cors)
 	
 	if (url.pathname === "/api/unique-skus")
         return uniqueSkus(request, env, cors)

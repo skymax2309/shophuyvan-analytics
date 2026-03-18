@@ -219,14 +219,15 @@ async function topPlatform(request, env, cors) {
 
   const rows = await env.DB.prepare(`
     SELECT
-      platform,
-      SUM(revenue)             AS total_revenue,
-      SUM(profit_real)         AS total_profit,
-      COUNT(DISTINCT order_id) AS total_orders,
-      SUM(qty)                 AS total_qty
-    FROM orders
-    ${where}
-    GROUP BY platform
+      o.platform,
+      SUM(o.revenue)             AS total_revenue,
+      SUM(o.profit_real)         AS total_profit,
+      COUNT(DISTINCT o.order_id) AS total_orders,
+      SUM(oi.qty)                AS total_qty
+    FROM orders_v2 o
+    LEFT JOIN order_items oi ON oi.order_id = o.order_id
+    ${where.replace("order_id","o.order_id").replace("order_date","o.order_date").replace("platform","o.platform").replace("shop","o.shop")}
+    GROUP BY o.platform
     ORDER BY total_revenue DESC
   `).bind(...params).all()
 
@@ -257,7 +258,7 @@ async function cancelStats(request, env, cors) {
       COUNT(DISTINCT order_id) AS total_orders,
       SUM(raw_revenue)         AS total_revenue,
       cancel_reason
-    FROM orders
+    FROM orders_v2
     ${where}
     GROUP BY order_type, platform, cancel_reason
     ORDER BY total_orders DESC
@@ -310,5 +311,49 @@ async function priceCalc(request, env, cors) {
   }, { headers: cors })
 }
 
+// ════════════════════════════════════════════════════════════════════
+// TOP SKU FULL — Toàn bộ SKU, sort theo số lượng bán
+// Hỗ trợ filter: platform, shop, from, to
+// ════════════════════════════════════════════════════════════════════
+async function topSkuFull(request, env, cors) {
+  const url     = new URL(request.url)
+  const from     = url.searchParams.get("from")     || ""
+  const to       = url.searchParams.get("to")       || ""
+  const platform = url.searchParams.get("platform") || ""
+  const shop     = url.searchParams.get("shop")     || ""
+  const sortBy   = url.searchParams.get("sort")     || "qty"  // qty | revenue | profit
+
+  const conds  = ["o.order_type = 'normal'"]
+  const params = []
+  if (from)     { conds.push("date(o.order_date) >= ?"); params.push(from) }
+  if (to)       { conds.push("date(o.order_date) <= ?"); params.push(to) }
+  if (platform) { conds.push("o.platform = ?");          params.push(platform) }
+  if (shop)     { conds.push("o.shop = ?");              params.push(shop) }
+  const where = "WHERE " + conds.join(" AND ")
+
+  const orderCol = sortBy === "revenue" ? "total_revenue"
+                 : sortBy === "profit"  ? "total_profit"
+                 : "total_qty"
+
+  const rows = await env.DB.prepare(`
+    SELECT
+      oi.sku,
+      oi.product_name,
+      SUM(oi.qty)                                                          AS total_qty,
+      SUM(oi.revenue_line)                                                 AS total_revenue,
+      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue, 0))         AS total_profit,
+      COUNT(DISTINCT oi.order_id)                                          AS total_orders,
+      GROUP_CONCAT(DISTINCT o.platform)                                    AS platforms,
+      GROUP_CONCAT(DISTINCT o.shop)                                        AS shops
+    FROM order_items oi
+    JOIN orders_v2 o ON oi.order_id = o.order_id
+    ${where}
+    GROUP BY oi.sku
+    ORDER BY ${orderCol} DESC
+  `).bind(...params).all()
+
+  return Response.json(rows.results, { headers: cors })
+}
+
 export { dashboard, revenueByDay, profitByDay, uniqueSkus,
-         topSku, topProduct, topShop, topPlatform, cancelStats, priceCalc }
+         topSku, topProduct, topShop, topPlatform, cancelStats, priceCalc, topSkuFull }
