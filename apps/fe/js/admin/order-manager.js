@@ -189,27 +189,131 @@ async function importFileInline() {
   log.innerHTML = "⏳ Đang đọc file..."
 
   try {
-    // Dùng XLSX từ CDN (đã load trong admin-products.html)
+    // Parse tên file lấy platform + shop
+    const nameParts = file.name.replace(/\.xlsx$/i, "").split("_")
+    let platform = "unknown", shop = nameParts[0] || "unknown"
+    for (const p of nameParts) {
+      const l = p.toLowerCase()
+      if (l === "shopee") { platform = "shopee"; break }
+      if (l === "tiktok") { platform = "tiktok"; break }
+      if (l === "lazada") { platform = "lazada"; break }
+    }
+
+    // Đọc Excel
     const data     = await file.arrayBuffer()
     const workbook = XLSX.read(data)
     const sheet    = workbook.Sheets[workbook.SheetNames[0]]
     const rows     = XLSX.utils.sheet_to_json(sheet)
 
-    // Import parser động
-    const { normalizeOrder, parseFileMeta, fillFirstSku, mergeOrderLines, loadCostConfig } =
-      await import("../js/parser.js")
+    log.innerHTML = `📖 Đọc được ${rows.length} dòng từ file, đang xử lý...`
 
-    await loadCostConfig(API)
-    const meta      = parseFileMeta(file.name)
-    const rawOrders = []
-    rows.forEach(r => {
-      const o = normalizeOrder(r, meta)
-      if (o) rawOrders.push(o)
+    // Gửi thẳng lên server dưới dạng raw rows + meta
+    // Server sẽ normalize qua worker (không cần parser ở client)
+    // Thay vào đó dùng iframe ẩn redirect sang index.html để parse
+    // → Cách đơn giản nhất: tạo FormData gửi file lên 1 endpoint mới
+
+    // Vì không thể import module, gửi raw JSON rows lên API
+    // và để worker tự normalize theo platform
+    const payload = rows.map(r => {
+      // Shopee
+      if (platform === "shopee") {
+        const orderId = String(r["Mã đơn hàng"] || "").trim()
+        if (!orderId) return null
+        const trangThai = String(r["Trạng Thái Đơn Hàng"] || "").trim()
+        const lyDoHuy   = String(r["Lý do hủy"] || "").trim()
+        const traHang   = String(r["Trạng thái Trả hàng/Hoàn tiền"] || "").trim()
+        const isCancel  = trangThai === "Đã hủy" || lyDoHuy !== ""
+        const isReturn  = /hoàn tiền|trả hàng|chấp thuận/i.test(traHang)
+        let order_type  = isCancel ? "cancel" : (isReturn ? "return" : "normal")
+        const A         = Number(r["Tổng giá bán (sản phẩm)"] || 0)
+        const A_order   = Number(r["Tổng giá trị đơn hàng (VND)"] || 0)
+        const ratio     = A_order > 0 ? A / A_order : 1
+        const B         = Math.round(Number(r["Mã giảm giá của Shopee"] || 0) * ratio)
+        const AF        = Math.round(Number(r["Mã giảm giá của Shop"] || 0) * ratio)
+        const AK        = Math.round(Number(r["Giảm giá từ Combo của Shop"] || 0) * ratio)
+        const qty       = Math.max(1, Math.floor(Number(r["Số lượng"] || 1)))
+        const dateRaw   = String(r["Ngày đặt hàng"] || "")
+        const dm = dateRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        const order_date = dm ? `${dm[3]}-${dm[2].padStart(2,"0")}-${dm[1].padStart(2,"0")}` : ""
+        const shipped   = !!String(r["Ngày gửi hàng"] || "").trim()
+        return {
+          platform, shop, order_id: orderId, order_type, qty,
+          revenue:       order_type === "normal" ? (A + B - AF - AK) : 0,
+          raw_revenue:   A,
+          shopee_voucher: B, shop_discount: AF, combo_discount: AK,
+          sku:           String(r["SKU phân loại hàng"] || "").trim(),
+          product_name:  String(r["Tên sản phẩm"] || "").trim(),
+          order_date, shipped,
+          return_amount: order_type === "return" ? A : 0,
+          cancel_reason: (isCancel && !isReturn) ? (lyDoHuy || trangThai) : null,
+          return_fee:    order_type === "return" ? 1620 : (
+            order_type === "cancel" && /giao hàng thất bại|failed/i.test(lyDoHuy) ? 1620 : 0
+          ),
+        }
+      }
+      // TikTok
+      if (platform === "tiktok") {
+        const orderId = String(r["Order ID"] || "").trim()
+        if (!orderId || orderId.length < 10 || !/^\d+$/.test(orderId)) return null
+        const status     = String(r["Order Status"] || "").toLowerCase()
+        const cancelType = String(r["Cancelation/Return Type"] || "")
+        let order_type   = "normal"
+        if (status === "cancelled" || cancelType === "Cancel") order_type = "cancel"
+        if (cancelType === "Return/Refund") order_type = "return"
+        const subtotal   = Number(r["SKU Subtotal After Discount"] || 0)
+        const platDisc   = Number(r["SKU Platform Discount"] || 0)
+        const revenue    = order_type === "normal" ? subtotal + platDisc : 0
+        const cancelReason = String(r["Cancel Reason"] || cancelType || "")
+        const isFailed   = /giao gói hàng thất bại|failed delivery/i.test(cancelReason)
+        const dateRaw    = String(r["Created Time"] || "")
+        const dm2 = dateRaw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        const order_date = dm2 ? `${dm2[3]}-${dm2[2].padStart(2,"0")}-${dm2[1].padStart(2,"0")}` : ""
+        const shipped    = !!String(r["Tracking ID"] || r["Shipped Time"] || "").trim()
+        return {
+          platform, shop,
+          order_id:      orderId,
+          order_type,
+          qty:           Math.max(1, Math.floor(Number(r["Quantity"] || 1))),
+          revenue,
+          raw_revenue:   subtotal + platDisc,
+          sku:           String(r["Seller SKU"] || "").trim(),
+          product_name:  String(r["Product Name"] || "").trim(),
+          order_date, shipped,
+          return_amount: order_type === "return" ? (Number(r["Order Refund Amount"] || 0) || revenue) : 0,
+          cancel_reason: cancelReason || null,
+          return_fee:    order_type === "return" ? 4620 : (order_type === "cancel" && isFailed ? 1620 : 0),
+          shopee_voucher: 0, shop_discount: 0, combo_discount: 0,
+        }
+      }
+      return null
+    }).filter(Boolean)
+
+    // Gộp dòng trùng order_id + sku
+    const map = new Map()
+    for (const o of payload) {
+      const key = o.order_id + "||" + o.sku
+      if (!map.has(key)) { map.set(key, { ...o }) }
+      else {
+        const e = map.get(key)
+        e.qty           = (e.qty || 0) + (o.qty || 0)
+        e.revenue       = (e.revenue || 0) + (o.revenue || 0)
+        e.raw_revenue   = (e.raw_revenue || 0) + (o.raw_revenue || 0)
+        e.return_amount = (e.return_amount || 0) + (o.return_amount || 0)
+        e.shopee_voucher= (e.shopee_voucher || 0) + (o.shopee_voucher || 0)
+        e.shop_discount = (e.shop_discount || 0) + (o.shop_discount || 0)
+        e.combo_discount= (e.combo_discount || 0) + (o.combo_discount || 0)
+      }
+    }
+
+    // fillFirstSku
+    const seen = new Set()
+    const orders = [...map.values()].map(o => {
+      const isFirst = !seen.has(o.order_id)
+      if (o.order_type !== "cancel") seen.add(o.order_id)
+      return { ...o, is_first_sku: isFirst }
     })
-    const merged = mergeOrderLines(rawOrders)
-    const orders = fillFirstSku(merged)
 
-    log.innerHTML = `📦 Đọc được ${orders.length} dòng, đang upload...`
+    log.innerHTML = `📦 ${orders.length} dòng sau xử lý, đang upload...`
 
     const res    = await fetch(API + "/api/import-orders", {
       method:  "POST",
@@ -218,7 +322,7 @@ async function importFileInline() {
     })
     const result = await res.json()
 
-    log.innerHTML = `✅ Import thành công — ${result.imported} dòng! Đang tải lại...`
+    log.innerHTML = `✅ Import thành công — ${result.imported} dòng!`
     showToast("✅ Import thành công!")
     fileInput.value = ""
     setTimeout(() => loadOrders(1), 800)

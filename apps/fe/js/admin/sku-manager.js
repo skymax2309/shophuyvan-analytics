@@ -441,8 +441,9 @@ function exportSkuExcel() {
   const rows = allSkus.filter(p => !p.is_combo && !/combo/i.test(p.sku || ""))
   let csv = "SKU,Tên sản phẩm,Vốn hóa đơn (đ),Vốn thực tế (đ)\n"
   rows.forEach(p => {
-    const name = `"${(p.product_name || "").replace(/"/g, '""')}"`
-    csv += `${p.sku},${name},${p.cost_invoice || 0},${p.cost_real || 0}\n`
+    const safeSku  = `"${(p.sku          || "").replace(/"/g, '""')}"`
+    const safeName = `"${(p.product_name || "").replace(/"/g, '""')}"`
+    csv += `${safeSku},${safeName},${p.cost_invoice || 0},${p.cost_real || 0}\n`
   })
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
   const url  = URL.createObjectURL(blob)
