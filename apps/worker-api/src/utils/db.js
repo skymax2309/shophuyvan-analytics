@@ -76,7 +76,7 @@ const costInvoice = (order.cost_invoice || 0) * qty
   const isNormal       = order.order_type === 'normal'
   const isReturn       = order.order_type === 'return'
   const isCancel       = order.order_type === 'cancel'
-  const isCancelWithFee = isCancel && (order.return_fee || 0) > 0
+  const isCancelWithFee = isCancel && ((order.return_fee || 0) > 0 || (order.fee_piship || 0) > 0)
 
   if (isCancel && !isCancelWithFee) {
     // Hủy thông thường: không mất gì
@@ -93,10 +93,11 @@ const costInvoice = (order.cost_invoice || 0) * qty
   }
 
   if (isCancelWithFee || isReturn) {
-    // Hủy giao thất bại hoặc hoàn hàng: mất return_fee + phí đóng gói nếu đã gửi
-    const fee  = order.return_fee || 0
-    const pack = order.shipped ? packFee : 0
-    const total = fee + pack
+    // Hủy giao thất bại hoặc hoàn hàng: mất return_fee + fee_piship + phí đóng gói nếu đã gửi
+    const fee     = order.return_fee || 0
+    const piship  = order.fee_piship || 0
+    const pack    = order.shipped ? packFee : 0
+    const total   = fee + piship + pack
     return {
       revenue: 0, total_fee: total,
       cost_invoice: 0, cost_real: 0,
@@ -104,7 +105,7 @@ const costInvoice = (order.cost_invoice || 0) * qty
       tax_flat: 0, tax_income: 0,
       profit_after_tax: -total,
       fee_platform: 0, fee_payment: 0, fee_affiliate: 0, fee_ads: 0,
-      fee_piship: fee, fee_service: 0,
+      fee_piship: fee + piship, fee_service: 0,
       fee_packaging: pack, fee_operation: 0, fee_labor: 0,
     }
   }
