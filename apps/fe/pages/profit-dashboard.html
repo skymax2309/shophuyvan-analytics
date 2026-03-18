@@ -214,25 +214,60 @@
         </div>
         <div class="inp-group">
           <label>Giá định bán (đ)</label>
-          <input type="number" id="calcPrice" placeholder="0" step="1000">
+          <input type="number" id="calcPrice" placeholder="0" step="1000" oninput="clearAutoCalc()">
         </div>
         <button class="btn-calc" onclick="runCalc()">Tính ngay →</button>
       </div>
-      <div id="calcInfo" style="margin-top:12px;font-size:12px;color:#888"></div>
-      <div class="calc-result" id="calcResult" style="display:none">
-        <div class="calc-row"><span>💰 Giá bán</span><span id="r_price">-</span></div>
-        <div class="calc-row"><span>📦 Vốn thực tế</span><span id="r_cost_real">-</span></div>
-        <div class="calc-row"><span>📄 Vốn hóa đơn</span><span id="r_cost_inv">-</span></div>
-        <div class="calc-row"><span>🏪 Phí sàn + Ads + Affiliate</span><span id="r_fee">-</span></div>
-        <div class="calc-row"><span>🧾 Thuế khoán (1.5%)</span><span id="r_tax_flat">-</span></div>
-        <div class="calc-row"><span>📑 Thuế LN (17% Lãi HĐ)</span><span id="r_tax_inc">-</span></div>
-        <div class="calc-row total gain" id="r_profit_row">
-          <span>✅ Lãi thực (bỏ túi)</span><span id="r_profit_real">-</span>
+
+      <!-- Tính ngược theo % lợi nhuận -->
+      <div style="margin-top:14px;padding:14px 16px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:10px">
+        <div style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:10px">🎯 Tính giá bán theo % lợi nhuận mục tiêu</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:6px">
+            <label style="font-size:13px;color:#555">Lãi thực mục tiêu:</label>
+            <input type="number" id="calcTargetPct" value="20" min="0" max="200" step="1"
+              style="width:70px;border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:14px;font-weight:700;color:#6d28d9;text-align:center">
+            <span style="font-size:14px;font-weight:700;color:#6d28d9">%</span>
+          </div>
+          <button onclick="calcByTargetProfit()"
+            style="background:#7c3aed;color:white;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;font-size:13px;font-weight:600">
+            📐 Tính giá bán hợp lý
+          </button>
+          <div id="autoCalcResult" style="font-size:13px;color:#6d28d9;font-weight:600"></div>
         </div>
-        <div class="calc-row total"><span>📋 Lãi hóa đơn</span><span id="r_profit_inv">-</span></div>
       </div>
-      <div class="warning-loss" id="warnLoss">
-        ⚠️ CẢNH BÁO: Giá bán này bị LỖ! Cần tăng giá lên ít nhất <span id="minPrice">-</span> đ
+
+      <div id="calcInfo" style="margin-top:12px;font-size:12px;color:#888"></div>
+
+      <div class="calc-result" id="calcResult" style="display:none">
+        <!-- Header tổng quan -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+          <div style="background:#eff6ff;border-radius:8px;padding:10px 14px;text-align:center">
+            <div style="font-size:11px;color:#6b7280;margin-bottom:2px">Giá bán</div>
+            <div style="font-size:18px;font-weight:800;color:#2563eb" id="r_price">-</div>
+          </div>
+          <div style="background:#f0fdf4;border-radius:8px;padding:10px 14px;text-align:center">
+            <div style="font-size:11px;color:#6b7280;margin-bottom:2px">Lãi thực (bỏ túi)</div>
+            <div style="font-size:18px;font-weight:800" id="r_profit_real">-</div>
+            <div style="font-size:12px;color:#10b981;font-weight:600" id="r_profit_pct">-</div>
+          </div>
+          <div style="background:#fdf4ff;border-radius:8px;padding:10px 14px;text-align:center">
+            <div style="font-size:11px;color:#6b7280;margin-bottom:2px">Lãi hóa đơn</div>
+            <div style="font-size:18px;font-weight:800;color:#7c3aed" id="r_profit_inv">-</div>
+          </div>
+        </div>
+
+        <!-- Chi tiết phí breakdown -->
+        <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #f3f4f6">
+          📊 Chi tiết cấu thành giá
+        </div>
+
+        <div id="calcBreakdown" style="font-size:13px"></div>
+
+        <!-- Cảnh báo lỗ -->
+        <div class="warning-loss" id="warnLoss" style="display:none">
+          ⚠️ CẢNH BÁO: Giá bán này bị LỖ! Cần tăng giá lên ít nhất <span id="minPrice">-</span> đ
+        </div>
       </div>
     </div>
   </div>
