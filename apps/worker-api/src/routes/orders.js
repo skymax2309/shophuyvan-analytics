@@ -78,13 +78,20 @@ async function importOrders(request, env, cors) {
            is_first_sku)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(order_id, sku) DO UPDATE SET
+          qty            = excluded.qty,
+          product_name   = excluded.product_name,
           revenue        = excluded.revenue,
+          raw_revenue    = excluded.raw_revenue,
+          cost_invoice   = excluded.cost_invoice,
+          cost_real      = excluded.cost_real,
           fee            = excluded.fee,
           profit         = excluded.profit,
           profit_invoice = excluded.profit_invoice,
           profit_real    = excluded.profit_real,
           tax_flat       = excluded.tax_flat,
           tax_income     = excluded.tax_income,
+          return_fee     = excluded.return_fee,
+          cancel_reason  = excluded.cancel_reason,
           fee_platform   = excluded.fee_platform,
           fee_payment    = excluded.fee_payment,
           fee_affiliate  = excluded.fee_affiliate,
@@ -94,7 +101,8 @@ async function importOrders(request, env, cors) {
           fee_packaging  = excluded.fee_packaging,
           fee_operation  = excluded.fee_operation,
           fee_labor      = excluded.fee_labor,
-          order_date     = excluded.order_date
+          order_date     = excluded.order_date,
+          is_first_sku   = excluded.is_first_sku
       `).bind(
         o.order_id, o.sku, o.product_name, o.shop, o.platform, o.order_type,
         o.qty, o.revenue, o.fee, o.profit,

@@ -53,7 +53,9 @@ function renderSkuTables() {
   document.getElementById("skuPartialCount").textContent = partial.length
   document.getElementById("skuHasPriceCount").textContent = hasPrice.length
 
-  const rowHtml = p => `
+  const rowHtml = p => {
+  const encodedName = encodeURIComponent(p.product_name || "")
+  return `
     <tr id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
       <td><input type="checkbox" class="sku-chk" data-sku="${p.sku}" onchange="updateGroupHint()"></td>
       <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
@@ -61,13 +63,19 @@ function renderSkuTables() {
       <td style="color:#6d28d9;font-weight:600">${fmt(p.cost_invoice)}</td>
       <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-edit" onclick="editSku('${p.sku}','${(p.product_name || "").replace(/'/g, "\\'")}',${p.cost_invoice || 0},${p.cost_real || 0})">✏️</button>
+        <button class="btn btn-edit"
+          data-sku="${p.sku}"
+          data-name="${encodedName}"
+          data-cinv="${p.cost_invoice || 0}"
+          data-creal="${p.cost_real || 0}"
+          onclick="editSkuFromBtn(this)">✏️</button>
         <button onclick="moveToCombo('${p.sku}')"
           style="margin-left:4px;padding:4px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px"
           title="Chuyển sang Combo">📦→</button>
         <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="margin-left:4px">🗑️</button>
       </td>
     </tr>`
+  }
 
   const empty = msg => `<tr><td colspan="6" class="empty">${msg}</td></tr>`
 
@@ -97,6 +105,14 @@ async function saveSku() {
   document.getElementById("s_cost_inv").value = ""
   document.getElementById("s_cost_real").value = ""
   loadSkus()
+}
+
+function editSkuFromBtn(btn) {
+  const sku   = btn.dataset.sku
+  const name  = decodeURIComponent(btn.dataset.name)
+  const cinv  = btn.dataset.cinv
+  const creal = btn.dataset.creal
+  editSku(sku, name, cinv, creal)
 }
 
 function editSku(sku, name, cinv, creal) {
@@ -418,4 +434,22 @@ async function deleteGroup(groupName) {
   })
   showToast(`✅ Đã xóa nhóm "${groupName}"`)
   loadSkuGroups()
+}
+
+
+function exportSkuExcel() {
+  const rows = allSkus.filter(p => !p.is_combo && !/combo/i.test(p.sku || ""))
+  let csv = "SKU,Tên sản phẩm,Vốn hóa đơn (đ),Vốn thực tế (đ)\n"
+  rows.forEach(p => {
+    const name = `"${(p.product_name || "").replace(/"/g, '""')}"`
+    csv += `${p.sku},${name},${p.cost_invoice || 0},${p.cost_real || 0}\n`
+  })
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement("a")
+  a.href     = url
+  a.download = `gia-von-sku-${new Date().toISOString().slice(0,10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast("✅ Đã tải file Excel!")
 }

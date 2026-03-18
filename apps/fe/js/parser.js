@@ -156,11 +156,20 @@ function _shopee(row, shop) {
   const AK = _num(row["Giảm giá từ Combo của Shop"])
 
   // ── Net Revenue per dòng ─────────────────────────────────────────
-  // Đơn thành công : A + B + C - AF - AK  (chưa trừ D, D tính tổng hợp)
-  // Đơn hoàn       : lưu A vào return_amount để tổng hợp trừ sau
-  // Đơn hủy        : 0 hoàn toàn
-  const line_revenue  = (order_type === "normal") ? (A + B + C - AF - AK) : 0
-  const return_amount = (order_type === "return") ? A : 0   // [D] per dòng
+  // Revenue = A (giá bán dòng này) + B_dòng + C_dòng - AF_dòng - AK_dòng
+  // B, C, AF, AK đều là tổng cả đơn → phân bổ theo tỷ lệ A/A_order
+  // A_order = tổng giá bán TẤT CẢ sản phẩm trong đơn (không phải tổng tiền KH trả)
+  const A_order_correct = _num(row["Tổng giá trị đơn hàng (VND)"])
+  const ratio_correct   = (A_order_correct > 0) ? A / A_order_correct : 1
+
+  const B_line  = Math.round(_num(row["Mã giảm giá của Shopee"])          * ratio_correct)
+  const C_line  = Math.round(_num(_findKey(row, "Được Shopee trợ giá")??0) * ratio_correct)
+  const AF_line = Math.round(_num(row["Mã giảm giá của Shop"])             * ratio_correct)
+  const AK_line = Math.round(_num(row["Giảm giá từ Combo của Shop"])       * ratio_correct)
+
+  // Revenue đúng = A của dòng này + phần voucher/trợ giá được phân bổ
+  const line_revenue  = (order_type === "normal") ? (A + B_line + C_line - AF_line - AK_line) : 0
+  const return_amount = (order_type === "return") ? A : 0
 
   // Đã gửi hàng = đã đóng gói → tính pack fee khi hủy/hoàn
   const shipped = !!_str(row["Ngày gửi hàng"])
