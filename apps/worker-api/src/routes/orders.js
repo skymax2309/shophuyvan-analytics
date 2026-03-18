@@ -132,23 +132,55 @@ async function importOrders(request, env, cors) {
 
 async function exportOrders(request, env, cors) {
   const filters = getFilters(new URL(request.url))
-  const conds = ["1=1"]
+  const conds  = ["1=1"]
   const params = []
-  if (filters.from)     { conds.push(`date(order_date) >= ?`); params.push(filters.from) }
-  if (filters.to)       { conds.push(`date(order_date) <= ?`); params.push(filters.to) }
-  if (filters.platform) { conds.push(`platform = ?`);          params.push(filters.platform) }
-  if (filters.shop)     { conds.push(`shop = ?`);              params.push(filters.shop) }
+  if (filters.from)     { conds.push(`date(o.order_date) >= ?`); params.push(filters.from) }
+  if (filters.to)       { conds.push(`date(o.order_date) <= ?`); params.push(filters.to) }
+  if (filters.platform) { conds.push(`o.platform = ?`);          params.push(filters.platform) }
+  if (filters.shop)     { conds.push(`o.shop = ?`);              params.push(filters.shop) }
 
+  const limit = parseInt(new URL(request.url).searchParams.get("limit") || "10000")
+
+  // Join orders_v2 + order_items để có đủ thông tin từng SKU
   const rows = await env.DB.prepare(`
-    SELECT order_date, platform, shop, order_id, sku, product_name,
-           qty, revenue, raw_revenue, cost_real, fee, profit_real,
-           tax_flat, tax_income, order_type, cancel_reason, return_fee,
-           fee_platform, fee_payment, fee_affiliate, fee_ads,
-           fee_piship, fee_service, fee_packaging, fee_operation, fee_labor
-    FROM orders
+    SELECT
+      o.order_date, o.platform, o.shop, o.order_id,
+      oi.sku, oi.product_name, oi.qty,
+      oi.revenue_line                                              AS revenue,
+      oi.revenue_line                                              AS raw_revenue,
+      oi.cost_real,
+      -- Phân bổ phí % theo tỷ lệ doanh thu dòng / tổng đơn
+      ROUND(o.fee_platform  * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_platform,
+      ROUND(o.fee_payment   * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_payment,
+      ROUND(o.fee_affiliate * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_affiliate,
+      ROUND(o.fee_ads       * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_ads,
+      -- Phí per-đơn chỉ tính cho item đầu tiên
+      CASE WHEN oi.id = (
+        SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id
+      ) THEN o.fee_piship  ELSE 0 END AS fee_piship,
+      CASE WHEN oi.id = (
+        SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id
+      ) THEN o.fee_service ELSE 0 END AS fee_service,
+      CASE WHEN oi.id = (
+        SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id
+      ) THEN o.fee_packaging ELSE 0 END AS fee_packaging,
+      -- Tổng phí dòng này
+      ROUND(
+        (o.fee_platform + o.fee_payment + o.fee_affiliate + o.fee_ads)
+        * oi.revenue_line / NULLIF(o.revenue,0)
+        + CASE WHEN oi.id = (SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id)
+               THEN o.fee_piship + o.fee_service + o.fee_packaging ELSE 0 END
+      )                                                            AS fee,
+      -- Lãi dòng = lãi đơn × tỷ lệ doanh thu
+      ROUND(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS profit_real,
+      ROUND(o.tax_flat    * oi.revenue_line / NULLIF(o.revenue,0)) AS tax_flat,
+      ROUND(o.tax_income  * oi.revenue_line / NULLIF(o.revenue,0)) AS tax_income,
+      o.order_type, o.cancel_reason, o.return_fee
+    FROM orders_v2 o
+    JOIN order_items oi ON oi.order_id = o.order_id
     WHERE ${conds.join(" AND ")}
-    ORDER BY order_date DESC
-    LIMIT ${parseInt(new URL(request.url).searchParams.get("limit") || "10000")}
+    ORDER BY o.order_date DESC, o.order_id, oi.id
+    LIMIT ${limit}
   `).bind(...params).all()
 
   return Response.json(rows.results, { headers: cors })
@@ -160,6 +192,7 @@ async function recalcCost(request, env, cors) {
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
+  // ── Recalc bảng cũ (orders) ──────────────────────────────────────
   const orders = await env.DB.prepare(`
     SELECT * FROM orders ORDER BY order_id, sku
   `).all()
@@ -242,7 +275,96 @@ async function recalcCost(request, env, cors) {
     updated += chunk.length
   }
 
-  return Response.json({ status: "ok", updated }, { headers: cors })
+  // ── Recalc bảng mới (orders_v2) ──────────────────────────────────
+  const ordersV2   = await env.DB.prepare(`SELECT * FROM orders_v2`).all()
+  const itemsAll   = await env.DB.prepare(`SELECT * FROM order_items`).all()
+
+  // Group items theo order_id
+  const itemsByOrder = {}
+  for (const item of itemsAll.results) {
+    if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = []
+    itemsByOrder[item.order_id].push(item)
+  }
+
+  let updatedV2 = 0
+  for (let i = 0; i < ordersV2.results.length; i += 50) {
+    const chunk = ordersV2.results.slice(i, i + 50)
+    const stmts = chunk.map(o => {
+      const orderItems       = itemsByOrder[o.order_id] || []
+      const totalCostReal    = orderItems.reduce((s, item) => {
+        const p = productMap[item.sku] || { cost_real: 0, cost_invoice: 0 }
+        return s + p.cost_real * (item.qty || 1)
+      }, 0)
+      const totalCostInvoice = orderItems.reduce((s, item) => {
+        const p = productMap[item.sku] || { cost_real: 0, cost_invoice: 0 }
+        return s + p.cost_invoice * (item.qty || 1)
+      }, 0)
+
+      const orderForCalc = {
+        ...o,
+        cost_invoice: totalCostInvoice,
+        cost_real:    totalCostReal,
+        is_first_sku: 1,
+      }
+      const p = calcProfit(orderForCalc, cfg)
+
+      let return_fee = o.return_fee || 0
+      if (o.order_type === "return") {
+        return_fee = o.platform === "tiktok"
+          ? (cfg["tiktok_return_fee"]?.value    ?? 4620)
+          : (cfg["shopee_return_fee"]?.value     ?? 1620)
+      } else if (o.order_type === "cancel") {
+        const isFailed = /giao hàng thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
+        if (isFailed) {
+          return_fee = o.platform === "tiktok"
+            ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620)
+            : (cfg["shopee_failed_delivery_fee"]?.value  ?? 1620)
+        }
+      }
+
+      return env.DB.prepare(`
+        UPDATE orders_v2 SET
+          cost_invoice   = ?, cost_real      = ?,
+          profit_invoice = ?, profit_real    = ?,
+          fee            = ?, tax_flat       = ?,
+          tax_income     = ?, fee_platform   = ?,
+          fee_payment    = ?, fee_affiliate  = ?,
+          fee_ads        = ?, fee_piship     = ?,
+          fee_service    = ?, fee_packaging  = ?,
+          fee_operation  = ?, fee_labor      = ?,
+          return_fee     = ?
+        WHERE order_id = ?
+      `).bind(
+        p.cost_invoice,  p.cost_real,
+        p.profit_invoice, p.profit_real,
+        p.total_fee,      p.tax_flat,
+        p.tax_income,     p.fee_platform  || 0,
+        p.fee_payment  || 0, p.fee_affiliate || 0,
+        p.fee_ads      || 0, p.fee_piship    || 0,
+        p.fee_service  || 0, p.fee_packaging || 0,
+        p.fee_operation|| 0, p.fee_labor     || 0,
+        return_fee,
+        o.order_id
+      )
+    })
+    await env.DB.batch(stmts)
+    updatedV2 += chunk.length
+  }
+
+  // Cập nhật cost trong order_items
+  const itemStmts = []
+  for (const item of itemsAll.results) {
+    const p = productMap[item.sku] || { cost_real: 0, cost_invoice: 0 }
+    itemStmts.push(
+      env.DB.prepare(`UPDATE order_items SET cost_real=?, cost_invoice=? WHERE id=?`)
+        .bind(p.cost_real * (item.qty||1), p.cost_invoice * (item.qty||1), item.id)
+    )
+  }
+  for (let i = 0; i < itemStmts.length; i += 50) {
+    await env.DB.batch(itemStmts.slice(i, i + 50))
+  }
+
+  return Response.json({ status: "ok", updated, updated_v2: updatedV2 }, { headers: cors })
 }
 
 // ════════════════════════════════════════════════════════════════════
