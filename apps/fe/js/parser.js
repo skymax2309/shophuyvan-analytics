@@ -167,7 +167,7 @@ function _shopee(row, shop) {
     cancel_reason:    is_cancel ? (ly_do_huy || trang_thai_don) : null,
     return_fee:       order_type === "return"
                         ? (window._costCfg?.shopee_return_fee ?? 1620)
-                        : (order_type === "cancel" && /giao hàng thất bại|không giao được|failed/i.test(_str(row["Lý do hủy"]))
+                        : (order_type === "cancel" && /giao.*thất bại|không giao được|failed/i.test(_str(row["Lý do hủy"]))
                             ? (window._costCfg?.shopee_failed_delivery_fee ?? 1620)
                             : 0),
   }
