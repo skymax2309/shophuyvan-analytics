@@ -174,6 +174,80 @@ function resetLossFilter() {
   loadLossOrders(1)
 }
 
+// ── IMPORT FILE INLINE ───────────────────────────────────────────────
+function toggleImportPanel() {
+  const panel = document.getElementById("importPanel")
+  panel.style.display = panel.style.display === "none" ? "block" : "none"
+}
+
+async function importFileInline() {
+  const fileInput = document.getElementById("inlineFileInput")
+  const log       = document.getElementById("importLog")
+  const file      = fileInput.files[0]
+  if (!file) { showToast("⚠️ Chọn file trước!", true); return }
+
+  log.innerHTML = "⏳ Đang đọc file..."
+
+  try {
+    // Dùng XLSX từ CDN (đã load trong admin-products.html)
+    const data     = await file.arrayBuffer()
+    const workbook = XLSX.read(data)
+    const sheet    = workbook.Sheets[workbook.SheetNames[0]]
+    const rows     = XLSX.utils.sheet_to_json(sheet)
+
+    // Import parser động
+    const { normalizeOrder, parseFileMeta, fillFirstSku, mergeOrderLines, loadCostConfig } =
+      await import("../js/parser.js")
+
+    await loadCostConfig(API)
+    const meta      = parseFileMeta(file.name)
+    const rawOrders = []
+    rows.forEach(r => {
+      const o = normalizeOrder(r, meta)
+      if (o) rawOrders.push(o)
+    })
+    const merged = mergeOrderLines(rawOrders)
+    const orders = fillFirstSku(merged)
+
+    log.innerHTML = `📦 Đọc được ${orders.length} dòng, đang upload...`
+
+    const res    = await fetch(API + "/api/import-orders", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(orders)
+    })
+    const result = await res.json()
+
+    log.innerHTML = `✅ Import thành công — ${result.imported} dòng! Đang tải lại...`
+    showToast("✅ Import thành công!")
+    fileInput.value = ""
+    setTimeout(() => loadOrders(1), 800)
+
+  } catch(e) {
+    log.innerHTML = `❌ Lỗi: ${e.message}`
+    console.error(e)
+  }
+}
+
+// ── RECALC COST INLINE ───────────────────────────────────────────────
+async function recalcCostInline() {
+  const btn = event.target
+  btn.disabled    = true
+  btn.textContent = "⏳ Đang cập nhật..."
+
+  try {
+    const res    = await fetch(API + "/api/recalc-cost", { method: "POST" })
+    const result = await res.json()
+    showToast(`✅ Đã cập nhật ${result.updated} đơn!`)
+    loadOrders(currentOrderPage)
+  } catch(e) {
+    showToast("❌ Lỗi: " + e.message, true)
+  }
+
+  btn.disabled    = false
+  btn.textContent = "🔄 Cập nhật vốn"
+}
+
 function resetOrderFilter() {
   document.getElementById("o_from").value     = ""
   document.getElementById("o_to").value       = ""

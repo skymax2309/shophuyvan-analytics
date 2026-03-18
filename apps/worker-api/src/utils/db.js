@@ -35,14 +35,14 @@ function calcProfit(order, cfg) {
   const lazadaShippingDiff = platform === "lazada" ? rev * pct(cfg, "lazada_shipping_diff") : 0
   const lazadaAds          = platform === "lazada" ? rev * pct(cfg, "lazada_ads")           : 0
 
-  // ── Phí cố định chung (per SKU) ──────────────────────────────────
-  const packFee  = num(cfg, "packaging") * qty
-  const opFee    = num(cfg, "operation") * qty
-  const laborFee = num(cfg, "labor")     * qty
-
-  // ── Phí per đơn — chỉ tính dòng đầu tiên ────────────────────────
+// ── Phí per đơn — chỉ tính dòng đầu tiên ────────────────────────
   const isFirstSku = order.is_first_sku === true || order.is_first_sku === 1
   const notCancel  = order.order_type !== "cancel"
+
+  // ── Phí cố định (per đơn, không nhân qty) ────────────────────────
+  const packFee  = (isFirstSku && notCancel) ? num(cfg, "packaging") : 0
+  const opFee    = (isFirstSku && notCancel) ? num(cfg, "operation")  : 0
+  const laborFee = (isFirstSku && notCancel) ? num(cfg, "labor")      : 0
 
   // Shopee: PiShip + Service fee
   const pishipFee = (platform === "shopee" && isFirstSku && notCancel)

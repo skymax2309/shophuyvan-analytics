@@ -264,6 +264,21 @@
         <button class="btn" style="background:#f3f4f6;color:#555" onclick="resetOrderFilter()">✕ Reset</button>
         <button class="btn" style="background:#10b981;color:white" onclick="exportOrders()">⬇️ Xuất CSV</button>
         <button class="btn" style="background:#7c3aed;color:white" onclick="toggleTaxExport()">🧾 Xuất Quyết Toán Thuế</button>
+        <button class="btn" style="background:#f59e0b;color:white" onclick="toggleImportPanel()">📥 Import file</button>
+        <button class="btn" style="background:#6d28d9;color:white" onclick="recalcCostInline()">🔄 Cập nhật vốn</button>
+      </div>
+      <!-- Panel import file -->
+      <div id="importPanel" style="display:none;margin-top:12px;padding:14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px">
+        <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:10px">📥 Import file đơn hàng</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="inlineFileInput" accept=".xlsx"
+            style="border:1px solid #fcd34d;border-radius:6px;padding:6px 10px;font-size:13px;background:white">
+          <button onclick="importFileInline()"
+            style="background:#f59e0b;color:white;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
+            ⬆️ Import ngay
+          </button>
+        </div>
+        <div id="importLog" style="margin-top:8px;font-size:12px;color:#555;min-height:16px"></div>
       </div>
       <!-- Panel xuất quyết toán thuế -->
       <div id="taxExportPanel" style="display:none;margin-top:12px;padding:14px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
