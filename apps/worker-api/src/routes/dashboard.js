@@ -329,6 +329,12 @@ async function priceCalc(request, env, cors) {
     tax_income:      p.tax_income,
     profit_after_tax: p.profit_after_tax,
     is_loss:         p.profit_real < 0,
+    fee_platform:    p.fee_platform   || 0,
+    fee_payment:     p.fee_payment    || 0,
+    fee_affiliate:   p.fee_affiliate  || 0,
+    fee_ads:         p.fee_ads        || 0,
+    fee_piship:      p.fee_piship     || 0,
+    fee_service:     p.fee_service    || 0,
   }, { headers: cors })
 }
 
