@@ -40,9 +40,9 @@ function calcProfit(order, cfg) {
   const notCancel  = order.order_type !== "cancel"
 
   // ── Phí cố định (per đơn, không nhân qty) ────────────────────────
-  const packFee  = (isFirstSku && notCancel) ? num(cfg, "packaging") : 0
-  const opFee    = (isFirstSku && notCancel) ? num(cfg, "operation")  : 0
-  const laborFee = (isFirstSku && notCancel) ? num(cfg, "labor")      : 0
+  const packFee  = 0
+  const opFee    = 0
+  const laborFee = 0
 
   // Shopee: PiShip + Service fee
   const pishipFee = (platform === "shopee" && isFirstSku && notCancel)
