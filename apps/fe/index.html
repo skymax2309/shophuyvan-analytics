@@ -1,114 +1,51 @@
 <!DOCTYPE html>
 <html lang="vi">
-
 <head>
 <meta charset="UTF-8">
 <title>Import Orders</title>
-
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
 <style>
-
-body {
-  font-family: Arial;
-  padding: 40px;
-  background: #f5f5f5;
-}
-
-.box {
-  background: white;
-  padding: 24px;
-  border-radius: 10px;
-  max-width: 560px;
-}
-
-h2 {
-  margin-top: 0;
-}
-
-input[type="file"] {
-  margin-bottom: 10px;
-}
-
-button {
-  padding: 10px 24px;
-  margin-top: 6px;
-  background: #1a73e8;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 15px;
-}
-
-button:disabled {
-  background: #aaa;
-  cursor: not-allowed;
-}
-
-#log {
-  margin-top: 20px;
-  font-size: 14px;
-  line-height: 1.8;
-}
-
-.tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: bold;
-  margin-right: 4px;
-}
-
+body { font-family: Arial; padding: 40px; background: #f5f5f5; }
+.box { background: white; padding: 24px; border-radius: 10px; max-width: 560px; }
+h2 { margin-top: 0; }
+input[type="file"] { margin-bottom: 10px; }
+button { padding: 10px 24px; margin-top: 6px; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; }
+button:disabled { background: #aaa; cursor: not-allowed; }
+#log { margin-top: 20px; font-size: 14px; line-height: 1.8; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; margin-right: 4px; }
 .tag-shopee  { background: #ff6633; color: white; }
 .tag-tiktok  { background: #010101; color: white; }
 .tag-lazada  { background: #0f146d; color: white; }
 .tag-normal  { background: #34a853; color: white; }
 .tag-cancel  { background: #ea4335; color: white; }
-.tag-return  { background: #fbbc04; color: #333;  }
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
+.tag-return  { background: #fbbc04; color: #333; }
+.summary-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
 .summary-label { color: #555; }
 .summary-value { font-weight: bold; }
-
 .error { color: #c62828; }
 .success { color: #2e7d32; }
-
 </style>
 </head>
-
 <body>
 
 <div class="box">
-
   <h2>📦 Upload File Bán Hàng</h2>
-<div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">
-  <a href="pages/profit-dashboard.html" style="background:#4f46e5;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">📊 Dashboard</a>
-  <a href="pages/cost-settings.html" style="background:#6b7280;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">⚙️ Cài đặt chi phí</a>
-  <a href="pages/admin-products.html" style="background:#6b7280;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">📦 Sản phẩm</a>
-</div>
+  <div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">
+    <a href="pages/profit-dashboard.html" style="background:#4f46e5;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">📊 Dashboard</a>
+    <a href="pages/cost-settings.html"    style="background:#6b7280;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">⚙️ Cài đặt chi phí</a>
+    <a href="pages/admin-products.html"   style="background:#6b7280;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">📦 Sản phẩm</a>
+  </div>
 
   <input type="file" id="file" accept=".xlsx">
   <br>
   <button id="btnImport">Import Excel</button>
-
   <div id="log"></div>
-
 </div>
 
 <script type="module">
-
 import { normalizeOrder, parseFileMeta, fillFirstSku, loadCostConfig } from "./js/parser.js"
 
 const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
-
 const btn = document.getElementById("btnImport")
 const log = document.getElementById("log")
 
@@ -118,37 +55,18 @@ function addLog(html) { log.innerHTML += html }
 btn.addEventListener("click", importFile)
 
 async function importFile() {
-
   const file = document.getElementById("file").files[0]
-
-  if (!file) {
-    alert("Vui lòng chọn file trước!")
-    return
-  }
+  if (!file) { alert("Vui lòng chọn file trước!"); return }
 
   btn.disabled = true
   setLog("⏳ Đang đọc file <b>" + file.name + "</b>...")
 
   try {
-
     // 0. Load cost config để parser dùng phí hoàn/thất bại từ settings
     await loadCostConfig(API)
 
-    // 1. Đọc meta từ tên file (sàn + tên shop)
+    // 1. Đọc meta từ tên file
     const meta = parseFileMeta(file.name)
-```
-
----
-
-## Tóm tắt toàn bộ thay đổi đã hướng dẫn
-
-Sau khi hoàn thành tất cả các sửa đổi, luồng hoạt động sẽ như sau:
-```
-index.html import đơn
-    └─ loadCostConfig(API)          ← load phí từ DB vào window._costCfg
-    └─ normalizeOrder()
-          └─ _shopee() / _tiktok()  ← đọc phí từ window._costCfg
-                                       thay vì hardcode 1620/4620
 
     // 2. Parse Excel
     const data     = await file.arrayBuffer()
@@ -159,17 +77,12 @@ index.html import đơn
     // 3. Normalize từng dòng
     const rawOrders = []
     const skipped   = []
-
     rows.forEach((r, i) => {
       const order = normalizeOrder(r, meta)
-      if (order) {
-        rawOrders.push(order)
-      } else {
-        skipped.push(i + 2)
-      }
+      if (order) rawOrders.push(order)
+      else skipped.push(i + 2)
     })
 
-    // Đánh dấu dòng đầu tiên của mỗi đơn để tính phí per-đơn 1 lần
     const orders = fillFirstSku(rawOrders)
 
     // 4. Thống kê
@@ -177,81 +90,40 @@ index.html import đơn
     const cancel  = orders.filter(o => o.order_type === "cancel")
     const returns = orders.filter(o => o.order_type === "return")
 
-    // Gộp đơn trùng order_id (chỉ đếm unique order)
-    const uniqueNormal  = [...new Set(normal.map(o => o.order_id))].length
-    const uniqueCancel  = [...new Set(cancel.map(o => o.order_id))].length
-    const uniqueReturn  = [...new Set(returns.map(o => o.order_id))].length
-    const totalUnique   = uniqueNormal + uniqueCancel + uniqueReturn
+    const uniqueNormal = [...new Set(normal.map(o => o.order_id))].length
+    const uniqueCancel = [...new Set(cancel.map(o => o.order_id))].length
+    const uniqueReturn = [...new Set(returns.map(o => o.order_id))].length
+    const totalUnique  = uniqueNormal + uniqueCancel + uniqueReturn
 
-    // Tất cả đơn không hủy (thành công + trả hàng)
-    const allNonCancel = orders.filter(o => o.order_type !== "cancel")
-
-    // [A] Tổng giá bán TẤT CẢ đơn không hủy (kể cả return)
-    const totalA         = allNonCancel.reduce((s, o) => s + (o.raw_revenue || 0), 0)
-    // [B] Voucher Shopee (tất cả không hủy)
+    const allNonCancel   = orders.filter(o => o.order_type !== "cancel")
+    const totalA         = allNonCancel.reduce((s, o) => s + (o.raw_revenue    || 0), 0)
     const totalB         = allNonCancel.reduce((s, o) => s + (o.shopee_voucher || 0), 0)
-    // [C] Shopee trợ giá (tất cả không hủy)
     const totalC         = allNonCancel.reduce((s, o) => s + (o.shopee_subsidy || 0), 0)
-    // [D] Tiền hoàn = raw_revenue của đơn return
-    const totalD         = returns.reduce((s, o) => s + (o.raw_revenue || 0), 0)
-    // [AF] Mã giảm giá Shop (tất cả không hủy)
-    const totalAF        = allNonCancel.reduce((s, o) => s + (o.shop_discount || 0), 0)
-    // [AK] Giảm giá Combo Shop (tất cả không hủy)
+    const totalD         = returns.reduce((s, o)     => s + (o.raw_revenue     || 0), 0)
+    const totalAF        = allNonCancel.reduce((s, o) => s + (o.shop_discount  || 0), 0)
     const totalAK        = allNonCancel.reduce((s, o) => s + (o.combo_discount || 0), 0)
-    // Doanh thu thực = A + B + C - D + AF + AK
     const totalRevenue   = totalA + totalB + totalC - totalD + totalAF + totalAK
     const totalReturnFee = returns.reduce((s, o) => s + (o.return_fee || 0), 0)
     const cancelRate     = totalUnique > 0 ? ((uniqueCancel / totalUnique) * 100).toFixed(1) : 0
 
     // 5. Hiển thị tóm tắt
     const platformTag = `<span class="tag tag-${meta.platform}">${meta.platform.toUpperCase()}</span>`
-
     setLog(`
       <b>Sàn:</b> ${platformTag} &nbsp; <b>Shop:</b> ${meta.shop}<br><br>
-      <div class="summary-row">
-        <span class="summary-label">📦 Tổng dòng đọc được</span>
-        <span class="summary-value">${orders.length} dòng</span>
-      </div>
-      <div class="summary-row">
-        <span class="summary-label"><span class="tag tag-normal">✓</span> Đơn thành công</span>
-        <span class="summary-value">${uniqueNormal} đơn</span>
-      </div>
-      <div class="summary-row">
-        <span class="summary-label"><span class="tag tag-cancel">✗</span> Đơn hủy</span>
-        <span class="summary-value">${uniqueCancel} đơn &nbsp;(${cancelRate}%)</span>
-      </div>
-      <div class="summary-row">
-        <span class="summary-label"><span class="tag tag-return">↩</span> Trả hàng / Hoàn tiền</span>
-        <span class="summary-value">${uniqueReturn} đơn</span>
-      </div>
-      <div class="summary-row">
-        <span class="summary-label">💰 [A] Tổng giá bán (không hủy)</span>
-        <span class="summary-value">${fmt(totalA)} đ</span>
-      </div>
+      <div class="summary-row"><span class="summary-label">📦 Tổng dòng đọc được</span><span class="summary-value">${orders.length} dòng</span></div>
+      <div class="summary-row"><span class="summary-label"><span class="tag tag-normal">✓</span> Đơn thành công</span><span class="summary-value">${uniqueNormal} đơn</span></div>
+      <div class="summary-row"><span class="summary-label"><span class="tag tag-cancel">✗</span> Đơn hủy</span><span class="summary-value">${uniqueCancel} đơn (${cancelRate}%)</span></div>
+      <div class="summary-row"><span class="summary-label"><span class="tag tag-return">↩</span> Trả hàng / Hoàn tiền</span><span class="summary-value">${uniqueReturn} đơn</span></div>
+      <div class="summary-row"><span class="summary-label">💰 [A] Tổng giá bán (không hủy)</span><span class="summary-value">${fmt(totalA)} đ</span></div>
       ${meta.platform === "shopee" ? `
-      <div class="summary-row">
-        <span class="summary-label">🎟️ [B] Voucher Shopee hoàn lại</span>
-        <span class="summary-value" style="color:#10b981">+${fmt(totalB)} đ</span>
-      </div>
-      <div class="summary-row">
-        <span class="summary-label">💸 [C] Shopee trợ giá</span>
-        <span class="summary-value" style="color:#10b981">+${fmt(totalC)} đ</span>
-      </div>` : ""}
+      <div class="summary-row"><span class="summary-label">🎟️ [B] Voucher Shopee hoàn lại</span><span class="summary-value" style="color:#10b981">+${fmt(totalB)} đ</span></div>
+      <div class="summary-row"><span class="summary-label">💸 [C] Shopee trợ giá</span><span class="summary-value" style="color:#10b981">+${fmt(totalC)} đ</span></div>` : ""}
       ${(totalAF + totalAK) > 0 ? `
-      <div class="summary-row">
-        <span class="summary-label">🏷️ [AF+AK] Giảm giá shop / combo</span>
-        <span class="summary-value" style="color:#10b981">+${fmt(totalAF + totalAK)} đ</span>
-      </div>` : ""}
+      <div class="summary-row"><span class="summary-label">🏷️ [AF+AK] Giảm giá shop / combo</span><span class="summary-value" style="color:#10b981">+${fmt(totalAF + totalAK)} đ</span></div>` : ""}
       ${totalD > 0 ? `
-      <div class="summary-row">
-        <span class="summary-label">↩️ [D] Tiền hoàn trả</span>
-        <span class="summary-value" style="color:#ef4444">-${fmt(totalD)} đ</span>
-      </div>` : ""}
+      <div class="summary-row"><span class="summary-label">↩️ [D] Tiền hoàn trả</span><span class="summary-value" style="color:#ef4444">-${fmt(totalD)} đ</span></div>` : ""}
       ${totalReturnFee > 0 ? `
-      <div class="summary-row">
-        <span class="summary-label">🚚 Phí vận chuyển trả hàng</span>
-        <span class="summary-value" style="color:#ef4444">-${fmt(totalReturnFee)} đ</span>
-      </div>` : ""}
+      <div class="summary-row"><span class="summary-label">🚚 Phí vận chuyển trả hàng</span><span class="summary-value" style="color:#ef4444">-${fmt(totalReturnFee)} đ</span></div>` : ""}
       <div class="summary-row" style="border-top:2px solid #e0e0e0;margin-top:6px;padding-top:8px">
         <span class="summary-label" style="font-weight:700">✅ Doanh thu = A+B+C-D+AF+AK</span>
         <span class="summary-value" style="color:#10b981;font-size:15px">${fmt(totalRevenue)} đ</span>
@@ -262,18 +134,13 @@ index.html import đơn
 
     // 6. Upload lên worker
     const res = await fetch(API + "/api/import-orders", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(orders)
+      body:    JSON.stringify(orders)
     })
-
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error("Server lỗi " + res.status + ": " + text)
-    }
+    if (!res.ok) throw new Error("Server lỗi " + res.status + ": " + await res.text())
 
     const result = await res.json()
-
     addLog(`<br><span class="success">✅ Upload thành công — đã lưu <b>${result.imported}</b> dòng vào database!</span>`)
 
   } catch (err) {
@@ -284,10 +151,7 @@ index.html import đơn
   btn.disabled = false
 }
 
-function fmt(n) {
-  return Number(n).toLocaleString("vi-VN")
-}
-
+function fmt(n) { return Number(n).toLocaleString("vi-VN") }
 </script>
 
 </body>
