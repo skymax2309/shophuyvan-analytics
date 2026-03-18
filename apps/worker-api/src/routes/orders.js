@@ -160,12 +160,23 @@ async function recalcCost(request, env, cors) {
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
-  const orders = await env.DB.prepare(`SELECT * FROM orders`).all()
+  const orders = await env.DB.prepare(`
+    SELECT * FROM orders ORDER BY order_id, sku
+  `).all()
+
+  // Tính lại is_first_sku đúng: mỗi order_id chỉ có 1 dòng đầu = true
+  const seenOrders = new Set()
+  const ordersWithFirstSku = orders.results.map(o => {
+    const isFirst = !seenOrders.has(o.order_id)
+    if (o.order_type !== "cancel") seenOrders.add(o.order_id)
+    return { ...o, is_first_sku: isFirst ? 1 : 0 }
+  })
+
   const BATCH = 50
   let updated = 0
 
-  for (let i = 0; i < orders.results.length; i += BATCH) {
-    const chunk = orders.results.slice(i, i + BATCH)
+  for (let i = 0; i < ordersWithFirstSku.length; i += BATCH) {
+    const chunk = ordersWithFirstSku.slice(i, i + BATCH)
     const stmts = chunk.map(o => {
       const product = productMap[o.sku] || { cost_invoice: 0, cost_real: 0 }
       const orderWithCost = { ...o, cost_invoice: product.cost_invoice, cost_real: product.cost_real }
@@ -205,7 +216,8 @@ async function recalcCost(request, env, cors) {
           fee_packaging  = ?,
           fee_operation  = ?,
           fee_labor      = ?,
-          return_fee     = ?
+          return_fee     = ?,
+          is_first_sku   = ?
         WHERE order_id = ? AND sku = ?
       `).bind(
         p.cost_invoice, p.cost_real,
@@ -222,6 +234,7 @@ async function recalcCost(request, env, cors) {
         p.fee_operation || 0,
         p.fee_labor     || 0,
         return_fee,
+        o.is_first_sku,
         o.order_id, o.sku
       )
     })
