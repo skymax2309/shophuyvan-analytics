@@ -37,16 +37,37 @@ async function dashboard(request, env, cors) {
     ${whereV2}
   `).bind(...params).first()
 
-  const cancelRow = await env.DB.prepare(`
+const cancelRow = await env.DB.prepare(`
     SELECT
       COUNT(DISTINCT CASE WHEN order_type='cancel' THEN order_id END) AS cancel_orders,
       COUNT(DISTINCT CASE WHEN order_type='return' THEN order_id END) AS return_orders,
       COUNT(DISTINCT order_id) AS total_all_orders,
       SUM(CASE WHEN order_type='return' THEN return_fee ELSE 0 END) AS total_return_fee,
+
+      -- TikTok
       SUM(CASE WHEN platform='tiktok' AND (order_type='cancel' OR order_type='return') AND return_fee > 0 THEN return_fee ELSE 0 END) AS total_tiktok_cancel_fee,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 1620 THEN order_id END) AS tiktok_failed_delivery_count,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='return' THEN order_id END) AS tiktok_return_count,
-      COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 0 THEN order_id END) AS tiktok_free_cancel_count
+      COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 0 THEN order_id END) AS tiktok_free_cancel_count,
+      SUM(CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 1620 THEN return_fee ELSE 0 END) AS tiktok_failed_delivery_fee,
+
+      -- Shopee
+      COUNT(DISTINCT CASE WHEN platform='shopee' AND order_type='cancel' THEN order_id END) AS shopee_cancel_count,
+      COUNT(DISTINCT CASE WHEN platform='shopee' AND order_type='cancel' AND return_fee > 0 THEN order_id END) AS shopee_failed_delivery_count,
+      COUNT(DISTINCT CASE WHEN platform='shopee' AND order_type='cancel' AND return_fee = 0 THEN order_id END) AS shopee_free_cancel_count,
+      COUNT(DISTINCT CASE WHEN platform='shopee' AND order_type='return' THEN order_id END) AS shopee_return_count,
+      SUM(CASE WHEN platform='shopee' AND (order_type='cancel' OR order_type='return') AND return_fee > 0 THEN return_fee ELSE 0 END) AS total_shopee_cancel_fee,
+      SUM(CASE WHEN platform='shopee' AND order_type='cancel' AND return_fee > 0 THEN return_fee ELSE 0 END) AS shopee_failed_delivery_fee,
+      SUM(CASE WHEN platform='shopee' AND order_type='return' THEN return_fee ELSE 0 END) AS shopee_return_fee,
+
+      -- Lazada
+      COUNT(DISTINCT CASE WHEN platform='lazada' AND order_type='cancel' THEN order_id END) AS lazada_cancel_count,
+      COUNT(DISTINCT CASE WHEN platform='lazada' AND order_type='cancel' AND return_fee > 0 THEN order_id END) AS lazada_failed_delivery_count,
+      COUNT(DISTINCT CASE WHEN platform='lazada' AND order_type='cancel' AND return_fee = 0 THEN order_id END) AS lazada_free_cancel_count,
+      COUNT(DISTINCT CASE WHEN platform='lazada' AND order_type='return' THEN order_id END) AS lazada_return_count,
+      SUM(CASE WHEN platform='lazada' AND (order_type='cancel' OR order_type='return') AND return_fee > 0 THEN return_fee ELSE 0 END) AS total_lazada_cancel_fee,
+      SUM(CASE WHEN platform='lazada' AND order_type='cancel' AND return_fee > 0 THEN return_fee ELSE 0 END) AS lazada_failed_delivery_fee,
+      SUM(CASE WHEN platform='lazada' AND order_type='return' THEN return_fee ELSE 0 END) AS lazada_return_fee
     FROM orders_v2
     ${whereV2NoType}
   `).bind(...params).first()
