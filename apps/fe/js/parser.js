@@ -135,16 +135,12 @@ function _shopee(row, shop) {
   // [A] Tổng giá bán sản phẩm
   const A = _num(row["Tổng giá bán (sản phẩm)"])
 
-  // [B] Voucher Shopee hoàn lại — là tổng cả đơn, phân bổ theo tỷ lệ dòng này
-  const B_total        = _num(row["Mã giảm giá của Shopee"])
-  const A_order        = _num(row["Tổng giá trị đơn hàng (VND)"])   // tổng đơn
-  const ratio          = (A_order > 0 && A > 0) ? A / A_order : 0
-  const B              = Math.round(B_total * ratio)
-
-  // [C] Trợ giá từ Shopee — cũng là tổng cả đơn, phân bổ theo tỷ lệ
-  const shopee_subsidy = _num(_findKey(row, "Được Shopee trợ giá") ?? 0)
-  const qty            = _int(_findKey(row, "Số lượng") ?? row["Số lượng"])
-  const C              = Math.round(shopee_subsidy * ratio)
+  // Voucher Shopee (B): Shopee tự chịu, KHÔNG bù lại cho shop → B = 0
+  // Trợ giá Shopee (C): tương tự → C = 0
+  // Doanh thu shop = đúng bằng "Tổng giá bán (sản phẩm)" = A
+  const B   = 0
+  const C   = 0
+  const qty = _int(_findKey(row, "Số lượng") ?? row["Số lượng"])
 
   // [D] Tiền hoàn (chỉ tính cho đơn return)
   const D = order_type === "return" ? A : 0
@@ -416,5 +412,75 @@ function _findKey(row, keyword) {
   for (const k of Object.keys(row)) {
     if (stripAccent(k) === normKeyword) return row[k]
   }
-  return undefined
+return undefined
+}
+
+
+// ════════════════════════════════════════════════════════════════════
+// BƯỚC 2 — BUILD ORDERS V2 (schema mới: orders + order_items)
+// Input : flat list từ fillFirstSku()
+// Output: { orders: [...], items: [...] }
+// ════════════════════════════════════════════════════════════════════
+export function buildOrdersV2(flatOrders) {
+  const ordersMap = new Map()  // order_id → order object
+  const items     = []         // tất cả order_items
+
+  for (const o of flatOrders) {
+    // ── Tích lũy order_items ────────────────────────────────────────
+    if (o.sku) {
+      items.push({
+        order_id:     o.order_id,
+        sku:          o.sku,
+        product_name: o.product_name || "",
+        qty:          o.qty          || 1,
+        revenue_line: o.revenue      || 0,
+        cost_real:    0,   // worker sẽ lookup từ products table
+        cost_invoice: 0,
+      })
+    }
+
+    // ── Tích lũy orders (gộp các dòng cùng order_id) ───────────────
+    if (!ordersMap.has(o.order_id)) {
+      ordersMap.set(o.order_id, {
+        order_id:      o.order_id,
+        platform:      o.platform     || "",
+        shop:          o.shop         || "",
+        order_date:    o.order_date   || "",
+        order_type:    o.order_type   || "normal",
+        revenue:       o.revenue      || 0,
+        raw_revenue:   o.raw_revenue  || 0,
+        cancel_reason: o.cancel_reason || null,
+        return_fee:    o.return_fee   || 0,
+        shipped:       o.shipped ? 1 : 0,
+        // Các field tài chính sẽ được worker tính lại
+        cost_invoice:  0,
+        cost_real:     0,
+        fee:           0,
+        profit_invoice: 0,
+        profit_real:   0,
+        tax_flat:      0,
+        tax_income:    0,
+        fee_platform:  0,
+        fee_payment:   0,
+        fee_affiliate: 0,
+        fee_ads:       0,
+        fee_piship:    0,
+        fee_service:   0,
+        fee_packaging: 0,
+        fee_operation: 0,
+        fee_labor:     0,
+      })
+    } else {
+      // Cộng dồn revenue cho các dòng SKU khác nhau trong cùng đơn
+      const existing = ordersMap.get(o.order_id)
+      existing.revenue     = (existing.revenue     || 0) + (o.revenue     || 0)
+      existing.raw_revenue = (existing.raw_revenue || 0) + (o.raw_revenue || 0)
+      // return_fee chỉ tính 1 lần (đã set ở dòng đầu)
+    }
+  }
+
+  return {
+    orders: [...ordersMap.values()],
+    items,
+  }
 }

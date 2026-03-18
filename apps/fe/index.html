@@ -43,7 +43,7 @@ button:disabled { background: #aaa; cursor: not-allowed; }
 </div>
 
 <script type="module">
-import { normalizeOrder, parseFileMeta, fillFirstSku, mergeOrderLines, loadCostConfig } from "./js/parser.js"
+import { normalizeOrder, parseFileMeta, fillFirstSku, mergeOrderLines, loadCostConfig, buildOrdersV2 } from "./js/parser.js"
 
 const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 const btn = document.getElementById("btnImport")
@@ -98,8 +98,8 @@ async function importFile() {
 
     const allNonCancel   = orders.filter(o => o.order_type !== "cancel")
     const totalA         = allNonCancel.reduce((s, o) => s + (o.raw_revenue    || 0), 0)
-    const totalB         = allNonCancel.reduce((s, o) => s + (o.shopee_voucher || 0), 0)
-    const totalC         = allNonCancel.reduce((s, o) => s + (o.shopee_subsidy || 0), 0)
+    const totalB         = 0
+    const totalC         = 0
     const totalD         = returns.reduce((s, o)     => s + (o.raw_revenue     || 0), 0)
     const totalAF        = allNonCancel.reduce((s, o) => s + (o.shop_discount  || 0), 0)
     const totalAK        = allNonCancel.reduce((s, o) => s + (o.combo_discount || 0), 0)
@@ -116,9 +116,6 @@ async function importFile() {
       <div class="summary-row"><span class="summary-label"><span class="tag tag-cancel">✗</span> Đơn hủy</span><span class="summary-value">${uniqueCancel} đơn (${cancelRate}%)</span></div>
       <div class="summary-row"><span class="summary-label"><span class="tag tag-return">↩</span> Trả hàng / Hoàn tiền</span><span class="summary-value">${uniqueReturn} đơn</span></div>
       <div class="summary-row"><span class="summary-label">💰 [A] Tổng giá bán (không hủy)</span><span class="summary-value">${fmt(totalA)} đ</span></div>
-      ${meta.platform === "shopee" ? `
-      <div class="summary-row"><span class="summary-label">🎟️ [B] Voucher Shopee hoàn lại</span><span class="summary-value" style="color:#10b981">+${fmt(totalB)} đ</span></div>
-      <div class="summary-row"><span class="summary-label">💸 [C] Shopee trợ giá</span><span class="summary-value" style="color:#10b981">+${fmt(totalC)} đ</span></div>` : ""}
       ${(totalAF + totalAK) > 0 ? `
       <div class="summary-row"><span class="summary-label">🏷️ [AF+AK] Giảm giá shop / combo</span><span class="summary-value" style="color:#10b981">+${fmt(totalAF + totalAK)} đ</span></div>` : ""}
       ${totalD > 0 ? `
@@ -133,16 +130,33 @@ async function importFile() {
       <br>⏳ Đang upload lên server...
     `)
 
-    // 6. Upload lên worker
-    const res = await fetch(API + "/api/import-orders", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(orders)
-    })
-    if (!res.ok) throw new Error("Server lỗi " + res.status + ": " + await res.text())
+    // 6. Upload lên worker — gọi cả 2 API song song
+    const v2Data = buildOrdersV2(orders)
 
-    const result = await res.json()
-    addLog(`<br><span class="success">✅ Upload thành công — đã lưu <b>${result.imported}</b> dòng vào database!</span>`)
+    const [res, resV2] = await Promise.all([
+      fetch(API + "/api/import-orders", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(orders)
+      }),
+      fetch(API + "/api/import-orders-v2", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(v2Data)
+      })
+    ])
+
+    if (!res.ok)   throw new Error("Server lỗi v1 " + res.status + ": " + await res.text())
+    if (!resV2.ok) throw new Error("Server lỗi v2 " + resV2.status + ": " + await resV2.text())
+
+    const result   = await res.json()
+    const resultV2 = await resV2.json()
+
+    addLog(`<br><span class="success">
+      ✅ Upload thành công!<br>
+      &nbsp;&nbsp;• Bảng cũ: <b>${result.imported}</b> dòng SKU<br>
+      &nbsp;&nbsp;• Bảng mới: <b>${resultV2.imported_orders}</b> đơn + <b>${resultV2.imported_items}</b> SKU items
+    </span>`)
 
   } catch (err) {
     addLog(`<br><span class="error">❌ Lỗi: ${err.message}</span>`)
