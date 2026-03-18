@@ -159,11 +159,10 @@ function _shopee(row, shop) {
   // Đơn thành công : A + B + C - AF - AK  (chưa trừ D, D tính tổng hợp)
   // Đơn hoàn       : lưu A vào return_amount để tổng hợp trừ sau
   // Đơn hủy        : 0 hoàn toàn
-  const line_revenue = (order_type === "normal") ? (A + B + C - AF - AK) : 0
+  const line_revenue  = (order_type === "normal") ? (A + B + C - AF - AK) : 0
   const return_amount = (order_type === "return") ? A : 0   // [D] per dòng
 
-  return {
-    // Đã gửi hàng = đã đóng gói → tính pack fee khi hủy/hoàn
+  // Đã gửi hàng = đã đóng gói → tính pack fee khi hủy/hoàn
   const shipped = !!_str(row["Ngày gửi hàng"])
 
   return {
