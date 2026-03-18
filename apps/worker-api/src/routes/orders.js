@@ -228,6 +228,8 @@ async function recalcCost(request, env, cors) {
         }
       }
 
+      const calc = calcProfit({ ...orderWithCost, return_fee }, cfg)
+
       return env.DB.prepare(`
         UPDATE orders SET
           cost_invoice   = ?,
@@ -251,19 +253,19 @@ async function recalcCost(request, env, cors) {
           is_first_sku   = ?
         WHERE order_id = ? AND sku = ?
       `).bind(
-        p.cost_invoice, p.cost_real,
-        p.profit_invoice, p.profit_real,
-        p.total_fee, p.profit_real,
-        p.tax_flat, p.tax_income,
-        p.fee_platform  || 0,
-        p.fee_payment   || 0,
-        p.fee_affiliate || 0,
-        p.fee_ads       || 0,
-        p.fee_piship    || 0,
-        p.fee_service   || 0,
-        p.fee_packaging || 0,
-        p.fee_operation || 0,
-        p.fee_labor     || 0,
+        calc.cost_invoice, calc.cost_real,
+        calc.profit_invoice, calc.profit_real,
+        calc.total_fee, calc.profit_real,
+        calc.tax_flat, calc.tax_income,
+        calc.fee_platform  || 0,
+        calc.fee_payment   || 0,
+        calc.fee_affiliate || 0,
+        calc.fee_ads       || 0,
+        calc.fee_piship    || 0,
+        calc.fee_service   || 0,
+        calc.fee_packaging || 0,
+        calc.fee_operation || 0,
+        calc.fee_labor     || 0,
         return_fee,
         o.is_first_sku,
         o.order_id, o.sku
