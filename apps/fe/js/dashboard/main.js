@@ -53,9 +53,9 @@ async function loadDashboard() {
     fetch(API + "/api/top-shop"         + qs).then(r => r.json()),
     fetch(API + "/api/report-summary"   + rqs).then(r => r.json()).catch(() => ({})),
     fetch(API + "/api/operation-costs"  + oqs).then(r => r.json())
-	fetch(API + "/api/cancel-stats" + qs).then(r => r.json()).catch(() => []),
       .then(d => Array.isArray(d) ? d : (Array.isArray(d.costs) ? d.costs : []))
       .catch(() => []),
+    fetch(API + "/api/cancel-stats" + qs).then(r => r.json()).catch(() => []),
   ])
 
   // ── KPI ────────────────────────────────────────────────────────────
