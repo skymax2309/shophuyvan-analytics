@@ -10,6 +10,10 @@ async function dashboard(request, env, cors) {
   const filters = getFilters(new URL(request.url))
   const { where, params } = buildWhere(filters)
 
+  // Dùng orders_v2 — mỗi dòng = 1 đơn hàng (đúng hơn)
+  const whereV2        = where.replace(/\borders\b/g, "orders_v2")
+  const whereV2NoType  = whereV2.replace("order_type = 'normal' AND ", "").replace("WHERE order_type = 'normal'", "WHERE 1=1")
+
   const row = await env.DB.prepare(`
     SELECT
       COUNT(DISTINCT order_id)   AS total_orders,
@@ -29,11 +33,10 @@ async function dashboard(request, env, cors) {
       SUM(fee_piship)            AS total_piship_fee,
       SUM(fee_service)           AS total_service_fee,
       SUM(fee_packaging + fee_operation + fee_labor) AS total_fixed_fee
-    FROM orders
-    ${where}
+    FROM orders_v2
+    ${whereV2}
   `).bind(...params).first()
 
-  // Thống kê hủy/hoàn (không lọc order_type)
   const cancelRow = await env.DB.prepare(`
     SELECT
       COUNT(DISTINCT CASE WHEN order_type='cancel' THEN order_id END) AS cancel_orders,
@@ -44,11 +47,10 @@ async function dashboard(request, env, cors) {
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 1620 THEN order_id END) AS tiktok_failed_delivery_count,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='return' THEN order_id END) AS tiktok_return_count,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 0 THEN order_id END) AS tiktok_free_cancel_count
-    FROM orders
-    ${where.replace("order_type = 'normal' AND ", "").replace("WHERE order_type = 'normal'", "WHERE 1=1")}
+    FROM orders_v2
+    ${whereV2NoType}
   `).bind(...params).first()
 
-  // Thống kê chi tiết breakdown doanh thu (dùng cho báo cáo)
   const breakdownRow = await env.DB.prepare(`
     SELECT
       COUNT(DISTINCT CASE WHEN order_type='normal' THEN order_id END)  AS success_orders,
@@ -57,8 +59,8 @@ async function dashboard(request, env, cors) {
       SUM(CASE WHEN order_type='normal' THEN revenue    ELSE 0 END)    AS revenue_normal,
       SUM(CASE WHEN order_type='return' THEN raw_revenue ELSE 0 END)   AS revenue_returned,
       SUM(CASE WHEN order_type='return' THEN return_fee  ELSE 0 END)   AS total_return_shipping
-    FROM orders
-    ${where.replace("order_type = 'normal' AND ", "").replace("WHERE order_type = 'normal'", "WHERE 1=1")}
+    FROM orders_v2
+    ${whereV2NoType}
   `).bind(...params).first()
 
   return Response.json({ ...row, ...cancelRow, ...breakdownRow }, { headers: cors })
@@ -77,7 +79,7 @@ async function revenueByDay(request, env, cors) {
       date(order_date) AS d,
       SUM(revenue)     AS revenue,
       COUNT(DISTINCT order_id) AS orders
-    FROM orders
+    FROM orders_v2
     ${where}
     GROUP BY d
     ORDER BY d
@@ -89,7 +91,6 @@ async function revenueByDay(request, env, cors) {
 
 // ════════════════════════════════════════════════════════════════════
 // PROFIT BY DAY
-// ════════════════════════════════════════════════════════════════════
 async function profitByDay(request, env, cors) {
   const filters = getFilters(new URL(request.url))
   const { where, params } = buildWhere(filters)
@@ -101,7 +102,7 @@ async function profitByDay(request, env, cors) {
       SUM(profit_real)     AS profit_real,
       SUM(tax_flat)        AS tax_flat,
       SUM(tax_income)      AS tax_income
-    FROM orders
+    FROM orders_v2
     ${where}
     GROUP BY d
     ORDER BY d
@@ -120,11 +121,12 @@ async function uniqueSkus(request, env, cors) {
       sku,
       product_name,
       MAX(order_date) AS last_order_date
-    FROM orders
-    WHERE sku IS NOT NULL AND sku != ''
-      AND order_type != 'cancel'
-    GROUP BY sku
-    ORDER BY sku
+    FROM order_items oi
+    JOIN orders_v2 o ON oi.order_id = o.order_id
+    WHERE oi.sku IS NOT NULL AND oi.sku != ''
+      AND o.order_type != 'cancel'
+    GROUP BY oi.sku
+    ORDER BY oi.sku
   `).all()
 
   return Response.json(rows.results, { headers: cors })
@@ -140,14 +142,15 @@ async function topSku(request, env, cors) {
 
   const rows = await env.DB.prepare(`
     SELECT
-      sku,
-      SUM(qty)                 AS total_qty,
-      SUM(revenue)             AS total_revenue,
-      SUM(profit_real)         AS total_profit,
-      COUNT(DISTINCT order_id) AS total_orders
-    FROM orders
-    ${where}
-    GROUP BY sku
+      oi.sku,
+      SUM(oi.qty)                    AS total_qty,
+      SUM(oi.revenue_line)           AS total_revenue,
+      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS total_profit,
+      COUNT(DISTINCT oi.order_id)    AS total_orders
+    FROM order_items oi
+    JOIN orders_v2 o ON oi.order_id = o.order_id
+    ${where.replace("WHERE", "WHERE o.order_type='normal' AND").replace("orders_v2","o")}
+    GROUP BY oi.sku
     ORDER BY total_revenue DESC
     LIMIT ${limit}
   `).bind(...params).all()
@@ -166,14 +169,15 @@ async function topProduct(request, env, cors) {
 
   const rows = await env.DB.prepare(`
     SELECT
-      product_name,
-      SUM(qty)                 AS total_qty,
-      SUM(revenue)             AS total_revenue,
-      SUM(profit_real)         AS total_profit,
-      COUNT(DISTINCT order_id) AS total_orders
-    FROM orders
-    ${where}
-    GROUP BY product_name
+      oi.product_name,
+      SUM(oi.qty)                    AS total_qty,
+      SUM(oi.revenue_line)           AS total_revenue,
+      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS total_profit,
+      COUNT(DISTINCT oi.order_id)    AS total_orders
+    FROM order_items oi
+    JOIN orders_v2 o ON oi.order_id = o.order_id
+    ${where.replace("WHERE", "WHERE o.order_type='normal' AND").replace("orders_v2","o")}
+    GROUP BY oi.product_name
     ORDER BY total_revenue DESC
     LIMIT ${limit}
   `).bind(...params).all()
@@ -196,7 +200,7 @@ async function topShop(request, env, cors) {
       SUM(revenue)             AS total_revenue,
       SUM(profit_real)         AS total_profit,
       COUNT(DISTINCT order_id) AS total_orders
-    FROM orders
+    FROM orders_v2
     ${where}
     GROUP BY shop, platform
     ORDER BY total_revenue DESC
