@@ -213,16 +213,14 @@ async function recalcCost(request, env, cors) {
     const stmts = chunk.map(o => {
       const product = productMap[o.sku] || { cost_invoice: 0, cost_real: 0 }
       const orderWithCost = { ...o, cost_invoice: product.cost_invoice, cost_real: product.cost_real }
-      const p = calcProfit(orderWithCost, cfg)
-
-      // Tính lại return_fee từ cost_settings
+      // Tính lại return_fee từ cost_settings TRƯỚC khi calcProfit
       let return_fee = o.return_fee || 0
       if (o.order_type === "return") {
         return_fee = o.platform === "tiktok"
           ? (cfg["tiktok_return_fee"]?.value          ?? 4620)
           : (cfg["shopee_return_fee"]?.value           ?? 1620)
       } else if (o.order_type === "cancel") {
-        const isFailed = /giao hàng thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
+        const isFailed = /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
         if (isFailed) {
           return_fee = o.platform === "tiktok"
             ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620)
@@ -300,27 +298,29 @@ async function recalcCost(request, env, cors) {
         return s + p.cost_invoice * (item.qty || 1)
       }, 0)
 
-      const orderForCalc = {
-        ...o,
-        cost_invoice: totalCostInvoice,
-        cost_real:    totalCostReal,
-        is_first_sku: 1,
-      }
-      const p = calcProfit(orderForCalc, cfg)
-
+      // Tính return_fee TRƯỚC calcProfit
       let return_fee = o.return_fee || 0
       if (o.order_type === "return") {
         return_fee = o.platform === "tiktok"
           ? (cfg["tiktok_return_fee"]?.value    ?? 4620)
           : (cfg["shopee_return_fee"]?.value     ?? 1620)
       } else if (o.order_type === "cancel") {
-        const isFailed = /giao hàng thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
+        const isFailed = /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
         if (isFailed) {
           return_fee = o.platform === "tiktok"
             ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620)
             : (cfg["shopee_failed_delivery_fee"]?.value  ?? 1620)
         }
       }
+
+      const orderForCalc = {
+        ...o,
+        cost_invoice: totalCostInvoice,
+        cost_real:    totalCostReal,
+        is_first_sku: 1,
+        return_fee,
+      }
+      const p = calcProfit(orderForCalc, cfg)
 
       return env.DB.prepare(`
         UPDATE orders_v2 SET
@@ -395,28 +395,29 @@ async function importOrdersV2(request, env, cors) {
 
     // Tính profit dựa trên order tổng
     // is_first_sku = true vì đây là đơn tổng (phí per-đơn tính 1 lần)
-    const orderForCalc = {
-      ...o,
-      cost_invoice: totalCostInvoice,
-      cost_real:    totalCostReal,
-      is_first_sku: 1,
-    }
-    const p = calcProfit(orderForCalc, cfg)
-
-    // Tính lại return_fee
+    // Tính return_fee TRƯỚC calcProfit
     let return_fee = o.return_fee || 0
     if (o.order_type === "return") {
       return_fee = o.platform === "tiktok"
         ? (cfg["tiktok_return_fee"]?.value    ?? 4620)
         : (cfg["shopee_return_fee"]?.value     ?? 1620)
     } else if (o.order_type === "cancel") {
-      const isFailed = /giao hàng thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
+      const isFailed = /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
       if (isFailed) {
         return_fee = o.platform === "tiktok"
           ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620)
           : (cfg["shopee_failed_delivery_fee"]?.value  ?? 1620)
       }
     }
+
+    const orderForCalc = {
+      ...o,
+      cost_invoice: totalCostInvoice,
+      cost_real:    totalCostReal,
+      is_first_sku: 1,
+      return_fee,
+    }
+    const p = calcProfit(orderForCalc, cfg)
 
     return {
       ...o,
