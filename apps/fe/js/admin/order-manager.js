@@ -13,6 +13,7 @@ async function loadOrders(page = 1) {
   const from   = document.getElementById("o_from").value
   const to     = document.getElementById("o_to").value
   const plt    = document.getElementById("o_platform").value
+  const shop   = document.getElementById("o_shop").value
   const type   = document.getElementById("o_type").value
   const search = document.getElementById("o_search").value.trim().toLowerCase()
 
@@ -20,6 +21,7 @@ async function loadOrders(page = 1) {
   if (from) params.set("from", from)
   if (to)   params.set("to", to)
   if (plt)  params.set("platform", plt)
+  if (shop) params.set("shop", shop)
   const qs = params.toString() ? "?" + params.toString() : ""
 
 const rawData = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
@@ -70,6 +72,7 @@ const rawData = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
 
   // ── Filter ───────────────────────────────────────────────────────
   if (type)   grouped = grouped.filter(o => o.order_type === type)
+  if (shop)   grouped = grouped.filter(o => o.shop === shop)
   if (search) grouped = grouped.filter(o =>
     (o.order_id || "").toLowerCase().includes(search) ||
     (o.shop     || "").toLowerCase().includes(search) ||
@@ -486,6 +489,19 @@ async function recalcCostInline() {
 
   btn.disabled    = false
   btn.textContent = "🔄 Cập nhật vốn"
+}
+
+async function populateOrderShops() {
+  const plt = document.getElementById("o_platform").value
+  const sel = document.getElementById("o_shop")
+  try {
+    const shops = await fetch(API + "/api/top-shop" + (plt ? `?platform=${plt}` : "")).then(r => r.json())
+    const names = [...new Set(shops.map(s => s.shop))].filter(Boolean).sort()
+    sel.innerHTML = '<option value="">Tất cả shop</option>'
+      + names.map(s => `<option value="${s}">${s}</option>`).join("")
+  } catch(e) {
+    sel.innerHTML = '<option value="">Tất cả shop</option>'
+  }
 }
 
 function resetOrderFilter() {

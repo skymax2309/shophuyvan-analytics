@@ -10,7 +10,7 @@ function switchTab(name) {
     if (["sku", "combo", "orders", "invoice"][i] === name) btn.classList.add("active")
   })
   if (name === "combo")   loadCombos()
-  if (name === "orders")  loadOrders(1)
+  if (name === "orders")  { populateOrderShops(); loadOrders(1) }
   if (name === "invoice") loadInvoices()
 }
 

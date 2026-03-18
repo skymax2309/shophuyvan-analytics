@@ -223,6 +223,70 @@ async function loadInvoices() {
   }
 }
 
+async function downloadAllInvoicesZip() {
+  const btn = document.getElementById("btn-download-all-inv")
+  btn.disabled = true
+  btn.textContent = "⏳ Đang tải danh sách..."
+
+  try {
+    // Lấy toàn bộ hóa đơn
+    const all = await fetch(API + "/api/invoices?all=1").then(r => r.json())
+    if (!all.length) { alert("Không có hóa đơn nào!"); return }
+
+    // Cần thư viện JSZip — load động nếu chưa có
+    if (!window.JSZip) {
+      await new Promise((res, rej) => {
+        const s = document.createElement("script")
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+        s.onload = res; s.onerror = rej
+        document.head.appendChild(s)
+      })
+    }
+
+    const zip = new window.JSZip()
+    let done = 0
+
+    for (const inv of all) {
+      if (!inv.r2_key) { done++; continue }
+
+      // Tên folder theo tháng: "2026-02", "2026-01", ...
+      const month  = (inv.invoice_date || "unknown").slice(0, 7)
+      const folder = zip.folder(month)
+
+      // Tên file: "CTY_VINH_PHAT_HĐ440_2026-02-07.pdf"
+      const supplier = (inv.supplier || "NhaCungCap")
+        .replace(/[^a-zA-Z0-9À-ỹ\s]/g, "").trim()
+        .replace(/\s+/g, "_").slice(0, 30)
+      const invoiceNo = (inv.invoice_no || "unknown").replace(/[/\\:*?"<>|]/g, "-")
+      const fileName  = `${supplier}_HD${invoiceNo}_${inv.invoice_date || "unknown"}.pdf`
+
+      btn.textContent = `⏳ Đang tải ${++done}/${all.length}...`
+
+      try {
+        const res  = await fetch(API + "/api/invoice-file?key=" + encodeURIComponent(inv.r2_key))
+        const blob = await res.blob()
+        folder.file(fileName, blob)
+      } catch (e) {
+        console.warn("Bỏ qua:", inv.r2_key, e.message)
+      }
+    }
+
+    btn.textContent = "⏳ Đang đóng gói ZIP..."
+    const zipBlob = await zip.generateAsync({ type: "blob" })
+    const a = document.createElement("a")
+    a.href = URL.createObjectURL(zipBlob)
+    a.download = `hoa-don-${new Date().toISOString().slice(0,10)}.zip`
+    a.click()
+
+    showToast(`✅ Đã tải ${all.length} hóa đơn, chia ${[...new Set(all.map(i => (i.invoice_date||"").slice(0,7)))].length} tháng!`)
+  } catch (e) {
+    alert("Lỗi: " + e.message)
+  } finally {
+    btn.disabled = false
+    btn.textContent = "📦 Tải tất cả PDF (theo tháng)"
+  }
+}
+
 async function deleteInvoice(id, r2Key) {
   if (!confirm("Xóa hóa đơn này? File PDF cũng sẽ bị xóa.")) return
   await fetch(API + "/api/invoices/delete", {
@@ -259,16 +323,22 @@ function renderInvoiceList(data) {
   const months  = [...new Set(_allInvoices.map(i => (i.invoice_date || "").slice(0, 7)))].sort().reverse()
   const mstList = [...new Set(_allInvoices.map(i => i.buyer).filter(Boolean))]
 
+  // Giữ lại giá trị filter hiện tại nếu đang có
+  const curKw    = document.getElementById("inv-filter-kw")?.value    || ""
+  const curMonth = document.getElementById("inv-filter-month")?.value || ""
+  const curMst   = document.getElementById("inv-filter-mst")?.value   || ""
+
   const filterHtml = `
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <input id="inv-filter-kw" type="text"
         placeholder="🔍 Tìm nhà CC / số HĐ / tên SP / SKU..."
         oninput="filterInvoices()"
+        value="${curKw.replace(/"/g,'&quot;')}"
         style="flex:1;min-width:200px;border:1px solid #e5e7eb;border-radius:6px;padding:7px 10px;font-size:13px">
       <select id="inv-filter-month" onchange="filterInvoices()"
         style="border:1px solid #e5e7eb;border-radius:6px;padding:7px 10px;font-size:13px">
         <option value="">Tất cả tháng</option>
-        ${months.map(m => `<option value="${m}">${m}</option>`).join("")}
+        ${months.map(m => `<option value="${m}" ${m === curMonth ? "selected" : ""}>${m}</option>`).join("")}
       </select>
     </div>
     <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -288,7 +358,7 @@ function renderInvoiceList(data) {
           ${mst}
         </button>`).join("")}
       ${!mstList.length ? `<span style="font-size:11px;color:#aaa;font-style:italic">Chưa có dữ liệu MST — upload lại hóa đơn để cập nhật</span>` : ""}
-      <input type="hidden" id="inv-filter-mst" value="">
+      <input type="hidden" id="inv-filter-mst" value="${curMst}">
     </div>`
 
   if (!data.length) {

@@ -196,9 +196,13 @@ async function saveInvoice(request, env, cors) {
 }
 
 async function listInvoices(request, env, cors) {
-  const rows = await env.DB.prepare(`
-    SELECT * FROM purchase_invoices ORDER BY invoice_date DESC LIMIT 100
-  `).all()
+  const url = new URL(request.url)
+  const all = url.searchParams.get("all") === "1"
+  const rows = await env.DB.prepare(
+    all
+      ? `SELECT * FROM purchase_invoices ORDER BY invoice_date DESC`
+      : `SELECT * FROM purchase_invoices ORDER BY invoice_date DESC LIMIT 100`
+  ).all()
   return Response.json(rows.results, { headers: cors })
 }
 
