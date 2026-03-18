@@ -262,6 +262,64 @@
         <button class="btn btn-primary" onclick="loadOrders(1)">🔍 Lọc</button>
         <button class="btn" style="background:#f3f4f6;color:#555" onclick="resetOrderFilter()">✕ Reset</button>
         <button class="btn" style="background:#10b981;color:white" onclick="exportOrders()">⬇️ Xuất CSV</button>
+        <button class="btn" style="background:#7c3aed;color:white" onclick="toggleTaxExport()">🧾 Xuất Quyết Toán Thuế</button>
+      </div>
+      <!-- Panel xuất quyết toán thuế -->
+      <div id="taxExportPanel" style="display:none;margin-top:12px;padding:14px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
+        <div style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:10px">🧾 Xuất báo cáo quyết toán thuế</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <div>
+            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Sàn</label>
+            <select id="tax_platform" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px">
+              <option value="">Tất cả sàn</option>
+              <option value="shopee">Shopee</option>
+              <option value="tiktok">TikTok</option>
+              <option value="lazada">Lazada</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Shop</label>
+            <select id="tax_shop" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px;min-width:140px">
+              <option value="">Tất cả shop</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Tháng</label>
+            <select id="tax_month" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px">
+              <option value="">Tất cả tháng</option>
+              <option value="01">Tháng 1</option><option value="02">Tháng 2</option>
+              <option value="03">Tháng 3</option><option value="04">Tháng 4</option>
+              <option value="05">Tháng 5</option><option value="06">Tháng 6</option>
+              <option value="07">Tháng 7</option><option value="08">Tháng 8</option>
+              <option value="09">Tháng 9</option><option value="10">Tháng 10</option>
+              <option value="11">Tháng 11</option><option value="12">Tháng 12</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Năm</label>
+            <select id="tax_year" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px">
+              <option value="">Tất cả năm</option>
+              <option value="2024">2024</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
+          </div>
+          <div style="align-self:flex-end;display:flex;gap:6px">
+            <button onclick="exportTaxReport('csv')"
+              style="background:#10b981;color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
+              ⬇️ CSV
+            </button>
+            <button onclick="exportTaxReport('excel')"
+              style="background:#2563eb;color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
+              📊 Excel
+            </button>
+            <button onclick="exportTaxReport('pdf')"
+              style="background:#dc2626;color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
+              📄 PDF
+            </button>
+          </div>
+        </div>
+        <div id="taxExportInfo" style="font-size:12px;color:#888;margin-top:8px"></div>
       </div>
       <div id="orderSummary" style="font-size:12px;color:#888;margin-bottom:8px"></div>
       <div style="overflow-x:auto">
@@ -339,6 +397,9 @@
      2. admin managers — phụ thuộc utils
      3. admin/main — phụ thuộc tất cả (init cuối cùng)
 ═══════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="../js/utils/api.js"></script>
 <script src="../js/utils/format.js"></script>
 <script src="../js/admin/sku-manager.js"></script>

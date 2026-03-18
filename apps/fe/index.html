@@ -43,7 +43,7 @@ button:disabled { background: #aaa; cursor: not-allowed; }
 </div>
 
 <script type="module">
-import { normalizeOrder, parseFileMeta, fillFirstSku, loadCostConfig } from "./js/parser.js"
+import { normalizeOrder, parseFileMeta, fillFirstSku, mergeOrderLines, loadCostConfig } from "./js/parser.js"
 
 const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 const btn = document.getElementById("btnImport")
@@ -83,7 +83,8 @@ async function importFile() {
       else skipped.push(i + 2)
     })
 
-    const orders = fillFirstSku(rawOrders)
+    const merged = mergeOrderLines(rawOrders)  // gộp dòng trùng order_id+sku
+    const orders = fillFirstSku(merged)
 
     // 4. Thống kê
     const normal  = orders.filter(o => o.order_type === "normal")

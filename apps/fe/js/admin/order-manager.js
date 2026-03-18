@@ -39,12 +39,28 @@ async function loadOrders(page = 1) {
   const start      = (page - 1) * PAGE_SIZE
   const paged      = filtered.slice(start, start + PAGE_SIZE)
 
-  const totalRev    = filtered.filter(o => o.order_type === "normal").reduce((s, o) => s + (o.revenue || 0), 0)
-  const totalProfit = filtered.filter(o => o.order_type === "normal").reduce((s, o) => s + (o.profit_real || 0), 0)
+  const normalOrders = filtered.filter(o => o.order_type === "normal")
+  const cancelOrders = filtered.filter(o => o.order_type === "cancel")
+  const returnOrders = filtered.filter(o => o.order_type === "return")
+
+  const totalRev        = normalOrders.reduce((s, o) => s + (o.revenue     || 0), 0)
+  const totalProfit     = normalOrders.reduce((s, o) => s + (o.profit_real || 0), 0)
+  const totalCancelFee  = cancelOrders.reduce((s, o) => s + (o.return_fee  || 0), 0)
+  const totalReturnFee  = returnOrders.reduce((s, o) => s + (o.return_fee  || 0), 0)
+
+  const uniqueCancel = [...new Set(cancelOrders.map(o => o.order_id))].length
+  const uniqueReturn = [...new Set(returnOrders.map(o => o.order_id))].length
+
   document.getElementById("orderSummary").innerHTML =
     `Hiển thị <b>${paged.length}</b> / <b>${total}</b> đơn &nbsp;|&nbsp;
      Doanh thu: <b style="color:#3b82f6">${fmt(totalRev)}</b> &nbsp;|&nbsp;
-     Lãi thực: <b class="${totalProfit >= 0 ? "profit-pos" : "profit-neg"}">${fmt(totalProfit)}</b>`
+     Lãi thực: <b class="${totalProfit >= 0 ? "profit-pos" : "profit-neg"}">${fmt(totalProfit)}</b>
+     ${uniqueCancel > 0 ? `&nbsp;|&nbsp;
+     ✗ Hủy: <b style="color:#ef4444">${uniqueCancel} đơn</b>
+     ${totalCancelFee > 0 ? `(-<b style="color:#ef4444">${fmt(totalCancelFee)}</b>)` : ""}` : ""}
+     ${uniqueReturn > 0 ? `&nbsp;|&nbsp;
+     ↩ Hoàn: <b style="color:#f59e0b">${uniqueReturn} đơn</b>
+     (-<b style="color:#f59e0b">${fmt(totalReturnFee)}</b>)` : ""}`
 
   if (paged.length === 0) {
     document.getElementById("ordersTable").innerHTML =
@@ -183,4 +199,194 @@ function exportOrders() {
   a.download = "orders_" + new Date().toISOString().slice(0, 10) + ".csv"
   a.click()
   showToast("✅ Đã xuất CSV!")
+}
+
+function toggleTaxExport() {
+  const panel = document.getElementById("taxExportPanel")
+  panel.style.display = panel.style.display === "none" ? "block" : "none"
+  if (panel.style.display === "block") _loadTaxShops()
+}
+
+async function _loadTaxShops() {
+  try {
+    const shops = await fetch(API + "/api/top-shop").then(r => r.json())
+    const names = [...new Set(shops.map(s => s.shop))].sort()
+    const sel   = document.getElementById("tax_shop")
+    sel.innerHTML = '<option value="">Tất cả shop</option>'
+      + names.map(s => `<option value="${s}">${s}</option>`).join("")
+  } catch(e) {}
+}
+
+async function exportTaxReport(format = 'csv') {
+  const platform = document.getElementById("tax_platform").value
+  const shop     = document.getElementById("tax_shop").value
+  const month    = document.getElementById("tax_month").value
+  const year     = document.getElementById("tax_year").value
+
+  const info = document.getElementById("taxExportInfo")
+  info.textContent = "⏳ Đang tải dữ liệu..."
+
+  // Build query params
+  const params = new URLSearchParams()
+  if (platform) params.set("platform", platform)
+  if (shop)     params.set("shop", shop)
+  if (year && month) {
+    params.set("from", `${year}-${month}-01`)
+    const lastDay = new Date(+year, +month, 0).getDate()
+    params.set("to", `${year}-${month}-${lastDay}`)
+  } else if (year) {
+    params.set("from", `${year}-01-01`)
+    params.set("to",   `${year}-12-31`)
+  }
+  const qs = params.toString() ? "?" + params.toString() : ""
+
+const data = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
+  const normal = data.filter(o => o.order_type === "normal")
+
+  if (normal.length === 0) {
+    info.textContent = "⚠️ Không có đơn thành công nào trong khoảng thời gian này."
+    return
+  }
+
+  // Tổng hợp theo tháng
+  const byMonth = {}
+  for (const o of normal) {
+    const m = (o.order_date || "").substring(0, 7)
+    if (!byMonth[m]) byMonth[m] = { revenue: 0, tax_flat: 0, tax_income: 0, orders: 0 }
+    byMonth[m].revenue    += o.revenue    || 0
+    byMonth[m].tax_flat   += o.tax_flat   || 0
+    byMonth[m].tax_income += o.tax_income || 0
+    byMonth[m].orders++
+  }
+
+  const totalTax = normal.reduce((s, o) => s + (o.tax_flat || 0) + (o.tax_income || 0), 0)
+
+  // Tên file
+  const parts = ["quyet-toan-thue"]
+  if (platform) parts.push(platform)
+  if (shop)     parts.push(shop.replace(/\s+/g, "-"))
+  if (year)     parts.push(year)
+  if (month)    parts.push("T" + month)
+  const fileName = parts.join("_")
+
+  // ── Header bảng tổng hợp & chi tiết ──────────────────────────────
+  const summaryHeader = ["Tháng","Số đơn","Doanh thu","Thuế khoán (1.5%)","Thuế LN (17%)","Tổng thuế"]
+  const summaryData   = Object.entries(byMonth).sort().map(([m, v]) => [
+    m, v.orders, v.revenue, v.tax_flat, v.tax_income, v.tax_flat + v.tax_income
+  ])
+  const summaryTotal  = [
+    "TỔNG CỘNG", normal.length,
+    normal.reduce((s,o) => s+(o.revenue||0), 0),
+    normal.reduce((s,o) => s+(o.tax_flat||0), 0),
+    normal.reduce((s,o) => s+(o.tax_income||0), 0),
+    totalTax
+  ]
+
+  const detailHeader = ["Tháng","Ngày","Sàn","Shop","Mã đơn","SKU","Tên SP","SL","Doanh thu","Vốn thực","Tổng phí","Lãi thực","Thuế khoán","Thuế LN","Tổng thuế"]
+  const detailData   = normal.map(o => [
+    (o.order_date||"").substring(0,7), o.order_date, o.platform, o.shop,
+    o.order_id, o.sku, o.product_name, o.qty,
+    o.revenue, o.cost_real, o.fee, o.profit_real,
+    o.tax_flat||0, o.tax_income||0, (o.tax_flat||0)+(o.tax_income||0)
+  ])
+
+  // ── XUẤT THEO ĐỊNH DẠNG ───────────────────────────────────────────
+  if (format === 'csv') {
+    const rows = [
+      ["=== TỔNG HỢP THEO THÁNG ==="],
+      summaryHeader, ...summaryData, summaryTotal,
+      [], ["=== CHI TIẾT TỪNG ĐƠN ==="],
+      detailHeader, ...detailData
+    ]
+    const csv  = rows.map(r => r.map(v => `"${(v||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n")
+    const blob = new Blob(["\uFEFF"+csv], { type:"text/csv;charset=utf-8" })
+    const a    = document.createElement("a")
+    a.href     = URL.createObjectURL(blob)
+    a.download = fileName + ".csv"
+    a.click()
+
+  } else if (format === 'excel') {
+    const wb = XLSX.utils.book_new()
+
+    // Sheet 1: Tổng hợp
+    const ws1Data = [summaryHeader, ...summaryData, summaryTotal]
+    const ws1     = XLSX.utils.aoa_to_sheet(ws1Data)
+    ws1["!cols"]  = [10,10,18,18,16,18].map(w => ({ wch: w }))
+    // Tô màu dòng tổng (thủ công qua style)
+    XLSX.utils.book_append_sheet(wb, ws1, "Tổng hợp thuế")
+
+    // Sheet 2: Chi tiết
+    const ws2Data = [detailHeader, ...detailData]
+    const ws2     = XLSX.utils.aoa_to_sheet(ws2Data)
+    ws2["!cols"]  = [10,12,10,16,20,20,30,6,14,14,12,12,14,12,12].map(w => ({ wch: w }))
+    XLSX.utils.book_append_sheet(wb, ws2, "Chi tiết đơn hàng")
+
+    XLSX.writeFile(wb, fileName + ".xlsx")
+
+  } else if (format === 'pdf') {
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" })
+
+    const fmtN = n => Number(n||0).toLocaleString("vi-VN")
+    const period = [
+      platform ? platform.toUpperCase() : "Tất cả sàn",
+      shop || "Tất cả shop",
+      year ? (month ? `Tháng ${month}/${year}` : `Năm ${year}`) : "Tất cả thời gian"
+    ].join(" | ")
+
+    // Tiêu đề
+    doc.setFontSize(14)
+    doc.text("BÁO CÁO QUYẾT TOÁN THUẾ", 148, 14, { align: "center" })
+    doc.setFontSize(9)
+    doc.text(period, 148, 20, { align: "center" })
+    doc.text(`Xuất ngày: ${new Date().toLocaleDateString("vi-VN")}`, 148, 25, { align: "center" })
+
+    // Bảng 1: Tổng hợp
+    doc.setFontSize(10)
+    doc.text("TỔNG HỢP THEO THÁNG", 14, 32)
+    doc.autoTable({
+      startY: 35,
+      head:   [summaryHeader],
+      body:   [...summaryData, summaryTotal],
+      theme:  "grid",
+      styles: { fontSize: 8, halign: "right" },
+      headStyles:  { fillColor: [124,58,237], textColor: 255, halign: "center" },
+      columnStyles: { 0: { halign: "center" } },
+      didParseCell: (d) => {
+        if (d.row.index === summaryData.length) {
+          d.cell.styles.fontStyle = "bold"
+          d.cell.styles.fillColor = [240, 235, 255]
+        }
+      },
+      margin: { left: 14, right: 14 }
+    })
+
+    // Bảng 2: Chi tiết
+    const y2 = doc.lastAutoTable.finalY + 8
+    doc.setFontSize(10)
+    doc.text("CHI TIẾT TỪNG ĐƠN HÀNG", 14, y2)
+    doc.autoTable({
+      startY: y2 + 3,
+      head:   [detailHeader],
+      body:   detailData,
+      theme:  "striped",
+      styles: { fontSize: 7, halign: "right", overflow: "ellipsize" },
+      headStyles: { fillColor: [37,99,235], textColor: 255, halign: "center", fontSize: 7 },
+      columnStyles: {
+        0: { halign:"center", cellWidth:12 },
+        1: { halign:"center", cellWidth:14 },
+        2: { halign:"center", cellWidth:12 },
+        3: { cellWidth:22 },
+        4: { cellWidth:24 },
+        5: { cellWidth:22 },
+        6: { cellWidth:30 },
+        7: { halign:"center", cellWidth:8 },
+      },
+      margin: { left: 14, right: 14 }
+    })
+
+    doc.save(fileName + ".pdf")
+  }
+
+  info.textContent = `✅ Đã xuất ${normal.length} đơn | Tổng thuế: ${Number(totalTax).toLocaleString("vi-VN")}đ`
 }

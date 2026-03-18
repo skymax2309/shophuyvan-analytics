@@ -69,6 +69,29 @@ export function normalizeOrder(row, meta = {}) {
 // Đánh dấu dòng SKU đầu tiên của mỗi đơn để tính phí per-đơn
 // is_first_sku = true  → tính phí PiShip + DV
 // is_first_sku = false → không tính (tránh nhân đôi)
+// Gộp các dòng trùng order_id + sku (cùng SKU trong 1 đơn nhiều dòng)
+export function mergeOrderLines(orders) {
+  const map = new Map()
+  for (const o of orders) {
+    const key = o.order_id + "||" + o.sku
+    if (!map.has(key)) {
+      map.set(key, { ...o })
+    } else {
+      const existing = map.get(key)
+      // Cộng dồn qty và revenue
+      existing.qty          = (existing.qty          || 0) + (o.qty          || 0)
+      existing.revenue      = (existing.revenue      || 0) + (o.revenue      || 0)
+      existing.raw_revenue  = (existing.raw_revenue  || 0) + (o.raw_revenue  || 0)
+      existing.return_amount= (existing.return_amount|| 0) + (o.return_amount|| 0)
+      existing.shopee_voucher=(existing.shopee_voucher||0) + (o.shopee_voucher||0)
+      existing.shopee_subsidy=(existing.shopee_subsidy||0) + (o.shopee_subsidy||0)
+      existing.shop_discount = (existing.shop_discount||0) + (o.shop_discount||0)
+      existing.combo_discount= (existing.combo_discount||0)+ (o.combo_discount||0)
+    }
+  }
+  return [...map.values()]
+}
+
 export function fillFirstSku(orders) {
   const seen = new Set()
   return orders.map(o => {
@@ -140,10 +163,15 @@ function _shopee(row, shop) {
   const return_amount = (order_type === "return") ? A : 0   // [D] per dòng
 
   return {
+    // Đã gửi hàng = đã đóng gói → tính pack fee khi hủy/hoàn
+  const shipped = !!_str(row["Ngày gửi hàng"])
+
+  return {
     platform:         "shopee",
     shop,
     order_id,
     order_date:       _date(_str(row["Ngày đặt hàng"])),
+    shipped,
     product_name:     _str(row["Tên sản phẩm"]),
     sku:              _str(row["SKU phân loại hàng"]),
     qty,
@@ -224,11 +252,15 @@ function _tiktok(row, shop) {
   else if (order_type === "cancel" && is_failed_delivery)
     cancel_fee = window._costCfg?.tiktok_failed_delivery_fee ?? 1620
 
+  // TikTok: đã gửi hàng nếu có Tracking ID hoặc Shipped Time
+  const shipped = !!(_str(row["Tracking ID"]) || _str(row["Shipped Time"]))
+
   return {
     platform:        "tiktok",
     shop,
     order_id,
     order_date:      _date(_str(row["Created Time"])),
+    shipped,
     product_name:    _str(row["Product Name"]),
     sku:             _str(row["Seller SKU"]),
     qty:             _int(row["Quantity"]),
@@ -352,10 +384,17 @@ function _date(val) {
 
 // Tìm value theo partial key match (xử lý encoding khác nhau)
 function _findKey(row, keyword) {
-  // Thử exact match trước
+  // Thử exact match trước (NFC)
   if (row[keyword] !== undefined) return row[keyword]
-  // Fallback: tìm key có chứa từ khóa ASCII (bỏ dấu)
-  const normalize = s => s.toLowerCase()
+
+  // Normalize cả key lẫn keyword về NFC trước (fix Excel Shopee dùng NFD)
+  const nfc = s => s.normalize ? s.normalize("NFC") : s
+  for (const k of Object.keys(row)) {
+    if (nfc(k) === nfc(keyword)) return row[k]
+  }
+
+  // Fallback: so sánh bỏ dấu (phòng trường hợp encode khác hoàn toàn)
+  const stripAccent = s => nfc(s).toLowerCase()
     .replace(/[àáảãạăắằẳẵặâấầẩẫậ]/g, "a")
     .replace(/[đ]/g, "d")
     .replace(/[èéẻẽẹêếềểễệ]/g, "e")
@@ -365,9 +404,9 @@ function _findKey(row, keyword) {
     .replace(/[ỳýỷỹỵ]/g, "y")
     .replace(/\s+/g, " ").trim()
 
-  const normKeyword = normalize(keyword)
+  const normKeyword = stripAccent(keyword)
   for (const k of Object.keys(row)) {
-    if (normalize(k) === normKeyword) return row[k]
+    if (stripAccent(k) === normKeyword) return row[k]
   }
   return undefined
 }

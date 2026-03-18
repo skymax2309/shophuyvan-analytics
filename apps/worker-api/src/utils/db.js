@@ -68,23 +68,61 @@ function calcProfit(order, cfg) {
                  + pishipFee + svcFee
                  + tiktokSfr + tiktokHandling
 
-  const costInvoice = (order.cost_invoice || 0) * qty
+const costInvoice = (order.cost_invoice || 0) * qty
   const costReal    = (order.cost_real    || 0) * qty
+
+  // Đơn hủy thông thường: không mất gì cả → toàn bộ = 0
+  // Chỉ tính phí nếu là đơn hủy giao thất bại (có return_fee > 0)
+  const isNormal       = order.order_type === 'normal'
+  const isReturn       = order.order_type === 'return'
+  const isCancel       = order.order_type === 'cancel'
+  const isCancelWithFee = isCancel && (order.return_fee || 0) > 0
+
+  if (isCancel && !isCancelWithFee) {
+    // Hủy thông thường: không mất gì
+    return {
+      revenue: 0, total_fee: 0,
+      cost_invoice: 0, cost_real: 0,
+      profit_invoice: 0, profit_real: 0,
+      tax_flat: 0, tax_income: 0,
+      profit_after_tax: 0,
+      fee_platform: 0, fee_payment: 0, fee_affiliate: 0, fee_ads: 0,
+      fee_piship: 0, fee_service: 0,
+      fee_packaging: 0, fee_operation: 0, fee_labor: 0,
+    }
+  }
+
+  if (isCancelWithFee || isReturn) {
+    // Hủy giao thất bại hoặc hoàn hàng: mất return_fee + phí đóng gói nếu đã gửi
+    const fee  = order.return_fee || 0
+    const pack = order.shipped ? packFee : 0
+    const total = fee + pack
+    return {
+      revenue: 0, total_fee: total,
+      cost_invoice: 0, cost_real: 0,
+      profit_invoice: -total, profit_real: -total,
+      tax_flat: 0, tax_income: 0,
+      profit_after_tax: -total,
+      fee_platform: 0, fee_payment: 0, fee_affiliate: 0, fee_ads: 0,
+      fee_piship: fee, fee_service: 0,
+      fee_packaging: pack, fee_operation: 0, fee_labor: 0,
+    }
+  }
 
   // Phí có hóa đơn (không gồm vận hành)
   const feeWithInvoice = totalFee - packFee - opFee - laborFee
 
-  // Lãi HĐ = doanh thu - vốn HĐ - phí có HĐ (không trừ phí vận hành)
+  // Lãi HĐ = doanh thu - vốn HĐ - phí có HĐ
   const profitInvoice = rev - costInvoice - feeWithInvoice
 
   // Lãi Thực = doanh thu - vốn Thực - phí
-  const profitReal    = rev - costReal    - totalFee
+  const profitReal = rev - costReal - totalFee
 
   // Thuế khoán 1.5% trên doanh thu
-  const taxFlat = (order.order_type === 'normal') ? rev * 0.015 : 0
+  const taxFlat = isNormal ? rev * 0.015 : 0
 
   // Thuế lợi nhuận 17% trên Lãi HĐ (chỉ khi lãi > 0)
-  const taxIncome = (order.order_type === 'normal' && profitInvoice > 0) ? profitInvoice * 0.17 : 0
+  const taxIncome = (isNormal && profitInvoice > 0) ? profitInvoice * 0.17 : 0
   // Lưu ý: taxIncome tính trên profitInvoice đã loại phí vận hành
 
   return {
