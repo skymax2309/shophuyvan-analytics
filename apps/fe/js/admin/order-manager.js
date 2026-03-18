@@ -175,9 +175,18 @@ function resetLossFilter() {
 }
 
 // ── IMPORT FILE INLINE ───────────────────────────────────────────────
-function toggleImportPanel() {
+async function toggleImportPanel() {
   const panel = document.getElementById("importPanel")
   panel.style.display = panel.style.display === "none" ? "block" : "none"
+  if (panel.style.display === "block") {
+    try {
+      const shops = await fetch(API + "/api/top-shop").then(r => r.json())
+      const names = [...new Set(shops.map(s => s.shop))].sort()
+      const sel   = document.getElementById("inlineShopSelect")
+      sel.innerHTML = '<option value="">-- Chọn shop (nếu Shopee) --</option>'
+        + names.map(s => `<option value="${s}">${s}</option>`).join("")
+    } catch(e) {}
+  }
 }
 
 async function importFileInline() {
@@ -189,15 +198,24 @@ async function importFileInline() {
   log.innerHTML = "⏳ Đang đọc file..."
 
   try {
-    // Parse tên file lấy platform + shop
+    // Detect platform từ tên file
     const nameParts = file.name.replace(/\.xlsx$/i, "").split("_")
-    let platform = "unknown", shop = nameParts[0] || "unknown"
+    let platform = "unknown"
     for (const p of nameParts) {
       const l = p.toLowerCase()
       if (l === "shopee") { platform = "shopee"; break }
       if (l === "tiktok") { platform = "tiktok"; break }
       if (l === "lazada") { platform = "lazada"; break }
     }
+
+    // Lấy shop từ dropdown (ưu tiên) hoặc tên file (fallback)
+    const shopSel = document.getElementById("inlineShopSelect")
+    const shop    = (shopSel?.value) ? shopSel.value : (nameParts[0] || "unknown")
+    if (!shopSel?.value) {
+      log.innerHTML = `⚠️ Chưa chọn shop! Dùng tên từ file: <b>${nameParts[0] || "unknown"}</b>. Tiếp tục sau 2 giây...`
+      await new Promise(r => setTimeout(r, 2000))
+    }
+
 
     // Đọc Excel
     const data     = await file.arrayBuffer()

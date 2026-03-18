@@ -271,6 +271,10 @@
       <div id="importPanel" style="display:none;margin-top:12px;padding:14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px">
         <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:10px">📥 Import file đơn hàng</div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <select id="inlineShopSelect"
+            style="border:1px solid #fcd34d;border-radius:6px;padding:7px 10px;font-size:13px;min-width:160px">
+            <option value="">-- Chọn shop (nếu Shopee) --</option>
+          </select>
           <input type="file" id="inlineFileInput" accept=".xlsx"
             style="border:1px solid #fcd34d;border-radius:6px;padding:6px 10px;font-size:13px;background:white">
           <button onclick="importFileInline()"
