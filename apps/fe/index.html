@@ -105,7 +105,7 @@ button:disabled {
 
 <script type="module">
 
-import { normalizeOrder, parseFileMeta, fillFirstSku } from "./js/parser.js"
+import { normalizeOrder, parseFileMeta, fillFirstSku, loadCostConfig } from "./js/parser.js"
 
 const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 
@@ -131,8 +131,24 @@ async function importFile() {
 
   try {
 
+    // 0. Load cost config để parser dùng phí hoàn/thất bại từ settings
+    await loadCostConfig(API)
+
     // 1. Đọc meta từ tên file (sàn + tên shop)
     const meta = parseFileMeta(file.name)
+```
+
+---
+
+## Tóm tắt toàn bộ thay đổi đã hướng dẫn
+
+Sau khi hoàn thành tất cả các sửa đổi, luồng hoạt động sẽ như sau:
+```
+index.html import đơn
+    └─ loadCostConfig(API)          ← load phí từ DB vào window._costCfg
+    └─ normalizeOrder()
+          └─ _shopee() / _tiktok()  ← đọc phí từ window._costCfg
+                                       thay vì hardcode 1620/4620
 
     // 2. Parse Excel
     const data     = await file.arrayBuffer()

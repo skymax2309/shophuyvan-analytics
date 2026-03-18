@@ -13,6 +13,20 @@
 // =====================================================================
 
 
+// ── 0. LOAD COST CONFIG (gọi 1 lần trước khi parse) ─────────────────
+export async function loadCostConfig(apiUrl) {
+  try {
+    const data = await fetch(apiUrl + "/api/cost-settings").then(r => r.json())
+    window._costCfg = {}
+    for (const c of data) {
+      window._costCfg[c.cost_key] = c.cost_value
+    }
+  } catch(e) {
+    console.warn("Không load được cost config, dùng giá trị mặc định:", e)
+    window._costCfg = {}
+  }
+}
+
 // ── 1. ĐỌC META TỪ TÊN FILE ─────────────────────────────────────────
 export function parseFileMeta(filename) {
   const name  = filename.replace(/\.xlsx$/i, "")
@@ -98,14 +112,16 @@ function _shopee(row, shop) {
   // [A] Tổng giá bán sản phẩm
   const A = _num(row["Tổng giá bán (sản phẩm)"])
 
-  // [B] Voucher Shopee hoàn lại (Shopee trả thay khách)
-  const B = _num(row["Mã giảm giá của Shopee"])
+  // [B] Voucher Shopee hoàn lại — là tổng cả đơn, phân bổ theo tỷ lệ dòng này
+  const B_total        = _num(row["Mã giảm giá của Shopee"])
+  const A_order        = _num(row["Tổng giá trị đơn hàng (VND)"])   // tổng đơn
+  const ratio          = (A_order > 0 && A > 0) ? A / A_order : 0
+  const B              = Math.round(B_total * ratio)
 
-  // [C] Trợ giá từ Shopee — col index 24
-  // Dùng tên cột trước, fallback sang __index_24 nếu XLSX.js encode khác
+  // [C] Trợ giá từ Shopee — cũng là tổng cả đơn, phân bổ theo tỷ lệ
   const shopee_subsidy = _num(_findKey(row, "Được Shopee trợ giá") ?? 0)
   const qty            = _int(_findKey(row, "Số lượng") ?? row["Số lượng"])
-  const C              = shopee_subsidy * qty
+  const C              = Math.round(shopee_subsidy * ratio)
 
   // [D] Tiền hoàn (chỉ tính cho đơn return)
   const D = order_type === "return" ? A : 0
@@ -141,8 +157,10 @@ function _shopee(row, shop) {
     order_type,
     cancel_reason:    is_cancel ? (ly_do_huy || trang_thai_don) : null,
     return_fee:       order_type === "return"
-                        ? _num(row["Phí vận chuyển trả hàng (đơn Trả hàng/hoàn tiền)"])
-                        : 0,
+                        ? (window._costCfg?.shopee_return_fee ?? 1620)
+                        : (order_type === "cancel" && /giao hàng thất bại|không giao được|failed/i.test(_str(row["Lý do hủy"]))
+                            ? (window._costCfg?.shopee_failed_delivery_fee ?? 1620)
+                            : 0),
   }
 }
 
@@ -201,8 +219,10 @@ function _tiktok(row, shop) {
   }
 
   let cancel_fee = 0
-  if (order_type === "return")                        cancel_fee = 4620
-  else if (order_type === "cancel" && is_failed_delivery) cancel_fee = 1620
+  if (order_type === "return")
+    cancel_fee = window._costCfg?.tiktok_return_fee ?? 4620
+  else if (order_type === "cancel" && is_failed_delivery)
+    cancel_fee = window._costCfg?.tiktok_failed_delivery_fee ?? 1620
 
   return {
     platform:        "tiktok",

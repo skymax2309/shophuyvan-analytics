@@ -162,6 +162,22 @@ async function recalcCost(request, env, cors) {
       const product = productMap[o.sku] || { cost_invoice: 0, cost_real: 0 }
       const orderWithCost = { ...o, cost_invoice: product.cost_invoice, cost_real: product.cost_real }
       const p = calcProfit(orderWithCost, cfg)
+
+      // Tính lại return_fee từ cost_settings
+      let return_fee = o.return_fee || 0
+      if (o.order_type === "return") {
+        return_fee = o.platform === "tiktok"
+          ? (cfg["tiktok_return_fee"]?.value          ?? 4620)
+          : (cfg["shopee_return_fee"]?.value           ?? 1620)
+      } else if (o.order_type === "cancel") {
+        const isFailed = /giao hàng thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
+        if (isFailed) {
+          return_fee = o.platform === "tiktok"
+            ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620)
+            : (cfg["shopee_failed_delivery_fee"]?.value  ?? 1620)
+        }
+      }
+
       return env.DB.prepare(`
         UPDATE orders SET
           cost_invoice   = ?,
@@ -171,13 +187,33 @@ async function recalcCost(request, env, cors) {
           fee            = ?,
           profit         = ?,
           tax_flat       = ?,
-          tax_income     = ?
+          tax_income     = ?,
+          fee_platform   = ?,
+          fee_payment    = ?,
+          fee_affiliate  = ?,
+          fee_ads        = ?,
+          fee_piship     = ?,
+          fee_service    = ?,
+          fee_packaging  = ?,
+          fee_operation  = ?,
+          fee_labor      = ?,
+          return_fee     = ?
         WHERE order_id = ? AND sku = ?
       `).bind(
         p.cost_invoice, p.cost_real,
         p.profit_invoice, p.profit_real,
         p.total_fee, p.profit_real,
         p.tax_flat, p.tax_income,
+        p.fee_platform  || 0,
+        p.fee_payment   || 0,
+        p.fee_affiliate || 0,
+        p.fee_ads       || 0,
+        p.fee_piship    || 0,
+        p.fee_service   || 0,
+        p.fee_packaging || 0,
+        p.fee_operation || 0,
+        p.fee_labor     || 0,
+        return_fee,
         o.order_id, o.sku
       )
     })
