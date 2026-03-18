@@ -45,7 +45,7 @@ async function loadDashboard() {
   if (shopVal)  oqsParts.push("shop=" + encodeURIComponent(shopVal))
   const oqs = oqsParts.length ? "?" + oqsParts.join("&") : ""
 
-  const [dash, revDay, profDay, platforms, shops, rptSum, opCosts] = await Promise.all([
+  const [dash, revDay, profDay, platforms, shops, rptSum, opCosts, cancelStats] = await Promise.all([
     fetch(API + "/api/dashboard"        + qs).then(r => r.json()),
     fetch(API + "/api/revenue-by-day"   + qs).then(r => r.json()),
     fetch(API + "/api/profit-by-day"    + qs).then(r => r.json()),
@@ -53,6 +53,7 @@ async function loadDashboard() {
     fetch(API + "/api/top-shop"         + qs).then(r => r.json()),
     fetch(API + "/api/report-summary"   + rqs).then(r => r.json()).catch(() => ({})),
     fetch(API + "/api/operation-costs"  + oqs).then(r => r.json())
+	fetch(API + "/api/cancel-stats" + qs).then(r => r.json()).catch(() => []),
       .then(d => Array.isArray(d) ? d : (Array.isArray(d.costs) ? d.costs : []))
       .catch(() => []),
   ])
@@ -63,6 +64,7 @@ async function loadDashboard() {
   const returnOrders = dash.return_orders || 0
   const allOrders    = dash.total_all_orders || totalOrders
   const cancelRate   = allOrders > 0 ? ((cancelOrders + returnOrders) / allOrders * 100).toFixed(1) : 0
+  const cancelRows = (Array.isArray(cancelStats) ? cancelStats : []).filter(r => r.order_type === "cancel")
 
   document.getElementById("kpiGrid").innerHTML = `
     <div class="kpi blue">
@@ -199,13 +201,38 @@ async function loadDashboard() {
         <div style="border-top:1px solid #fca5a5;margin-top:6px;padding-top:6px;font-weight:700">
           Tổng thuế: ${fmtShort(dash.total_tax_flat + dash.total_tax_income)}
         </div>
+        ${rptSum.total_gross_revenue ? `
+        <div style="border-top:1px dashed #fca5a5;margin-top:6px;padding-top:6px;font-weight:700;color:#888">📄 Thuế từ báo cáo sàn:</div>
+        <div style="display:flex;justify-content:space-between"><span>Thuế GTGT</span><span>${fmt(rptSum.total_tax_report || 0)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;color:#ef4444">
+          <span>Tổng thuế BC</span><span>${fmt(rptSum.total_tax_report || 0)}</span>
+        </div>` : ""}
       </div>
     </div>
-    <div class="kpi red">
+    <div class="kpi red" style="cursor:pointer" onclick="this.querySelector('.cancel-detail').style.display=this.querySelector('.cancel-detail').style.display==='none'?'block':'none'">
       <div class="kpi-icon">⚠️</div>
-      <div class="kpi-label">Tỷ lệ hủy / hoàn</div>
+      <div class="kpi-label">Tỷ lệ hủy / hoàn <span style="font-size:10px;opacity:0.6">▼ chi tiết</span></div>
       <div class="kpi-value">${cancelRate}%</div>
       <div class="kpi-sub">Hủy: ${cancelOrders} | Hoàn: ${returnOrders}</div>
+      <div class="cancel-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #fca5a5;padding-top:6px">
+        <div style="display:flex;justify-content:space-between">
+          <span>✗ Tổng đơn hủy</span>
+          <span style="color:#ef4444;font-weight:700">${cancelOrders} đơn (${pct(cancelOrders, allOrders)})</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>↩ Tổng đơn hoàn</span>
+          <span style="color:#f59e0b;font-weight:700">${returnOrders} đơn (${pct(returnOrders, allOrders)})</span>
+        </div>
+        <div style="border-top:1px dashed #fca5a5;margin-top:4px;padding-top:4px;font-weight:700;color:#888">Lý do hủy phổ biến:</div>
+        ${cancelRows.slice(0,5).map(r => `
+          <div style="display:flex;justify-content:space-between;font-size:10px">
+            <span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              <span style="background:${r.platform==='shopee'?'#ee4d2d':r.platform==='tiktok'?'#333':'#0f146d'};color:white;border-radius:3px;padding:1px 4px;font-size:9px">${r.platform.toUpperCase()}</span>
+              ${(r.cancel_reason||'Không rõ').substring(0,30)}
+            </span>
+            <span style="font-weight:700">${r.total_orders} đơn</span>
+          </div>`).join("")}
+      </div>
     </div>
     <div class="kpi" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-left:4px solid #22c55e;cursor:pointer" onclick="this.querySelector('.op-detail').style.display=this.querySelector('.op-detail').style.display==='none'?'block':'none'">
       <div class="kpi-icon">🏭</div>
