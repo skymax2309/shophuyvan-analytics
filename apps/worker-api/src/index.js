@@ -14,8 +14,34 @@ import { parseInvoiceAI, saveInvoice, listInvoices, getInvoiceFile,
          updateGroupPrice, deleteSkuGroup, deleteInvoice } from './routes/invoices.js'
 		 
 export default {
-  async fetch(request, env) {
+  // ── Tự động chạy mỗi 24h (Cron Trigger) ─────────────────
+  async scheduled(event, env, ctx) {
+    try {
+      // 1. Lấy dữ liệu từ các bảng cốt lõi (bạn có thể thêm orders, products nếu cần)
+      const { results: users } = await env.DB.prepare("SELECT * FROM users").all()
+      const { results: shops } = await env.DB.prepare("SELECT * FROM shops").all()
+      const { results: jobs } = await env.DB.prepare("SELECT * FROM jobs").all()
+      
+      // 2. Đóng gói dữ liệu
+      const backupData = JSON.stringify({
+        timestamp: new Date().toISOString(),
+        users,
+        shops,
+        jobs
+      })
 
+      // 3. Đặt tên file theo ngày và lưu vào R2
+      const dateStr = new Date().toISOString().split('T')[0]
+      const fileName = `backups/db-backup-${dateStr}.json`
+      
+      await env.STORAGE.put(fileName, backupData)
+      console.log(`[CRON] Backup thành công: ${fileName}`)
+    } catch (error) {
+      console.error("[CRON] Lỗi khi backup D1:", error)
+    }
+  },
+
+  async fetch(request, env, ctx) {
     const url = new URL(request.url)
 
     const cors = {
@@ -149,14 +175,14 @@ export default {
         return getReportFile(request, env, cors)
 	// ── Jobs (Automation Bot) ─────────────────────────────
       if (url.pathname === "/api/jobs" && request.method === "POST")
-        return createJob(request, env)
+        return createJob(request, env, cors)
       
       if (url.pathname === "/api/jobs" && request.method === "GET")
-        return getJobs(request, env)
+        return getJobs(request, env, cors)
       
       if (url.pathname.startsWith("/api/jobs/") && request.method === "PATCH") {
         const id = url.pathname.split("/")[3]
-        return updateJob(request, env, id)
+        return updateJob(request, env, cors, id)
       }
 
       return new Response("Not found", { status: 404, headers: cors })

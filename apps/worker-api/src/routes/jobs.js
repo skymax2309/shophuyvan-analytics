@@ -1,4 +1,4 @@
-export async function createJob(req, env) {
+export async function createJob(req, env, cors) {
   const body = await req.json()
 
   await env.DB.prepare(`
@@ -12,19 +12,19 @@ export async function createJob(req, env) {
     body.year
   ).run()
 
-  return Response.json({ status: "ok" })
+  return Response.json({ status: "ok" }, { headers: cors })
 }
 
-export async function getJobs(req, env) {
+export async function getJobs(req, env, cors) {
   const { results } = await env.DB.prepare(`
     SELECT * FROM jobs WHERE status = 'pending'
     ORDER BY created_at DESC
   `).all()
 
-  return Response.json(results)
+  return Response.json(results, { headers: cors })
 }
 
-export async function updateJob(req, env, id) {
+export async function updateJob(req, env, cors, id) {
   const body = await req.json()
 
   await env.DB.prepare(`
@@ -36,5 +36,5 @@ export async function updateJob(req, env, id) {
     id
   ).run()
 
-  return Response.json({ status: "ok" })
+  return Response.json({ status: "ok" }, { headers: cors })
 }

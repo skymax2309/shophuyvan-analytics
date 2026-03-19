@@ -24,3 +24,7 @@ bucket_name = "shophuyvan-reports"
 [vars]
 APP_NAME = "HuyVan Analytics"
 VERSION = "1.0"
+
+# Lên lịch tự động chạy mỗi 24h (0h00 mỗi ngày UTC)
+[triggers]
+crons = ["0 0 * * *"]
