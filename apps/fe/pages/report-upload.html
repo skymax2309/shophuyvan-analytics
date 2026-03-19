@@ -70,6 +70,47 @@
     <div class="log" id="uploadLog"></div>
   </div>
 
+  <div class="card" style="border-top: 4px solid #ff9800;">
+    <div class="card-title">🤖 Ra Lệnh Cho Bot (Automation)</div>
+    <div class="grid3">
+      <div class="field">
+        <label>Chọn Shop</label>
+        <select id="botShop" style="width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;">
+          <option value="">-- Đang tải shop... --</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Từ tháng → Đến tháng</label>
+        <div style="display:flex; gap:5px;">
+          <select id="botMonthStart" style="flex:1; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 5px;">
+            <script>for(let i=1; i<=12; i++) document.write(`<option value="${i}">T${i}</option>`)</script>
+          </select>
+          <select id="botMonthEnd" style="flex:1; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 5px;">
+            <script>for(let i=1; i<=12; i++) document.write(`<option value="${i}">T${i}</option>`)</script>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>⏰ Hẹn giờ chạy (Để trống nếu chạy ngay)</label>
+        <input type="datetime-local" id="botSchedule" style="width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:8px 12px;">
+      </div>
+      <div class="field">
+        <label>Năm</label>
+        <select id="botYear" style="width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;">
+          <option value="2025">2025</option>
+          <option value="2026" selected>2026</option>
+        </select>
+      </div>
+    </div>
+    
+    <div style="margin-top: 15px; display: flex; gap: 10px;">
+        <button class="btn btn-primary" id="btnCreateJob" onclick="createAutomationJob()" style="background: #ff9800; border:none; flex: 1;">
+          🚀 Gửi Lệnh Cho Bot Chạy
+        </button>
+    </div>
+    <div id="botStatusLog" style="margin-top:10px; font-size:13px; color: #666;"></div>
+  </div>
+
   <!-- Lịch sử upload -->
   <div class="card">
 <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -92,9 +133,20 @@
     </div>
   </div>
 
+<div class="card">
+    <div class="card-title" style="display:flex; justify-content:space-between;">
+      <span>📊 Trạng Thái Bot (Live)</span>
+      <button onclick="loadJobProgress()" style="font-size:12px; cursor:pointer;">🔄 Làm mới</button>
+    </div>
+    <div id="jobProgressList">
+      <div style="text-align:center; padding:20px; color:#aaa;">Đang tải trạng thái bot...</div>
+    </div>
+  </div>
+  
 </div>
 
 <script src="../js/report-upload.js"></script>
+
 
 </body>
 </html>

@@ -1,24 +1,40 @@
 export async function createJob(req, env, cors) {
   const body = await req.json()
 
-  await env.DB.prepare(`
-    INSERT INTO jobs (user_id, shop_name, platform, month, year)
-    VALUES (?, ?, ?, ?, ?)
+  // Chèn thêm trường scheduled_at (nếu có)
+  const { lastRowId } = await env.DB.prepare(`
+    INSERT INTO jobs (user_id, shop_name, platform, month, year, status, scheduled_at)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?)
   `).bind(
     body.user_id,
     body.shop_name,
     body.platform,
     body.month,
-    body.year
+    body.year,
+    body.scheduled_at || null
   ).run()
 
-  return Response.json({ status: "ok" }, { headers: cors })
+  return Response.json({ status: "ok", id: lastRowId }, { headers: cors })
 }
 
 export async function getJobs(req, env, cors) {
+  const url = new URL(req.url)
+  const mode = url.searchParams.get("mode")
+
+  // Nếu gọi từ Dashboard để xem tiến độ (lấy tất cả job gần đây)
+  if (mode === "monitor") {
+    const { results } = await env.DB.prepare(`
+      SELECT * FROM jobs ORDER BY created_at DESC LIMIT 50
+    `).all()
+    return Response.json(results, { headers: cors })
+  }
+
+  // Nếu Bot gọi để lấy lệnh chạy (Chỉ lấy job đến giờ hẹn)
   const { results } = await env.DB.prepare(`
-    SELECT * FROM jobs WHERE status = 'pending'
-    ORDER BY created_at DESC
+    SELECT * FROM jobs 
+    WHERE status = 'pending' 
+    AND (scheduled_at IS NULL OR scheduled_at <= datetime('now', '+7 hours'))
+    ORDER BY created_at ASC
   `).all()
 
   return Response.json(results, { headers: cors })

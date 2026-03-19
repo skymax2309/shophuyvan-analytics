@@ -6,11 +6,57 @@ async function loadShops() {
   try {
     const shops = await fetch(API + "/api/top-shop").then(r => r.json())
     const names = [...new Set(shops.map(s => s.shop))]
-    document.getElementById("inpShop").innerHTML =
-      '<option value="">-- Chọn shop --</option>' +
-      names.map(s => `<option value="${s}">${s}</option>`).join("")
+    const options = '<option value="">-- Chọn shop --</option>' + 
+                    names.map(s => `<option value="${s}">${s}</option>`).join("")
+    
+    // Đổ dữ liệu vào cả 2 dropdown
+    document.getElementById("inpShop").innerHTML = options
+    document.getElementById("botShop").innerHTML = options
   } catch(e) {
     console.error("Không load được danh sách shop:", e)
+  }
+}
+
+// ── Hàm ra lệnh cho Bot (Gửi vào bảng jobs) ─────────────────────────
+async function createAutomationJob() {
+  const shop = document.getElementById("botShop").value
+  const mStart = parseInt(document.getElementById("botMonthStart").value)
+  const mEnd = parseInt(document.getElementById("botMonthEnd").value)
+  const year = document.getElementById("botYear").value
+  const schedule = document.getElementById("botSchedule").value
+  const btn = document.getElementById("btnCreateJob")
+  const status = document.getElementById("botStatusLog")
+
+  if (!shop) { alert("Chọn Shop đã!"); return }
+  if (mStart > mEnd) { alert("Tháng bắt đầu không được lớn hơn tháng kết thúc!"); return }
+
+  btn.disabled = true
+  status.innerHTML = "⏳ Đang khởi tạo hàng loạt lệnh..."
+
+  try {
+    // Vòng lặp tạo lệnh cho từng tháng trong khoảng đã chọn
+    for (let m = mStart; m <= mEnd; m++) {
+      await fetch(API + "/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: "admin_huyvan",
+          shop_name: shop,
+          platform: "shopee",
+          month: m,
+          year: parseInt(year),
+          task_type: "full_report",
+          scheduled_at: schedule || null // Gửi kèm thời gian hẹn giờ
+        })
+      })
+    }
+
+    status.innerHTML = `✅ Thành công! Đã tạo ${mEnd - mStart + 1} lệnh chạy cho Bot.`
+    showToast("Đã lên lịch thành công!");
+  } catch (e) {
+    status.innerHTML = "❌ Lỗi: " + e.message
+  } finally {
+    btn.disabled = false
   }
 }
 
@@ -690,5 +736,49 @@ async function exportPDF(r) {
   doc.text(`Xuất bản: ${new Date().toLocaleDateString("vi-VN")}`, L, y)
   doc.save(`TIKTOK_${r.shop}_${r.report_month}_doanh-thu.pdf`)
 }
+
+async function loadJobProgress() {
+  const el = document.getElementById("jobProgressList")
+  try {
+    const res = await fetch(API + "/api/jobs?mode=monitor")
+    const jobs = await res.json()
+
+    if (!jobs.length) {
+      el.innerHTML = '<div style="text-align:center; padding:10px;">Chưa có lệnh nào được tạo.</div>'
+      return
+    }
+
+    const getStatusStyle = (s) => {
+      if (s === 'completed') return 'color:#16a34a; font-weight:bold;'
+      if (s === 'pending') return 'color:#ea580c;'
+      return 'color:#888;'
+    }
+
+    el.innerHTML = `
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <tr style="border-bottom:1px solid #eee; text-align:left; color:#888;">
+          <th style="padding:8px 0;">Shop</th>
+          <th>Kỳ báo cáo</th>
+          <th>Hẹn giờ</th>
+          <th>Trạng thái</th>
+        </tr>
+        ${jobs.map(j => `
+          <tr style="border-bottom:1px solid #f9f9f9;">
+            <td style="padding:10px 0;"><b>${j.shop_name}</b></td>
+            <td>T${j.month}/${j.year}</td>
+            <td>${j.scheduled_at ? j.scheduled_at.replace('T', ' ') : 'Chạy ngay'}</td>
+            <td style="${getStatusStyle(j.status)}">${j.status.toUpperCase()}</td>
+          </tr>
+        `).join('')}
+      </table>
+    `
+  } catch (e) {
+    el.innerHTML = "❌ Không thể tải trạng thái bot."
+  }
+}
+
+// Tự động làm mới mỗi 30 giây để theo dõi bot
+setInterval(loadJobProgress, 30000)
+loadJobProgress()
 
 loadHistory()
