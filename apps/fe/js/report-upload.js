@@ -45,8 +45,8 @@ async function createAutomationJob() {
           platform: "shopee",
           month: m,
           year: parseInt(year),
-          task_type: "full_report",
-          scheduled_at: schedule || null // Gửi kèm thời gian hẹn giờ
+          task_type: document.getElementById("botTaskType").value, // Lấy loại cụ thể
+          scheduled_at: schedule || null
         })
       })
     }
