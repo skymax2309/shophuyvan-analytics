@@ -185,6 +185,31 @@ export default {
         return updateJob(request, env, cors, id)
       }
 
+      // ── R2 Upload Helper (Bot xin quyền Upload) ──────────
+      if (url.pathname === "/api/upload-url" && request.method === "GET") {
+        const fileName = url.searchParams.get("file")
+        if (!fileName) return new Response("Missing file param", { status: 400, headers: cors })
+
+        // Tạo một token đơn giản để bot có thể upload trong vòng 15 phút
+        // Trong SaaS thực tế, bạn có thể dùng JWT hoặc HMAC ở đây
+        const uploadUrl = `${url.origin}/api/upload?file=${encodeURIComponent(fileName)}&token=huyvan_secret_2026`
+
+        return Response.json({ uploadUrl }, { headers: cors })
+      }
+
+      // Route nhận file thực tế từ Bot và lưu vào R2
+      if (url.pathname === "/api/upload" && request.method === "PUT") {
+        const fileName = url.searchParams.get("file")
+        const token = url.searchParams.get("token")
+
+        if (token !== "huyvan_secret_2026") return new Response("Unauthorized", { status: 401 })
+        
+        const fileData = await request.arrayBuffer()
+        await env.STORAGE.put(fileName, fileData)
+        
+        return new Response("OK", { headers: cors })
+      }
+
       return new Response("Not found", { status: 404, headers: cors })
 
     } catch (e) {
