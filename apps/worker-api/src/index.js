@@ -82,6 +82,30 @@ export default {
       if (url.pathname === "/api/import-orders-v2")
         return importOrdersV2(request, env, cors)
 
+      // 📥 CHỈ DÀNH CHO TỰ ĐỘNG IMPORT ĐƠN HÀNG (EXCEL)
+      if (url.pathname === "/api/auto-import-trigger" && request.method === "POST") {
+        const body = await request.json()
+        const { file_key, shop, platform } = body
+        
+        // Lấy file Excel từ R2
+        const object = await env.STORAGE.get(file_key)
+        if (!object) return new Response("File not found on R2", { status: 404, headers: cors })
+        
+        // Đóng gói lại thành FormData để dùng chung hàm importOrdersV2
+        const formData = new FormData()
+        const blob = new Blob([await object.arrayBuffer()])
+        formData.append("file", blob, file_key)
+        formData.append("shop", shop)
+        formData.append("platform", platform)
+        
+        const fakeRequest = new Request(request.url, {
+          method: "POST",
+          body: formData
+        })
+        
+        return importOrdersV2(fakeRequest, env, cors)
+      }
+
       // ── Dashboard (tổng quan) ─────────────────────────────────────
       if (url.pathname === "/api/dashboard")
         return dashboard(request, env, cors)
