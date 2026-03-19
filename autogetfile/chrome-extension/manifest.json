@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "ShopHuyVan — Auto Report",
+  "version": "1.0.0",
+  "description": "Tự động tải báo cáo TikTok / Shopee / Lazada và upload lên ShopHuyVan",
+
+  "permissions": [
+    "downloads",
+    "downloads.open",
+    "tabs",
+    "scripting",
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+
+  "host_permissions": [
+    "https://seller.tiktok.com/*",
+    "https://seller-vn.tiktok.com/*",
+    "https://sellercenter.lazada.vn/*",
+    "https://seller.shopee.vn/*",
+    "https://banhang.shopee.vn/*",
+    "https://huyvan-worker-api.nghiemchihuy.workers.dev/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://seller.tiktok.com/*", "https://seller-vn.tiktok.com/*"],
+      "js": ["content/tiktok.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://seller.shopee.vn/*", "https://banhang.shopee.vn/*"],
+      "js": ["content/shopee.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://sellercenter.lazada.vn/*"],
+      "js": ["content/lazada.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ShopHuyVan Auto Report"
+  },
+
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

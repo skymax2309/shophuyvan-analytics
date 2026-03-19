@@ -8,6 +8,7 @@ import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          cancelStats, priceCalc, topSkuFull } from './routes/dashboard.js'
 import { uploadReport, getReportSummary, getOperationCosts,
          getReports, getReportFile }     from './routes/reports.js'
+import { createJob, getJobs, updateJob } from './routes/jobs.js'
 import { parseInvoiceAI, saveInvoice, listInvoices, getInvoiceFile,
          updateCostPrices, getSkuMap, getSkuGroups, saveSkuGroup,
          updateGroupPrice, deleteSkuGroup, deleteInvoice } from './routes/invoices.js'
@@ -146,6 +147,17 @@ export default {
 
       if (url.pathname === "/api/report-file")
         return getReportFile(request, env, cors)
+	// ── Jobs (Automation Bot) ─────────────────────────────
+      if (url.pathname === "/api/jobs" && request.method === "POST")
+        return createJob(request, env)
+      
+      if (url.pathname === "/api/jobs" && request.method === "GET")
+        return getJobs(request, env)
+      
+      if (url.pathname.startsWith("/api/jobs/") && request.method === "PATCH") {
+        const id = url.pathname.split("/")[3]
+        return updateJob(request, env, id)
+      }
 
       return new Response("Not found", { status: 404, headers: cors })
 
