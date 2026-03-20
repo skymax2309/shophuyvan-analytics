@@ -17,7 +17,7 @@ function initDRP() {
 }
 
 function toggleDRP() {
-  const panel = document.getElementById("drpPanel")
+  const panel = document.getElementById("drpWrap")
   const input = document.getElementById("drpInput")
   const isOpen = panel.classList.contains("open")
   closeAllPickers()
@@ -25,7 +25,7 @@ function toggleDRP() {
 }
 
 function closeDRP() {
-  document.getElementById("drpPanel").classList.remove("open")
+  document.getElementById("drpWrap").classList.remove("open")
   document.getElementById("drpInput").classList.remove("active")
 }
 
