@@ -1,6 +1,10 @@
 // DateRangePicker — đã đơn giản hóa thành 2 input[type=date] trong HTML
 
+let _justClickedInside = false   // ShopTreePicker.js cần biến này
+
 function initDRP() {}
+
+function closeDRP() {}           // ShopTreePicker.js gọi hàm này
 
 function applyPreset(key) {
   const now = new Date()

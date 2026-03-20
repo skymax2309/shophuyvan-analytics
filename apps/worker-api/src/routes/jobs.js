@@ -55,3 +55,8 @@ export async function updateJob(req, env, cors, id) {
 
   return Response.json({ status: "ok" }, { headers: cors })
 }
+
+export async function deleteJob(req, env, cors, id) {
+  await env.DB.prepare(`DELETE FROM jobs WHERE id = ?`).bind(id).run()
+  return Response.json({ status: "ok" }, { headers: cors })
+}

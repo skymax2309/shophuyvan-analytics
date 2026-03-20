@@ -761,6 +761,7 @@ async function loadJobProgress() {
           <th>Kỳ báo cáo</th>
           <th>Hẹn giờ</th>
           <th>Trạng thái</th>
+          <th></th>
         </tr>
         ${jobs.map(j => `
           <tr style="border-bottom:1px solid #f9f9f9;">
@@ -768,6 +769,7 @@ async function loadJobProgress() {
             <td>T${j.month}/${j.year}</td>
             <td>${j.scheduled_at ? j.scheduled_at.replace('T', ' ') : 'Chạy ngay'}</td>
             <td style="${getStatusStyle(j.status)}">${j.status.toUpperCase()}</td>
+            <td>${j.status === 'pending' ? `<button onclick="deleteJob(${j.id})" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:12px">🗑️ Xóa</button>` : ''}</td>
           </tr>
         `).join('')}
       </table>
@@ -780,5 +782,17 @@ async function loadJobProgress() {
 // Tự động làm mới mỗi 30 giây để theo dõi bot
 setInterval(loadJobProgress, 30000)
 loadJobProgress()
+
+async function deleteJob(id) {
+  if (!confirm("Xóa lệnh này?")) return
+  try {
+    const res = await fetch(API + "/api/jobs/" + id, { method: "DELETE" })
+    const data = await res.json()
+    if (data.status === "ok") loadJobProgress()
+    else alert("Lỗi xóa: " + (data.error || "unknown"))
+  } catch(e) {
+    alert("Lỗi: " + e.message)
+  }
+}
 
 loadHistory()

@@ -8,7 +8,7 @@ import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          cancelStats, priceCalc, topSkuFull } from './routes/dashboard.js'
 import { uploadReport, getReportSummary, getOperationCosts,
          getReports, getReportFile }     from './routes/reports.js'
-import { createJob, getJobs, updateJob } from './routes/jobs.js'
+import { createJob, getJobs, updateJob, deleteJob } from './routes/jobs.js'
 import { parseInvoiceAI, saveInvoice, listInvoices, getInvoiceFile,
          updateCostPrices, getSkuMap, getSkuGroups, saveSkuGroup,
          updateGroupPrice, deleteSkuGroup, deleteInvoice } from './routes/invoices.js'
@@ -242,6 +242,11 @@ export default {
       if (url.pathname.startsWith("/api/jobs/") && request.method === "PATCH") {
         const id = url.pathname.split("/")[3]
         return updateJob(request, env, cors, id)
+      }
+
+      if (url.pathname.startsWith("/api/jobs/") && request.method === "DELETE") {
+        const id = url.pathname.split("/")[3]
+        return deleteJob(request, env, cors, id)
       }
 
       // ── R2 Upload Helper (Bot xin quyền Upload) ──────────
