@@ -82,28 +82,63 @@ export default {
       if (url.pathname === "/api/import-orders-v2")
         return importOrdersV2(request, env, cors)
 
-      // 📥 CHỈ DÀNH CHO TỰ ĐỘNG IMPORT ĐƠN HÀNG (EXCEL)
+      // 📥 TỰ ĐỘNG IMPORT — Bot gửi file_key sau khi upload R2 xong
       if (url.pathname === "/api/auto-import-trigger" && request.method === "POST") {
         const body = await request.json()
-        const { file_key, shop, platform } = body
-        
-        // Lấy file Excel từ R2
+        const { file_key, shop, platform, report_type } = body
+
+        if (!file_key) return new Response("Missing file_key", { status: 400, headers: cors })
+
+        // Lấy file từ R2
         const object = await env.STORAGE.get(file_key)
-        if (!object) return new Response("File not found on R2", { status: 404, headers: cors })
-        
-        // Đóng gói lại thành FormData để dùng chung hàm importOrdersV2
-        const formData = new FormData()
-        const blob = new Blob([await object.arrayBuffer()])
-        formData.append("file", blob, file_key)
-        formData.append("shop", shop)
-        formData.append("platform", platform)
-        
-        const fakeRequest = new Request(request.url, {
-          method: "POST",
-          body: formData
-        })
-        
-        return importOrdersV2(fakeRequest, env, cors)
+        if (!object) return new Response("File not found on R2: " + file_key, { status: 404, headers: cors })
+
+        const ext = file_key.split(".").pop().toLowerCase()
+
+        // ── NHÁNH 1: Excel đơn hàng ──────────────────────────────────
+        if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
+          // Import vào bảng orders (giữ nguyên luồng cũ)
+          const formData = new FormData()
+          const blob = new Blob([await object.arrayBuffer()])
+          formData.append("file", blob, file_key)
+          formData.append("shop", shop || "")
+          formData.append("platform", platform || "shopee")
+
+          const fakeRequest = new Request(request.url, { method: "POST", body: formData })
+          const ordersResult = await importOrdersV2(fakeRequest, env, cors)
+
+          // ĐỒNG THỜI import vào bảng platform_reports
+          const object2 = await env.STORAGE.get(file_key)
+          const formData2 = new FormData()
+          const blob2 = new Blob([await object2.arrayBuffer()])
+          formData2.append("file", blob2, file_key)
+          formData2.append("platform", platform || "shopee")
+          formData2.append("shop", shop || "")
+          formData2.append("report_type", "orders")
+
+          const fakeRequest2 = new Request(url.origin + "/api/upload-report", { method: "POST", body: formData2 })
+          await uploadReport(fakeRequest2, env, cors)
+
+          return ordersResult
+        }
+
+        // ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
+        if (ext === "pdf") {
+          const fileName = file_key.split("/").pop()
+          const arrayBuffer = await object.arrayBuffer()
+          const blob = new Blob([arrayBuffer])
+
+          const formData = new FormData()
+          formData.append("file", new File([blob], fileName, { type: "application/pdf" }))
+          formData.append("platform", platform || "shopee")
+          formData.append("shop", shop || "")
+          formData.append("report_type", report_type || "income")
+
+          const fakeRequest = new Request(url.origin + "/api/upload-report", { method: "POST", body: formData })
+          return uploadReport(fakeRequest, env, cors)
+        }
+
+        return new Response("Unsupported file type: " + ext, { status: 400, headers: cors })
       }
 
       // ── Dashboard (tổng quan) ─────────────────────────────────────
