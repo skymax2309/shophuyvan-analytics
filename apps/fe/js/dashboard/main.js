@@ -234,6 +234,48 @@ async function loadDashboard() {
           </div>`).join("")}
       </div>
     </div>
+    <div class="kpi" style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border-left:4px solid #f97316;cursor:pointer" onclick="this.querySelector('.discount-detail').style.display=this.querySelector('.discount-detail').style.display==='none'?'block':'none'">
+      <div class="kpi-icon">🏷️</div>
+      <div class="kpi-label">Giảm giá / Khuyến mãi <span style="font-size:10px;opacity:0.6">▼ chi tiết</span></div>
+      <div class="kpi-value" style="color:#ea580c">${fmtShort((dash.total_discount_shop||0) + (dash.total_discount_shopee||0) + (dash.total_discount_combo||0))}</div>
+      <div class="kpi-sub">Shop + Shopee + Combo</div>
+      <div class="discount-detail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:2;border-top:1px solid #fed7aa;padding-top:6px">
+
+        <div style="display:flex;justify-content:space-between">
+          <span>🏷️ Mã giảm giá Shop</span>
+          <span style="font-weight:600;color:#ea580c">${fmt(dash.total_discount_shop||0)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;padding-left:8px">
+          <span>${dash.orders_with_discount_shop||0} đơn (${pct(dash.orders_with_discount_shop||0, dash.total_all_orders||1)}) — ${pct(dash.total_discount_shop||0, dash.total_revenue||1)} DT</span>
+        </div>
+
+        <div style="display:flex;justify-content:space-between">
+          <span>🎁 Mã giảm giá Shopee</span>
+          <span style="font-weight:600;color:#ee4d2d">${fmt(dash.total_discount_shopee||0)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;padding-left:8px">
+          <span>${dash.orders_with_discount_shopee||0} đơn (${pct(dash.orders_with_discount_shopee||0, dash.total_all_orders||1)}) — ${pct(dash.total_discount_shopee||0, dash.total_revenue||1)} DT</span>
+        </div>
+
+        <div style="display:flex;justify-content:space-between">
+          <span>📦 Giảm giá Combo Shop</span>
+          <span style="font-weight:600;color:#7c3aed">${fmt(dash.total_discount_combo||0)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#aaa;padding-left:8px">
+          <span>${dash.orders_with_discount_combo||0} đơn (${pct(dash.orders_with_discount_combo||0, dash.total_all_orders||1)}) — ${pct(dash.total_discount_combo||0, dash.total_revenue||1)} DT</span>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;border-top:1px dashed #fed7aa;margin-top:4px;padding-top:4px">
+          <span>🚚 Phí vận chuyển trả hàng</span>
+          <span style="font-weight:600;color:#ef4444">${fmt(dash.total_shipping_return_fee||0)}</span>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #fed7aa;margin-top:4px;padding-top:4px">
+          <span>Tổng giảm giá + phí VC trả hàng</span>
+          <span style="color:#ea580c">${fmt((dash.total_discount_shop||0)+(dash.total_discount_shopee||0)+(dash.total_discount_combo||0)+(dash.total_shipping_return_fee||0))}</span>
+        </div>
+      </div>
+    </div>
     <div class="kpi" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-left:4px solid #22c55e;cursor:pointer" onclick="this.querySelector('.op-detail').style.display=this.querySelector('.op-detail').style.display==='none'?'block':'none'">
       <div class="kpi-icon">🏭</div>
       <div class="kpi-label">Chi phí vận hành <span style="font-size:10px;opacity:0.6">▼ chi tiết</span></div>

@@ -140,7 +140,7 @@ function _shopee(row, shop) {
   const tong_nguoi_mua = _num(row["Tổng số tiền Người mua thanh toán"]) // file mới
   const A = tong_gia_ban > 0 ? tong_gia_ban : tong_nguoi_mua
 
-  // Doanh thu = đúng A (Tổng giá bán sản phẩm từng dòng)
+  // Doanh thu = đúng A (Tổng giá bán sản phẩm từng dòng) — không cộng AF+AK
   const line_revenue  = (order_type === "normal") ? A : 0
   const return_amount = (order_type === "return") ? A : 0
 
@@ -162,9 +162,13 @@ function _shopee(row, shop) {
     shopee_subsidy:   _num(_findKey(row, "Được Shopee trợ giá")),
     shop_discount:    _num(_findKey(row, "Mã giảm giá của Shop")),
     combo_discount:   _num(_findKey(row, "Giảm giá từ Combo của Shop")),
-    return_amount,              // [D] — dùng để tổng hợp trừ ở index.html
+    return_amount,
     order_type,
-    cancel_reason:    is_cancel ? (ly_do_huy || trang_thai_don) : null,
+    cancel_reason:        is_cancel ? (ly_do_huy || trang_thai_don) : null,
+    discount_shop:        _num(_findKey(row, "Mã giảm giá của Shop")),
+    discount_shopee:      _num(_findKey(row, "Mã giảm giá của Shopee")),
+    discount_combo:       _num(_findKey(row, "Giảm giá từ Combo của Shop")),
+    shipping_return_fee:  _num(row["Phí vận chuyển trả hàng (đơn Trả hàng/hoàn tiền)"]),
     return_fee:       order_type === "return"
                         ? (window._costCfg?.shopee_return_fee ?? 1620)
                         : (order_type === "cancel" && /giao.*thất bại|không giao được|failed/i.test(_str(row["Lý do hủy"]))
@@ -419,16 +423,20 @@ export function buildOrdersV2(flatOrders) {
     // ── Tích lũy orders (gộp các dòng cùng order_id) ───────────────
     if (!ordersMap.has(o.order_id)) {
       ordersMap.set(o.order_id, {
-        order_id:      o.order_id,
-        platform:      o.platform     || "",
-        shop:          o.shop         || "",
-        order_date:    o.order_date   || "",
-        order_type:    o.order_type   || "normal",
-        revenue:       o.revenue      || 0,
-        raw_revenue:   o.raw_revenue  || 0,
-        cancel_reason: o.cancel_reason || null,
-        return_fee:    o.return_fee   || 0,
-        shipped:       o.shipped ? 1 : 0,
+        order_id:            o.order_id,
+        platform:            o.platform     || "",
+        shop:                o.shop         || "",
+        order_date:          o.order_date   || "",
+        order_type:          o.order_type   || "normal",
+        revenue:             o.revenue      || 0,
+        raw_revenue:         o.raw_revenue  || 0,
+        cancel_reason:       o.cancel_reason || null,
+        return_fee:          o.return_fee   || 0,
+        shipped:             o.shipped ? 1 : 0,
+        discount_shop:       o.discount_shop       || 0,
+        discount_shopee:     o.discount_shopee     || 0,
+        discount_combo:      o.discount_combo      || 0,
+        shipping_return_fee: o.shipping_return_fee || 0,
         // Các field tài chính sẽ được worker tính lại
         cost_invoice:  0,
         cost_real:     0,
@@ -450,8 +458,12 @@ export function buildOrdersV2(flatOrders) {
     } else {
       // Cộng dồn revenue cho các dòng SKU khác nhau trong cùng đơn
       const existing = ordersMap.get(o.order_id)
-      existing.revenue     = (existing.revenue     || 0) + (o.revenue     || 0)
-      existing.raw_revenue = (existing.raw_revenue || 0) + (o.raw_revenue || 0)
+      existing.revenue             = (existing.revenue             || 0) + (o.revenue             || 0)
+      existing.raw_revenue         = (existing.raw_revenue         || 0) + (o.raw_revenue         || 0)
+      existing.discount_shop       = (existing.discount_shop       || 0) + (o.discount_shop       || 0)
+      existing.discount_shopee     = (existing.discount_shopee     || 0) + (o.discount_shopee     || 0)
+      existing.discount_combo      = (existing.discount_combo      || 0) + (o.discount_combo      || 0)
+      existing.shipping_return_fee = (existing.shipping_return_fee || 0) + (o.shipping_return_fee || 0)
       // return_fee chỉ tính 1 lần (đã set ở dòng đầu)
     }
   }

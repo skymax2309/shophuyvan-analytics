@@ -466,8 +466,9 @@ async function importOrdersV2(request, env, cors) {
          fee, profit_invoice, profit_real, tax_flat, tax_income,
          fee_platform, fee_payment, fee_affiliate, fee_ads,
          fee_piship, fee_service, fee_packaging, fee_operation, fee_labor,
-         cancel_reason, return_fee, shipped)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         cancel_reason, return_fee, shipped,
+         discount_shop, discount_shopee, discount_combo, shipping_return_fee)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET
         revenue       = excluded.revenue,
         raw_revenue   = excluded.raw_revenue,
@@ -488,16 +489,21 @@ async function importOrdersV2(request, env, cors) {
         fee_operation = excluded.fee_operation,
         fee_labor     = excluded.fee_labor,
         cancel_reason = excluded.cancel_reason,
-        return_fee    = excluded.return_fee,
-        shipped       = excluded.shipped,
-        order_date    = excluded.order_date
+        return_fee           = excluded.return_fee,
+        shipped              = excluded.shipped,
+        order_date           = excluded.order_date,
+        discount_shop        = excluded.discount_shop,
+        discount_shopee      = excluded.discount_shopee,
+        discount_combo       = excluded.discount_combo,
+        shipping_return_fee  = excluded.shipping_return_fee
     `).bind(
       o.order_id, o.platform, o.shop, o.order_date, o.order_type,
       o.revenue, o.raw_revenue, o.cost_invoice, o.cost_real,
       o.fee, o.profit_invoice, o.profit_real, o.tax_flat, o.tax_income,
       o.fee_platform, o.fee_payment, o.fee_affiliate, o.fee_ads,
       o.fee_piship, o.fee_service, o.fee_packaging, o.fee_operation, o.fee_labor,
-      o.cancel_reason || null, o.return_fee || 0, o.shipped || 0
+      o.cancel_reason || null, o.return_fee || 0, o.shipped || 0,
+      o.discount_shop || 0, o.discount_shopee || 0, o.discount_combo || 0, o.shipping_return_fee || 0
     ))
     try {
       await env.DB.batch(stmts)

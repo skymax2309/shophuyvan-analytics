@@ -103,7 +103,7 @@ async function importFile() {
     const totalD         = returns.reduce((s, o)     => s + (o.raw_revenue     || 0), 0)
     const totalAF        = allNonCancel.reduce((s, o) => s + (o.shop_discount  || 0), 0)
     const totalAK        = allNonCancel.reduce((s, o) => s + (o.combo_discount || 0), 0)
-    const totalRevenue   = totalA + totalB + totalC - totalD + totalAF + totalAK
+    const totalRevenue   = totalA + totalB + totalC - totalD
     const totalReturnFee = returns.reduce((s, o) => s + (o.return_fee || 0), 0)
     const cancelRate     = totalUnique > 0 ? ((uniqueCancel / totalUnique) * 100).toFixed(1) : 0
 

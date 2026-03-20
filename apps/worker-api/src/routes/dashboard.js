@@ -79,7 +79,16 @@ const cancelRow = await env.DB.prepare(`
       COUNT(DISTINCT CASE WHEN order_type='return' THEN order_id END)  AS return_orders_count,
       SUM(CASE WHEN order_type='normal' THEN revenue    ELSE 0 END)    AS revenue_normal,
       SUM(CASE WHEN order_type='return' THEN raw_revenue ELSE 0 END)   AS revenue_returned,
-      SUM(CASE WHEN order_type='return' THEN return_fee  ELSE 0 END)   AS total_return_shipping
+      SUM(CASE WHEN order_type='return' THEN return_fee  ELSE 0 END)   AS total_return_shipping,
+
+      -- Chỉ số giảm giá mới
+      SUM(COALESCE(discount_shop, 0))                                   AS total_discount_shop,
+      SUM(COALESCE(discount_shopee, 0))                                 AS total_discount_shopee,
+      SUM(COALESCE(discount_combo, 0))                                  AS total_discount_combo,
+      SUM(COALESCE(shipping_return_fee, 0))                             AS total_shipping_return_fee,
+      COUNT(DISTINCT CASE WHEN COALESCE(discount_shop,0) > 0 THEN order_id END)   AS orders_with_discount_shop,
+      COUNT(DISTINCT CASE WHEN COALESCE(discount_shopee,0) > 0 THEN order_id END) AS orders_with_discount_shopee,
+      COUNT(DISTINCT CASE WHEN COALESCE(discount_combo,0) > 0 THEN order_id END)  AS orders_with_discount_combo
     FROM orders_v2
     ${whereV2NoType}
   `).bind(...params).first()
