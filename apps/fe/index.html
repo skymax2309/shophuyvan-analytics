@@ -121,11 +121,11 @@ async function importFile() {
       ${totalAK > 0 ? `
       <div class="summary-row"><span class="summary-label">📦 Giảm giá Combo Shop</span><span class="summary-value" style="color:#7c3aed">${fmt(totalAK)} đ (${orders.filter(o=>o.combo_discount>0).length} đơn)</span></div>` : ""}
       ${allNonCancel.reduce((s,o)=>s+(o.shopee_voucher||0),0) > 0 ? `
-      <div class="summary-row"><span class="summary-label">🎁 Mã giảm giá Shopee</span><span class="summary-value" style="color:#ee4d2d">${fmt(allNonCancel.reduce((s,o)=>s+(o.shopee_voucher||0),0))} đ</span></div>` : ""}
+      <div class="summary-row"><span class="summary-label">🎁 Mã giảm giá Shopee</span><span class="summary-value" style="color:#ee4d2d">${fmt(allNonCancel.reduce((s,o)=>s+(o.shopee_voucher||0),0))} đ (${allNonCancel.filter(o=>o.shopee_voucher>0).length} đơn)</span></div>` : ""}
       ${totalD > 0 ? `
-      <div class="summary-row"><span class="summary-label">↩️ [D] Tiền hoàn trả</span><span class="summary-value" style="color:#ef4444">-${fmt(totalD)} đ</span></div>` : ""}
+      <div class="summary-row"><span class="summary-label">↩️ [D] Tiền hoàn trả</span><span class="summary-value" style="color:#ef4444">-${fmt(totalD)} đ (${uniqueReturn} đơn)</span></div>` : ""}
       ${totalReturnFee > 0 ? `
-      <div class="summary-row"><span class="summary-label">🚚 Phí vận chuyển trả hàng</span><span class="summary-value" style="color:#ef4444">-${fmt(totalReturnFee)} đ</span></div>` : ""}
+      <div class="summary-row"><span class="summary-label">🚚 Phí vận chuyển trả hàng</span><span class="summary-value" style="color:#ef4444">-${fmt(totalReturnFee)} đ (${returns.length} dòng)</span></div>` : ""}
       <div class="summary-row" style="border-top:2px solid #e0e0e0;margin-top:6px;padding-top:8px">
         <span class="summary-label" style="font-weight:700">✅ Doanh thu = A - D</span>
         <span class="summary-value" style="color:#10b981;font-size:15px">${fmt(totalRevenue)} đ</span>
