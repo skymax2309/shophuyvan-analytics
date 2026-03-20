@@ -1,58 +1,121 @@
 const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 let selectedFiles = []
 
-// ── Quản lý danh sách Shop (lưu localStorage) ────────────────────────
+let allShopNames = []
+
+// ── Quản lý danh sách Shop ────────────────────────────────────────────
 async function loadShops() {
   try {
     const shops = await fetch(API + "/api/top-shop").then(r => r.json())
-    const names = [...new Set(shops.map(s => s.shop))]
-    const options = '<option value="">-- Chọn shop --</option>' + 
-                    names.map(s => `<option value="${s}">${s}</option>`).join("")
-    
-    // Đổ dữ liệu vào cả 2 dropdown
+    allShopNames = [...new Set(shops.map(s => s.shop))]
+
+    // Dropdown upload thủ công
+    const options = '<option value="">-- Chọn shop --</option>' +
+                    allShopNames.map(s => `<option value="${s}">${s}</option>`).join("")
     document.getElementById("inpShop").innerHTML = options
-    document.getElementById("botShop").innerHTML = options
+
+    // Render checkbox cho bot
+    renderShopCheckboxes()
   } catch(e) {
     console.error("Không load được danh sách shop:", e)
   }
 }
 
-// ── Hàm ra lệnh cho Bot (Gửi vào bảng jobs) ─────────────────────────
-async function createAutomationJob() {
-  const shop = document.getElementById("botShop").value
-  const mStart = parseInt(document.getElementById("botMonthStart").value)
-  const mEnd = parseInt(document.getElementById("botMonthEnd").value)
-  const year = document.getElementById("botYear").value
-  const schedule = document.getElementById("botSchedule").value
-  const btn = document.getElementById("btnCreateJob")
-  const status = document.getElementById("botStatusLog")
+function renderShopCheckboxes() {
+  const el = document.getElementById("botShopCheckboxes")
+  if (!allShopNames.length) { el.innerHTML = '<span style="color:#aaa;font-size:13px">Chưa có shop nào</span>'; return }
+  el.innerHTML = allShopNames.map(s => `
+    <label style="display:flex;align-items:center;gap:5px;padding:5px 10px;background:white;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px">
+      <input type="checkbox" value="${s}" class="bot-shop-cb" style="cursor:pointer"> ${s}
+    </label>
+  `).join("")
+}
 
-  if (!shop) { alert("Chọn Shop đã!"); return }
+function selectAllShops() {
+  document.querySelectorAll(".bot-shop-cb").forEach(cb => cb.checked = true)
+}
+
+function clearAllShops() {
+  document.querySelectorAll(".bot-shop-cb").forEach(cb => cb.checked = false)
+}
+
+function getSelectedShops() {
+  return [...document.querySelectorAll(".bot-shop-cb:checked")].map(cb => cb.value)
+}
+
+// ── Đổi loại báo cáo theo sàn ────────────────────────────────────────
+function onBotPlatformChange() {
+  const platform = document.getElementById("botPlatform").value
+  const taskSel  = document.getElementById("botTaskType")
+
+  const options = {
+    shopee: [
+      { value: "all",       label: "-- Tất cả --" },
+      { value: "doanh_thu", label: "Doanh Thu" },
+      { value: "hoa_don",   label: "Hóa Đơn & Phí (ADS...)" },
+      { value: "don_hang",  label: "Đơn Hàng (XLSX)" },
+    ],
+    lazada: [
+      { value: "all",       label: "-- Tất cả --" },
+      { value: "doanh_thu", label: "Doanh Thu (PDF)" },
+      { value: "hoa_don",   label: "Hóa Đơn" },
+      { value: "don_hang",  label: "Đơn Hàng (CSV)" },
+    ],
+    tiktok: [
+      { value: "all",       label: "-- Tất cả --" },
+      { value: "doanh_thu", label: "Doanh Thu (Excel)" },
+      { value: "hoa_don",   label: "Hóa Đơn Phí Sàn" },
+      { value: "don_hang",  label: "Đơn Hàng" },
+    ],
+  }
+
+  const opts = options[platform] || options.shopee
+  taskSel.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("")
+}
+
+// ── Hàm ra lệnh cho Bot ───────────────────────────────────────────────
+async function createAutomationJob() {
+  const selectedShops = getSelectedShops()
+  const platform = document.getElementById("botPlatform").value
+  const mStart   = parseInt(document.getElementById("botMonthStart").value)
+  const mEnd     = parseInt(document.getElementById("botMonthEnd").value)
+  const year     = document.getElementById("botYear").value
+  const schedule = document.getElementById("botSchedule").value
+  const taskType = document.getElementById("botTaskType").value
+  const btn      = document.getElementById("btnCreateJob")
+  const status   = document.getElementById("botStatusLog")
+
+  if (!selectedShops.length) { alert("Chọn ít nhất 1 Shop!"); return }
   if (mStart > mEnd) { alert("Tháng bắt đầu không được lớn hơn tháng kết thúc!"); return }
 
   btn.disabled = true
-  status.innerHTML = "⏳ Đang khởi tạo hàng loạt lệnh..."
+  const totalJobs = selectedShops.length * (mEnd - mStart + 1)
+  status.innerHTML = `⏳ Đang tạo ${totalJobs} lệnh cho ${selectedShops.length} shop...`
 
   try {
-    // Vòng lặp tạo lệnh cho từng tháng trong khoảng đã chọn
-    for (let m = mStart; m <= mEnd; m++) {
-      await fetch(API + "/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: "admin_huyvan",
-          shop_name: shop,
-          platform: "shopee",
-          month: m,
-          year: parseInt(year),
-          task_type: document.getElementById("botTaskType").value, // Lấy loại cụ thể
-          scheduled_at: schedule || null
+    let created = 0
+    for (const shop of selectedShops) {
+      for (let m = mStart; m <= mEnd; m++) {
+        await fetch(API + "/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id:      "admin_huyvan",
+            shop_name:    shop,
+            platform:     platform,
+            month:        m,
+            year:         parseInt(year),
+            task_type:    taskType,
+            scheduled_at: schedule || null
+          })
         })
-      })
+        created++
+      }
     }
 
-    status.innerHTML = `✅ Thành công! Đã tạo ${mEnd - mStart + 1} lệnh chạy cho Bot.`
-    showToast("Đã lên lịch thành công!");
+    status.innerHTML = `✅ Đã tạo <b>${created}</b> lệnh cho <b>${selectedShops.length}</b> shop trên sàn <b>${platform.toUpperCase()}</b>!`
+    showToast(`Đã lên lịch ${created} lệnh!`)
+    loadJobProgress()
   } catch (e) {
     status.innerHTML = "❌ Lỗi: " + e.message
   } finally {

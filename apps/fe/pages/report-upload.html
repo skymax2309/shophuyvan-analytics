@@ -72,11 +72,15 @@
 
   <div class="card" style="border-top: 4px solid #ff9800;">
     <div class="card-title">🤖 Ra Lệnh Cho Bot (Automation)</div>
+
+    <!-- Hàng 1: Sàn + Tháng + Năm + Hẹn giờ -->
     <div class="grid3">
       <div class="field">
-        <label>Chọn Shop</label>
-        <select id="botShop" style="width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;">
-          <option value="">-- Đang tải shop... --</option>
+        <label>🏪 Sàn</label>
+        <select id="botPlatform" onchange="onBotPlatformChange()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;">
+          <option value="shopee">Shopee</option>
+          <option value="lazada">Lazada</option>
+          <option value="tiktok">TikTok</option>
         </select>
       </div>
       <div class="field">
@@ -106,16 +110,28 @@
         <select id="botTaskType" style="width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;">
           <option value="all">-- Tất cả --</option>
           <option value="doanh_thu">Doanh Thu</option>
-          <option value="hoa_don">Quảng Cáo & Phí (ADS...)</option>
-          <option value="don_hang">Đơn Hàng (XLSX)</option>
+          <option value="hoa_don">Quảng Cáo & Phí</option>
+          <option value="don_hang">Đơn Hàng</option>
         </select>
       </div>
     </div>
-    
+
+    <!-- Hàng 2: Chọn nhiều shop bằng checkbox -->
+    <div class="field" style="margin-top:12px;">
+      <label>🏬 Chọn Shop (có thể chọn nhiều)</label>
+      <div id="botShopCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;padding:10px;background:#f9f9f9;border-radius:8px;border:1.5px solid #e0e0e0;min-height:44px;">
+        <span style="color:#aaa;font-size:13px">Đang tải shop...</span>
+      </div>
+      <div style="margin-top:6px;display:flex;gap:8px">
+        <button onclick="selectAllShops()" style="font-size:12px;padding:4px 10px;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;background:white">✅ Chọn tất cả</button>
+        <button onclick="clearAllShops()" style="font-size:12px;padding:4px 10px;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;background:white">✕ Bỏ chọn</button>
+      </div>
+    </div>
+
     <div style="margin-top: 15px; display: flex; gap: 10px;">
-        <button class="btn btn-primary" id="btnCreateJob" onclick="createAutomationJob()" style="background: #ff9800; border:none; flex: 1;">
-          🚀 Gửi Lệnh Cho Bot Chạy
-        </button>
+      <button class="btn btn-primary" id="btnCreateJob" onclick="createAutomationJob()" style="background: #ff9800; border:none; flex: 1;">
+        🚀 Gửi Lệnh Cho Bot Chạy
+      </button>
     </div>
     <div id="botStatusLog" style="margin-top:10px; font-size:13px; color: #666;"></div>
   </div>
