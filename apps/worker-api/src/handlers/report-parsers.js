@@ -239,6 +239,8 @@ function parseShopeeReport(text) {
   const fee_payment         = findNum("Phí thanh toán")
   const fee_affiliate       = findNum("Phí hoa hồng Tiếp thị liên kết")
   const fee_piship_sfr      = findNum("Phí dịch vụ PiShip")
+  const fee_handling        = 0
+  const fee_ads             = 0
   const fee_total           = fee_commission + fee_service + fee_payment + fee_affiliate + fee_piship_sfr
   const tax_vat             = findNum("Thuế GTGT")
   const tax_pit             = findNum("Thuế TNCN")
