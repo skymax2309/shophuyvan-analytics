@@ -95,32 +95,24 @@ export default {
 
         const ext = file_key.split(".").pop().toLowerCase()
 
-        // ── NHÁNH 1: Excel đơn hàng ──────────────────────────────────
+// ── NHÁNH 1: Excel đơn hàng ──────────────────────────────────
+        // Bot đã parse Excel + gửi JSON lên /api/import-orders-v2 trực tiếp
+        // Ở đây chỉ cần lưu file vào platform_reports để hiện trên trang báo cáo
         if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
-          // Đọc buffer 1 lần duy nhất — R2 object chỉ đọc được 1 lần
           const buffer = await object.arrayBuffer()
           const fileName = file_key.split("/").pop()
 
-          // Import vào bảng orders
           const formData = new FormData()
           formData.append("file", new Blob([buffer]), fileName)
-          formData.append("shop", shop || "")
           formData.append("platform", platform || "shopee")
+          formData.append("shop", shop || "")
+          formData.append("report_type", "orders")
 
-          const fakeRequest = new Request(request.url, { method: "POST", body: formData })
-          const ordersResult = await importOrdersV2(fakeRequest, env, cors)
-
-          // ĐỒNG THỜI import vào bảng platform_reports
-          const formData2 = new FormData()
-          formData2.append("file", new Blob([buffer]), fileName)
-          formData2.append("platform", platform || "shopee")
-          formData2.append("shop", shop || "")
-          formData2.append("report_type", "orders")
-
-          const fakeRequest2 = new Request(url.origin + "/api/upload-report", { method: "POST", body: formData2 })
-          await uploadReport(fakeRequest2, env, cors)
-
-          return ordersResult
+          const fakeRequest = new Request(url.origin + "/api/upload-report", {
+            method: "POST",
+            body: formData
+          })
+          return uploadReport(fakeRequest, env, cors)
         }
 
 // ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
