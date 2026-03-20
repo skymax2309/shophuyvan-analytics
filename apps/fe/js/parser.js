@@ -136,11 +136,9 @@ function _shopee(row, shop) {
 
   // [A] Tổng giá bán sản phẩm
   // File mới Shopee: không có cột "Tổng giá bán (sản phẩm)" → dùng "Giá ưu đãi" × qty
-  const tong_gia_ban = _num(row["Tổng giá bán (sản phẩm)"])  // file cũ
-  const gia_uu_dai   = _num(row["Giá ưu đãi"])               // file mới
-  const A = tong_gia_ban > 0
-    ? tong_gia_ban
-    : gia_uu_dai * qty
+  const tong_gia_ban   = _num(row["Tổng giá bán (sản phẩm)"])          // file cũ
+  const tong_nguoi_mua = _num(row["Tổng số tiền Người mua thanh toán"]) // file mới
+  const A = tong_gia_ban > 0 ? tong_gia_ban : tong_nguoi_mua
 
   // Doanh thu = đúng A (Tổng giá bán sản phẩm từng dòng)
   const line_revenue  = (order_type === "normal") ? A : 0
