@@ -35,21 +35,28 @@
       <span id="drpLabel">Chọn khoảng ngày</span>
       <span class="clear-btn" id="drpClear" onclick="clearDRP(event)" style="display:none">×</span>
     </div>
-    <div class="daterange-panel" id="drpPanel">
-      <div class="drp-presets">
-        <div class="drp-preset" onclick="applyPreset('today')">Hôm nay</div>
-        <div class="drp-preset" onclick="applyPreset('yesterday')">Hôm qua</div>
-        <div class="drp-preset" onclick="applyPreset('thisweek')">Tuần này</div>
-        <div class="drp-preset" onclick="applyPreset('thismonth')">Tháng này</div>
-        <div class="drp-preset" onclick="applyPreset('lastmonth')">Tháng trước</div>
-        <div class="drp-preset" onclick="applyPreset('last7')">7 ngày qua</div>
-        <div class="drp-preset" onclick="applyPreset('last30')">30 ngày qua</div>
-      </div>
-      <div class="drp-calendars">
-        <div class="drp-cal" id="drpCal1"></div>
-        <div class="drp-cal" id="drpCal2"></div>
-      </div>
-    </div>
+    <div class="drp-presets">
+  <div class="drp-preset" onclick="applyPreset('today', event)">Hôm nay</div>
+  <div class="drp-preset" onclick="applyPreset('yesterday', event)">Hôm qua</div>
+  <div class="drp-preset" onclick="applyPreset('thisweek', event)">Tuần này</div>
+  <div class="drp-preset" onclick="applyPreset('thismonth', event)">Tháng này</div>
+  <div class="drp-preset" onclick="applyPreset('lastmonth', event)">Tháng trước</div>
+  <div class="drp-preset" onclick="applyPreset('last7', event)">7 ngày qua</div>
+  <div class="drp-preset" onclick="applyPreset('last30', event)">30 ngày qua</div>
+  </div>
+
+  <!-- giữ nguyên drp-calendars -->
+  <div class="drp-calendars">
+    <div class="drp-cal" id="drpCal1"></div>
+    <div class="drp-cal" id="drpCal2"></div>
+  </div>
+  
+  <!-- Thêm footer nút -->
+  <div class="drp-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:8px;border-top:1px solid #eee">
+    <button type="button" class="btn btn-secondary" onclick="clearDRP(event)">Xóa</button>
+    <button type="button" class="btn btn-primary" onclick="applyDRP()">Áp dụng</button>
+  </div>
+
   </div>
   <span class="sep">|</span>
   <!-- SHOP TREE PICKER -->

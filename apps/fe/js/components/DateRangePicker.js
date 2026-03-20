@@ -97,18 +97,28 @@ function drpClickDay(ts, event) {
   _justClickedInside = true
   event.stopPropagation()
   event.preventDefault()
-  if (!drpState.selecting || drpState.start === null) {
-    drpState.start = ts; drpState.end = null; drpState.selecting = true
+
+  // Nếu chưa có start hoặc đã có cả start+end => bắt đầu chọn mới
+  if (!drpState.start || (drpState.start && drpState.end)) {
+    drpState.start = ts
+    drpState.end = null
+    drpState.selecting = true
+    drpState.hovered = null
   } else {
+    // Nếu đã có start mà chưa có end => gán end (không đóng picker)
     const lo = Math.min(drpState.start, ts)
     const hi = Math.max(drpState.start, ts)
-    drpState.start = lo; drpState.end = hi; drpState.selecting = false
+    drpState.start = lo
+    drpState.end = hi
+    drpState.selecting = false
     drpState.hovered = null
     commitDRP()
-    closeDRP()
+    // Không gọi closeDRP() ở đây để người dùng có thể kiểm tra/điều chỉnh
   }
+
   renderDRP()
 }
+
 
 function commitDRP() {
   const fmtISO = ts => {
@@ -129,6 +139,18 @@ function commitDRP() {
   document.querySelectorAll(".drp-preset").forEach(e => e.classList.remove("active"))
 }
 
+function applyDRP() {
+  // Nếu chưa có start thì không làm gì
+  if (!drpState.start) return
+  // Nếu chưa có end thì set end = start (để luôn có to)
+  if (!drpState.end) drpState.end = drpState.start
+  commitDRP()
+  closeDRP()
+  // Gọi filter để load lại dashboard
+  if (typeof applyFilter === "function") applyFilter()
+}
+
+
 function clearDRP(e) {
   e.stopPropagation()
   drpState.start = null; drpState.end = null; drpState.selecting = false
@@ -139,7 +161,7 @@ function clearDRP(e) {
   document.querySelectorAll(".drp-preset").forEach(e => e.classList.remove("active"))
 }
 
-function applyPreset(key) {
+function applyPreset(key, evt) {
   const now = new Date(); now.setHours(0, 0, 0, 0)
   let s, e
   const d = n => { const x = new Date(now); x.setDate(x.getDate() + n); return x.getTime() }
@@ -160,8 +182,9 @@ function applyPreset(key) {
 
   drpState.start = s; drpState.end = e; drpState.selecting = false
   document.querySelectorAll(".drp-preset").forEach(el => el.classList.remove("active"))
-  if (event && event.target) event.target.classList.add("active")
+  if (evt && evt.currentTarget) evt.currentTarget.classList.add("active")
   commitDRP()
   closeDRP()
-  applyFilter()
+  if (typeof applyFilter === "function") applyFilter()
 }
+
