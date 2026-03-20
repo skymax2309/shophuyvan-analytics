@@ -470,6 +470,7 @@ async function importOrdersV2(request, env, cors) {
          discount_shop, discount_shopee, discount_combo, shipping_return_fee)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET
+        order_type    = excluded.order_type,
         revenue       = excluded.revenue,
         raw_revenue   = excluded.raw_revenue,
         cost_invoice  = excluded.cost_invoice,
