@@ -132,15 +132,17 @@ function _shopee(row, shop) {
   if (is_return) order_type = "return"   // return ưu tiên hơn cancel
 
   // ── Doanh thu thực tế (Net Revenue) theo công thức chuẩn ────────
-  // [A] Tổng giá bán sản phẩm
-  const A = _num(row["Tổng giá bán (sản phẩm)"])
-
   const qty = _int(_findKey(row, "Số lượng") ?? row["Số lượng"])
 
+  // [A] Tổng giá bán sản phẩm
+  // File mới Shopee: không có cột "Tổng giá bán (sản phẩm)" → dùng "Giá ưu đãi" × qty
+  const tong_gia_ban = _num(row["Tổng giá bán (sản phẩm)"])  // file cũ
+  const gia_uu_dai   = _num(row["Giá ưu đãi"])               // file mới
+  const A = tong_gia_ban > 0
+    ? tong_gia_ban
+    : gia_uu_dai * qty
+
   // Doanh thu = đúng A (Tổng giá bán sản phẩm từng dòng)
-  // Không cộng/trừ voucher Shopee vì:
-  // - Voucher Shopee: Shopee tự chịu, không bù lại cho shop
-  // - Giảm giá shop: đã được tính vào giá bán rồi
   const line_revenue  = (order_type === "normal") ? A : 0
   const return_amount = (order_type === "return") ? A : 0
 
