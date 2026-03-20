@@ -24,16 +24,31 @@ async function uploadReport(request, env, cors) {
   const bytes       = new Uint8Array(arrayBuffer)
   const fileName    = file.name
 
-  // ── Xác định tháng từ tên file hoặc ngày hiện tại ────────────────
-  const report_month = detectReportMonth(fileName)
+  // ── Parse số liệu từ nội dung file TRƯỚC ─────────────────────────
+  let parsed = {}
+  const ext = fileName.split(".").pop().toLowerCase()
 
-  // ── Cấu trúc R2 key ─────────────────────────────────────────────
-  // {year}-{month}/{report_type}/{platform}/{filename}
-  // VD: 2026-02/Doanh Thu/Shopee/chihuy1984_20260201.pdf
+  const parsedJson = formData.get("parsed_json")
+  if (parsedJson) {
+    parsed = parseTiktokReport(JSON.parse(parsedJson))
+  } else if (ext === "pdf") {
+    const clientText = formData.get("pdf_text") || ""
+    const text = clientText.length > 50 ? clientText : await extractPdfText(bytes)
+    console.log("[pdf parse] source:", clientText.length > 50 ? "client pdf.js" : "server regex", "textLen:", text.length, "preview:", text.substring(0, 200))
+    parsed = autoDetectAndParse(text, platform, report_type)
+  }
+
+  // ── Xác định tháng — ưu tiên: override > nội dung PDF > tên file ──
+  const report_month = formData.get("report_month_override")
+    || parsed._report_month
+    || detectReportMonth(fileName)
+
+  // ── Cấu trúc R2 key ──────────────────────────────────────────────
   const folderType = {
-    income:  "Doanh Thu",
-    expense: "Chi Phí",
-    orders:  "Đơn Hàng",
+    income:         "Doanh Thu",
+    expense:        "Chi Phí",
+    orders:         "Đơn Hàng",
+    "phi-dau-thau": "Quảng Cáo",
   }[report_type] || "Doanh Thu"
 
   const platformFolder = {
@@ -44,27 +59,11 @@ async function uploadReport(request, env, cors) {
 
   const r2Key = `${report_month}/${folderType}/${platformFolder}/${fileName}`
 
-  // ── Upload lên R2 ────────────────────────────────────────────────
+  // ── Upload lên R2 ─────────────────────────────────────────────────
   await env.STORAGE.put(r2Key, bytes, {
     httpMetadata: { contentType: file.type || "application/octet-stream" },
     customMetadata: { platform, shop, report_month, report_type }
   })
-
-  // ── Parse số liệu từ nội dung file ───────────────────────────────
-  let parsed = {}
-  const ext = fileName.split(".").pop().toLowerCase()
-
-  // Nếu client đã parse sẵn (TikTok Excel), dùng luôn
-  const parsedJson = formData.get("parsed_json")
-  if (parsedJson) {
-    parsed = parseTiktokReport(JSON.parse(parsedJson))
-} else if (ext === "pdf") {
-    // Ưu tiên dùng text đã parse từ client (pdf.js) — chính xác hơn
-    const clientText = formData.get("pdf_text") || ""
-    const text = clientText.length > 50 ? clientText : await extractPdfText(bytes)
-    console.log("[pdf parse] source:", clientText.length > 50 ? "client pdf.js" : "server regex", "textLen:", text.length, "preview:", text.substring(0, 200))
-    parsed = autoDetectAndParse(text, platform, report_type)
-  }
 
   // ── Lưu vào D1 ───────────────────────────────────────────────────
   await env.DB.prepare(`

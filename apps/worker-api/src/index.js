@@ -126,9 +126,18 @@ export default {
           formData.append("platform", platform || "shopee")
           formData.append("shop", shop || "")
           formData.append("report_type", report_type || "income")
+
           // Nhận pdf_text từ bot (extract trên máy local)
-          if (body.pdf_text && body.pdf_text.length > 50) {
-            formData.append("pdf_text", body.pdf_text)
+          const pdfText = body.pdf_text || ""
+          if (pdfText.length > 50) {
+            formData.append("pdf_text", pdfText)
+
+            // Đọc tháng từ nội dung PDF Lazada nếu có
+            const mMonth = pdfText.match(/tháng\s+(\d{1,2})\/(\d{4})/i)
+            if (mMonth && (platform === "lazada")) {
+              const reportMonthOverride = `${mMonth[2]}-${mMonth[1].padStart(2, "0")}`
+              formData.append("report_month_override", reportMonthOverride)
+            }
           }
 
           const fakeRequest = new Request(url.origin + "/api/upload-report", { method: "POST", body: formData })

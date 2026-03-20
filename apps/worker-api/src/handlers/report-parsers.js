@@ -71,9 +71,12 @@ function autoDetectAndParse(text, platform, reportType) {
   if (text.includes("TIKTOK PTE") || text.includes("VNEC") || text.includes("Tokgistic")) {
     return parseTiktokExpenseInvoice(text)
   }
-  // Lazada
+  // Lazada hóa đơn
   if (text.includes("RECESS") || text.includes("VN33W4TIY8") || text.includes("Lazada")) {
-    return parseLazadaExpenseInvoice(text)
+    // Phân biệt ADS vs Chi Phí dựa vào nội dung dòng hàng hóa
+    const isAds = text.includes("Tài Trợ Hiển Thị") || text.includes("Tài trợ Hiển Thị") ||
+                  text.includes("Sponsored") || text.includes("tài trợ hiển thị")
+    return parseLazadaExpenseInvoice(text, isAds)
   }
   // Shopee doanh thu
   if (platform === "shopee") return parseShopeeReport(text)
@@ -171,24 +174,59 @@ function parseTiktokExpenseInvoice(text) {
   }
 }
 
-// Lazada VAT Invoice (do RECESS xuất) — phí theo tuần
-function parseLazadaExpenseInvoice(text) {
+// Lazada VAT Invoice (do RECESS xuất) — Chi Phí hoặc ADS
+function parseLazadaExpenseInvoice(text, isAds = false) {
   text = text.normalize("NFC")
+
   const findLine = (label) => {
-    const re = new RegExp(label + "[ \\t]{1,200}(\\d{1,3}(?:\\.\\d{3})+)")
+    const re = new RegExp(label + "[\\s\\S]{0,50}?([\\d]{1,3}(?:\\.[\\d]{3})+)")
     const m = text.match(re)
     if (!m) return 0
     return parseInt(m[1].replace(/\./g, "")) || 0
   }
 
-  const subMatch   = text.match(/Cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
-  const vatMatch   = text.match(/Tiền thuế GTGT[^(VAT)]*:\s*([\d\.,]+)/)
+  // Lấy số tiền đã bao gồm thuế — "Tổng cộng tiền hàng (Total payment)"
   const totalMatch = text.match(/Tổng cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
+  const vatMatch   = text.match(/Tiền thuế GTGT[^:]*:\s*([\d\.,]+)/)
+  const subMatch   = text.match(/Cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
 
-  const sub   = subMatch   ? parseInt(subMatch[1].replace(/\./g,""))   : 0
-  const vat   = vatMatch   ? parseInt(vatMatch[1].replace(/\./g,""))   : 0
-  const total = totalMatch ? parseInt(totalMatch[1].replace(/\./g,"")) : 0
+  const total = totalMatch ? parseInt(totalMatch[1].replace(/\./g, "")) : 0
+  const vat   = vatMatch   ? parseInt(vatMatch[1].replace(/\./g, ""))   : 0
+  const sub   = subMatch   ? parseInt(subMatch[1].replace(/\./g, ""))   : 0
 
+  // Đọc tháng từ nội dung PDF — VD: "tháng 02/2026" hoặc "02/2026"
+  let reportMonthFromContent = ""
+  const mMonth = text.match(/tháng\s+(\d{1,2})\/(\d{4})/i)
+  if (mMonth) {
+    reportMonthFromContent = `${mMonth[2]}-${mMonth[1].padStart(2, "0")}`
+  }
+
+  if (isAds) {
+    // Hóa đơn ADS — Phí Dịch Vụ Tài Trợ Hiển Thị
+    const ads = findLine("Phí Dịch Vụ Tài Trợ Hiển Thị") || sub || (total - vat)
+    return {
+      gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
+      platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
+      shipping_net:   0,
+      fee_commission: 0,
+      fee_payment:    0,
+      fee_service:    0,
+      fee_affiliate:  0,
+      fee_piship_sfr: 0,
+      fee_handling:   0,
+      fee_ads:        ads,
+      fee_total:      ads,
+      compensation:   0,
+      tax_vat:        vat,
+      tax_pit:        0,
+      tax_total:      vat,
+      total_payout:   -total,
+      _report_month:  reportMonthFromContent,
+      _invoice_type:  "ads",
+    }
+  }
+
+  // Hóa đơn Chi Phí — Phí Xử lý, Phí Vận Chuyển, Phí Cố Định
   const handling   = findLine("Phí Xử lý đơn hàng")
   const shipping   = findLine("Phí Vận Chuyển")
   const commission = findLine("Phí Cố Định")
@@ -196,19 +234,22 @@ function parseLazadaExpenseInvoice(text) {
   return {
     gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
-    shipping_net:    0,
-    fee_commission:  commission,
-    fee_payment:     shipping,
-    fee_service:     0,
-    fee_affiliate:   0,
-    fee_piship_sfr:  0,
-    fee_handling:    handling,
-    fee_total:       total,
-    compensation:    0,
-    tax_vat:         vat,
-    tax_pit:         0,
-    tax_total:       vat,
-    total_payout:    -total,
+    shipping_net:   0,
+    fee_commission: commission,
+    fee_payment:    shipping,
+    fee_service:    0,
+    fee_affiliate:  0,
+    fee_piship_sfr: 0,
+    fee_handling:   handling,
+    fee_ads:        0,
+    fee_total:      sub > 0 ? sub : (handling + shipping + commission),
+    compensation:   0,
+    tax_vat:        vat,
+    tax_pit:        0,
+    tax_total:      vat,
+    total_payout:   -total,
+    _report_month:  reportMonthFromContent,
+    _invoice_type:  "expense",
   }
 }
 
