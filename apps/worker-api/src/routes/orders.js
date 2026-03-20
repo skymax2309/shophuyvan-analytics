@@ -177,7 +177,7 @@ async function exportOrders(request, env, cors) {
       ROUND(o.tax_income  * oi.revenue_line / NULLIF(o.revenue,0)) AS tax_income,
       o.order_type, o.cancel_reason, o.return_fee
     FROM orders_v2 o
-    JOIN order_items oi ON oi.order_id = o.order_id
+    LEFT JOIN order_items oi ON oi.order_id = o.order_id
     WHERE ${conds.join(" AND ")}
     ORDER BY o.order_date DESC, o.order_id, oi.id
     LIMIT ${limit}
