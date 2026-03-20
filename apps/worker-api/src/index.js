@@ -122,7 +122,7 @@ export default {
           return ordersResult
         }
 
-        // ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
+// ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
         if (ext === "pdf") {
           const fileName = file_key.split("/").pop()
           const arrayBuffer = await object.arrayBuffer()
@@ -133,6 +133,10 @@ export default {
           formData.append("platform", platform || "shopee")
           formData.append("shop", shop || "")
           formData.append("report_type", report_type || "income")
+          // Nhận pdf_text từ bot (extract trên máy local)
+          if (body.pdf_text && body.pdf_text.length > 50) {
+            formData.append("pdf_text", body.pdf_text)
+          }
 
           const fakeRequest = new Request(url.origin + "/api/upload-report", { method: "POST", body: formData })
           return uploadReport(fakeRequest, env, cors)
