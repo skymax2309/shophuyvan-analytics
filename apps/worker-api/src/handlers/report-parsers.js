@@ -3,7 +3,7 @@
 // ════════════════════════════════════════════════════════════════════
 
 function detectReportMonth(filename) {
-  // Pattern YYYY-MM (có dấu gạch)
+  // Pattern YYYY-MM (có dấu gạch) — VD: 2026-01
   const m1 = filename.match(/(\d{4})-(\d{2})/)
   if (m1) return `${m1[1]}-${m1[2]}`
 
@@ -14,6 +14,10 @@ function detectReportMonth(filename) {
   // Pattern YYYY_MM
   const m3 = filename.match(/(\d{4})_(\d{2})/)
   if (m3) return `${m3[1]}-${m3[2]}`
+
+  // Pattern YYYYMM (6 chữ số liền, không có ngày) — VD: 202601
+  const m4 = filename.match(/(\d{4})(\d{2})(?!\d)/)
+  if (m4) return `${m4[1]}-${m4[2]}`
 
   // Fallback: tháng hiện tại
   const now = new Date()
