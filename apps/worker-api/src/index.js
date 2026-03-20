@@ -97,10 +97,13 @@ export default {
 
         // ── NHÁNH 1: Excel đơn hàng ──────────────────────────────────
         if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
-          // Import vào bảng orders (giữ nguyên luồng cũ)
+          // Đọc buffer 1 lần duy nhất — R2 object chỉ đọc được 1 lần
+          const buffer = await object.arrayBuffer()
+          const fileName = file_key.split("/").pop()
+
+          // Import vào bảng orders
           const formData = new FormData()
-          const blob = new Blob([await object.arrayBuffer()])
-          formData.append("file", blob, file_key)
+          formData.append("file", new Blob([buffer]), fileName)
           formData.append("shop", shop || "")
           formData.append("platform", platform || "shopee")
 
@@ -108,10 +111,8 @@ export default {
           const ordersResult = await importOrdersV2(fakeRequest, env, cors)
 
           // ĐỒNG THỜI import vào bảng platform_reports
-          const object2 = await env.STORAGE.get(file_key)
           const formData2 = new FormData()
-          const blob2 = new Blob([await object2.arrayBuffer()])
-          formData2.append("file", blob2, file_key)
+          formData2.append("file", new Blob([buffer]), fileName)
           formData2.append("platform", platform || "shopee")
           formData2.append("shop", shop || "")
           formData2.append("report_type", "orders")
