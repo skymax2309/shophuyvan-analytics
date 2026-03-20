@@ -3,15 +3,16 @@ export async function createJob(req, env, cors) {
 
   // Chèn thêm trường scheduled_at (nếu có)
   const { lastRowId } = await env.DB.prepare(`
-    INSERT INTO jobs (user_id, shop_name, platform, month, year, status, scheduled_at)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?)
+    INSERT INTO jobs (user_id, shop_name, platform, month, year, status, scheduled_at, task_type)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
   `).bind(
     body.user_id,
     body.shop_name,
     body.platform,
     body.month,
     body.year,
-    body.scheduled_at || null
+    body.scheduled_at || null,
+    body.task_type || 'all'
   ).run()
 
   return Response.json({ status: "ok", id: lastRowId }, { headers: cors })
@@ -33,7 +34,7 @@ export async function getJobs(req, env, cors) {
   const { results } = await env.DB.prepare(`
     SELECT * FROM jobs 
     WHERE status = 'pending' 
-    AND (scheduled_at IS NULL OR scheduled_at <= datetime('now', '+7 hours'))
+    AND (scheduled_at IS NULL OR replace(scheduled_at, 'T', ' ') <= datetime('now', '+7 hours'))
     ORDER BY created_at ASC
   `).all()
 
