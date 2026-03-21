@@ -105,10 +105,13 @@ function parseShopeeExpenseInvoice(text) {
   // Tìm từng dòng phí
   const commission  = findAmtLine(text, "Phí hoa hồng cố định")
   const transaction = findAmtLine(text, "Phí xử lý giao dịch")
-  const service     = findAmtLine(text, "Phí dịch vụ ")
   const piship      = findAmtLine(text, "Phí dịch vụ PiShip")
-  const ads         = findAmtLine(text, "Phí dịch vụ đấu thầu")
   const withdrawal  = findAmtLine(text, "Phí rút tiền")
+  const ads_line    = findAmtLine(text, "Phí dịch vụ đấu thầu")
+  // fee_service: chỉ lấy "Phí dịch vụ" thuần, không lấy PiShip và đấu thầu
+  const service     = findAmtLine(text, "Phí dịch vụ(?! PiShip)(?! đấu thầu)")
+  // Phí ADS = tổng tiền thanh toán đã bao gồm VAT
+  const ads         = ads_line > 0 ? (total > 0 ? total : ads_line) : 0
 
   return {
     gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
