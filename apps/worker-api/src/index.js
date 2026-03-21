@@ -95,7 +95,7 @@ export default {
 // ── NHÁNH 1: Excel đơn hàng ──────────────────────────────────
         // Bot đã parse Excel + gửi JSON lên /api/import-orders-v2 trực tiếp
         // Ở đây chỉ cần lưu file vào platform_reports để hiện trên trang báo cáo
-        if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
+if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
           const buffer = await object.arrayBuffer()
           const fileName = file_key.split("/").pop()
 
@@ -103,7 +103,7 @@ export default {
           formData.append("file", new Blob([buffer]), fileName)
           formData.append("platform", platform || "shopee")
           formData.append("shop", shop || "")
-          formData.append("report_type", "orders")
+          formData.append("report_type", report_type || "income")
 
           const fakeRequest = new Request(url.origin + "/api/upload-report", {
             method: "POST",
