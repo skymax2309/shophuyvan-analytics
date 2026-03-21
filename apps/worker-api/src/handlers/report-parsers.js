@@ -334,8 +334,9 @@ function parseLazadaReport(text) {
   const tax_vat        = findNum("Thuế GTGT nhà bán hàng")
   const tax_pit        = findNum("Thuế TNCN nhà bán hàng")
   const tax_total      = tax_vat + tax_pit
-  const fee_total      = fee_commission + fee_handling
   const total_payout   = findNum("Tổng thanh toán")
+  // fee_total = tổng tất cả khoản bị trừ = gross - payout (gồm phí + thuế)
+  const fee_total      = gross_revenue - total_payout
 
   return {
     gross_revenue, refund_amount: 0, net_product_revenue: gross_revenue,
