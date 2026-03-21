@@ -146,7 +146,7 @@ const costInvoice = (order.cost_invoice || 0) * qty
     fee_affiliate:   affiliateFee,
     fee_ads:         adsFee,
     fee_piship:      pishipFee + tiktokSfr,
-    fee_service:     svcFee + tiktokHandling + lazadaHandling,
+    fee_service:     svcFee + tiktokHandling + lazadaHandling + lazadaServiceFee,
     fee_packaging:   packFee,
     fee_operation:   opFee,
     fee_labor:       laborFee,
