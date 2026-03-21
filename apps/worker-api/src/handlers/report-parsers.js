@@ -328,7 +328,8 @@ function parseLazadaReport(text) {
 
   const gross_revenue  = findNum("Giá trị sản phẩm")
   const fee_commission = findNum("Phí cố định")
-  const fee_handling   = findNum("Phí xử lý đơn hàng")
+  const fee_service    = findNum("Phí xử lý đơn hàng")
+  const fee_handling   = 0
   const shipping_net   = findNum("Điều chỉnh phí vận chuyển chênh lệch")
   const compensation   = findNum("Bồi thường đơn hàng thất lạc")
   const tax_vat        = findNum("Thuế GTGT nhà bán hàng")
@@ -342,7 +343,7 @@ function parseLazadaReport(text) {
     gross_revenue, refund_amount: 0, net_product_revenue: gross_revenue,
     platform_subsidy: 0, seller_voucher: 0, co_funded_voucher: 0,
     shipping_net: -shipping_net,
-    fee_commission, fee_payment: 0, fee_service: 0,
+    fee_commission, fee_payment: 0, fee_service,
     fee_affiliate: 0, fee_piship_sfr: 0, fee_handling, fee_total,
     compensation,
     tax_vat, tax_pit, tax_total,

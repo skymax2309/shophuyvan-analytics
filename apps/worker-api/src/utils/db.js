@@ -56,17 +56,22 @@ function calcProfit(order, cfg) {
   const tiktokHandling = (platform === "tiktok" && isFirstSku && notCancel)
                            ? num(cfg, "tiktok_handling_fee") : 0
 
+  // Lazada: phí xử lý đơn hàng cố định per-order (từ cost settings)
+  const lazadaServiceFee = (platform === "lazada" && isFirstSku && notCancel)
+                           ? num(cfg, "lazada_service_fee") : 0
+
   // ── Gộp tất cả phí ───────────────────────────────────────────────
   const platformFee  = shopeeCommission + tiktokCommission + lazadaCommission
   const paymentFee   = shopeePayment    + tiktokTransaction
   const affiliateFee = shopeeAffiliate  + tiktokAffiliate
   const adsFee       = shopeeAds        + tiktokAds        + lazadaAds
 
-  const totalFee = platformFee + paymentFee + affiliateFee + adsFee
+const totalFee = platformFee + paymentFee + affiliateFee + adsFee
                  + lazadaHandling + lazadaVat + lazadaPit + lazadaShippingDiff
                  + packFee + opFee + laborFee
                  + pishipFee + svcFee
                  + tiktokSfr + tiktokHandling
+                 + lazadaServiceFee
 
 const costInvoice = (order.cost_invoice || 0) * qty
   const costReal    = (order.cost_real    || 0) * qty
@@ -141,7 +146,7 @@ const costInvoice = (order.cost_invoice || 0) * qty
     fee_affiliate:   affiliateFee,
     fee_ads:         adsFee,
     fee_piship:      pishipFee + tiktokSfr,
-    fee_service:     svcFee + tiktokHandling,
+    fee_service:     svcFee + tiktokHandling + lazadaServiceFee,
     fee_packaging:   packFee,
     fee_operation:   opFee,
     fee_labor:       laborFee,
