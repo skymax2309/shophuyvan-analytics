@@ -104,6 +104,8 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
           formData.append("platform", platform || "shopee")
           formData.append("shop", shop || "")
           formData.append("report_type", report_type || "income")
+          // Nếu bot gửi kèm parsed_json thì forward xuống uploadReport
+          if (body.parsed_json) formData.append("parsed_json", body.parsed_json)
 
           const fakeRequest = new Request(url.origin + "/api/upload-report", {
             method: "POST",
