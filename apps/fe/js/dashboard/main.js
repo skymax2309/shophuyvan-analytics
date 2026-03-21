@@ -66,6 +66,10 @@ async function loadDashboard() {
   const cancelRate   = allOrders > 0 ? ((cancelOrders + returnOrders) / allOrders * 100).toFixed(1) : 0
   const cancelRows = (Array.isArray(cancelStats) ? cancelStats : []).filter(r => r.order_type === "cancel")
 
+  // Helper tính % chi phí so với doanh thu (riêng Shopee)
+  const _feeRevBase = rptSum.total_gross_revenue || dash.total_revenue || 1
+  const _fp = (amt) => _feeRevBase > 0 ? (amt / _feeRevBase * 100).toFixed(1) + '%' : '–'
+
   document.getElementById("kpiGrid").innerHTML = `
     <div class="kpi blue">
       <div class="kpi-icon">📦</div>
@@ -165,23 +169,64 @@ async function loadDashboard() {
       <div class="kpi-value">${fmtShort(dash.total_fee)}</div>
       <div class="kpi-sub" id="feeSubLabel">Commission + Thanh toán + Affiliate + DV + PiShip</div>
       <div id="feeDetail" style="display:none;margin-top:8px;font-size:11px;text-align:left;line-height:1.9;border-top:1px solid #fde68a;padding-top:6px">
-        <div style="font-weight:700;color:#888;margin-bottom:2px">📊 Phí từ đơn hàng (tính toán):</div>
-        <div style="display:flex;justify-content:space-between"><span>📌 Hoa hồng sàn (Commission)</span><span>${fmtShort(dash.total_platform_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>💳 Phí thanh toán / giao dịch</span><span>${fmtShort(dash.total_payment_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🤝 Tiếp thị liên kết (Affiliate)</span><span>${fmtShort(dash.total_affiliate_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>📢 Quảng cáo (Ads)</span><span>${fmtShort(dash.total_ads_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip / SFR</span><span>${fmtShort(dash.total_piship_fee)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🛎️ Phí dịch vụ / xử lý đơn</span><span>${fmtShort(dash.total_service_fee)}</span></div>
+        <div style="font-weight:700;color:#888;margin-bottom:4px">🛒 Phí từ đơn Shopee (import):</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>🏷️ Mã giảm giá của Shop</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(dash.total_discount_shop||0)}</span>
+            <span style="font-weight:600;color:#ea580c;min-width:80px;text-align:right">${fmtFull(dash.total_discount_shop||0)}</span>
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>📌 Phí cố định</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(dash.total_platform_fee||0)}</span>
+            <span style="font-weight:600;min-width:80px;text-align:right">${fmtFull(dash.total_platform_fee||0)}</span>
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>🛎️ Phí Dịch Vụ</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(dash.total_service_fee||0)}</span>
+            <span style="font-weight:600;min-width:80px;text-align:right">${fmtFull(dash.total_service_fee||0)}</span>
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>💳 Phí thanh toán</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(dash.total_payment_fee||0)}</span>
+            <span style="font-weight:600;min-width:80px;text-align:right">${fmtFull(dash.total_payment_fee||0)}</span>
+          </span>
+        </div>
         ${rptSum.total_fee_report ? `
-        <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">📄 Phí từ báo cáo sàn:</div>
-        <div style="display:flex;justify-content:space-between"><span>📌 Phí HH Cố Định (BC)</span><span>${fmtFull(rptSum.total_fee_commission || 0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>💳 Thanh toán (BC)</span><span>${fmtFull(rptSum.total_fee_payment || 0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🤝 Affiliate (BC)</span><span>${fmtFull(rptSum.total_fee_affiliate || 0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🚚 PiShip/SFR (BC)</span><span>${fmtFull(rptSum.total_fee_piship || 0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>🛎️ Xử lý đơn (BC)</span><span>${fmtFull(rptSum.total_fee_service || 0)}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>📢 Quảng cáo/Đấu thầu (BC)</span><span>${fmtFull(rptSum.total_fee_ads || 0)}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed #fde68a;margin-top:2px;padding-top:4px">
-          <span>Tổng phí BC sàn</span><span>${fmtFull(rptSum.total_fee_report)}</span>
+        <div style="border-top:1px dashed #fde68a;margin-top:4px;padding-top:4px;font-weight:700;color:#888">📄 Phí từ File Báo Cáo (Shopee):</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>🤝 Phí Tiếp Thị Liên Kết</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(rptSum.total_fee_affiliate||0)}</span>
+            <span style="font-weight:600;min-width:80px;text-align:right">${fmtFull(rptSum.total_fee_affiliate||0)}</span>
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>📢 Phí ADS</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(rptSum.total_fee_ads||0)}</span>
+            <span style="font-weight:600;min-width:80px;text-align:right">${fmtFull(rptSum.total_fee_ads||0)}</span>
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>🚚 Phí PiShip</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(rptSum.total_fee_piship||0)}</span>
+            <span style="font-weight:600;min-width:80px;text-align:right">${fmtFull(rptSum.total_fee_piship||0)}</span>
+          </span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-weight:700;border-top:1px dashed #fde68a;margin-top:2px;padding-top:4px">
+          <span>Tổng phí BC sàn</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#9ca3af;min-width:36px;text-align:right">${_fp(rptSum.total_fee_report)}</span>
+            <span style="min-width:80px;text-align:right">${fmtFull(rptSum.total_fee_report)}</span>
+          </span>
         </div>
         ` : ""}
       </div>
