@@ -163,6 +163,18 @@ async function recalcCost(request, env, cors) {
     itemsByOrder[item.order_id].push(item)
   }
 
+  // Build tiktokFeeMap từ bảng tiktok_fees (nếu có)
+  let tiktokFeeMap = {}
+  try {
+    const tiktokFees = await env.DB.prepare(`SELECT * FROM tiktok_fees`).all()
+    for (const row of tiktokFees.results) {
+      tiktokFeeMap[row.order_id] = row
+    }
+  } catch(e) {
+    // Bảng chưa tồn tại hoặc không có dữ liệu — bỏ qua
+    tiktokFeeMap = {}
+  }
+
   let updatedV2 = 0
   for (let i = 0; i < ordersV2.results.length; i += 50) {
     const chunk = ordersV2.results.slice(i, i + 50)
