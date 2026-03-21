@@ -22,10 +22,21 @@ function calcProfit(order, cfg) {
   const shopeeAds        = platform === "shopee" ? rev * pct(cfg, "shopee_ads")          : 0
 
   // ── Phí TikTok ───────────────────────────────────────────────────
-  const tiktokCommission   = platform === "tiktok" ? rev * pct(cfg, "tiktok_commission")     : 0
-  const tiktokTransaction  = platform === "tiktok" ? rev * pct(cfg, "tiktok_transaction_fee"): 0
-  const tiktokAffiliate    = platform === "tiktok" ? rev * pct(cfg, "tiktok_affiliate")      : 0
-  const tiktokAds          = platform === "tiktok" ? rev * pct(cfg, "tiktok_ads")            : 0
+  // Ưu tiên dùng phí thực từ tiktok_order_fees (nếu có, được truyền vào order)
+  // Fallback: tính theo % từ cost_settings
+  const hasTiktokReal = platform === "tiktok" && order._fee_real === true
+  const tiktokCommission  = platform === "tiktok"
+    ? (hasTiktokReal ? (order._fee_commission || 0) : rev * pct(cfg, "tiktok_commission"))
+    : 0
+  const tiktokTransaction = platform === "tiktok"
+    ? (hasTiktokReal ? (order._fee_payment    || 0) : rev * pct(cfg, "tiktok_transaction_fee"))
+    : 0
+  const tiktokAffiliate   = platform === "tiktok"
+    ? (hasTiktokReal ? (order._fee_affiliate  || 0) : rev * pct(cfg, "tiktok_affiliate"))
+    : 0
+  const tiktokAds         = platform === "tiktok"
+    ? (hasTiktokReal ? (order._fee_ads        || 0) : rev * pct(cfg, "tiktok_ads"))
+    : 0
 
   // ── Phí Lazada ───────────────────────────────────────────────────
   const lazadaCommission   = platform === "lazada" ? rev * pct(cfg, "lazada_commission")    : 0
@@ -52,9 +63,11 @@ function calcProfit(order, cfg) {
 
   // TikTok: SFR + Handling fee
   const tiktokSfr      = (platform === "tiktok" && isFirstSku && notCancel)
-                           ? num(cfg, "tiktok_sfr") : 0
+    ? (hasTiktokReal ? (order._fee_service || 0) : num(cfg, "tiktok_sfr"))
+    : 0
   const tiktokHandling = (platform === "tiktok" && isFirstSku && notCancel)
-                           ? num(cfg, "tiktok_handling_fee") : 0
+    ? (hasTiktokReal ? (order._fee_handling || 0) : num(cfg, "tiktok_handling_fee"))
+    : 0
 
   // Lazada: phí xử lý đơn hàng cố định per-order (từ cost settings)
   const lazadaServiceFee = (platform === "lazada" && isFirstSku && notCancel)

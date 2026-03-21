@@ -6,6 +6,53 @@
 import { detectReportMonth, extractPdfText, autoDetectAndParse,
          parseTiktokReport } from '../handlers/report-parsers.js'
 		 
+// ── Parse và lưu phí từng đơn TikTok vào tiktok_order_fees ──────────
+async function saveTiktokOrderFees(env, parsedJson, reportMonth) {
+  if (!parsedJson || !Array.isArray(parsedJson.order_details)) return
+  const rows = parsedJson.order_details
+  if (!rows.length) return
+
+  const BATCH = 50
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = rows.slice(i, i + BATCH)
+    const stmts = chunk.map(r => env.DB.prepare(`
+      INSERT INTO tiktok_order_fees
+        (order_id, fee_commission, fee_payment, fee_service,
+         fee_affiliate, fee_piship, fee_handling, fee_ads,
+         tax_vat, tax_pit, total_fees, settlement, report_month)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(order_id) DO UPDATE SET
+        fee_commission = excluded.fee_commission,
+        fee_payment    = excluded.fee_payment,
+        fee_service    = excluded.fee_service,
+        fee_affiliate  = excluded.fee_affiliate,
+        fee_piship     = excluded.fee_piship,
+        fee_handling   = excluded.fee_handling,
+        fee_ads        = excluded.fee_ads,
+        tax_vat        = excluded.tax_vat,
+        tax_pit        = excluded.tax_pit,
+        total_fees     = excluded.total_fees,
+        settlement     = excluded.settlement,
+        report_month   = excluded.report_month
+    `).bind(
+      r.order_id,
+      Math.abs(r.fee_commission  || 0),
+      Math.abs(r.fee_payment     || 0),
+      Math.abs(r.fee_service     || 0),
+      Math.abs(r.fee_affiliate   || 0),
+      Math.abs(r.fee_piship      || 0),
+      Math.abs(r.fee_handling    || 0),
+      Math.abs(r.fee_ads         || 0),
+      Math.abs(r.tax_vat         || 0),
+      Math.abs(r.tax_pit         || 0),
+      Math.abs(r.total_fees      || 0),
+      r.settlement || 0,
+      reportMonth
+    ))
+    try { await env.DB.batch(stmts) } catch(e) { console.log('tiktok_order_fees batch error:', e.message) }
+  }
+}
+
 async function uploadReport(request, env, cors) {
   if (request.method !== "POST")
     return new Response("Method not allowed", { status: 405, headers: cors })
@@ -129,6 +176,12 @@ async function uploadReport(request, env, cors) {
     parsed.total_payout        || 0,
     JSON.stringify(parsed)
   ).run()
+
+  // Nếu là TikTok income và có order_details → lưu phí từng đơn
+  if (platform === 'tiktok' && report_type === 'income' && parsedJson) {
+    const rawData = JSON.parse(parsedJson)
+    await saveTiktokOrderFees(env, rawData, report_month)
+  }
 
   return Response.json({
     status: "ok",

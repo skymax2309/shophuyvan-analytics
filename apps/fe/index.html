@@ -137,29 +137,19 @@ async function importFile() {
     // 6. Upload lên worker — gọi cả 2 API song song
     const v2Data = buildOrdersV2(orders)
 
-    const [res, resV2] = await Promise.all([
-      fetch(API + "/api/import-orders", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(orders)
-      }),
-      fetch(API + "/api/import-orders-v2", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(v2Data)
-      })
-    ])
+const resV2 = await fetch(API + "/api/import-orders-v2", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(v2Data)
+    })
 
-    if (!res.ok)   throw new Error("Server lỗi v1 " + res.status + ": " + await res.text())
-    if (!resV2.ok) throw new Error("Server lỗi v2 " + resV2.status + ": " + await resV2.text())
+    if (!resV2.ok) throw new Error("Server lỗi " + resV2.status + ": " + await resV2.text())
 
-    const result   = await res.json()
     const resultV2 = await resV2.json()
 
     addLog(`<br><span class="success">
       ✅ Upload thành công!<br>
-      &nbsp;&nbsp;• Bảng cũ: <b>${result.imported}</b> dòng SKU<br>
-      &nbsp;&nbsp;• Bảng mới: <b>${resultV2.imported_orders}</b> đơn + <b>${resultV2.imported_items}</b> SKU items
+      &nbsp;&nbsp;• <b>${resultV2.imported_orders}</b> đơn + <b>${resultV2.imported_items}</b> SKU items
     </span>`)
 
   } catch (err) {

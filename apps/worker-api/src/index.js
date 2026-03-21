@@ -2,7 +2,7 @@
 import { getFilters, buildWhere }        from './utils/filters.js'
 import { getCostSettings, calcProfit }   from './utils/db.js'
 import { handleProducts, handleCostSettings } from './routes/products.js'
-import { importOrders, exportOrders, recalcCost, importOrdersV2 } from './routes/orders.js'
+import { exportOrders, recalcCost, importOrdersV2 } from './routes/orders.js'
 import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          topSku, topProduct, topShop, topPlatform,
          cancelStats, priceCalc, topSkuFull } from './routes/dashboard.js'
@@ -76,9 +76,6 @@ export default {
         return handleCostSettings(request, env, cors)
 
       // ── Import Orders ─────────────────────────────────────────────
-      if (url.pathname === "/api/import-orders")
-        return importOrders(request, env, cors)
-
       if (url.pathname === "/api/import-orders-v2")
         return importOrdersV2(request, env, cors)
 

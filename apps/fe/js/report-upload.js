@@ -426,16 +426,15 @@ function parseLazadaClient(text) {
 
 // Parse TikTok Excel ở client
 async function parseTiktokExcelClient(file) {
-  const buf  = await file.arrayBuffer()
-  const wb   = XLSX.read(buf)
+  const buf = await file.arrayBuffer()
+  const wb  = XLSX.read(buf)
+
+  // ── Parse sheet Reports (tổng hợp tháng) ─────────────────────────
   const ws   = wb.Sheets["Reports"] || wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1 })
 
-  // Lấy value ở cột F (index 5), abs nếu cần
-  const n    = (val) => parseFloat(String(val || "0").replace(/[^0-9.-]/g, "")) || 0
-  const abs  = (val) => Math.abs(n(val))
-
-  // Tìm exact label ở cột B/C/D/E, value ở cột F
+  const n   = (val) => parseFloat(String(val || "0").replace(/[^0-9.-]/g, "")) || 0
+  const abs = (val) => Math.abs(n(val))
   const findExact = (keyword) => {
     for (const r of rows) {
       for (let c = 1; c <= 4; c++) {
@@ -445,51 +444,84 @@ async function parseTiktokExcelClient(file) {
     return 0
   }
 
-  // Đọc từng dòng theo đúng label
-  const total_settlement   = findExact("Total settlement amount")
-  const total_revenue      = findExact("Total Revenue")
-  const subtotal_after     = findExact("Subtotal after seller discounts")
-  const refund_subtotal    = abs(findExact("Refund subtotal after seller discounts"))
+  const total_settlement = findExact("Total settlement amount")
+  const total_revenue    = findExact("Total Revenue")
+  const subtotal_after   = findExact("Subtotal after seller discounts")
+  const refund_subtotal  = abs(findExact("Refund subtotal after seller discounts"))
+  const actual_shipping     = n(findExact("Actual shipping fee"))
+  const platform_ship_disc  = n(findExact("Platform shipping fee discount"))
+  const customer_ship_fee   = n(findExact("Customer shipping fee"))
+  const actual_return_ship  = n(findExact("Actual return shipping fee"))
+  const net_shipping_cost   = abs(actual_shipping + platform_ship_disc + customer_ship_fee + actual_return_ship)
   const transaction_fee    = abs(findExact("Transaction fee"))
   const commission_fee     = abs(findExact("TikTok Shop commission fee"))
-  const seller_shipping    = abs(findExact("Seller shipping fee"))
-  const affiliate_fee      = abs(findExact("Affiliate Commission"))
-  const sfr_service_fee    = abs(findExact("SFR service fee"))
   const order_handling_fee = abs(findExact("Order processing fee"))
+  const sfr_service_fee    = abs(findExact("SFR service fee"))
+  const flash_sale_fee     = abs(findExact("Flash Sale service fee"))
+  const affiliate_fee      = abs(findExact("Affiliate Commission"))
+  const affiliate_ads_fee  = abs(findExact("Affiliate Shop Ads commission"))
+  const total_affiliate    = affiliate_fee + affiliate_ads_fee
   const tax_vat            = abs(findExact("VAT withheld by TikTok Shop"))
   const tax_pit            = abs(findExact("PIT withheld by TikTok Shop"))
+  const gmv_tiktok_ads     = abs(findExact("GMV Payment for TikTok Ads"))
   const total_adjustments  = n(findExact("Total adjustments"))
-
-  const fee_total = transaction_fee + commission_fee + seller_shipping
-                  + affiliate_fee + sfr_service_fee + order_handling_fee
+  const fee_total = transaction_fee + commission_fee + order_handling_fee
+                  + sfr_service_fee + flash_sale_fee + total_affiliate
   const tax_total = tax_vat + tax_pit
-  
-     // Lấy tháng từ "Time period: 2026/02/01-2026/02/28"
-     let _month = ""
-     for (const r of rows) {
-       const label = String(r[1] || "").trim()
-       if (label === "Time period:") {
-         const mp = String(r[5] || "").match(/(\d{4})\/(\d{2})/)
-         if (mp) _month = `${mp[1]}-${mp[2]}`
-         break
-       }
-     }
-   
-return {
+
+  let _month = ""
+  for (const r of rows) {
+    if (String(r[1] || "").trim() === "Time period:") {
+      const mp = String(r[5] || "").match(/(\d{4})\/(\d{2})/)
+      if (mp) _month = `${mp[1]}-${mp[2]}`
+      break
+    }
+  }
+
+  // ── Parse sheet Order details (phí từng đơn) ─────────────────────
+  const wsDetail = wb.Sheets["Order details"]
+  let order_details = []
+  if (wsDetail) {
+    const detailRows = XLSX.utils.sheet_to_json(wsDetail, { defval: 0 })
+    order_details = detailRows
+      .filter(r => {
+        const type = String(r['Type '] || r['Type'] || '').trim()
+        const oid  = String(r['Order/adjustment ID  '] || r['Order/adjustment ID'] || '').trim()
+        return type === 'Order' && oid.length > 5
+      })
+      .map(r => ({
+        order_id:       String(r['Order/adjustment ID  '] || r['Order/adjustment ID'] || '').trim(),
+        fee_commission: Math.abs(Number(r['TikTok Shop commission fee'])  || 0),
+        fee_payment:    Math.abs(Number(r['Transaction fee'])             || 0),
+        fee_service:    Math.abs(Number(r['Order processing fee']) || 0) + Math.abs(Number(r['SFR service fee']) || 0),
+        fee_affiliate:  Math.abs(Number(r['Affiliate Commission'])        || 0),
+        fee_piship:     Math.abs(Number(r['Actual shipping fee'])         || 0),
+        fee_handling:   0,
+        fee_ads:        Math.abs(Number(r['GMV Payment for TikTok Ads'])  || 0),
+        tax_vat:        Math.abs(Number(r['VAT withheld by TikTok Shop']) || 0),
+        tax_pit:        Math.abs(Number(r['PIT withheld by TikTok Shop']) || 0),
+        total_fees:     Math.abs(Number(r['Total Fees'])                  || 0),
+        settlement:     Number(r['Total settlement amount'])              || 0,
+      }))
+  }
+
+  return {
     _month,
+    order_details,   // <-- gửi kèm lên server
     gross_revenue:       total_revenue,
     refund_amount:       refund_subtotal,
     net_product_revenue: subtotal_after - refund_subtotal,
     platform_subsidy:    0,
     seller_voucher:      0,
     co_funded_voucher:   0,
-    shipping_net:        -seller_shipping,
+    shipping_net:        -net_shipping_cost,
     fee_commission:      commission_fee,
     fee_payment:         transaction_fee,
-    fee_service:         sfr_service_fee,
-    fee_affiliate:       affiliate_fee,
+    fee_service:         sfr_service_fee + flash_sale_fee,
+    fee_affiliate:       total_affiliate,
     fee_piship_sfr:      sfr_service_fee,
     fee_handling:        order_handling_fee,
+    fee_ads:             gmv_tiktok_ads,
     fee_total,
     compensation:        Math.max(0, total_adjustments),
     tax_vat,
