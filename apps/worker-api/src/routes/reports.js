@@ -215,7 +215,8 @@ async function getReportSummary(request, env, cors) {
     total_shipping_failed: row?.total_shipping_failed || 0,
     total_return_shipping:  row?.total_shipping_return  || 0,
     shops: shops.results || []
-  }, { headers: cors })
+}, { headers: cors })
+}
 
 async function getOperationCosts(request, env, cors) {
   const url3   = new URL(request.url)
