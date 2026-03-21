@@ -141,11 +141,14 @@
 <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <span>📋 Báo Cáo Đã Upload</span>
       <div style="display:flex;gap:8px">
-        <select id="filterPlatform" onchange="loadHistory()" style="border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 10px;font-size:13px;outline:none">
+        <select id="filterPlatform" onchange="onFilterPlatformChange()" style="border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 10px;font-size:13px;outline:none">
           <option value="">Tất cả sàn</option>
           <option value="shopee">Shopee</option>
           <option value="tiktok">TikTok</option>
           <option value="lazada">Lazada</option>
+        </select>
+        <select id="filterShop" onchange="loadHistory()" style="border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 10px;font-size:13px;outline:none">
+          <option value="">Tất cả shop</option>
         </select>
         <select id="filterMonth" onchange="loadHistory()" style="border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 10px;font-size:13px;outline:none">
           <option value="">Tất cả tháng</option>

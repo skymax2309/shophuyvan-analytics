@@ -7,17 +7,22 @@ let allShopNames = []
 async function loadShops() {
   try {
     const shops = await fetch(API + "/api/top-shop").then(r => r.json())
-    allShopNames = [...new Set(shops.map(s => s.shop))]
+    // Gộp shop từ DB + shop cố định trong config
+    const dbShops = shops.map(s => s.shop)
+    const allConfigShops = Object.values(SHOP_BY_PLATFORM).flat()
+    allShopNames = [...new Set([...dbShops, ...allConfigShops])]
 
     // Dropdown upload thủ công
     const options = '<option value="">-- Chọn shop --</option>' +
                     allShopNames.map(s => `<option value="${s}">${s}</option>`).join("")
     document.getElementById("inpShop").innerHTML = options
 
-    // Render checkbox cho bot
-    renderShopCheckboxes()
+    // Render checkbox bot theo sàn hiện tại
+    onBotPlatformChange()
   } catch(e) {
     console.error("Không load được danh sách shop:", e)
+    // Fallback: dùng config cố định
+    onBotPlatformChange()
   }
 }
 
@@ -44,9 +49,37 @@ function getSelectedShops() {
 }
 
 // ── Đổi loại báo cáo theo sàn ────────────────────────────────────────
+// Cấu hình shop cố định theo từng sàn
+const SHOP_BY_PLATFORM = {
+  shopee: [
+    "Huy Vân Store Q.Bình Tân",
+    "shophuyvan.vn",
+    "KHOGIADUNGHUYVAN",
+  ],
+  lazada: [
+    "ShopHuyVan",
+  ],
+  tiktok: [
+    "ShopHuyVan",
+  ],
+}
+
 function onBotPlatformChange() {
   const platform = document.getElementById("botPlatform").value
   const taskSel  = document.getElementById("botTaskType")
+
+  // Cập nhật danh sách shop theo sàn
+  const shops = SHOP_BY_PLATFORM[platform] || []
+  const el = document.getElementById("botShopCheckboxes")
+  if (!shops.length) {
+    el.innerHTML = '<span style="color:#aaa;font-size:13px">Không có shop nào</span>'
+  } else {
+    el.innerHTML = shops.map(s => `
+      <label style="display:flex;align-items:center;gap:5px;padding:5px 10px;background:white;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px">
+        <input type="checkbox" value="${s}" class="bot-shop-cb" style="cursor:pointer" checked> ${s}
+      </label>
+    `).join("")
+  }
 
   const options = {
     shopee: [
@@ -659,12 +692,27 @@ function renderParsed(p) {
 }
 
 // ── History ──────────────────────────────────────────────────────────
-async function loadHistory() {
-  const month    = document.getElementById("filterMonth").value
+// Shop theo sàn cho filter
+const HISTORY_SHOPS = {
+  shopee: ["Huy Vân Store Q.Bình Tân", "shophuyvan.vn", "KHOGIADUNGHUYVAN"],
+  lazada: ["ShopHuyVan"],
+  tiktok: ["ShopHuyVan"],
+}
+
+function onFilterPlatformChange() {
   const platform = document.getElementById("filterPlatform").value
-  const params   = new URLSearchParams()
-  if (month)    params.set("month", month)
+  const shopSel  = document.getElementById("filterShop")
+  const shops    = HISTORY_SHOPS[platform] || []
+  shopSel.innerHTML = '<option value="">Tất cả shop</option>'
+    + shops.map(s => `<option value="${s}">${s}</option>`).join("")
+  loadHistory()
+}
+  const month    = document.getElementById("filterMonth").value
+const platform = document.getElementById("filterPlatform").value
+  const shop     = document.getElementById("filterShop")?.value || ""
+  const params = new URLSearchParams()
   if (platform) params.set("platform", platform)
+  if (shop)     params.set("shop", shop)
   const url = API + "/api/reports" + (params.toString() ? "?" + params.toString() : "")
   const rows  = await fetch(url).then(r => r.json())
 
@@ -684,15 +732,27 @@ async function loadHistory() {
   const typeLabel = { income: "Doanh Thu", expense: "Chi Phí", orders: "Đơn Hàng", "phi-dau-thau": "Quảng Cáo" }
   const fmt = n => Math.abs(Math.round(n || 0)).toLocaleString("vi-VN")
 
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:80px 90px 100px 1fr auto;gap:12px;font-size:11px;font-weight:700;color:#888;padding:0 14px;margin-bottom:6px">
-      <span>Sàn</span><span>Tháng</span><span>Loại</span><span>File / Doanh thu → Về túi</span><span>Tải</span>
+el.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:8px 12px;background:#f8f9fa;border-radius:8px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px;font-weight:600">
+        <input type="checkbox" id="checkAll" onchange="toggleAllReports(this.checked)"> Chọn tất cả
+      </label>
+      <span style="color:#e0e0e0">|</span>
+      <span id="selectedCount" style="font-size:12px;color:#6b7280">Chưa chọn file nào</span>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button onclick="bulkDownload()" style="font-size:12px;padding:5px 12px;border:1px solid #4f46e5;border-radius:6px;cursor:pointer;color:#4f46e5;background:white">⬇️ Tải đã chọn</button>
+        <button onclick="bulkDelete()" style="font-size:12px;padding:5px 12px;border:1px solid #ef4444;border-radius:6px;cursor:pointer;color:#ef4444;background:white">🗑️ Xóa đã chọn</button>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:32px 80px 90px 100px 1fr auto;gap:12px;font-size:11px;font-weight:700;color:#888;padding:0 14px;margin-bottom:6px">
+      <span></span><span>Sàn</span><span>Tháng</span><span>Loại</span><span>File / Doanh thu → Về túi</span><span>Tải</span>
     </div>
     ${rows.map(r => `
-    <div class="history-item">
+    <div class="history-item" style="display:grid;grid-template-columns:32px 80px 90px 100px 1fr auto;gap:12px;align-items:center">
+      <input type="checkbox" class="report-cb" value="${r.id}" data-r2="${r.r2_key}" data-file="${r.file_name}" onchange="updateSelectedCount()">
       <span><span class="platform-tag tag-${r.platform}">${r.platform.toUpperCase()}</span></span>
-      <span>${r.report_month}</span>
-      <span>${typeLabel[r.report_type] || r.report_type}</span>
+      <span style="font-size:12px">${r.report_month}</span>
+      <span style="font-size:12px">${typeLabel[r.report_type] || r.report_type}</span>
       <div>
         <div style="font-weight:600;font-size:12px">${r.file_name}</div>
         <div style="font-size:11px;color:#888;line-height:1.8">
@@ -855,6 +915,59 @@ async function deleteJob(id) {
     else alert("Lỗi xóa: " + (data.error || "unknown"))
   } catch(e) {
     alert("Lỗi: " + e.message)
+  }
+}
+
+function toggleAllReports(checked) {
+  document.querySelectorAll(".report-cb").forEach(cb => cb.checked = checked)
+  updateSelectedCount()
+}
+
+function updateSelectedCount() {
+  const n = document.querySelectorAll(".report-cb:checked").length
+  const total = document.querySelectorAll(".report-cb").length
+  document.getElementById("selectedCount").textContent =
+    n === 0 ? "Chưa chọn file nào" : `Đã chọn ${n}/${total} file`
+  const checkAll = document.getElementById("checkAll")
+  if (checkAll) checkAll.indeterminate = n > 0 && n < total
+}
+
+async function bulkDelete() {
+  const checked = [...document.querySelectorAll(".report-cb:checked")]
+  if (!checked.length) { alert("Chưa chọn file nào!"); return }
+  if (!confirm(`Xóa ${checked.length} báo cáo đã chọn?`)) return
+
+  let ok = 0
+  for (const cb of checked) {
+    try {
+      const res = await fetch(API + "/api/reports/" + cb.value, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ r2_key: cb.dataset.r2 })
+      })
+      const data = await res.json()
+      if (data.status === "ok") ok++
+    } catch(e) {}
+  }
+  showToast(`Đã xóa ${ok}/${checked.length} báo cáo`)
+  loadHistory()
+}
+
+async function bulkDownload() {
+  const checked = [...document.querySelectorAll(".report-cb:checked")]
+  if (!checked.length) { alert("Chưa chọn file nào!"); return }
+
+  showToast(`Đang tải ${checked.length} file...`)
+  for (const cb of checked) {
+    const url = `${API}/api/report-file?key=${encodeURIComponent(cb.dataset.r2)}`
+    const a = document.createElement("a")
+    a.href = url
+    a.download = cb.dataset.file
+    a.target = "_blank"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    await new Promise(r => setTimeout(r, 800)) // delay nhỏ tránh block
   }
 }
 
