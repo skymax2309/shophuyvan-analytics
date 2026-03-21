@@ -297,7 +297,6 @@ function parseShopeeReport(text) {
   const net_product_revenue = gross_revenue - refund_amount + platform_subsidy - co_funded_voucher
 
   return {
-    return {
     gross_revenue, refund_amount, net_product_revenue,
     platform_subsidy, seller_voucher: 0, co_funded_voucher,
     shipping_net:    -(shipping_return + shipping_failed),
