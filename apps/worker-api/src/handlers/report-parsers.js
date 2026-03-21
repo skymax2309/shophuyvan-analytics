@@ -286,6 +286,9 @@ function parseShopeeReport(text) {
   const fee_piship_sfr      = findNum("Phí dịch vụ PiShip")
   const fee_handling        = 0
   const fee_ads             = 0
+  // Phí vận chuyển trả hàng — 2 loại riêng biệt
+  const shipping_return     = findNum("Phí vận chuyển trả hàng \\(đơn Trả hàng")
+  const shipping_failed     = findNum("Phí vận chuyển trả hàng \\(đơn giao không thành công")
   const fee_total           = fee_commission + fee_service + fee_payment + fee_affiliate + fee_piship_sfr
   const tax_vat             = findNum("Thuế GTGT")
   const tax_pit             = findNum("Thuế TNCN")
@@ -294,9 +297,12 @@ function parseShopeeReport(text) {
   const net_product_revenue = gross_revenue - refund_amount + platform_subsidy - co_funded_voucher
 
   return {
+    return {
     gross_revenue, refund_amount, net_product_revenue,
     platform_subsidy, seller_voucher: 0, co_funded_voucher,
-    shipping_net: 0,
+    shipping_net:    -(shipping_return + shipping_failed),
+    shipping_return: shipping_return,
+    shipping_failed: shipping_failed,
     fee_commission, fee_payment, fee_service,
        fee_affiliate, fee_piship_sfr, fee_handling, fee_ads, fee_total,
     compensation: 0,

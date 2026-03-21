@@ -410,9 +410,9 @@ const cancelRows = (Array.isArray(cancelStats) ? cancelStats : []).filter(r => r
         `Hủy: ${dash.cancel_orders||0} | Hoàn: ${dash.return_orders||0}`,
         _cancelDetailBase() + `
           ${_sec('📦 PHÍ VẬN CHUYỂN TRẢ HÀNG (BÁO CÁO):')}
-          ${_row('🚫 Giao hàng không thành công', fmt(rptSum.total_shipping_failed || 0), '', '#f59e0b')}
-          ${_row('↩ Trả hàng / Hoàn tiền', fmt(rptSum.total_return_shipping || 0), '', '#ef4444')}
-          ${_rowBold('Tổng phí VC trả hàng', fmt((rptSum.total_shipping_failed||0)+(rptSum.total_return_shipping||0)), '', '#ef4444')}`
+          ${_row('🚫 Giao hàng không thành công', fmt(dash.shopee_failed_delivery_fee || 0), pcc(dash.shopee_failed_delivery_fee||0, revBC), '#f59e0b')}
+          ${_row('↩ Trả hàng / Hoàn tiền', fmt(dash.shopee_return_fee || 0), pcc(dash.shopee_return_fee||0, revBC), '#ef4444')}
+          ${_rowBold('Tổng phí VC trả hàng', fmt((dash.shopee_failed_delivery_fee||0)+(dash.shopee_return_fee||0)), '', '#ef4444')}
       )}
 
       ${_card('', '🏭', 'Chi Phí Vận Hành',

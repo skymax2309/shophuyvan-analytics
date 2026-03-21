@@ -71,13 +71,13 @@ async function uploadReport(request, env, cors) {
       (platform, shop, report_month, report_type, file_name, r2_key,
        gross_revenue, refund_amount, net_product_revenue,
        platform_subsidy, seller_voucher, co_funded_voucher,
-       shipping_net,
+       shipping_net, shipping_return, shipping_failed,
        fee_commission, fee_payment, fee_service,
        fee_affiliate, fee_piship_sfr, fee_handling, fee_ads, fee_total,
        compensation,
        tax_vat, tax_pit, tax_total,
        total_payout, raw_data)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(platform, report_month, file_name) DO UPDATE SET
       r2_key              = excluded.r2_key,
       gross_revenue       = excluded.gross_revenue,
@@ -87,6 +87,8 @@ async function uploadReport(request, env, cors) {
       seller_voucher      = excluded.seller_voucher,
       co_funded_voucher   = excluded.co_funded_voucher,
       shipping_net        = excluded.shipping_net,
+      shipping_return     = excluded.shipping_return,
+      shipping_failed     = excluded.shipping_failed,
       fee_commission      = excluded.fee_commission,
       fee_payment         = excluded.fee_payment,
       fee_service         = excluded.fee_service,
@@ -110,6 +112,8 @@ async function uploadReport(request, env, cors) {
     parsed.seller_voucher      || 0,
     parsed.co_funded_voucher   || 0,
     parsed.shipping_net        || 0,
+    parsed.shipping_return     || 0,
+    parsed.shipping_failed     || 0,
     parsed.fee_commission      || 0,
     parsed.fee_payment         || 0,
     parsed.fee_service         || 0,
@@ -160,17 +164,22 @@ async function getReportSummary(request, env, cors) {
   // Tổng hợp doanh thu — chỉ từ income
   const row = await env.DB.prepare(`
     SELECT
-      SUM(gross_revenue)       AS total_gross_revenue,
-      SUM(fee_commission)      AS total_fee_commission,
-      SUM(fee_payment)         AS total_fee_payment,
-      SUM(fee_affiliate)       AS total_fee_affiliate,
-      SUM(fee_piship_sfr)      AS total_fee_piship,
-      SUM(fee_service)         AS total_fee_service,
-      SUM(fee_handling)        AS total_fee_handling,
-      SUM(COALESCE(fee_ads,0)) AS total_fee_ads_income,
-      SUM(fee_total)           AS total_fee_report,
-      SUM(tax_total)           AS total_tax_report,
-      SUM(total_payout)        AS total_payout
+      SUM(gross_revenue)          AS total_gross_revenue,
+      SUM(refund_amount)          AS total_refund,
+      SUM(co_funded_voucher)      AS total_co_funded_voucher,
+      SUM(fee_commission)         AS total_fee_commission,
+      SUM(fee_payment)            AS total_fee_payment,
+      SUM(fee_affiliate)          AS total_fee_affiliate,
+      SUM(fee_piship_sfr)         AS total_fee_piship,
+      SUM(fee_service)            AS total_fee_service,
+      SUM(fee_handling)           AS total_fee_handling,
+      SUM(COALESCE(fee_ads,0))    AS total_fee_ads_income,
+      SUM(fee_total)              AS total_fee_report,
+      SUM(tax_total)              AS total_tax_report,
+      SUM(total_payout)                  AS total_payout,
+      SUM(COALESCE(shipping_net,0))      AS total_shipping_net,
+      SUM(COALESCE(shipping_return, 0))  AS total_shipping_return,
+      SUM(COALESCE(shipping_failed, 0))  AS total_shipping_failed
     FROM platform_reports
     WHERE report_type = 'income' ${baseWhere}
   `).bind(...baseParams).first()
@@ -199,8 +208,14 @@ async function getReportSummary(request, env, cors) {
     ORDER BY gross_revenue DESC
   `).bind(...baseParams).all()
 
-  return Response.json({ ...row, total_fee_ads, shops: shops.results || [] }, { headers: cors })
-}
+  
+  return Response.json({
+    ...row,
+    total_fee_ads,
+    total_shipping_failed: row?.total_shipping_failed || 0,
+    total_return_shipping:  row?.total_shipping_return  || 0,
+    shops: shops.results || []
+  }, { headers: cors })
 
 async function getOperationCosts(request, env, cors) {
   const url3   = new URL(request.url)
