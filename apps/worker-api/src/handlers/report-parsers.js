@@ -71,9 +71,13 @@ function autoDetectAndParse(text, platform, reportType) {
   if (text.includes("TIKTOK PTE") || text.includes("VNEC") || text.includes("Tokgistic")) {
     return parseTiktokExpenseInvoice(text)
   }
-  // Lazada hóa đơn
-  if (text.includes("RECESS") || text.includes("VN33W4TIY8") || text.includes("Lazada")) {
-    // Phân biệt ADS vs Chi Phí dựa vào nội dung dòng hàng hóa
+  // Lazada doanh thu — ưu tiên check report_type=income TRƯỚC
+  // vì file doanh thu cũng chứa "VN33W4TIY8" (mã gian hàng)
+  if (platform === "lazada" && reportType === "income") {
+    return parseLazadaReport(text)
+  }
+  // Lazada hóa đơn chi phí / ADS
+  if (text.includes("RECESS") || text.includes("VN33W4TIY8")) {
     const isAds = text.includes("Tài Trợ Hiển Thị") || text.includes("Tài trợ Hiển Thị") ||
                   text.includes("Sponsored") || text.includes("tài trợ hiển thị")
     return parseLazadaExpenseInvoice(text, isAds)
