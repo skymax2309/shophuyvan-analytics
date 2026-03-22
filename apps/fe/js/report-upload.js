@@ -64,6 +64,29 @@ async function uploadAll() {
 
       // TikTok Excel: parse ở client trước
       if (platform === "tiktok" && (file.name.endsWith(".xlsx") || file.name.endsWith(".csv"))) {
+        if (type === "orders") {
+          // Đơn hàng TikTok → import vào orders_v2
+          const month     = detectMonthFromName(file.name)
+          const cleanShop = (shop || "SHOP").replace(/\s+/g, "-").toUpperCase()
+          newName = `TIKTOK_${cleanShop}_${month}_donhang.xlsx`
+          log.innerHTML += `📝 Đổi tên → <b>${newName}</b><br>`
+          const { orders, items } = await parseTiktokOrderExcel(file)
+          // Gán shop vào từng order
+          orders.forEach(o => o.shop = shop)
+          log.innerHTML += `📦 Parse được <b>${orders.length}</b> đơn, <b>${items.length}</b> SKU line...<br>`
+          const res = await fetch(API + "/api/import-orders-v2", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orders, items })
+          })
+          result = await res.json()
+          if (result.status === "ok") {
+            log.innerHTML += `✅ Import <b>${result.imported_orders}</b> đơn, <b>${result.imported_items}</b> SKU line<br>`
+          } else {
+            log.innerHTML += `❌ Lỗi import: ${result.error || "Unknown"}<br>`
+          }
+          continue
+        }
         const tiktokData = await parseTiktokExcelClient(file)
         // Tên Excel: lấy tháng từ sheet Reports
         const month      = tiktokData._month || detectMonthFromName(file.name)
@@ -529,6 +552,64 @@ async function parseTiktokExcelClient(file) {
     tax_total,
     total_payout:        total_settlement,
   }
+}
+
+async function parseTiktokOrderExcel(file) {
+  const buf  = await file.arrayBuffer()
+  const wb   = XLSX.read(buf)
+  const ws   = wb.Sheets["OrderSKUList"]
+  if (!ws) return { orders: [], items: [] }
+
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: "" })
+  // Bỏ dòng 2 (mô tả cột)
+  const dataRows = rows.filter(r => String(r["Order ID"] || "").length > 5
+                                 && String(r["Order ID"] || "") !== "Platform unique order ID.")
+
+  const ordersMap = {}
+  const items     = []
+
+  for (const r of dataRows) {
+    const order_id     = String(r["Order ID"] || "").trim()
+    const status       = String(r["Order Status"] || "").trim()
+    const cancelType   = String(r["Cancelation/Return Type"] || "").trim()
+    const cancel_reason= String(r["Cancel Reason"] || "").trim()
+    const sku          = String(r["Seller SKU"] || "").trim()
+    const product_name = String(r["Product Name"] || "").trim()
+    const qty          = parseInt(r["Quantity"]) || 1
+    const revenue_line = parseFloat(r["SKU Subtotal After Discount"]) || 0
+    const order_amount = parseFloat(r["Order Amount"]) || 0
+
+    // Xác định order_type
+    let order_type = "normal"
+    if (cancelType.toLowerCase().includes("return") || status.toLowerCase().includes("hoàn")) {
+      order_type = "return"
+    } else if (status.toLowerCase().includes("hủy") || status.toLowerCase().includes("cancel")) {
+      order_type = "cancel"
+    }
+
+    // Lấy ngày: ưu tiên Paid Time, fallback Created Time
+    const rawDate = String(r["Paid Time"] || r["Created Time"] || "").trim()
+    // Format: "31/01/2026 23:43:31" → "2026-01-31"
+    let order_date = ""
+    const dm = rawDate.match(/(\d{2})\/(\d{2})\/(\d{4})/)
+    if (dm) order_date = `${dm[3]}-${dm[2]}-${dm[1]}`
+
+    // Gom order
+    if (!ordersMap[order_id]) {
+      ordersMap[order_id] = {
+        order_id, platform: "tiktok", shop: "",
+        order_date, order_type,
+        revenue: order_amount, raw_revenue: order_amount,
+        cancel_reason, return_fee: 0,
+        shipped: 0, discount_shop: 0, discount_shopee: 0,
+        discount_combo: 0, shipping_return_fee: 0,
+      }
+    }
+
+    items.push({ order_id, sku, product_name, qty, revenue_line })
+  }
+
+  return { orders: Object.values(ordersMap), items }
 }
 
 async function uploadTiktokJson(file, tiktokData, platform, shop, type) {

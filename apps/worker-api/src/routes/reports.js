@@ -295,7 +295,7 @@ async function getOperationCosts(request, env, cors) {
 
   const orderRow = await env.DB.prepare(`
     SELECT COUNT(DISTINCT order_id) AS total_orders
-    FROM orders WHERE ${orderConds.join(" AND ")}
+    FROM orders_v2 WHERE ${orderConds.join(" AND ")}
   `).bind(...orderParams).first()
   const totalOrders = orderRow?.total_orders || 0
 
@@ -318,7 +318,7 @@ async function getOperationCosts(request, env, cors) {
     if (platform) { allShopConds.push("platform = ?");   allShopParams.push(platform) }
 
     const allShopRow = await env.DB.prepare(`
-      SELECT COUNT(DISTINCT shop) AS total FROM orders WHERE order_type = 'normal'
+      SELECT COUNT(DISTINCT shop) AS total FROM orders_v2 WHERE order_type = 'normal'
     `).first()
 
     totalShops = allShopRow?.total || 1
@@ -334,7 +334,7 @@ async function getOperationCosts(request, env, cors) {
     if (to)       { allOrdConds.push("order_date <= ?"); allOrdParams.push(to) }
     if (platform) { allOrdConds.push("platform = ?");   allOrdParams.push(platform) }
     const allOrdRow = await env.DB.prepare(`
-      SELECT COUNT(DISTINCT order_id) AS total FROM orders WHERE ${allOrdConds.join(" AND ")}
+     SELECT COUNT(DISTINCT order_id) AS total FROM orders_v2 WHERE ${allOrdConds.join(" AND ")}
     `).bind(...allOrdParams).first()
     totalOrdersAll = allOrdRow?.total || 0
   }
@@ -369,7 +369,7 @@ async function getOperationCosts(request, env, cors) {
       }
     }
 
-    return { ...c, actual_amount: actualAmount, total_orders: totalOrders, months, note, shop_ratio: shopRatio }
+    return { ...c, actual_amount: actualAmount, total_orders: costHasShop ? totalOrders : totalOrdersAll, months, note, shop_ratio: shopRatio }
   }).filter(Boolean)
 
   return Response.json({ costs, total_orders: totalOrders, months }, { headers: cors })
