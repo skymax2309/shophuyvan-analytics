@@ -299,12 +299,12 @@ async function getOperationCosts(request, env, cors) {
   `).bind(...orderParams).first()
   const totalOrders = orderRow?.total_orders || 0
 
-  // Tính số tháng trong kỳ
+  // Tính số tháng theo tỷ lệ ngày thực tế trong kỳ lọc
   let months = 1
   if (from && to) {
     const d1 = new Date(from), d2 = new Date(to)
-    const diff = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1
-    months = Math.max(1, diff)
+    const totalDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1
+    months = totalDays / 30
   }
 
   // Đếm số shop duy nhất trong kỳ (để chia đều chi phí chung)
@@ -318,7 +318,11 @@ async function getOperationCosts(request, env, cors) {
     if (platform) { allShopConds.push("platform = ?");   allShopParams.push(platform) }
 
     const allShopRow = await env.DB.prepare(`
-      SELECT COUNT(DISTINCT shop) AS total FROM orders_v2 WHERE order_type = 'normal'
+      SELECT COUNT(DISTINCT shop) AS total FROM orders_v2
+      WHERE order_type = 'normal'
+      ${from     ? "AND order_date >= '" + from + "'" : ""}
+      ${to       ? "AND order_date <= '" + to   + "'" : ""}
+      ${platform ? "AND platform = '"   + platform + "'" : ""}
     `).first()
 
     totalShops = allShopRow?.total || 1

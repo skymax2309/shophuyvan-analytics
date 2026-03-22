@@ -45,6 +45,23 @@ function resetFilter() {
   applyFilter()
 }
 
+function setFilterMonth() {
+  const now   = new Date()
+  const year  = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const lastDay = new Date(year, now.getMonth() + 1, 0).getDate()
+  document.getElementById("filterFrom").value = `${year}-${month}-01`
+  document.getElementById("filterTo").value   = `${year}-${month}-${lastDay}`
+  applyFilter()
+}
+
+function setFilterYear() {
+  const year = new Date().getFullYear()
+  document.getElementById("filterFrom").value = `${year}-01-01`
+  document.getElementById("filterTo").value   = `${year}-12-31`
+  applyFilter()
+}
+
 async function recalcCost() {
   if (!confirm("Cập nhật lại giá vốn cho tất cả đơn hàng?")) return
   const btn = event.target

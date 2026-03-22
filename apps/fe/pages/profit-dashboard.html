@@ -45,6 +45,8 @@
   <!-- Hidden inputs để getFilterParams() hoạt động -->
   <input type="hidden" id="filterPlatform">
   <input type="hidden" id="filterShop">
+  <button onclick="setFilterMonth()" style="padding:6px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;background:white;cursor:pointer">📅 Tháng này</button>
+  <button onclick="setFilterYear()"  style="padding:6px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;background:white;cursor:pointer">📆 Năm này</button>
   <button class="btn-filter" onclick="applyFilter()">🔍 Lọc</button>
   <button class="btn-reset" onclick="resetFilter()">✕ Reset</button>
   <button onclick="recalcCost()" style="margin-left:8px;padding:8px 14px;background:#7c3aed;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px">🔄 Cập nhật vốn</button>
