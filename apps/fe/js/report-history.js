@@ -1,17 +1,22 @@
 // ── History ──────────────────────────────────────────────────────────
 // Shop theo sàn cho filter
-const HISTORY_SHOPS = {
-  shopee: ["Huy Vân Store Q.Bình Tân", "shophuyvan.vn", "KHOGIADUNGHUYVAN"],
-  lazada: ["ShopHuyVan"],
-  tiktok: ["ShopHuyVan"],
-}
-
-function onFilterPlatformChange() {
+// Lấy danh sách shop động từ DB theo platform
+async function onFilterPlatformChange() {
   const platform = document.getElementById("filterPlatform").value
   const shopSel  = document.getElementById("filterShop")
-  const shops    = HISTORY_SHOPS[platform] || []
   shopSel.innerHTML = '<option value="">Tất cả shop</option>'
-    + shops.map(s => `<option value="${s}">${s}</option>`).join("")
+
+  try {
+    const params = new URLSearchParams()
+    if (platform) params.set("platform", platform)
+    const rows = await fetch(API + "/api/reports?" + params.toString()).then(r => r.json())
+    const shops = [...new Set(rows.map(r => r.shop).filter(Boolean))].sort()
+    shopSel.innerHTML = '<option value="">Tất cả shop</option>'
+      + shops.map(s => `<option value="${s}">${s}</option>`).join("")
+  } catch(e) {
+    console.error("Không load được shop:", e)
+  }
+
   loadHistory()
 }
 
@@ -22,6 +27,7 @@ async function loadHistory() {
   const params = new URLSearchParams()
   if (platform) params.set("platform", platform)
   if (shop)     params.set("shop", shop)
+  if (month)    params.set("month", month)
   const url = API + "/api/reports" + (params.toString() ? "?" + params.toString() : "")
   const rows  = await fetch(url).then(r => r.json())
 

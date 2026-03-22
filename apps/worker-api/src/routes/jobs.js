@@ -3,8 +3,8 @@ export async function createJob(req, env, cors) {
 
   // Chèn thêm trường scheduled_at (nếu có)
   const { lastRowId } = await env.DB.prepare(`
-    INSERT INTO jobs (user_id, shop_name, platform, month, year, status, scheduled_at, task_type)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+    INSERT INTO jobs (user_id, shop_name, platform, month, year, status, scheduled_at, task_type, from_date, to_date)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
   `).bind(
     body.user_id,
     body.shop_name,
@@ -12,7 +12,9 @@ export async function createJob(req, env, cors) {
     body.month,
     body.year,
     body.scheduled_at || null,
-    body.task_type || 'all'
+    body.task_type || 'all',
+    body.from_date || null,
+    body.to_date   || null
   ).run()
 
   return Response.json({ status: "ok", id: lastRowId }, { headers: cors })

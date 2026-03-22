@@ -84,14 +84,34 @@
         </select>
       </div>
       <div class="field">
-        <label>Từ tháng → Đến tháng</label>
-        <div style="display:flex; gap:5px;">
+        <label>Chế độ thời gian</label>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px">
+            <input type="radio" name="botTimeMode" value="month" checked onchange="onBotTimeModeChange()"> Theo tháng
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:13px">
+            <input type="radio" name="botTimeMode" value="day" onchange="onBotTimeModeChange()"> Theo ngày
+          </label>
+        </div>
+        <!-- Chế độ tháng -->
+        <div id="botMonthMode" style="display:flex; gap:5px;">
           <select id="botMonthStart" style="flex:1; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 5px;">
             <script>for(let i=1; i<=12; i++) document.write(`<option value="${i}">T${i}</option>`)</script>
           </select>
           <select id="botMonthEnd" style="flex:1; border:1.5px solid #e0e0e0; border-radius:8px; padding:9px 5px;">
             <script>for(let i=1; i<=12; i++) document.write(`<option value="${i}">T${i}</option>`)</script>
           </select>
+        </div>
+        <!-- Chế độ ngày -->
+        <div id="botDayMode" style="display:none;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:#888;width:60px">Từ ngày:</span>
+            <input type="date" id="botFromDate" style="flex:1;border:1.5px solid #e0e0e0;border-radius:8px;padding:8px 10px;font-size:13px">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;color:#888;width:60px">Đến ngày:</span>
+            <input type="date" id="botToDate" style="flex:1;border:1.5px solid #e0e0e0;border-radius:8px;padding:8px 10px;font-size:13px">
+          </div>
         </div>
       </div>
       <div class="field">

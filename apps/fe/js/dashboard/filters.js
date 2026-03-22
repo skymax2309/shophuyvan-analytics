@@ -70,7 +70,7 @@ async function recalcCost() {
   try {
     const res  = await fetch(API + "/api/recalc-cost", { method: "POST" })
     const data = await res.json()
-    alert(`✅ Đã cập nhật ${data.updated} đơn hàng!`)
+    alert(`✅ Đã cập nhật ${data.updated_v2 || data.updated} đơn hàng!`)
     loadDashboard()
   } catch (e) {
     alert("Lỗi: " + e.message)

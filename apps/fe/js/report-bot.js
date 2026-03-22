@@ -62,6 +62,21 @@ const SHOP_BY_PLATFORM = {
   ],
 }
 
+function onBotTimeModeChange() {
+  const mode = document.querySelector('input[name="botTimeMode"]:checked').value
+  document.getElementById("botMonthMode").style.display = mode === "month" ? "flex" : "none"
+  document.getElementById("botDayMode").style.display   = mode === "day"   ? "flex" : "none"
+
+  // Khi chọn theo ngày, ẩn loại báo cáo chỉ còn Đơn Hàng
+  const taskSel = document.getElementById("botTaskType")
+  if (mode === "day") {
+    taskSel.value = "don_hang"
+    taskSel.disabled = true
+  } else {
+    taskSel.disabled = false
+  }
+}
+
 function onBotPlatformChange() {
   const platform = document.getElementById("botPlatform").value
   const taskSel  = document.getElementById("botTaskType")
@@ -116,17 +131,32 @@ async function createAutomationJob() {
   const btn      = document.getElementById("btnCreateJob")
   const status   = document.getElementById("botStatusLog")
 
+  const timeMode = document.querySelector('input[name="botTimeMode"]:checked').value
+  const fromDate = document.getElementById("botFromDate").value
+  const toDate   = document.getElementById("botToDate").value
+
   if (!selectedShops.length) { alert("Chọn ít nhất 1 Shop!"); return }
-  if (mStart > mEnd) { alert("Tháng bắt đầu không được lớn hơn tháng kết thúc!"); return }
+
+  if (timeMode === "day") {
+    if (!fromDate || !toDate) { alert("Vui lòng chọn Từ ngày và Đến ngày!"); return }
+    if (fromDate > toDate)    { alert("Từ ngày không được lớn hơn Đến ngày!"); return }
+  } else {
+    if (mStart > mEnd) { alert("Tháng bắt đầu không được lớn hơn tháng kết thúc!"); return }
+  }
 
   btn.disabled = true
-  const totalJobs = selectedShops.length * (mEnd - mStart + 1)
-  status.innerHTML = `⏳ Đang tạo ${totalJobs} lệnh cho ${selectedShops.length} shop...`
 
   try {
     let created = 0
-    for (const shop of selectedShops) {
-      for (let m = mStart; m <= mEnd; m++) {
+
+    if (timeMode === "day") {
+      // Chế độ theo ngày — 1 lệnh per shop, gửi from_date + to_date
+      const d       = new Date(fromDate)
+      const month   = d.getMonth() + 1
+      const jobYear = d.getFullYear()
+      status.innerHTML = `⏳ Đang tạo ${selectedShops.length} lệnh đơn hàng theo ngày...`
+
+      for (const shop of selectedShops) {
         await fetch(API + "/api/jobs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -134,13 +164,40 @@ async function createAutomationJob() {
             user_id:      "admin_huyvan",
             shop_name:    shop,
             platform:     platform,
-            month:        m,
-            year:         parseInt(year),
-            task_type:    taskType,
-            scheduled_at: schedule || null
+            month:        month,
+            year:         jobYear,
+            task_type:    "don_hang",
+            scheduled_at: schedule || null,
+            from_date:    fromDate,
+            to_date:      toDate,
           })
         })
         created++
+      }
+    } else {
+      // Chế độ theo tháng — nhiều lệnh per shop
+      const totalJobs = selectedShops.length * (mEnd - mStart + 1)
+      status.innerHTML = `⏳ Đang tạo ${totalJobs} lệnh cho ${selectedShops.length} shop...`
+
+      for (const shop of selectedShops) {
+        for (let m = mStart; m <= mEnd; m++) {
+          await fetch(API + "/api/jobs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id:      "admin_huyvan",
+              shop_name:    shop,
+              platform:     platform,
+              month:        m,
+              year:         parseInt(year),
+              task_type:    taskType,
+              scheduled_at: schedule || null,
+              from_date:    null,
+              to_date:      null,
+            })
+          })
+          created++
+        }
       }
     }
 
