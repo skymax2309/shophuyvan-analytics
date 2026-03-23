@@ -54,30 +54,32 @@ function renderSkuTables() {
   document.getElementById("skuHasPriceCount").textContent = hasPrice.length
 
   const rowHtml = p => {
-  const encodedName = encodeURIComponent(p.product_name || "")
-  return `
-    <tr id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
-      <td><input type="checkbox" class="sku-chk" data-sku="${p.sku}" onchange="updateGroupHint()"></td>
-      <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
-      <td style="font-size:13px">${p.product_name || "—"}</td>
-      <td style="color:#6d28d9;font-weight:600">${fmt(p.cost_invoice)}</td>
-      <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-edit"
-          data-sku="${p.sku}"
-          data-name="${encodedName}"
-          data-cinv="${p.cost_invoice || 0}"
-          data-creal="${p.cost_real || 0}"
-          onclick="editSkuFromBtn(this)">✏️</button>
-        <button onclick="moveToCombo('${p.sku}')"
-          style="margin-left:4px;padding:4px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px"
-          title="Chuyển sang Combo">📦→</button>
-        <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="margin-left:4px">🗑️</button>
-      </td>
-    </tr>`
-  }
+  const encodedName = encodeURIComponent(p.product_name || "")
+  const imgUrl = p.image_url || "https://placehold.co/40x40?text=No+Image"
+  return `
+    <tr id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
+      <td><input type="checkbox" class="sku-chk" data-sku="${p.sku}" onchange="updateGroupHint()"></td>
+      <td><img src="${imgUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb" onerror="this.src='https://placehold.co/40x40?text=Loi'"></td>
+      <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
+      <td style="font-size:13px">${p.product_name || "—"}</td>
+      <td style="color:#6d28d9;font-weight:600">${fmt(p.cost_invoice)}</td>
+      <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-edit"
+          data-sku="${p.sku}"
+          data-name="${encodedName}"
+          data-cinv="${p.cost_invoice || 0}"
+          data-creal="${p.cost_real || 0}"
+          onclick="editSkuFromBtn(this)">✏️</button>
+        <button onclick="moveToCombo('${p.sku}')"
+          style="margin-left:4px;padding:4px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px"
+          title="Chuyển sang Combo">📦→</button>
+        <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="margin-left:4px">🗑️</button>
+      </td>
+    </tr>`
+  }
 
-  const empty = msg => `<tr><td colspan="6" class="empty">${msg}</td></tr>`
+  const empty = msg => `<tr><td colspan="7" class="empty">${msg}</td></tr>`
 
   document.getElementById("skuNoPriceTable").innerHTML  = noPrice.length  ? noPrice.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!")
   document.getElementById("skuPartialTable").innerHTML  = partial.length  ? partial.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "✅ Không có SKU nào thiếu giá!")
@@ -452,5 +454,76 @@ function exportSkuExcel() {
   a.download = `gia-von-sku-${new Date().toISOString().slice(0,10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
-  showToast("✅ Đã tải file Excel!")
+  showToast("✅ Đã tải file Excel!")
+}
+
+// ── UPLOAD JSON MAP SKU ───────────────────────────────────────────────
+async function uploadProductJson(file) {
+  if (!file) return;
+  const btn = document.querySelector('button[onclick="document.getElementById(\'json-file-input\').click()"]');
+  const originalText = btn.textContent;
+  btn.textContent = "⏳ Đang xử lý...";
+  btn.disabled = true;
+
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const products = Array.isArray(data) ? data : (data.items || []);
+    
+    if (!products.length) {
+      showToast("⚠️ File JSON trống hoặc không đúng định dạng!", true);
+      return;
+    }
+
+    let updatedCount = 0;
+    const existingSkus = new Map(allSkus.map(s => [s.sku.toLowerCase(), s]));
+
+    for (const p of products) {
+      // Tìm SKU ở mốc variants
+      const variants = Array.isArray(p.variants) ? p.variants : [];
+      let skuToMap = null;
+      let imgToMap = (Array.isArray(p.images) && p.images.length > 0) ? p.images[0] : "";
+
+      for (const v of variants) {
+        if (v.sku && existingSkus.has(v.sku.toLowerCase())) {
+          skuToMap = v.sku;
+          break; // Tìm thấy SKU đầu tiên khớp thì lấy
+        }
+      }
+
+      // Nếu không có variant sku, thử dùng sku của product
+      if (!skuToMap && p.sku && existingSkus.has(p.sku.toLowerCase())) {
+        skuToMap = p.sku;
+      }
+
+      if (skuToMap) {
+        const currentData = existingSkus.get(skuToMap.toLowerCase());
+        // Chỉ gọi API update nếu có ảnh mới
+        if (imgToMap && currentData.image_url !== imgToMap) {
+          await fetch(API + "/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              sku: currentData.sku, 
+              product_name: currentData.product_name,
+              cost_invoice: currentData.cost_invoice,
+              cost_real: currentData.cost_real,
+              image_url: imgToMap 
+            })
+          });
+          updatedCount++;
+        }
+      }
+    }
+
+    showToast(`✅ Đã cập nhật ảnh cho ${updatedCount} SKU!`);
+    loadSkus(); // Reload lại bảng
+  } catch (e) {
+    console.error("Lỗi đọc file JSON", e);
+    showToast("❌ Lỗi khi đọc file JSON!", true);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    document.getElementById('json-file-input').value = "";
+  }
 }

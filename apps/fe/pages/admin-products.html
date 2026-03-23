@@ -32,7 +32,9 @@
         <div style="font-size:12px;color:#3b82f6;margin-top:2px">Bấm để load toàn bộ SKU duy nhất từ 3 sàn — bạn chỉ cần điền giá vốn.</div>
       </div>
       <button class="btn btn-primary" style="background:#2563eb" onclick="importSkusFromOrders()">⬇️ Đồng bộ SKU từ đơn hàng</button>
-      <button class="btn btn-primary" style="background:#16a34a" onclick="exportSkuExcel()">📥 Tải Excel giá vốn</button>
+      <button class="btn btn-primary" style="background:#16a34a" onclick="exportSkuExcel()">📥 Tải Excel giá vốn</button>
+      <button class="btn btn-primary" style="background:#f59e0b;color:white" onclick="document.getElementById('json-file-input').click()">📁 Upload JSON Sản Phẩm</button>
+      <input type="file" id="json-file-input" accept=".json" style="display:none" onchange="uploadProductJson(this.files[0])">
     </div>
 
     <div class="card">
@@ -129,23 +131,32 @@
       </div>
 
       <div id="sku-tab-no-price">
-        <table>
-          <thead><tr style="background:#fef3c7">
-            <th style="width:32px"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)"></th>
-            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-          </tr></thead>
-          <tbody id="skuNoPriceTable"></tbody>
-        </table>
-      </div>
-      <div id="sku-tab-partial" style="display:none">
-        <table>
-          <thead><tr style="background:#ffedd5">
-            <th style="width:32px"><input type="checkbox" id="chk-all-partial" onchange="toggleAllCheck('partial',this.checked)"></th>
-            <th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-          </tr></thead>
-          <tbody id="skuPartialTable"></tbody>
-        </table>
-      </div>
+        <table>
+          <thead><tr style="background:#fef3c7">
+            <th style="width:32px"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)"></th>
+            <th>Ảnh</th><th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuNoPriceTable"></tbody>
+        </table>
+      </div>
+      <div id="sku-tab-partial" style="display:none">
+        <table>
+          <thead><tr style="background:#ffedd5">
+            <th style="width:32px"><input type="checkbox" id="chk-all-partial" onchange="toggleAllCheck('partial',this.checked)"></th>
+            <th>Ảnh</th><th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuPartialTable"></tbody>
+        </table>
+      </div>
+      <div id="sku-tab-has-price" style="display:none">
+        <table>
+          <thead><tr style="background:#dcfce7">
+            <th style="width:32px"><input type="checkbox" id="chk-all-has" onchange="toggleAllCheck('has',this.checked)"></th>
+            <th>Ảnh</th><th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
+          </tr></thead>
+          <tbody id="skuHasPriceTable"></tbody>
+        </table>
+      </div>
       <div id="sku-tab-has-price" style="display:none">
         <table>
           <thead><tr style="background:#dcfce7">
