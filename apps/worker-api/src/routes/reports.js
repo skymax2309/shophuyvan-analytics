@@ -316,7 +316,7 @@ async function getOperationCosts(request, env, cors) {
   if (to)   { allShopCountConds.push("order_date <= ?"); allShopCountParams.push(to) }
   // KHÔNG filter platform, KHÔNG filter shop — đếm tất cả shop có đơn trong kỳ
   const allShopCountRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT shop) AS total FROM orders_v2
+    SELECT COUNT(DISTINCT shop || '|' || platform) AS total FROM orders_v2
     WHERE ${allShopCountConds.join(" AND ")}
   `).bind(...allShopCountParams).first()
   const totalShops = allShopCountRow?.total || 1
@@ -344,11 +344,12 @@ async function getOperationCosts(request, env, cors) {
   const allOrdParams = []
   if (from) { allOrdConds.push("order_date >= ?"); allOrdParams.push(from) }
   if (to)   { allOrdConds.push("order_date <= ?"); allOrdParams.push(to) }
+  // Nếu không có điều kiện ngày, vẫn đảm bảo query hợp lệ
   const allOrdRow = await env.DB.prepare(`
     SELECT COUNT(DISTINCT order_id) AS total FROM orders_v2
     WHERE ${allOrdConds.join(" AND ")}
   `).bind(...allOrdParams).first()
-  const totalOrdersAll = allOrdRow?.total || 0
+  const totalOrdersAll = allOrdRow?.total || totalOrders
 
   const costs = (rows.results || []).map(c => {
     // Chi phí gán riêng cho shop/sàn cụ thể → chỉ hiện khi đúng filter
@@ -375,8 +376,12 @@ async function getOperationCosts(request, env, cors) {
           ? `chia đều ${totalShops} shop`
           : "toàn bộ"
       } else {
-        actualAmount = c.cost_value * (shop ? totalOrders : totalOrdersAll)
-        note = shop ? `${totalOrders} đơn shop này` : `${totalOrdersAll} đơn tổng`
+        // per_order: nếu filter shop thì tính theo đơn của shop, không filter thì tính tổng đơn
+        const ordersForCalc = shop ? totalOrders : totalOrdersAll
+        actualAmount = c.cost_value * ordersForCalc
+        note = shop
+          ? `${totalOrders} đơn shop này`
+          : `${totalOrdersAll} đơn tổng`
       }
     }
 
