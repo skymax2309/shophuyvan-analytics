@@ -157,13 +157,13 @@ const cancelRows = (Array.isArray(cancelStats) ? cancelStats : []).filter(r => r
           <div style="margin-bottom:4px">
             <div style="display:flex;justify-content:space-between;font-weight:600">
               <span>${c.cost_name || c.cost_key}${c.shop ? ` <span style="background:#6b7280;color:white;border-radius:3px;padding:1px 4px;font-size:9px">${c.shop}</span>` : ''}</span>
-              <span style="color:#16a34a">${fmtShort(c.actual_amount || 0)}</span>
+              <span style="color:#16a34a">${c.actual_amount >= 1000 ? fmtShort(c.actual_amount) : fmt(c.actual_amount || 0)}</span>
             </div>
             <div style="font-size:10px;color:#aaa;padding-left:4px">
               ${fmtShort(c.cost_value)}/${c.calc_type === 'per_month' ? 'tháng' : 'đơn'}
               ${c.calc_type === 'per_month'
-                ? ` × ${c.months}th${c.note && c.note !== 'toàn bộ' ? ` × ${c.note}` : ''}`
-                : ` × ${c.total_orders} đơn`}
+                ? ` × ${Number(c.months).toFixed(1)}th${c.note && c.note !== 'toàn bộ' ? ` × ${c.note}` : ''}`
+                : ` × ${c.total_orders} đơn = ${fmt(c.actual_amount || 0)}đ`}
             </div>
           </div>`).join('')
       + `<div style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #86efac;margin-top:4px;padding-top:4px">
