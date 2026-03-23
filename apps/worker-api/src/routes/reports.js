@@ -349,22 +349,6 @@ async function getOperationCosts(request, env, cors) {
     WHERE ${allOrdConds.join(" AND ")}
   `).bind(...allOrdParams).first()
   const totalOrdersAll = allOrdRow?.total || 0
-    shopRatio  = 1 / totalShops
-  }
-
-  // Đếm tổng đơn TẤT CẢ shop (để tính per_order ratio)
-  let totalOrdersAll = totalOrders
-  if (shop) {
-    const allOrdConds = ["order_type = 'normal'"]
-    const allOrdParams = []
-    if (from)     { allOrdConds.push("order_date >= ?"); allOrdParams.push(from) }
-    if (to)       { allOrdConds.push("order_date <= ?"); allOrdParams.push(to) }
-    if (platform) { allOrdConds.push("platform = ?");   allOrdParams.push(platform) }
-    const allOrdRow = await env.DB.prepare(`
-     SELECT COUNT(DISTINCT order_id) AS total FROM orders_v2 WHERE ${allOrdConds.join(" AND ")}
-    `).bind(...allOrdParams).first()
-    totalOrdersAll = allOrdRow?.total || 0
-  }
 
   const costs = (rows.results || []).map(c => {
     // Chi phí gán riêng cho shop/sàn cụ thể → chỉ hiện khi đúng filter
