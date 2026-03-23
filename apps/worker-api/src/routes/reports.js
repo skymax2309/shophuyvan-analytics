@@ -308,24 +308,47 @@ async function getOperationCosts(request, env, cors) {
   }
 
   // Đếm số shop duy nhất trong kỳ (để chia đều chi phí chung)
-  let shopRatio = 1  // mặc định 100% nếu không filter shop
-  let totalShops = 1
+  // Đếm tổng số shop thực tế KHÔNG phân biệt sàn, KHÔNG filter shop
+  // Đây là mẫu số để chia đều chi phí chung
+  const allShopCountParams = []
+  const allShopCountConds = ["order_type = 'normal'"]
+  if (from) { allShopCountConds.push("order_date >= ?"); allShopCountParams.push(from) }
+  if (to)   { allShopCountConds.push("order_date <= ?"); allShopCountParams.push(to) }
+  // KHÔNG filter platform, KHÔNG filter shop — đếm tất cả shop có đơn trong kỳ
+  const allShopCountRow = await env.DB.prepare(`
+    SELECT COUNT(DISTINCT shop) AS total FROM orders_v2
+    WHERE ${allShopCountConds.join(" AND ")}
+  `).bind(...allShopCountParams).first()
+  const totalShops = allShopCountRow?.total || 1
+
+  // shopRatio: tỷ lệ chi phí chung được phân bổ cho shop/sàn đang filter
+  let shopRatio = 1
   if (shop) {
-    const allShopConds = ["order_type = 'normal'"]
-    const allShopParams = []
-    if (from)     { allShopConds.push("order_date >= ?"); allShopParams.push(from) }
-    if (to)       { allShopConds.push("order_date <= ?"); allShopParams.push(to) }
-    if (platform) { allShopConds.push("platform = ?");   allShopParams.push(platform) }
-
-    const allShopRow = await env.DB.prepare(`
+    // Đếm số shop trong filter (có thể 1 hoặc nhiều shop được chọn)
+    const selectedShops = shop.split(",").map(s => s.trim()).filter(Boolean)
+    shopRatio = selectedShops.length / totalShops
+  } else if (platform) {
+    // Lọc theo sàn: đếm số shop của sàn đó / tổng shop
+    const platShopRow = await env.DB.prepare(`
       SELECT COUNT(DISTINCT shop) AS total FROM orders_v2
-      WHERE order_type = 'normal'
-      ${from     ? "AND order_date >= '" + from + "'" : ""}
-      ${to       ? "AND order_date <= '" + to   + "'" : ""}
-      ${platform ? "AND platform = '"   + platform + "'" : ""}
-    `).first()
+      WHERE order_type = 'normal' AND platform = ?
+      ${from ? "AND order_date >= '" + from + "'" : ""}
+      ${to   ? "AND order_date <= '" + to   + "'" : ""}
+    `).bind(platform).first()
+    const platShops = platShopRow?.total || 1
+    shopRatio = platShops / totalShops
+  }
 
-    totalShops = allShopRow?.total || 1
+  // Đếm tổng đơn TẤT CẢ shop KHÔNG filter shop/platform (để tính per_order chung)
+  const allOrdConds = ["order_type = 'normal'"]
+  const allOrdParams = []
+  if (from) { allOrdConds.push("order_date >= ?"); allOrdParams.push(from) }
+  if (to)   { allOrdConds.push("order_date <= ?"); allOrdParams.push(to) }
+  const allOrdRow = await env.DB.prepare(`
+    SELECT COUNT(DISTINCT order_id) AS total FROM orders_v2
+    WHERE ${allOrdConds.join(" AND ")}
+  `).bind(...allOrdParams).first()
+  const totalOrdersAll = allOrdRow?.total || 0
     shopRatio  = 1 / totalShops
   }
 
