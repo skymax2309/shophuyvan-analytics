@@ -16,7 +16,14 @@ async function exportOrders(request, env, cors) {
   if (filters.platform) { conds.push(`o.platform = ?`);          params.push(filters.platform) }
   if (filters.shop)     { conds.push(`o.shop = ?`);              params.push(filters.shop) }
 
-  const limit = parseInt(new URL(request.url).searchParams.get("limit") || "10000")
+  const urlObj = new URL(request.url);
+  const limit = parseInt(urlObj.searchParams.get("limit") || "50");
+  const page  = parseInt(urlObj.searchParams.get("page") || "1");
+  const offset = (page - 1) * limit;
+
+  // Đếm tổng số đơn để FE tính số trang
+  const countRes = await env.DB.prepare(`SELECT COUNT(*) as total FROM orders_v2 o WHERE ${conds.join(" AND ")}`).bind(...params).first();
+  const total = countRes ? countRes.total : 0;
 
   // Join orders_v2 + order_items để có đủ thông tin từng SKU
   const rows = await env.DB.prepare(`
@@ -57,10 +64,15 @@ async function exportOrders(request, env, cors) {
     LEFT JOIN order_items oi ON oi.order_id = o.order_id
     WHERE ${conds.join(" AND ")}
     ORDER BY o.order_date DESC, o.order_id, oi.id
-    LIMIT ${limit}
-  `).bind(...params).all()
+    LIMIT ${limit} OFFSET ${offset}
+  `).bind(...params).all();
 
-  return Response.json(rows.results, { headers: cors })
+  return Response.json({
+    data: rows.results,
+    total: total,
+    page: page,
+    totalPages: Math.ceil(total / limit)
+  }, { headers: cors });
 }
 
 async function recalcCost(request, env, cors) {

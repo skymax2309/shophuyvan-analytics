@@ -24,8 +24,10 @@ async function loadOrders(page = 1) {
   if (shop) params.set("shop", shop)
   const qs = params.toString() ? "?" + params.toString() : ""
 
-const rawData = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
-  allOrdersCache = rawData
+const res = await fetch(API + "/api/export-orders" + qs + (qs ? "&" : "?") + `page=${page}&limit=${PAGE_SIZE}`).then(r => r.json());
+  const rawData = res.data || []; // Lấy mảng data từ object mới
+  allOrdersCache = rawData;
+  const totalItemsFromServer = res.total || 0;
 
   // ── Gom theo order_id → mỗi đơn 1 dòng, items là mảng SKU ──────
   const orderMap = new Map()
