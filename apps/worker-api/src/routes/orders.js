@@ -69,88 +69,8 @@ async function recalcCost(request, env, cors) {
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
-  // ── Recalc bảng cũ (orders) ──────────────────────────────────────
-  const orders = await env.DB.prepare(`
-    SELECT * FROM orders ORDER BY order_id, sku
-  `).all()
-
-  // Tính lại is_first_sku đúng: mỗi order_id chỉ có 1 dòng đầu = true
-  const seenOrders = new Set()
-  const ordersWithFirstSku = orders.results.map(o => {
-    const isFirst = !seenOrders.has(o.order_id)
-    if (o.order_type !== "cancel") seenOrders.add(o.order_id)
-    return { ...o, is_first_sku: isFirst ? 1 : 0 }
-  })
-
   const BATCH = 50
   let updated = 0
-
-  for (let i = 0; i < ordersWithFirstSku.length; i += BATCH) {
-    const chunk = ordersWithFirstSku.slice(i, i + BATCH)
-    const stmts = chunk.map(o => {
-      const product = productMap[o.sku] || { cost_invoice: 0, cost_real: 0 }
-      const orderWithCost = { ...o, cost_invoice: product.cost_invoice, cost_real: product.cost_real }
-      // Tính lại return_fee từ cost_settings TRƯỚC khi calcProfit
-      let return_fee = o.return_fee || 0
-      if (o.order_type === "return") {
-        return_fee = o.platform === "tiktok"
-          ? (cfg["tiktok_return_fee"]?.value          ?? 4620)
-          : (cfg["shopee_return_fee"]?.value           ?? 1620)
-      } else if (o.order_type === "cancel") {
-        const isFailed = /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
-        if (isFailed) {
-          return_fee = o.platform === "tiktok"
-            ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620)
-            : (cfg["shopee_failed_delivery_fee"]?.value  ?? 1620)
-        }
-      }
-
-      const calc = calcProfit({ ...orderWithCost, return_fee }, cfg)
-
-      return env.DB.prepare(`
-        UPDATE orders SET
-          cost_invoice   = ?,
-          cost_real      = ?,
-          profit_invoice = ?,
-          profit_real    = ?,
-          fee            = ?,
-          profit         = ?,
-          tax_flat       = ?,
-          tax_income     = ?,
-          fee_platform   = ?,
-          fee_payment    = ?,
-          fee_affiliate  = ?,
-          fee_ads        = ?,
-          fee_piship     = ?,
-          fee_service    = ?,
-          fee_packaging  = ?,
-          fee_operation  = ?,
-          fee_labor      = ?,
-          return_fee     = ?,
-          is_first_sku   = ?
-        WHERE order_id = ? AND sku = ?
-      `).bind(
-        calc.cost_invoice, calc.cost_real,
-        calc.profit_invoice, calc.profit_real,
-        calc.total_fee, calc.profit_real,
-        calc.tax_flat, calc.tax_income,
-        calc.fee_platform  || 0,
-        calc.fee_payment   || 0,
-        calc.fee_affiliate || 0,
-        calc.fee_ads       || 0,
-        calc.fee_piship    || 0,
-        calc.fee_service   || 0,
-        calc.fee_packaging || 0,
-        calc.fee_operation || 0,
-        calc.fee_labor     || 0,
-        return_fee,
-        o.is_first_sku,
-        o.order_id, o.sku
-      )
-    })
-    await env.DB.batch(stmts)
-    updated += chunk.length
-  }
 
   // ── Recalc bảng mới (orders_v2) ──────────────────────────────────
   const ordersV2   = await env.DB.prepare(`SELECT * FROM orders_v2`).all()
@@ -166,7 +86,7 @@ async function recalcCost(request, env, cors) {
   // Build tiktokFeeMap từ bảng tiktok_fees (nếu có)
   let tiktokFeeMap = {}
   try {
-    const tiktokFees = await env.DB.prepare(`SELECT * FROM tiktok_fees`).all()
+    const tiktokFees = await env.DB.prepare(`SELECT * FROM tiktok_order_fees`).all()
     for (const row of tiktokFees.results) {
       tiktokFeeMap[row.order_id] = row
     }

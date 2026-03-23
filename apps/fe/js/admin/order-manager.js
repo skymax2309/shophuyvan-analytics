@@ -140,7 +140,7 @@ function renderGroupedOrderRow(o) {
   const uid       = o.order_id.replace(/[^a-z0-9]/gi, "")
 
   // Dòng đơn hàng chính
-  const mainRow = `<tr style="${(o.profit_real||0)<0?'background:#fff1f2':''}" ${hasItems ? `style="cursor:pointer" onclick="toggleOrderItems('${uid}')"` : ""}>
+  const mainRow = `<tr style="${(o.profit_real||0)<0?'background:#fff1f2;':''}${hasItems?'cursor:pointer;':''}" ${hasItems ? `onclick="toggleOrderItems('${uid}')"` : ""}>
     <td style="white-space:nowrap">
       ${hasItems ? `<span id="expand_${uid}" style="color:#6b7280;margin-right:4px;font-size:10px">▶</span>` : ""}
       ${o.order_date || "—"}
