@@ -2,3 +2,5 @@ node_modules
 .wrangler
 .env
 .DS_Store
+*.sql
+cau_truc_thu_muc.txt
