@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMS — Quản lý Đơn Hàng</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg:        #0f1117;
+    --surface:   #181c27;
+    --surface2:  #1e2333;
+    --border:    #2a3045;
+    --accent:    #3b82f6;
+    --accent2:   #6366f1;
+    --green:     #22c55e;
+    --yellow:    #f59e0b;
+    --red:       #ef4444;
+    --orange:    #f97316;
+    --teal:      #14b8a6;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --radius:    10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Be Vietnam Pro', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .topbar-logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  .topbar-logo span { color: var(--text); }
+  .topbar a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: all .15s;
+  }
+  .topbar a:hover { background: var(--surface2); color: var(--text); }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+
+  .btn-sync {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity .15s;
+  }
+  .btn-sync:hover { opacity: .85; }
+  .btn-sync.spinning svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── LAYOUT ── */
+  .layout { display: flex; height: calc(100vh - 52px); }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 200px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 12px 8px;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 8px 10px 4px;
+  }
+  .status-tab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all .15s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+  }
+  .status-tab:hover { background: var(--surface2); color: var(--text); }
+  .status-tab.active {
+    background: rgba(59,130,246,.12);
+    border-color: rgba(59,130,246,.3);
+    color: var(--accent);
+  }
+  .status-tab-left { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; }
+  .badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 20px;
+    background: var(--surface2);
+    color: var(--muted);
+    min-width: 22px;
+    text-align: center;
+  }
+  .status-tab.active .badge { background: var(--accent); color: white; }
+
+  /* ── MAIN ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: var(--surface);
+  }
+  .toolbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .btn {
+    border: none;
+    padding: 7px 13px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn-primary   { background: var(--accent);  color: white; }
+  .btn-success   { background: var(--green);   color: white; }
+  .btn-warning   { background: var(--yellow);  color: white; }
+  .btn-purple    { background: var(--accent2); color: white; }
+  .btn-ghost     { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn:hover     { opacity: .85; transform: translateY(-1px); }
+  .btn:disabled  { opacity: .4; cursor: not-allowed; transform: none; }
+
+  .divider { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+
+  .selected-info {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .selected-info span { color: var(--accent); font-weight: 600; }
+
+  /* ── FILTER BAR ── */
+  .filterbar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: var(--bg);
+  }
+  .filter-input, .filter-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .filter-input:focus, .filter-select:focus { border-color: var(--accent); }
+  .filter-select option { background: var(--surface); }
+  .filter-input { width: 220px; }
+  .filter-date  { width: 130px; }
+
+  .filter-label { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+  /* ── TABLE WRAPPER ── */
+  .table-wrap { flex: 1; overflow: auto; padding: 0; }
+
+  /* ── SUMMARY BAR ── */
+  .summary-bar {
+    padding: 8px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .summary-bar b { font-family: 'IBM Plex Mono', monospace; }
+  .s-blue  { color: var(--accent); }
+  .s-green { color: var(--green); }
+  .s-red   { color: var(--red); }
+  .s-yellow{ color: var(--yellow); }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; min-width: 900px; }
+  thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface2);
+    border-bottom: 2px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    z-index: 10;
+  }
+  thead th:first-child { width: 36px; padding-left: 16px; }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background .1s;
+    animation: fadeIn .2s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  tbody tr.selected { background: rgba(59,130,246,.06); }
+
+  td { padding: 10px 12px; vertical-align: middle; }
+  td:first-child { padding-left: 16px; }
+
+  /* ── PRODUCT CELL ── */
+  .product-cell { display: flex; align-items: center; gap: 10px; min-width: 240px; }
+  .product-img {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .product-img-placeholder {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .product-info { min-width: 0; }
+  .product-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+  }
+  .product-sku {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .product-qty {
+    font-size: 11px;
+    color: var(--yellow);
+    margin-top: 2px;
+  }
+
+  /* ── ORDER CELL ── */
+  .order-id {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .order-id-copy {
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 10px;
+    margin-left: 4px;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  tr:hover .order-id-copy { opacity: 1; }
+
+  /* ── PLATFORM TAG ── */
+  .plt-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+  }
+  .plt-shopee  { background: rgba(238,77,45,.15);  color: #ff6b4a; }
+  .plt-tiktok  { background: rgba(0,0,0,.3);        color: #69C9D0; border: 1px solid #333; }
+  .plt-lazada  { background: rgba(249,115,22,.15);  color: #fb923c; }
+
+  /* ── STATUS TAG ── */
+  .oms-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .oms-PENDING  { background: rgba(245,158,11,.12); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); }
+  .oms-READY    { background: rgba(59,130,246,.12);  color: var(--accent); border: 1px solid rgba(59,130,246,.3); }
+  .oms-SHIPPED  { background: rgba(34,197,94,.12);   color: var(--green);  border: 1px solid rgba(34,197,94,.3); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* ── ORDER TYPE TAG ── */
+  .type-normal { color: var(--green);  font-size: 11px; font-weight: 600; }
+  .type-cancel { color: var(--red);    font-size: 11px; font-weight: 600; }
+  .type-return { color: var(--yellow); font-size: 11px; font-weight: 600; }
+
+  /* ── REVENUE ── */
+  .revenue { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; }
+  .rev-positive { color: var(--text); }
+  .rev-negative { color: var(--red); }
+  .profit-val   { font-size: 11px; color: var(--muted); }
+
+  /* ── TIME ── */
+  .time-cell { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .time-main { color: var(--text); font-weight: 500; font-size: 12px; }
+
+  /* ── SHOP ── */
+  .shop-cell { font-size: 11px; }
+  .shop-name { color: var(--text); font-weight: 600; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shop-customer { color: var(--muted); margin-top: 2px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── EMPTY ── */
+  .empty-state {
+    padding: 80px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* ── PAGINATION ── */
+  .pagination {
+    padding: 12px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .pag-btns { display: flex; gap: 4px; }
+  .pag-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: all .15s;
+  }
+  .pag-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .pag-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .pag-btn:disabled { opacity: .3; cursor: not-allowed; }
+  .pag-info { font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 560px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 24px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.5);
+    animation: modalIn .2s ease;
+  }
+  @keyframes modalIn { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+  .modal-title { font-size: 15px; font-weight: 700; }
+  .modal-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+
+  .picklist-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .picklist-table th {
+    background: var(--surface2);
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: left;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .picklist-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .picklist-qty {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+  }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 999;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all .25s;
+    pointer-events: none;
+    max-width: 320px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── CHECKBOX ── */
+  input[type=checkbox] {
+    width: 15px; height: 15px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">OMS<span>.huyvan</span></div>
+    <a href="profit-dashboard.html">← Dashboard</a>
+    <a href="admin-products.html">📦 Sản phẩm</a>
+  </div>
+  <div class="topbar-right">
+    <span id="lastSync" style="font-size:11px;color:var(--muted)">Chưa đồng bộ</span>
+    <button class="btn-sync" onclick="syncOrders()">
+      <svg id="syncIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Đồng bộ
+    </button>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-label">Trạng thái</div>
+    <div class="status-tab active" onclick="switchStatus('ALL')" id="tab-ALL">
+      <div class="status-tab-left">📋 Tất cả</div>
+      <span class="badge" id="cnt-ALL">0</span>
+    </div>
+    <div class="status-tab" onclick="switchStatus('PENDING')" id="tab-PENDING">
+      <div class="status-tab-left">⏳ Chờ xử lý</div>
+      <span class="badge" id="cnt-PENDING">0</span>
+    </div>
+    <div class="status-tab" onclick="switchStatus('READY')" id="tab-READY">
+      <div class="status-tab-left">📦 Đã đóng gói</div>
+      <span class="badge" id="cnt-READY">0</span>
+    </div>
+    <div class="status-tab" onclick="switchStatus('SHIPPED')" id="tab-SHIPPED">
+      <div class="status-tab-left">🚚 Đã giao</div>
+      <span class="badge" id="cnt-SHIPPED">0</span>
+    </div>
+
+    <div class="sidebar-label" style="margin-top:12px">Loại đơn</div>
+    <div class="status-tab" onclick="switchType('normal')" id="tab-normal">
+      <div class="status-tab-left">✓ Thành công</div>
+      <span class="badge" id="cnt-normal">0</span>
+    </div>
+    <div class="status-tab" onclick="switchType('cancel')" id="tab-cancel">
+      <div class="status-tab-left">✗ Đã hủy</div>
+      <span class="badge" id="cnt-cancel">0</span>
+    </div>
+    <div class="status-tab" onclick="switchType('return')" id="tab-return">
+      <div class="status-tab-left">↩ Hoàn hàng</div>
+      <span class="badge" id="cnt-return">0</span>
+    </div>
+
+    <div class="sidebar-label" style="margin-top:12px">Sàn</div>
+    <div class="status-tab" onclick="switchPlatform('shopee')" id="tab-shopee">
+      <div class="status-tab-left">🛍 Shopee</div>
+      <span class="badge" id="cnt-shopee">0</span>
+    </div>
+    <div class="status-tab" onclick="switchPlatform('tiktok')" id="tab-tiktok">
+      <div class="status-tab-left">🎵 TikTok</div>
+      <span class="badge" id="cnt-tiktok">0</span>
+    </div>
+    <div class="status-tab" onclick="switchPlatform('lazada')" id="tab-lazada">
+      <div class="status-tab-left">🛒 Lazada</div>
+      <span class="badge" id="cnt-lazada">0</span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+      <div class="toolbar-actions">
+        <button class="btn btn-primary" onclick="markReady()" id="btnReady" disabled>
+          📦 Chuẩn bị hàng
+        </button>
+        <button class="btn btn-success" onclick="markShipped()" id="btnShipped" disabled>
+          🚚 Đánh dấu Đã giao
+        </button>
+        <div class="divider"></div>
+        <button class="btn btn-purple" onclick="showPickList()" id="btnPickList" disabled>
+          📋 Gộp SKU nhặt hàng
+        </button>
+        <button class="btn btn-warning" onclick="printLabel()" id="btnPrint" disabled>
+          🖨️ In tem vận đơn
+        </button>
+        <div class="divider"></div>
+        <button class="btn btn-ghost" onclick="toggleAll()">
+          ☑ Chọn tất cả
+        </button>
+      </div>
+      <div class="selected-info" id="selInfo">Chưa chọn đơn nào</div>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="filterbar">
+      <span class="filter-label">Từ:</span>
+      <input type="date" class="filter-input filter-date" id="f_from">
+      <span class="filter-label">Đến:</span>
+      <input type="date" class="filter-input filter-date" id="f_to">
+      <select class="filter-select" id="f_shop">
+        <option value="">Tất cả shop</option>
+      </select>
+      <input type="text" class="filter-input" id="f_search"
+        placeholder="🔍  Tìm mã đơn, tên KH, SKU..."
+        oninput="debounceLoad()">
+      <button class="btn btn-ghost" style="font-size:12px" onclick="loadOrders(1)">Lọc</button>
+      <button class="btn btn-ghost" style="font-size:12px;color:var(--muted)" onclick="resetFilter()">✕ Reset</button>
+    </div>
+
+    <!-- SUMMARY -->
+    <div class="summary-bar" id="summaryBar">
+      <span>Đang tải dữ liệu...</span>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chkAll" onchange="toggleAllCheck(this.checked)"></th>
+            <th>Mặt hàng</th>
+            <th>Mã đơn hàng</th>
+            <th>Sàn</th>
+            <th>Doanh thu</th>
+            <th>Lãi thực</th>
+            <th>Trạng thái</th>
+            <th>Loại</th>
+            <th>Thời gian</th>
+            <th>Shop / KH</th>
+          </tr>
+        </thead>
+        <tbody id="omsTable">
+          <tr><td colspan="10">
+            <div class="empty-state">
+              <div class="icon">📦</div>
+              <p>Nhấn <b>Đồng bộ</b> để tải đơn hàng mới nhất từ Bot</p>
+            </div>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PAGINATION -->
+    <div class="pagination">
+      <div class="pag-info" id="pagInfo">—</div>
+      <div class="pag-btns" id="pagBtns"></div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- MODAL PICK LIST -->
+<div class="modal-overlay" id="pickListModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📋 Danh sách nhặt hàng</div>
+      <button class="modal-close" onclick="closeModal('pickListModal')">✕</button>
+    </div>
+    <div id="pickListContent"></div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('pickListModal')">Đóng</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨️ In danh sách</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────
+const API = 'https://huyvan-worker-api.nghiemchihuy.workers.dev'
+
+// ── STATE ───────────────────────────────────────────────────────────
+let currentPage    = 1
+let currentStatus  = 'ALL'
+let currentType    = ''
+let currentPlatform= ''
+let omsCache       = []
+let totalOrders    = 0
+let totalPages     = 1
+let debounceTimer  = null
+let allSelected    = false
+
+// ── FORMAT ──────────────────────────────────────────────────────────
+const fmt = n => Number(n||0).toLocaleString('vi-VN') + 'đ'
+const fmtDate = s => {
+  if (!s) return '—'
+  const d = new Date(s)
+  if (isNaN(d)) return s
+  return d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' })
+}
+
+// ── TOAST ───────────────────────────────────────────────────────────
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast')
+  t.textContent = msg
+  t.classList.add('show')
+  setTimeout(() => t.classList.remove('show'), duration)
+}
+
+// ── DEBOUNCE ────────────────────────────────────────────────────────
+function debounceLoad() {
+  clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => loadOrders(1), 400)
+}
+
+// ── SIDEBAR SWITCH ──────────────────────────────────────────────────
+function switchStatus(s) {
+  currentStatus   = s === currentStatus && s !== 'ALL' ? 'ALL' : s
+  currentType     = ''
+  currentPlatform = ''
+  document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'))
+  document.getElementById('tab-' + (currentStatus || 'ALL'))?.classList.add('active')
+  loadOrders(1)
+}
+
+function switchType(t) {
+  currentType     = t === currentType ? '' : t
+  currentStatus   = 'ALL'
+  currentPlatform = ''
+  document.querySelectorAll('.status-tab').forEach(el => el.classList.remove('active'))
+  if (currentType) document.getElementById('tab-' + t)?.classList.add('active')
+  else document.getElementById('tab-ALL')?.classList.add('active')
+  loadOrders(1)
+}
+
+function switchPlatform(p) {
+  currentPlatform = p === currentPlatform ? '' : p
+  currentStatus   = 'ALL'
+  currentType     = ''
+  document.querySelectorAll('.status-tab').forEach(el => el.classList.remove('active'))
+  if (currentPlatform) document.getElementById('tab-' + p)?.classList.add('active')
+  else document.getElementById('tab-ALL')?.classList.add('active')
+  loadOrders(1)
+}
+
+// ── LOAD ORDERS ─────────────────────────────────────────────────────
+async function loadOrders(page = 1) {
+  currentPage = page
+  document.getElementById('omsTable').innerHTML =
+    `<tr><td colspan="10"><div class="empty-state"><div class="icon" style="font-size:28px;margin-bottom:8px">⏳</div><p>Đang tải...</p></div></td></tr>`
+
+  const params = new URLSearchParams({ page, limit: 50 })
+  const from   = document.getElementById('f_from').value
+  const to     = document.getElementById('f_to').value
+  const shop   = document.getElementById('f_shop').value
+  const search = document.getElementById('f_search').value.trim()
+
+  if (from)   params.set('from', from)
+  if (to)     params.set('to', to)
+  if (shop)   params.set('shop', shop)
+  if (search) params.set('search', search)
+  if (currentStatus && currentStatus !== 'ALL') params.set('oms_status', currentStatus)
+  if (currentType)     params.set('order_type', currentType)
+  if (currentPlatform) params.set('platform', currentPlatform)
+
+  try {
+    const res = await fetch(API + '/api/orders?' + params).then(r => r.json())
+    omsCache   = res.data || []
+    totalOrders = res.total || 0
+    totalPages  = res.totalPages || 1
+    renderTable()
+    renderSummary()
+    renderPagination()
+    updateBadges(res)
+  } catch (e) {
+    document.getElementById('omsTable').innerHTML =
+      `<tr><td colspan="10"><div class="empty-state"><div class="icon">❌</div><p>Lỗi kết nối API: ${e.message}</p></div></td></tr>`
+  }
+}
+
+// ── RENDER TABLE ────────────────────────────────────────────────────
+function renderTable() {
+  if (!omsCache.length) {
+    document.getElementById('omsTable').innerHTML =
+      `<tr><td colspan="10"><div class="empty-state"><div class="icon">🔍</div><p>Không có đơn hàng nào</p></div></td></tr>`
+    return
+  }
+
+  document.getElementById('omsTable').innerHTML = omsCache.map(o => {
+    const items    = o.items || []
+    const firstItem= items[0] || {}
+    const totalQty = items.reduce((s,i) => s+(i.qty||1), 0)
+    const uid      = o.order_id.replace(/[^a-z0-9]/gi,'')
+    const profit   = o.profit_real || 0
+    const revenue  = o.revenue || 0
+
+    // Platform tag
+    const pltHtml = {
+      shopee:  `<span class="plt-tag plt-shopee">🛍 Shopee</span>`,
+      tiktok:  `<span class="plt-tag plt-tiktok">🎵 TikTok</span>`,
+      lazada:  `<span class="plt-tag plt-lazada">🛒 Lazada</span>`,
+    }[o.platform] || `<span class="plt-tag">${o.platform||'—'}</span>`
+
+    // OMS status
+    const omsInfo = {
+      PENDING: { icon: '⏳', label: 'Chờ xử lý' },
+      READY:   { icon: '📦', label: 'Đã đóng gói' },
+      SHIPPED: { icon: '🚚', label: 'Đã giao' },
+    }[o.oms_status] || { icon: '⏳', label: o.oms_status || 'PENDING' }
+
+    // Order type
+    const typeHtml = {
+      normal: `<span class="type-normal">✓ Thành công</span>`,
+      cancel: `<span class="type-cancel">✗ Hủy</span>`,
+      return: `<span class="type-return">↩ Hoàn</span>`,
+    }[o.order_type] || `<span>${o.order_type}</span>`
+
+    // Image
+    const imgSrc = firstItem.image_url
+    const imgHtml = imgSrc
+      ? `<img class="product-img" src="${imgSrc}" alt="">`
+      : `<div class="product-img-placeholder">📦</div>`
+
+    // Multi-item indicator
+    const moreItems = items.length > 1
+      ? `<div style="font-size:10px;color:var(--accent);margin-top:2px">+${items.length-1} SP khác</div>`
+      : ''
+
+    return `<tr class="${o.order_type==='cancel'?'':''}${o.order_type==='return'?'':''}" id="row-${uid}">
+      <td><input type="checkbox" class="oms-chk" data-id="${o.order_id}" onchange="onCheck()"></td>
+      <td>
+        <div class="product-cell">
+          ${imgHtml}
+          <div class="product-info">
+            <div class="product-name" title="${firstItem.product_name||'—'}">${(firstItem.product_name||'—').substring(0,40)}</div>
+            <div class="product-sku">${firstItem.sku||'—'}</div>
+            <div class="product-qty">× ${totalQty} sp${moreItems?'':''}</div>
+            ${moreItems}
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="order-id">${o.order_id}<span class="order-id-copy" onclick="copyText('${o.order_id}')">⎘</span></div>
+        ${o.tracking_number ? `<div style="font-size:10px;color:var(--teal);margin-top:3px;font-family:'IBM Plex Mono',monospace">${o.tracking_number}</div>` : ''}
+      </td>
+      <td>${pltHtml}</td>
+      <td>
+        <div class="revenue rev-positive">${fmt(revenue)}</div>
+        ${o.fee ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">Phí: ${fmt(o.fee)}</div>` : ''}
+      </td>
+      <td>
+        <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>
+      </td>
+      <td>
+        <span class="oms-tag oms-${o.oms_status||'PENDING'}">
+          <span class="dot"></span>${omsInfo.label}
+        </span>
+      </td>
+      <td>${typeHtml}</td>
+      <td>
+        <div class="time-main">${fmtDate(o.order_date)}</div>
+        <div class="time-cell" style="margin-top:2px">${o.order_date||'—'}</div>
+      </td>
+      <td>
+        <div class="shop-cell">
+          <div class="shop-name" title="${o.shop||'—'}">${o.shop||'—'}</div>
+          ${o.customer_name ? `<div class="shop-customer">👤 ${o.customer_name}</div>` : ''}
+        </div>
+      </td>
+    </tr>`
+  }).join('')
+}
+
+// ── RENDER SUMMARY ──────────────────────────────────────────────────
+function renderSummary() {
+  const normals  = omsCache.filter(o => o.order_type === 'normal')
+  const cancels  = omsCache.filter(o => o.order_type === 'cancel')
+  const returns  = omsCache.filter(o => o.order_type === 'return')
+  const totalRev = normals.reduce((s,o) => s+(o.revenue||0), 0)
+  const totalPro = normals.reduce((s,o) => s+(o.profit_real||0), 0)
+
+  document.getElementById('summaryBar').innerHTML = `
+    <span>Tổng <b>${totalOrders}</b> đơn &nbsp;|&nbsp; Trang này: <b>${omsCache.length}</b></span>
+    <span>Doanh thu: <b class="s-blue">${fmt(totalRev)}</b></span>
+    <span>Lãi thực: <b class="${totalPro>=0?'s-green':'s-red'}">${fmt(totalPro)}</b></span>
+    ${cancels.length ? `<span>✗ Hủy: <b class="s-red">${cancels.length}</b></span>` : ''}
+    ${returns.length ? `<span>↩ Hoàn: <b class="s-yellow">${returns.length}</b></span>` : ''}
+  `
+}
+
+// ── UPDATE BADGES ───────────────────────────────────────────────────
+async function updateBadges(res) {
+  // Lấy counts riêng cho badges — gọi thêm API không filter
+  try {
+    const all = await fetch(API + '/api/orders?limit=1').then(r => r.json())
+    document.getElementById('cnt-ALL').textContent = all.total || 0
+  } catch {}
+
+  // Count từ cache hiện tại
+  const cnt = { PENDING:0, READY:0, SHIPPED:0, normal:0, cancel:0, return:0, shopee:0, tiktok:0, lazada:0 }
+  omsCache.forEach(o => {
+    const s = o.oms_status || 'PENDING'
+    if (cnt[s] !== undefined) cnt[s]++
+    if (cnt[o.order_type] !== undefined) cnt[o.order_type]++
+    if (cnt[o.platform] !== undefined) cnt[o.platform]++
+  })
+  Object.entries(cnt).forEach(([k,v]) => {
+    const el = document.getElementById('cnt-'+k)
+    if (el) el.textContent = v
+  })
+}
+
+// ── PAGINATION ──────────────────────────────────────────────────────
+function renderPagination() {
+  document.getElementById('pagInfo').textContent =
+    `Trang ${currentPage} / ${totalPages} — ${totalOrders} đơn`
+
+  let html = `<button class="pag-btn" onclick="loadOrders(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`
+  for (let i = 1; i <= totalPages; i++) {
+    if (i===1 || i===totalPages || Math.abs(i-currentPage)<=2)
+      html += `<button class="pag-btn ${i===currentPage?'active':''}" onclick="loadOrders(${i})">${i}</button>`
+    else if (Math.abs(i-currentPage)===3)
+      html += `<span style="padding:0 4px;color:var(--muted)">…</span>`
+  }
+  html += `<button class="pag-btn" onclick="loadOrders(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>`
+  document.getElementById('pagBtns').innerHTML = html
+}
+
+// ── CHECK ────────────────────────────────────────────────────────────
+function onCheck() {
+  const checked = getChecked()
+  const n = checked.length
+  document.getElementById('selInfo').innerHTML =
+    n > 0 ? `Đã chọn <span>${n}</span> đơn` : 'Chưa chọn đơn nào'
+  const has = n > 0
+  ;['btnReady','btnShipped','btnPickList','btnPrint'].forEach(id => {
+    document.getElementById(id).disabled = !has
+  })
+}
+
+function getChecked() {
+  return [...document.querySelectorAll('.oms-chk:checked')].map(c => c.dataset.id)
+}
+
+function toggleAllCheck(checked) {
+  document.querySelectorAll('.oms-chk').forEach(c => c.checked = checked)
+  onCheck()
+}
+
+function toggleAll() {
+  allSelected = !allSelected
+  toggleAllCheck(allSelected)
+}
+
+// ── ACTIONS ─────────────────────────────────────────────────────────
+async function markReady() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Đánh dấu ${ids.length} đơn là ĐÃ ĐÓNG GÓI?`)) return
+  await patchOmsStatus(ids, 'READY')
+  showToast(`✅ Đã đóng gói ${ids.length} đơn`)
+  loadOrders(currentPage)
+}
+
+async function markShipped() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Đánh dấu ${ids.length} đơn là ĐÃ GIAO?`)) return
+  await patchOmsStatus(ids, 'SHIPPED')
+  showToast(`🚚 Đã cập nhật ${ids.length} đơn thành Đã giao`)
+  loadOrders(currentPage)
+}
+
+async function patchOmsStatus(ids, status) {
+  await Promise.all(ids.map(id =>
+    fetch(API + '/api/orders/' + encodeURIComponent(id) + '/oms-status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oms_status: status })
+    })
+  ))
+}
+
+// ── PICK LIST ────────────────────────────────────────────────────────
+function showPickList() {
+  const ids      = getChecked()
+  if (!ids.length) return
+  const selected = omsCache.filter(o => ids.includes(o.order_id))
+  const skuMap   = new Map()
+
+  for (const o of selected) {
+    for (const item of (o.items || [])) {
+      const key = item.sku || item.product_name || '—'
+      if (!skuMap.has(key)) skuMap.set(key, { sku: item.sku, name: item.product_name, qty: 0, img: item.image_url })
+      skuMap.get(key).qty += (item.qty || 1)
+    }
+  }
+
+  const rows = [...skuMap.values()].sort((a,b) => b.qty - a.qty)
+  const totalQty = rows.reduce((s,r) => s+r.qty, 0)
+
+  document.getElementById('pickListContent').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+      <b style="color:var(--text)">${selected.length}</b> đơn —
+      cần nhặt tổng cộng <b style="color:var(--accent)">${totalQty}</b> sản phẩm
+    </div>
+    <table class="picklist-table">
+      <thead><tr>
+        <th style="width:52px">Ảnh</th>
+        <th>SKU</th>
+        <th>Tên sản phẩm</th>
+        <th style="width:80px;text-align:center">SL cần nhặt</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td>${r.img
+            ? `<img src="${r.img}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`
+            : `<div style="width:38px;height:38px;background:var(--surface2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px">📦</div>`}
+          </td>
+          <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">${r.sku||'—'}</td>
+          <td style="font-size:12px;color:var(--text)">${r.name||'—'}</td>
+          <td class="picklist-qty">${r.qty}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`
+
+  document.getElementById('pickListModal').classList.add('open')
+}
+
+// ── PRINT LABEL ──────────────────────────────────────────────────────
+async function printLabel() {
+  const ids = getChecked()
+  if (!ids.length) return
+  try {
+    await fetch(API + '/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_type: 'print_label',
+        payload:   JSON.stringify({ order_ids: ids }),
+        shop_name: '',
+        platform:  '',
+        month:     new Date().getMonth() + 1,
+        year:      new Date().getFullYear(),
+      })
+    })
+    showToast(`🖨️ Đã gửi lệnh in tem cho ${ids.length} đơn. Bot sẽ xử lý trong vài phút.`, 3500)
+  } catch (e) {
+    showToast('❌ Lỗi gửi lệnh in tem: ' + e.message)
+  }
+}
+
+// ── SYNC (trigger Bot) ───────────────────────────────────────────────
+async function syncOrders() {
+  const btn  = document.querySelector('.btn-sync')
+  const icon = document.getElementById('syncIcon')
+  btn.classList.add('spinning')
+  btn.disabled = true
+  showToast('🔄 Đang đồng bộ dữ liệu...')
+  await loadOrders(1)
+  btn.classList.remove('spinning')
+  btn.disabled = false
+  const now = new Date().toLocaleTimeString('vi-VN')
+  document.getElementById('lastSync').textContent = `Cập nhật lúc ${now}`
+  showToast('✅ Đồng bộ xong!')
+}
+
+// ── RESET FILTER ─────────────────────────────────────────────────────
+function resetFilter() {
+  document.getElementById('f_from').value   = ''
+  document.getElementById('f_to').value     = ''
+  document.getElementById('f_shop').value   = ''
+  document.getElementById('f_search').value = ''
+  currentStatus   = 'ALL'
+  currentType     = ''
+  currentPlatform = ''
+  document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'))
+  document.getElementById('tab-ALL').classList.add('active')
+  loadOrders(1)
+}
+
+// ── COPY ─────────────────────────────────────────────────────────────
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('✅ Đã copy: ' + text))
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open')
+}
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open') })
+})
+
+// ── LOAD SHOPS for filter ────────────────────────────────────────────
+async function loadShopList() {
+  try {
+    const data = await fetch(API + '/api/top-shop').then(r => r.json())
+    const sel  = document.getElementById('f_shop')
+    const shops = [...new Set(data.map(s => s.shop))].sort()
+    sel.innerHTML = '<option value="">Tất cả shop</option>' +
+      shops.map(s => `<option value="${s}">${s}</option>`).join('')
+  } catch {}
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────
+loadShopList()
+loadOrders(1)
+</script>
+</body>
+</html>
