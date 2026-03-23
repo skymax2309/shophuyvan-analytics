@@ -17,9 +17,9 @@ async function handleProducts(request, env, cors) {
       VALUES (?,?,?,?,?,?,?,?)
       ON CONFLICT(sku) DO UPDATE SET
         product_name = excluded.product_name,
-        cost_invoice = CASE WHEN excluded.cost_invoice > 0 THEN excluded.cost_invoice ELSE cost_settings.cost_invoice END,
-        cost_real    = CASE WHEN excluded.cost_real    > 0 THEN excluded.cost_real    ELSE cost_settings.cost_real    END,
-        is_combo     = excluded.is_combo,
+        cost_invoice = CASE WHEN excluded.cost_invoice > 0 THEN excluded.cost_invoice ELSE products.cost_invoice END,
+        cost_real    = CASE WHEN excluded.cost_real    > 0 THEN excluded.cost_real    ELSE products.cost_real    END,
+        is_combo     = excluded.is_combo,
         combo_items  = excluded.combo_items,
         combo_qty    = excluded.combo_qty,
         image_url    = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END
