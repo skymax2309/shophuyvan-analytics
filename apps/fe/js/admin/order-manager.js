@@ -547,6 +547,198 @@ async function _loadTaxShops() {
   } catch(e) {}
 }
 
+// ── OMS MANAGER ──────────────────────────────────────────────────────
+let omsCache = []
+let omsPage  = 1
+
+async function loadOmsOrders(page = 1) {
+  omsPage = page
+  document.getElementById("omsTable").innerHTML =
+    `<tr><td colspan="10" class="empty">Đang tải...</td></tr>`
+
+  const from   = document.getElementById("oms_from").value
+  const to     = document.getElementById("oms_to").value
+  const plt    = document.getElementById("oms_platform").value
+  const shop   = document.getElementById("oms_shop").value
+  const status = document.getElementById("oms_status").value
+  const type   = document.getElementById("oms_type").value
+  const search = document.getElementById("oms_search").value.trim()
+
+  const params = new URLSearchParams({ page, limit: 50 })
+  if (from)   params.set("from", from)
+  if (to)     params.set("to", to)
+  if (plt)    params.set("platform", plt)
+  if (shop)   params.set("shop", shop)
+  if (status) params.set("oms_status", status)
+  if (type)   params.set("order_type", type)
+  if (search) params.set("search", search)
+
+  const res  = await fetch(API + "/api/orders?" + params.toString()).then(r => r.json())
+  omsCache   = res.data || []
+  const total      = res.total || 0
+  const totalPages = res.totalPages || 1
+
+  document.getElementById("omsSummary").innerHTML =
+    `Hiển thị <b>${omsCache.length}</b> / <b>${total}</b> đơn`
+
+  if (omsCache.length === 0) {
+    document.getElementById("omsTable").innerHTML =
+      `<tr><td colspan="10" class="empty">Không có đơn hàng nào</td></tr>`
+    document.getElementById("omsPagination").innerHTML = ""
+    return
+  }
+
+  document.getElementById("omsTable").innerHTML = omsCache.map(o => {
+    const pltClass  = "tag-" + (o.platform || "shopee")
+    const typeClass = o.order_type === "normal" ? "tag-normal" : o.order_type === "cancel" ? "tag-cancel" : "tag-return"
+    const typeLabel = o.order_type === "normal" ? "✓ Thành công" : o.order_type === "cancel" ? "✗ Hủy" : "↩ Hoàn"
+    const omsLabel  = { PENDING: "⏳ Chờ xử lý", READY: "📦 Đóng gói", SHIPPED: "🚚 Đã giao" }[o.oms_status] || o.oms_status
+    const omsColor  = { PENDING: "#f59e0b", READY: "#2563eb", SHIPPED: "#10b981" }[o.oms_status] || "#6b7280"
+    const items     = o.items || []
+    const totalQty  = items.reduce((s, i) => s + (i.qty || 1), 0)
+    const uid       = o.order_id.replace(/[^a-z0-9]/gi, "")
+
+    const imgHtml = items.slice(0,3).map(i =>
+      i.image_url
+        ? `<img src="${i.image_url}" style="width:28px;height:28px;object-fit:cover;border-radius:4px;border:1px solid #e5e7eb" title="${i.product_name||i.sku}">`
+        : `<span style="display:inline-block;width:28px;height:28px;background:#f1f5f9;border-radius:4px;border:1px solid #e5e7eb;font-size:9px;line-height:28px;text-align:center;color:#94a3b8">IMG</span>`
+    ).join("")
+
+    return `<tr>
+      <td><input type="checkbox" class="oms-chk" data-id="${o.order_id}" onchange="omsUpdateCount()"></td>
+      <td style="white-space:nowrap;font-size:12px">${o.order_date||"—"}</td>
+      <td><span class="${pltClass}">${(o.platform||"").toUpperCase()}</span></td>
+      <td style="font-size:11px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.shop||"—"}</td>
+      <td style="font-size:11px;font-family:monospace">${o.order_id||"—"}</td>
+      <td>
+        <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap">
+          ${imgHtml}
+          <span style="font-size:11px;color:#475569;margin-left:4px">${items.map(i=>i.product_name||i.sku).join(", ").substring(0,40)||"—"}</span>
+        </div>
+      </td>
+      <td style="text-align:center;font-weight:600">${totalQty}</td>
+      <td style="text-align:right;color:#2563eb;font-weight:600">${fmt(o.revenue)}</td>
+      <td><span style="font-size:11px;font-weight:600;color:${omsColor}">${omsLabel}</span></td>
+      <td><span class="${typeClass}">${typeLabel}</span></td>
+    </tr>`
+  }).join("")
+
+  // Pagination
+  let pgHtml = `<button onclick="loadOmsOrders(${page-1})" ${page===1?"disabled":""}>‹ Trước</button>`
+  for (let i = 1; i <= totalPages; i++) {
+    if (i===1||i===totalPages||Math.abs(i-page)<=2)
+      pgHtml += `<button onclick="loadOmsOrders(${i})" class="${i===page?"active":""}">${i}</button>`
+    else if (Math.abs(i-page)===3)
+      pgHtml += `<span style="padding:0 4px;color:#aaa">...</span>`
+  }
+  pgHtml += `<button onclick="loadOmsOrders(${page+1})" ${page===totalPages?"disabled":""}>Sau ›</button>`
+  document.getElementById("omsPagination").innerHTML = totalPages > 1 ? pgHtml : ""
+}
+
+function omsGetChecked() {
+  return [...document.querySelectorAll(".oms-chk:checked")].map(c => c.dataset.id)
+}
+
+function omsUpdateCount() {
+  const n = omsGetChecked().length
+  document.getElementById("oms_selected_count").textContent =
+    n > 0 ? `Đã chọn ${n} đơn` : "Chưa chọn đơn nào"
+}
+
+function omsToggleAll(checked) {
+  document.querySelectorAll(".oms-chk").forEach(c => { c.checked = checked })
+  omsUpdateCount()
+}
+
+function resetOmsFilter() {
+  ["oms_from","oms_to","oms_search"].forEach(id => document.getElementById(id).value = "")
+  ;["oms_platform","oms_shop","oms_status","oms_type"].forEach(id => document.getElementById(id).value = "")
+  loadOmsOrders(1)
+}
+
+async function omsMarkReady() {
+  const ids = omsGetChecked()
+  if (!ids.length) return alert("Chưa chọn đơn nào!")
+  if (!confirm(`Đánh dấu ${ids.length} đơn là ĐÃ ĐÓNG GÓI?`)) return
+  await Promise.all(ids.map(id =>
+    fetch(API + "/api/orders/" + encodeURIComponent(id) + "/oms-status", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oms_status: "READY" })
+    })
+  ))
+  loadOmsOrders(omsPage)
+}
+
+function omsPickList() {
+  const ids = omsGetChecked()
+  if (!ids.length) return alert("Chưa chọn đơn nào!")
+  const selected = omsCache.filter(o => ids.includes(o.order_id))
+
+  // Gộp theo SKU
+  const skuMap = new Map()
+  for (const o of selected) {
+    for (const item of (o.items || [])) {
+      const key = item.sku || item.product_name
+      if (!skuMap.has(key)) skuMap.set(key, { sku: item.sku, name: item.product_name, qty: 0, image_url: item.image_url })
+      skuMap.get(key).qty += (item.qty || 1)
+    }
+  }
+  const rows = [...skuMap.values()].sort((a,b) => b.qty - a.qty)
+
+  document.getElementById("pickListContent").innerHTML = `
+    <div style="font-size:12px;color:#6b7280;margin-bottom:12px">
+      Tổng <b>${selected.length}</b> đơn — <b>${rows.reduce((s,r)=>s+r.qty,0)}</b> sản phẩm cần nhặt
+    </div>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#f1f5f9">
+        <th style="padding:8px;text-align:left;font-size:12px">Ảnh</th>
+        <th style="padding:8px;text-align:left;font-size:12px">SKU</th>
+        <th style="padding:8px;text-align:left;font-size:12px">Tên sản phẩm</th>
+        <th style="padding:8px;text-align:center;font-size:12px;color:#2563eb">Số lượng</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr style="border-bottom:1px solid #f1f5f9">
+          <td style="padding:8px">
+            ${r.image_url
+              ? `<img src="${r.image_url}" style="width:36px;height:36px;object-fit:cover;border-radius:6px">`
+              : `<div style="width:36px;height:36px;background:#f1f5f9;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8">IMG</div>`}
+          </td>
+          <td style="padding:8px;font-family:monospace;font-size:12px">${r.sku||"—"}</td>
+          <td style="padding:8px;font-size:13px">${r.name||"—"}</td>
+          <td style="padding:8px;text-align:center;font-size:18px;font-weight:700;color:#2563eb">${r.qty}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+    <div style="margin-top:16px;text-align:right">
+      <button onclick="window.print()"
+        style="padding:8px 18px;background:#2563eb;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600">
+        🖨️ In danh sách
+      </button>
+    </div>`
+
+  document.getElementById("pickListModal").style.display = "flex"
+}
+
+async function omsPrintLabel() {
+  const ids = omsGetChecked()
+  if (!ids.length) return alert("Chưa chọn đơn nào!")
+  // Tạo job "print_label" gửi xuống Bot
+  await fetch(API + "/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      task_type:  "print_label",
+      payload:    JSON.stringify({ order_ids: ids }),
+      shop_name:  "",
+      platform:   "",
+      month:      new Date().getMonth() + 1,
+      year:       new Date().getFullYear(),
+    })
+  })
+  alert(`✅ Đã gửi lệnh in tem cho ${ids.length} đơn. Bot sẽ xử lý trong vài phút.`)
+}
+
 async function exportTaxReport(format = 'csv') {
   const platform = document.getElementById("tax_platform").value
   const shop     = document.getElementById("tax_shop").value

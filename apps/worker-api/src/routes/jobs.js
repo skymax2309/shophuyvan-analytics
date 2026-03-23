@@ -47,11 +47,19 @@ export async function updateJob(req, env, cors, id) {
   const body = await req.json()
 
   await env.DB.prepare(`
-    UPDATE jobs SET status = ?, file_url = ?
+    UPDATE jobs SET
+      status       = ?,
+      file_url     = ?,
+      log_text     = ?,
+      completed_at = CASE WHEN ? IN ('completed','failed') THEN datetime('now') ELSE completed_at END,
+      started_at   = CASE WHEN ? = 'running' THEN datetime('now') ELSE started_at END
     WHERE id = ?
   `).bind(
     body.status,
-    body.file_url || null,
+    body.file_url  || null,
+    body.log_text  || null,
+    body.status,
+    body.status,
     id
   ).run()
 

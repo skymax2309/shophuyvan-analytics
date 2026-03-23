@@ -18,6 +18,7 @@
     <button class="tab-btn active" onclick="switchTab('sku')">📦 Sản phẩm / SKU</button>
     <button class="tab-btn" onclick="switchTab('combo')">🎁 Combo</button>
     <button class="tab-btn" onclick="switchTab('orders')">📋 Toàn bộ đơn hàng</button>
+    <button class="tab-btn" onclick="switchTab('oms')">📦 Quản lý OMS</button>
     <button class="tab-btn" onclick="switchTab('invoice')">🧾 Hóa Đơn Nhập Hàng</button>
     <button class="tab-btn" onclick="switchTab('loss')">🔴 Đơn âm tiền</button>
   </div>
@@ -373,6 +374,90 @@
         </table>
       </div>
       <div class="pagination" id="orderPagination"></div>
+    </div>
+  </div>
+
+<!-- ══════════ TAB: OMS ══════════ -->
+  <div id="tab-oms" class="tab-pane">
+    <div class="card">
+      <div class="card-title">📦 Quản lý đơn hàng OMS</div>
+
+      <!-- Bộ lọc -->
+      <div class="order-filter" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <input type="date" id="oms_from">
+        <input type="date" id="oms_to">
+        <select id="oms_platform">
+          <option value="">Tất cả sàn</option>
+          <option value="shopee">Shopee</option>
+          <option value="tiktok">TikTok</option>
+          <option value="lazada">Lazada</option>
+        </select>
+        <select id="oms_shop">
+          <option value="">Tất cả shop</option>
+        </select>
+        <select id="oms_status">
+          <option value="">Tất cả trạng thái</option>
+          <option value="PENDING">⏳ Chờ xử lý</option>
+          <option value="READY">📦 Đã đóng gói</option>
+          <option value="SHIPPED">🚚 Đã giao</option>
+        </select>
+        <select id="oms_type">
+          <option value="">Tất cả loại</option>
+          <option value="normal">✓ Thành công</option>
+          <option value="cancel">✗ Hủy</option>
+          <option value="return">↩ Hoàn</option>
+        </select>
+        <input type="text" id="oms_search" placeholder="🔍 Tìm mã đơn, tên KH..."
+          style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:200px">
+        <button class="btn btn-primary" onclick="loadOmsOrders(1)">🔍 Lọc</button>
+        <button class="btn" style="background:#f3f4f6;color:#555" onclick="resetOmsFilter()">✕ Reset</button>
+      </div>
+
+      <!-- Action bar -->
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap">
+        <span id="oms_selected_count" style="font-size:12px;color:#6b7280">Chưa chọn đơn nào</span>
+        <button onclick="omsMarkReady()"
+          style="padding:6px 14px;background:#2563eb;color:white;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">
+          📦 Đánh dấu Đóng gói
+        </button>
+        <button onclick="omsPickList()"
+          style="padding:6px 14px;background:#8b5cf6;color:white;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">
+          📋 Gộp SKU nhặt hàng
+        </button>
+        <button onclick="omsPrintLabel()"
+          style="padding:6px 14px;background:#10b981;color:white;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">
+          🖨️ In tem vận đơn
+        </button>
+      </div>
+
+      <!-- Summary -->
+      <div id="omsSummary" style="font-size:12px;color:#888;margin-bottom:8px"></div>
+
+      <!-- Bảng đơn hàng -->
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th style="width:32px"><input type="checkbox" id="oms_chk_all" onchange="omsToggleAll(this.checked)"></th>
+            <th>Ngày</th><th>Sàn</th><th>Shop</th><th>Mã đơn</th>
+            <th>Sản phẩm</th><th>SL</th>
+            <th>Doanh thu</th><th>Trạng thái OMS</th><th>Loại</th>
+          </tr></thead>
+          <tbody id="omsTable"><tr><td colspan="10" class="empty">Nhấn Lọc để tải đơn hàng</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="omsPagination"></div>
+    </div>
+  </div>
+
+  <!-- Modal Gộp SKU -->
+  <div id="pickListModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:white;border-radius:12px;padding:24px;width:540px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:700;color:#1e293b">📋 Danh sách nhặt hàng</div>
+        <button onclick="document.getElementById('pickListModal').style.display='none'"
+          style="background:none;border:none;font-size:20px;cursor:pointer;color:#6b7280">✕</button>
+      </div>
+      <div id="pickListContent"></div>
     </div>
   </div>
 

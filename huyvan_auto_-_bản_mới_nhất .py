@@ -1363,6 +1363,19 @@ class HuyVanApp(ctk.CTk):
             await dl.save_as(full_path)
             self.log(f"🏆 Xong đơn hàng Lazada: {file_name}")
             if self.upload_to_r2(full_path, file_name):
+                v2_data = self.parse_lazada_excel(full_path, shop['ten_shop'])
+                if v2_data:
+                    try:
+                        api_url2 = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
+                        data = json.dumps(v2_data).encode('utf-8')
+                        req = urllib.request.Request(api_url2, data=data,
+                            headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'},
+                            method='POST')
+                        with urllib.request.urlopen(req, timeout=60) as res:
+                            result = json.loads(res.read().decode())
+                            self.log(f"✅ Import Lazada: {result.get('imported_orders',0)} đơn, {result.get('imported_items',0)} items")
+                    except Exception as e:
+                        self.log(f"⚠️ Lỗi import Lazada V2: {str(e)}")
                 self.trigger_server_import(file_name, shop['ten_shop'], 'lazada', 'orders')
         else:
             self.log("❌ Quá thời gian chờ xuất đơn hàng Lazada!")
@@ -2006,6 +2019,19 @@ class HuyVanApp(ctk.CTk):
                     await dl.save_as(full_path)
                     self.log(f"🏆 Xong Đơn Hàng TikTok tháng {THANG_TAI}")
                     if self.upload_to_r2(full_path, file_name):
+                        v2_data = self.parse_tiktok_order_excel_local(full_path, shop['ten_shop'])
+                        if v2_data:
+                            try:
+                                api_url2 = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
+                                data = json.dumps(v2_data).encode('utf-8')
+                                req = urllib.request.Request(api_url2, data=data,
+                                    headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'},
+                                    method='POST')
+                                with urllib.request.urlopen(req, timeout=60) as res:
+                                    result = json.loads(res.read().decode())
+                                    self.log(f"✅ Import TikTok: {result.get('imported_orders',0)} đơn, {result.get('imported_items',0)} items")
+                            except Exception as e:
+                                self.log(f"⚠️ Lỗi import TikTok V2: {str(e)}")
                         self.trigger_server_import(file_name, shop['ten_shop'], 'tiktok', 'orders', full_path)
                     break
             except:

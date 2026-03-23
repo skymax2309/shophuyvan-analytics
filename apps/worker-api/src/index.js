@@ -2,7 +2,7 @@
 import { getFilters, buildWhere }        from './utils/filters.js'
 import { getCostSettings, calcProfit }   from './utils/db.js'
 import { handleProducts, handleCostSettings } from './routes/products.js'
-import { exportOrders, recalcCost, importOrdersV2 } from './routes/orders.js'
+import { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus } from './routes/orders.js'
 import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          topSku, topProduct, topShop, topPlatform,
          cancelStats, priceCalc, topSkuFull } from './routes/dashboard.js'
@@ -207,6 +207,14 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
       // ── Thống kê hủy / hoàn ──────────────────────────────────────
       if (url.pathname === "/api/cancel-stats")
   return cancelStats(request, env, cors)
+
+      if (url.pathname === "/api/orders" && request.method === "GET")
+        return getOrders(request, env, cors)
+
+      if (url.pathname.startsWith("/api/orders/") && url.pathname.endsWith("/oms-status") && request.method === "PATCH") {
+        const orderId = decodeURIComponent(url.pathname.split("/")[3])
+        return updateOmsStatus(request, env, cors, orderId)
+      }
 
       if (url.pathname === "/api/export-orders")
         return exportOrders(request, env, cors)

@@ -373,4 +373,86 @@ async function importOrdersV2(request, env, cors) {
   }, { headers: cors })
 }
 
-export { exportOrders, recalcCost, importOrdersV2 }
+async function getOrders(request, env, cors) {
+  const url    = new URL(request.url)
+  const from   = url.searchParams.get("from")
+  const to     = url.searchParams.get("to")
+  const plt    = url.searchParams.get("platform")
+  const shop   = url.searchParams.get("shop")
+  const type   = url.searchParams.get("order_type")
+  const status = url.searchParams.get("oms_status")
+  const search = url.searchParams.get("search")
+  const page   = parseInt(url.searchParams.get("page") || "1")
+  const limit  = parseInt(url.searchParams.get("limit") || "50")
+  const offset = (page - 1) * limit
+
+  const conds  = ["1=1"]
+  const params = []
+
+  if (from)   { conds.push(`date(o.order_date) >= ?`); params.push(from) }
+  if (to)     { conds.push(`date(o.order_date) <= ?`); params.push(to) }
+  if (plt)    { conds.push(`o.platform = ?`);          params.push(plt) }
+  if (shop)   { conds.push(`o.shop = ?`);              params.push(shop) }
+  if (type)   { conds.push(`o.order_type = ?`);        params.push(type) }
+  if (status) { conds.push(`o.oms_status = ?`);        params.push(status) }
+  if (search) {
+    conds.push(`(o.order_id LIKE ? OR o.shop LIKE ? OR o.customer_name LIKE ? OR o.tracking_number LIKE ?)`)
+    const q = `%${search}%`
+    params.push(q, q, q, q)
+  }
+
+  const where = conds.join(" AND ")
+
+  // Đếm tổng để trả về totalPages
+  const { results: countRows } = await env.DB.prepare(`
+    SELECT COUNT(*) AS total FROM orders_v2 o WHERE ${where}
+  `).bind(...params).all()
+  const total = countRows[0]?.total || 0
+
+  // Lấy orders_v2 phân trang
+  const { results: orders } = await env.DB.prepare(`
+    SELECT o.* FROM orders_v2 o
+    WHERE ${where}
+    ORDER BY o.order_date DESC, o.order_id DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `).bind(...params).all()
+
+  // Lấy order_items của các đơn này
+  const orderIds = orders.map(o => o.order_id)
+  let items = []
+  if (orderIds.length > 0) {
+    const placeholders = orderIds.map(() => "?").join(",")
+    const { results } = await env.DB.prepare(`
+      SELECT oi.*, p.image_url
+      FROM order_items oi
+      LEFT JOIN products p ON p.sku = oi.sku
+      WHERE oi.order_id IN (${placeholders})
+    `).bind(...orderIds).all()
+    items = results
+  }
+
+  // Gắn items vào từng order
+  const itemsByOrder = {}
+  for (const item of items) {
+    if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = []
+    itemsByOrder[item.order_id].push(item)
+  }
+  const data = orders.map(o => ({ ...o, items: itemsByOrder[o.order_id] || [] }))
+
+  return Response.json({
+    data,
+    total,
+    page,
+    totalPages: Math.ceil(total / limit)
+  }, { headers: cors })
+}
+
+async function updateOmsStatus(request, env, cors, orderId) {
+  const { oms_status } = await request.json()
+  await env.DB.prepare(`
+    UPDATE orders_v2 SET oms_status = ? WHERE order_id = ?
+  `).bind(oms_status, orderId).run()
+  return Response.json({ status: "ok" }, { headers: cors })
+}
+
+export { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus }
