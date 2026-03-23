@@ -874,7 +874,7 @@ class HuyVanApp(ctk.CTk):
                             return str(v or "").strip()
                     return ""
 
-               trang_thai = get_col(r, "Trạng Thái Đơn Hàng")
+                trang_thai = get_col(r, "Trạng Thái Đơn Hàng")
                 ly_do_huy  = get_col(r, "Lý do hủy")
                 tra_hang   = get_col(r, "Trạng thái Trả hàng/Hoàn tiền")
 
