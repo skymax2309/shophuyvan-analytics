@@ -276,7 +276,8 @@ async function getOperationCosts(request, env, cors) {
   const from   = url3.searchParams.get("from")     || ""
   const to     = url3.searchParams.get("to")       || ""
   const platform = url3.searchParams.get("platform") || ""
-  const shop   = url3.searchParams.get("shop")     || ""
+  const shopList = url3.searchParams.getAll("shop").filter(Boolean)
+  const shop   = shopList.join(",")
 
   const rows = await env.DB.prepare(`
     SELECT cost_key, cost_value, cost_name, calc_type, platform, shop
@@ -286,12 +287,17 @@ async function getOperationCosts(request, env, cors) {
   `).all()
 
   // Đếm số đơn thành công trong kỳ lọc (để tính per_order)
-  const orderConds = ["order_type = 'normal'"]
+const orderConds = ["order_type = 'normal'"]
   const orderParams = []
   if (from)     { orderConds.push("order_date >= ?"); orderParams.push(from) }
   if (to)       { orderConds.push("order_date <= ?"); orderParams.push(to) }
   if (platform) { orderConds.push("platform = ?");   orderParams.push(platform) }
-  if (shop)     { orderConds.push("shop = ?");        orderParams.push(shop) }
+  if (shopList.length === 1) {
+    orderConds.push("shop = ?"); orderParams.push(shopList[0])
+  } else if (shopList.length > 1) {
+    orderConds.push(`shop IN (${shopList.map(() => "?").join(",")})`);
+    shopList.forEach(s => orderParams.push(s))
+  }
 
   const orderRow = await env.DB.prepare(`
     SELECT COUNT(DISTINCT order_id) AS total_orders
@@ -323,10 +329,8 @@ async function getOperationCosts(request, env, cors) {
 
   // shopRatio: tỷ lệ chi phí chung được phân bổ cho shop/sàn đang filter
   let shopRatio = 1
-  if (shop) {
-    // Đếm số shop trong filter (có thể 1 hoặc nhiều shop được chọn)
-    const selectedShops = shop.split(",").map(s => s.trim()).filter(Boolean)
-    shopRatio = selectedShops.length / totalShops
+  if (shopList.length > 0) {
+    shopRatio = shopList.length / totalShops
   } else if (platform) {
     // Lọc theo sàn: đếm số shop của sàn đó / tổng shop
     const platShopRow = await env.DB.prepare(`

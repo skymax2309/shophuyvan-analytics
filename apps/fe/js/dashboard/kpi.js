@@ -18,7 +18,10 @@ async function loadDashboard() {
   if (fromVal)  oqsParts.push("from=" + fromVal)
   if (toVal)    oqsParts.push("to="   + toVal)
   if (platVal)  oqsParts.push("platform=" + platVal)
-  if (shopVal)  oqsParts.push("shop=" + encodeURIComponent(shopVal))
+  if (shopVal) {
+    shopVal.split(",").map(s => s.trim()).filter(Boolean)
+      .forEach(s => oqsParts.push("shop=" + encodeURIComponent(s)))
+  }
   const oqs = oqsParts.length ? "?" + oqsParts.join("&") : ""
 
   const [dash, revDay, profDay, platforms, shops, rptSum, opCosts, cancelStats] = await Promise.all([
