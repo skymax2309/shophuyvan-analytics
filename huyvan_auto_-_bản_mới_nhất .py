@@ -640,6 +640,20 @@ class HuyVanApp(ctk.CTk):
                 elif "hủy" in status or "cancel" in status:
                     order_type = "cancel"
 
+                # Chuẩn hóa shipping_status TikTok
+                if "awaiting collection" in status or "chờ lấy" in status:
+                    shipping_status = "Chờ lấy hàng"
+                elif "in transit" in status or "đang giao" in status:
+                    shipping_status = "Đang giao"
+                elif "delivered" in status or "đã giao" in status or "completed" in status:
+                    shipping_status = "Đã giao"
+                elif order_type == "cancel":
+                    shipping_status = "Đã hủy"
+                elif order_type == "return":
+                    shipping_status = "Hoàn hàng"
+                else:
+                    shipping_status = status or ""
+
                 # Ngày: ưu tiên Paid Time, fallback Created Time
                 raw_date = str(r.get("Paid Time") or r.get("Created Time") or "").strip()
                 order_date = ""
@@ -679,6 +693,7 @@ class HuyVanApp(ctk.CTk):
                         "fee_packaging": 0, "fee_operation": 0, "fee_labor": 0,
                         "discount_shop": 0, "discount_shopee": 0,
                         "discount_combo": 0, "shipping_return_fee": 0,
+                        "shipping_status": shipping_status,
                     }
 
             wb.close()
@@ -724,6 +739,22 @@ class HuyVanApp(ctk.CTk):
                     order_type = "return"
                 elif refund > 0:
                     order_type = "return"
+
+                # Chuẩn hóa shipping_status Lazada
+                if status in ["pending", "unpaid"]:
+                    shipping_status = "Chờ xác nhận"
+                elif status in ["ready_to_ship", "processing"]:
+                    shipping_status = "Chờ lấy hàng"
+                elif status in ["shipped"]:
+                    shipping_status = "Đang giao"
+                elif status in ["delivered"]:
+                    shipping_status = "Đã giao"
+                elif order_type == "cancel":
+                    shipping_status = "Đã hủy"
+                elif order_type == "return":
+                    shipping_status = "Hoàn hàng"
+                else:
+                    shipping_status = status or ""
 
                 # Ngày đặt — format "21 Mar 2026 19:45"
                 raw_date = str(r.get("createTime", "") or "").strip()
@@ -789,6 +820,7 @@ class HuyVanApp(ctk.CTk):
                         "discount_shop": to_num(r.get("sellerDiscountTotal")),
                         "discount_shopee": 0, "discount_combo": 0,
                         "shipping_return_fee": 0,
+                        "shipping_status": shipping_status,
                     }
                 else:
                     orders_map[order_id]["revenue"]       += revenue
@@ -842,7 +874,7 @@ class HuyVanApp(ctk.CTk):
                             return str(v or "").strip()
                     return ""
 
-                trang_thai = get_col(r, "Trạng Thái Đơn Hàng")
+               trang_thai = get_col(r, "Trạng Thái Đơn Hàng")
                 ly_do_huy  = get_col(r, "Lý do hủy")
                 tra_hang   = get_col(r, "Trạng thái Trả hàng/Hoàn tiền")
 
@@ -851,6 +883,21 @@ class HuyVanApp(ctk.CTk):
                     order_type = "cancel"
                 if any(k in tra_hang.lower() for k in ["hoàn tiền", "trả hàng", "chấp thuận"]):
                     order_type = "return"
+
+                # Chuẩn hóa shipping_status từ trạng thái Shopee
+                tt_lower = trang_thai.lower()
+                if "chờ lấy hàng" in tt_lower or "chờ xác nhận" in tt_lower:
+                    shipping_status = "Chờ lấy hàng"
+                elif "đang giao" in tt_lower or "đang vận chuyển" in tt_lower:
+                    shipping_status = "Đang giao"
+                elif "đã giao" in tt_lower or "hoàn thành" in tt_lower:
+                    shipping_status = "Đã giao"
+                elif "đã hủy" in tt_lower or order_type == "cancel":
+                    shipping_status = "Đã hủy"
+                elif order_type == "return":
+                    shipping_status = "Hoàn hàng"
+                else:
+                    shipping_status = trang_thai or ""
 
                 # Ngày đặt hàng — hỗ trợ cả 2 format
                 ngay = get_col(r, "Ngày đặt hàng")
@@ -924,6 +971,7 @@ class HuyVanApp(ctk.CTk):
                     "discount_shopee":       to_num(r.get("Mã giảm giá của Shopee", 0)),
                     "discount_combo":        to_num(r.get("Giảm giá từ Combo của Shop", 0)),
                     "shipping_return_fee":   to_num(r.get("Phí vận chuyển trả hàng (đơn Trả hàng/hoàn tiền)", 0)),
+                    "shipping_status":       shipping_status,
                 }
                 else:
                     orders_map[order_id]["revenue"]              += revenue

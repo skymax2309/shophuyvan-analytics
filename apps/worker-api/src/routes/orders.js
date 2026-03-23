@@ -289,8 +289,9 @@ async function importOrdersV2(request, env, cors) {
          fee_platform, fee_payment, fee_affiliate, fee_ads,
          fee_piship, fee_service, fee_packaging, fee_operation, fee_labor,
          cancel_reason, return_fee, shipped,
-         discount_shop, discount_shopee, discount_combo, shipping_return_fee)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         discount_shop, discount_shopee, discount_combo, shipping_return_fee,
+         shipping_status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET
         order_type    = excluded.order_type,
         revenue       = excluded.revenue,
@@ -318,7 +319,8 @@ async function importOrdersV2(request, env, cors) {
         discount_shop        = excluded.discount_shop,
         discount_shopee      = excluded.discount_shopee,
         discount_combo       = excluded.discount_combo,
-        shipping_return_fee  = excluded.shipping_return_fee
+        shipping_return_fee  = excluded.shipping_return_fee,
+        shipping_status      = excluded.shipping_status
     `).bind(
       o.order_id, o.platform, o.shop, o.order_date, o.order_type,
       o.revenue, o.raw_revenue, o.cost_invoice, o.cost_real,
@@ -326,7 +328,8 @@ async function importOrdersV2(request, env, cors) {
       o.fee_platform, o.fee_payment, o.fee_affiliate, o.fee_ads,
       o.fee_piship, o.fee_service, o.fee_packaging, o.fee_operation, o.fee_labor,
       o.cancel_reason || null, o.return_fee || 0, o.shipped || 0,
-      o.discount_shop || 0, o.discount_shopee || 0, o.discount_combo || 0, o.shipping_return_fee || 0
+      o.discount_shop || 0, o.discount_shopee || 0, o.discount_combo || 0, o.shipping_return_fee || 0,
+      o.shipping_status || ''
     ))
     try {
       await env.DB.batch(stmts)
@@ -381,7 +384,8 @@ async function getOrders(request, env, cors) {
   const shop   = url.searchParams.get("shop")
   const type   = url.searchParams.get("order_type")
   const status = url.searchParams.get("oms_status")
-  const search = url.searchParams.get("search")
+  const search   = url.searchParams.get("search")
+  const shipping = url.searchParams.get("shipping_status")
   const page   = parseInt(url.searchParams.get("page") || "1")
   const limit  = parseInt(url.searchParams.get("limit") || "50")
   const offset = (page - 1) * limit
@@ -400,6 +404,7 @@ async function getOrders(request, env, cors) {
     const q = `%${search}%`
     params.push(q, q, q, q)
   }
+  if (shipping) { conds.push(`o.shipping_status = ?`); params.push(shipping) }
 
   const where = conds.join(" AND ")
 

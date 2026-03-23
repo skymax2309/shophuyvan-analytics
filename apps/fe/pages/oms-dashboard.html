@@ -605,6 +605,14 @@
       <input type="text" class="filter-input" id="f_search"
         placeholder="🔍  Tìm mã đơn, tên KH, SKU..."
         oninput="debounceLoad()">
+      <select class="filter-select" id="f_shipping">
+        <option value="">Tất cả vận chuyển</option>
+        <option value="Chờ lấy hàng">📬 Chờ lấy hàng</option>
+        <option value="Đang giao">🚚 Đang giao</option>
+        <option value="Đã giao">✅ Đã giao</option>
+        <option value="Đã hủy">✗ Đã hủy</option>
+        <option value="Hoàn hàng">↩ Hoàn hàng</option>
+      </select>
       <button class="btn btn-ghost" style="font-size:12px" onclick="loadOrders(1)">Lọc</button>
       <button class="btn btn-ghost" style="font-size:12px;color:var(--muted)" onclick="resetFilter()">✕ Reset</button>
     </div>
@@ -625,7 +633,8 @@
             <th>Sàn</th>
             <th>Doanh thu</th>
             <th>Lãi thực</th>
-            <th>Trạng thái</th>
+            <th>Sàn vận chuyển</th>
+            <th>Kho (OMS)</th>
             <th>Loại</th>
             <th>Thời gian</th>
             <th>Shop / KH</th>
@@ -737,6 +746,20 @@ function switchPlatform(p) {
   loadOrders(1)
 }
 
+// ── SHIPPING STATUS ──────────────────────────────────────────────────
+function renderShippingStatus(s) {
+  const map = {
+    'Chờ lấy hàng':  { color: '#f59e0b', bg: 'rgba(245,158,11,.12)', icon: '📬' },
+    'Chờ xác nhận':  { color: '#a78bfa', bg: 'rgba(167,139,250,.12)', icon: '🕐' },
+    'Đang giao':      { color: '#3b82f6', bg: 'rgba(59,130,246,.12)',  icon: '🚚' },
+    'Đã giao':        { color: '#22c55e', bg: 'rgba(34,197,94,.12)',   icon: '✅' },
+    'Đã hủy':         { color: '#ef4444', bg: 'rgba(239,68,68,.12)',   icon: '✗'  },
+    'Hoàn hàng':      { color: '#f97316', bg: 'rgba(249,115,22,.12)',  icon: '↩'  },
+  }
+  const info = map[s] || { color: 'var(--muted)', bg: 'var(--surface2)', icon: '—' }
+  return `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${info.bg};color:${info.color};border:1px solid ${info.color}33;white-space:nowrap">${info.icon} ${s||'Chưa rõ'}</span>`
+}
+
 // ── LOAD ORDERS ─────────────────────────────────────────────────────
 async function loadOrders(page = 1) {
   currentPage = page
@@ -746,13 +769,15 @@ async function loadOrders(page = 1) {
   const params = new URLSearchParams({ page, limit: 50 })
   const from   = document.getElementById('f_from').value
   const to     = document.getElementById('f_to').value
-  const shop   = document.getElementById('f_shop').value
-  const search = document.getElementById('f_search').value.trim()
+  const shop     = document.getElementById('f_shop').value
+  const shipping = document.getElementById('f_shipping').value
+  const search   = document.getElementById('f_search').value.trim()
 
   if (from)   params.set('from', from)
   if (to)     params.set('to', to)
   if (shop)   params.set('shop', shop)
-  if (search) params.set('search', search)
+  if (search)   params.set('search', search)
+  if (shipping) params.set('shipping_status', shipping)
   if (currentStatus && currentStatus !== 'ALL') params.set('oms_status', currentStatus)
   if (currentType)     params.set('order_type', currentType)
   if (currentPlatform) params.set('platform', currentPlatform)
@@ -844,6 +869,9 @@ function renderTable() {
       </td>
       <td>
         <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>
+      </td>
+      <td>
+        ${renderShippingStatus(o.shipping_status)}
       </td>
       <td>
         <span class="oms-tag oms-${o.oms_status||'PENDING'}">
@@ -1061,10 +1089,11 @@ async function syncOrders() {
 
 // ── RESET FILTER ─────────────────────────────────────────────────────
 function resetFilter() {
-  document.getElementById('f_from').value   = ''
-  document.getElementById('f_to').value     = ''
-  document.getElementById('f_shop').value   = ''
-  document.getElementById('f_search').value = ''
+  document.getElementById('f_from').value     = ''
+  document.getElementById('f_to').value       = ''
+  document.getElementById('f_shop').value     = ''
+  document.getElementById('f_search').value   = ''
+  document.getElementById('f_shipping').value = ''
   currentStatus   = 'ALL'
   currentType     = ''
   currentPlatform = ''
