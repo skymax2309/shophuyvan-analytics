@@ -2263,14 +2263,25 @@ class HuyVanApp(ctk.CTk):
                     
                     if order_id and len(order_id) > 5:
                         orders.append({
-                            "order_id": order_id,
-                            "platform": "shopee",
-                            "shop": shop["ten_shop"],
-                            "order_date": __import__('datetime').datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "order_type": "normal",
-                            "oms_status": "PENDING",
-                            "shipping_status": "Chờ xác nhận"
-                        })
+                        "order_id":      str(order_id),
+                        "platform":      "shopee",
+                        "shop":          str(shop["ten_shop"]),
+                        "order_date":    __import__('datetime').datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "order_type":    "normal",
+                        "oms_status":    "PENDING",
+                        "shipping_status": "Chờ xác nhận",
+                        "revenue": 0.0, "raw_revenue": 0.0,
+                        "cost_invoice": 0.0, "cost_real": 0.0,
+                        "fee": 0.0, "profit_invoice": 0.0, "profit_real": 0.0,
+                        "tax_flat": 0.0, "tax_income": 0.0,
+                        "fee_platform": 0.0, "fee_payment": 0.0, "fee_affiliate": 0.0, "fee_ads": 0.0,
+                        "fee_piship": 0.0, "fee_service": 0.0, "fee_packaging": 0.0,
+                        "fee_operation": 0.0, "fee_labor": 0.0,
+                        "cancel_reason": "", # Không để None/Null
+                        "return_fee": 0.0, "shipped": 0,
+                        "discount_shop": 0.0, "discount_shopee": 0.0,
+                        "discount_combo": 0.0, "shipping_return_fee": 0.0
+                    })
                 except:
                     continue
 
