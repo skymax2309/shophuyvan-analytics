@@ -2,9 +2,7 @@
 
 ├── shophuyvan-analytics/
     └── .gitignore
-    └── cau_truc_thu_muc.txt
     └── huyvan_auto_-_bản_mới_nhất .py
-    └── project_structure.txt
     └── project_tree_full.txt
     └── schema_huyvan-analytics-db.sql
     └── shv_products_export_2026-03-23.json
@@ -17,6 +15,7 @@
             ├── css/
                 └── admin.css
                 └── dashboard.css
+                └── oms-dashboard.css
                 └── report-upload.css
             ├── js/
                 └── oms-api.js

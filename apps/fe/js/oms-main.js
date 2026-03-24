@@ -86,7 +86,7 @@ function renderShippingStatus(s) {
 }
 
 // ── LOAD ORDERS ─────────────────────────────────────────────────────
-async function loadOrders(page = 1) {
+export async function loadOrders(page = 1) {
   currentPage = page
   document.getElementById('omsTable').innerHTML =
     `<tr><td colspan="10"><div class="empty-state"><div class="icon" style="font-size:28px;margin-bottom:8px">⏳</div><p>Đang tải...</p></div></td></tr>`
