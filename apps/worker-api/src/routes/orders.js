@@ -465,9 +465,26 @@ async function getOrders(request, env, cors) {
 }
 
 async function updateOmsStatus(request, env, cors, orderId) {
-  const { oms_status } = await request.json()
+  const body = await request.json()
+  const { oms_status } = body
+
+  const VALID = [
+    'PENDING',          // Chờ xác nhận
+    'CONFIRMED',        // Đã xác nhận
+    'PACKING',          // Đang đóng gói
+    'PACKED',           // Đã đóng gói
+    'HANDED_OVER',      // Đã giao cho shipper
+    'COMPLETED',        // Hoàn thành (shipper giao thành công)
+    'CANCELLED_TRANSIT',// Hủy trong quá trình vận chuyển
+    'FAILED_DELIVERY',  // Giao khách không thành công
+    'RETURN_REFUND',    // Trả hàng hoàn tiền
+  ]
+  if (!VALID.includes(oms_status))
+    return Response.json({ error: 'Invalid status' }, { status: 400, headers: cors })
+
   await env.DB.prepare(`
-    UPDATE orders_v2 SET oms_status = ? WHERE order_id = ?
+    UPDATE orders_v2 SET oms_status = ?, oms_updated_at = datetime('now', '+7 hours')
+    WHERE order_id = ?
   `).bind(oms_status, orderId).run()
   return Response.json({ status: "ok" }, { headers: cors })
 }

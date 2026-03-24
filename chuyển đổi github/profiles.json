@@ -1,0 +1,20 @@
+{
+    "DuAn_shophuyvan-analytics": {
+        "git_name": "skymax2309",
+        "git_email": "nghiemchihuy@gmail.com",
+        "ssh_key": "id_ed25519_skymax",
+        "cf_account_id": "efe50fab1dd644088d681fb14a4838ae",
+        "cf_api_token": "cfut_HJU4Cf8AqMOOofutOwVqbleZTKhD1EZtW6a1nksk72e9e745",
+        "project_path": "E:\\shophuyvan-analytics",
+        "d1_db_name": "huyvan-analytics-db"
+    },
+    "DuAn_shophuyvan.vn": {
+        "git_name": "shophuyvan",
+        "git_email": "kinhdoanhonlinegiasoc@gmail.com",
+        "ssh_key": "id_ed25519",
+        "cf_account_id": "7f99645b54f99e54fbdc5189dc6309d1",
+        "cf_api_token": "cfut_jfgyDhkrF1p4liyvzmf2QvL6sbpuE51yNVbAKFH520d3924d",
+        "project_path": "E:\\WEB\\website shop huy van\\shophuyvan",
+        "d1_db_name": "shophuyvan-db"
+    }
+}

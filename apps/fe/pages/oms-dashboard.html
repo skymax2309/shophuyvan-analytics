@@ -352,9 +352,15 @@
     font-weight: 600;
     white-space: nowrap;
   }
-  .oms-PENDING  { background: rgba(245,158,11,.12); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); }
-  .oms-READY    { background: rgba(59,130,246,.12);  color: var(--accent); border: 1px solid rgba(59,130,246,.3); }
-  .oms-SHIPPED  { background: rgba(34,197,94,.12);   color: var(--green);  border: 1px solid rgba(34,197,94,.3); }
+  .oms-PENDING           { background: rgba(167,139,250,.12); color: #a78bfa;         border: 1px solid rgba(167,139,250,.3); }
+  .oms-CONFIRMED         { background: rgba(59,130,246,.12);  color: var(--accent);   border: 1px solid rgba(59,130,246,.3); }
+  .oms-PACKING           { background: rgba(245,158,11,.12);  color: var(--yellow);   border: 1px solid rgba(245,158,11,.3); }
+  .oms-PACKED            { background: rgba(20,184,166,.12);  color: var(--teal);     border: 1px solid rgba(20,184,166,.3); }
+  .oms-HANDED_OVER       { background: rgba(99,102,241,.12);  color: var(--accent2);  border: 1px solid rgba(99,102,241,.3); }
+  .oms-COMPLETED         { background: rgba(34,197,94,.12);   color: var(--green);    border: 1px solid rgba(34,197,94,.3); }
+  .oms-CANCELLED_TRANSIT { background: rgba(239,68,68,.12);   color: var(--red);      border: 1px solid rgba(239,68,68,.3); }
+  .oms-FAILED_DELIVERY   { background: rgba(249,115,22,.12);  color: var(--orange);   border: 1px solid rgba(249,115,22,.3); }
+  .oms-RETURN_REFUND     { background: rgba(245,158,11,.12);  color: var(--yellow);   border: 1px solid rgba(245,158,11,.3); }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
   /* ── ORDER TYPE TAG ── */
@@ -519,52 +525,79 @@
 
   <!-- SIDEBAR -->
   <div class="sidebar">
-    <div class="sidebar-label">Trạng thái</div>
-    <div class="status-tab active" onclick="switchStatus('ALL')" id="tab-ALL">
-      <div class="status-tab-left">📋 Tất cả</div>
-      <span class="badge" id="cnt-ALL">0</span>
-    </div>
-    <div class="status-tab" onclick="switchStatus('PENDING')" id="tab-PENDING">
-      <div class="status-tab-left">⏳ Chờ xử lý</div>
-      <span class="badge" id="cnt-PENDING">0</span>
-    </div>
-    <div class="status-tab" onclick="switchStatus('READY')" id="tab-READY">
-      <div class="status-tab-left">📦 Đã đóng gói</div>
-      <span class="badge" id="cnt-READY">0</span>
-    </div>
-    <div class="status-tab" onclick="switchStatus('SHIPPED')" id="tab-SHIPPED">
-      <div class="status-tab-left">🚚 Đã giao</div>
-      <span class="badge" id="cnt-SHIPPED">0</span>
-    </div>
+    <div class="sidebar-label">TẤT CẢ</div>
+      <div class="status-tab active" id="tab-ALL" onclick="switchStatus('ALL')">
+        <div class="status-tab-left">📋 Tất cả đơn</div>
+        <span class="badge" id="cnt-ALL">0</span>
+      </div>
 
-    <div class="sidebar-label" style="margin-top:12px">Loại đơn</div>
-    <div class="status-tab" onclick="switchType('normal')" id="tab-normal">
-      <div class="status-tab-left">✓ Thành công</div>
-      <span class="badge" id="cnt-normal">0</span>
-    </div>
-    <div class="status-tab" onclick="switchType('cancel')" id="tab-cancel">
-      <div class="status-tab-left">✗ Đã hủy</div>
-      <span class="badge" id="cnt-cancel">0</span>
-    </div>
-    <div class="status-tab" onclick="switchType('return')" id="tab-return">
-      <div class="status-tab-left">↩ Hoàn hàng</div>
-      <span class="badge" id="cnt-return">0</span>
-    </div>
+      <div class="sidebar-label" style="margin-top:8px">QUY TRÌNH XỬ LÝ</div>
+      <div class="status-tab" id="tab-PENDING" onclick="switchStatus('PENDING')">
+        <div class="status-tab-left">🕐 Chờ xác nhận</div>
+        <span class="badge" id="cnt-PENDING">0</span>
+      </div>
+      <div class="status-tab" id="tab-CONFIRMED" onclick="switchStatus('CONFIRMED')">
+        <div class="status-tab-left">✅ Đã xác nhận</div>
+        <span class="badge" id="cnt-CONFIRMED">0</span>
+      </div>
+      <div class="status-tab" id="tab-PACKING" onclick="switchStatus('PACKING')">
+        <div class="status-tab-left">🗂️ Đang đóng gói</div>
+        <span class="badge" id="cnt-PACKING">0</span>
+      </div>
+      <div class="status-tab" id="tab-PACKED" onclick="switchStatus('PACKED')">
+        <div class="status-tab-left">📦 Đã đóng gói</div>
+        <span class="badge" id="cnt-PACKED">0</span>
+      </div>
+      <div class="status-tab" id="tab-HANDED_OVER" onclick="switchStatus('HANDED_OVER')">
+        <div class="status-tab-left">🚚 Giao cho shipper</div>
+        <span class="badge" id="cnt-HANDED_OVER">0</span>
+      </div>
+      <div class="status-tab" id="tab-COMPLETED" onclick="switchStatus('COMPLETED')">
+        <div class="status-tab-left" style="color:var(--green)">🏆 Hoàn thành</div>
+        <span class="badge" id="cnt-COMPLETED">0</span>
+      </div>
 
-    <div class="sidebar-label" style="margin-top:12px">Sàn</div>
-    <div class="status-tab" onclick="switchPlatform('shopee')" id="tab-shopee">
-      <div class="status-tab-left">🛍 Shopee</div>
-      <span class="badge" id="cnt-shopee">0</span>
-    </div>
-    <div class="status-tab" onclick="switchPlatform('tiktok')" id="tab-tiktok">
-      <div class="status-tab-left">🎵 TikTok</div>
-      <span class="badge" id="cnt-tiktok">0</span>
-    </div>
-    <div class="status-tab" onclick="switchPlatform('lazada')" id="tab-lazada">
-      <div class="status-tab-left">🛒 Lazada</div>
-      <span class="badge" id="cnt-lazada">0</span>
-    </div>
-  </div>
+      <div class="sidebar-label" style="margin-top:8px">VẤN ĐỀ</div>
+      <div class="status-tab" id="tab-CANCELLED_TRANSIT" onclick="switchStatus('CANCELLED_TRANSIT')">
+        <div class="status-tab-left" style="color:var(--red)">✗ Hủy khi vận chuyển</div>
+        <span class="badge" id="cnt-CANCELLED_TRANSIT">0</span>
+      </div>
+      <div class="status-tab" id="tab-FAILED_DELIVERY" onclick="switchStatus('FAILED_DELIVERY')">
+        <div class="status-tab-left" style="color:var(--orange)">⚠️ Giao không thành công</div>
+        <span class="badge" id="cnt-FAILED_DELIVERY">0</span>
+      </div>
+      <div class="status-tab" id="tab-RETURN_REFUND" onclick="switchStatus('RETURN_REFUND')">
+        <div class="status-tab-left" style="color:var(--yellow)">↩ Trả hàng hoàn tiền</div>
+        <span class="badge" id="cnt-RETURN_REFUND">0</span>
+      </div>
+
+      <div class="sidebar-label" style="margin-top:8px">LOẠI ĐƠN</div>
+      <div class="status-tab" id="tab-normal" onclick="switchType('normal')">
+        <div class="status-tab-left">✓ Thành công</div>
+        <span class="badge" id="cnt-normal">0</span>
+      </div>
+      <div class="status-tab" id="tab-cancel" onclick="switchType('cancel')">
+        <div class="status-tab-left">✗ Đã hủy</div>
+        <span class="badge" id="cnt-cancel">0</span>
+      </div>
+      <div class="status-tab" id="tab-return" onclick="switchType('return')">
+        <div class="status-tab-left">↩ Hoàn hàng</div>
+        <span class="badge" id="cnt-return">0</span>
+      </div>
+
+      <div class="sidebar-label" style="margin-top:8px">SÀN</div>
+      <div class="status-tab" id="tab-shopee" onclick="switchPlatform('shopee')">
+        <div class="status-tab-left">🛍 Shopee</div>
+        <span class="badge" id="cnt-shopee">0</span>
+      </div>
+      <div class="status-tab" id="tab-tiktok" onclick="switchPlatform('tiktok')">
+        <div class="status-tab-left">🎵 TikTok</div>
+        <span class="badge" id="cnt-tiktok">0</span>
+      </div>
+      <div class="status-tab" id="tab-lazada" onclick="switchPlatform('lazada')">
+        <div class="status-tab-left">🛒 Lazada</div>
+        <span class="badge" id="cnt-lazada">0</span>
+      </div>
 
   <!-- MAIN -->
   <div class="main">
@@ -572,25 +605,17 @@
     <!-- TOOLBAR -->
     <div class="toolbar">
       <div class="toolbar-actions">
-        <button class="btn btn-primary" onclick="markReady()" id="btnReady" disabled>
-          📦 Chuẩn bị hàng
-        </button>
-        <button class="btn btn-success" onclick="markShipped()" id="btnShipped" disabled>
-          🚚 Đánh dấu Đã giao
-        </button>
+        <button class="btn btn-ghost" id="btnConfirm" onclick="markConfirmed()" disabled>✅ Xác nhận đơn</button>
+        <button class="btn btn-warning" id="btnPrepare" onclick="markPrepare()" disabled>🖨️ Chuẩn bị hàng + In PDF</button>
+        <button class="btn btn-primary" id="btnPacked" onclick="markPacked()" disabled>📦 Đã đóng gói</button>
+        <button class="btn btn-success" id="btnHandedOver" onclick="markHandedOver()" disabled>🚚 Giao cho shipper</button>
         <div class="divider"></div>
-        <button class="btn btn-purple" onclick="showPickList()" id="btnPickList" disabled>
-          📋 Gộp SKU nhặt hàng
-        </button>
-        <button class="btn btn-warning" onclick="printLabel()" id="btnPrint" disabled>
-          🖨️ In tem vận đơn
-        </button>
+        <button class="btn btn-ghost" id="btnPickList" onclick="showPickList()" disabled>📋 Bảng soạn hàng</button>
         <div class="divider"></div>
-        <button class="btn btn-ghost" onclick="toggleAll()">
-          ☑ Chọn tất cả
-        </button>
+        <button class="btn btn-ghost" style="color:var(--red)" id="btnCancelTransit" onclick="markCancelledTransit()" disabled>✗ Hủy vận chuyển</button>
+        <button class="btn btn-ghost" style="color:var(--orange)" id="btnFailed" onclick="markFailedDelivery()" disabled>⚠️ Giao thất bại</button>
+        <button class="btn btn-ghost" style="color:var(--yellow)" id="btnReturn" onclick="markReturnRefund()" disabled>↩ Trả hàng</button>
       </div>
-      <div class="selected-info" id="selInfo">Chưa chọn đơn nào</div>
     </div>
 
     <!-- FILTER BAR -->
@@ -822,10 +847,16 @@ function renderTable() {
 
     // OMS status
     const omsInfo = {
-      PENDING: { icon: '⏳', label: 'Chờ xử lý' },
-      READY:   { icon: '📦', label: 'Đã đóng gói' },
-      SHIPPED: { icon: '🚚', label: 'Đã giao' },
-    }[o.oms_status] || { icon: '⏳', label: o.oms_status || 'PENDING' }
+      PENDING:           { icon: '🕐', label: 'Chờ xác nhận' },
+      CONFIRMED:         { icon: '✅', label: 'Đã xác nhận' },
+      PACKING:           { icon: '🗂️', label: 'Đang đóng gói' },
+      PACKED:            { icon: '📦', label: 'Đã đóng gói' },
+      HANDED_OVER:       { icon: '🚚', label: 'Giao shipper' },
+      COMPLETED:         { icon: '🏆', label: 'Hoàn thành' },
+      CANCELLED_TRANSIT: { icon: '✗',  label: 'Hủy vận chuyển' },
+      FAILED_DELIVERY:   { icon: '⚠️', label: 'Giao thất bại' },
+      RETURN_REFUND:     { icon: '↩',  label: 'Trả hàng' },
+    }[o.oms_status] || { icon: '🕐', label: o.oms_status || 'PENDING' }
 
     // Order type
     const typeHtml = {
@@ -919,7 +950,11 @@ async function updateBadges(res) {
   } catch {}
 
   // Count từ cache hiện tại
-  const cnt = { PENDING:0, READY:0, SHIPPED:0, normal:0, cancel:0, return:0, shopee:0, tiktok:0, lazada:0 }
+  const cnt = {
+    PENDING:0, CONFIRMED:0, PACKING:0, PACKED:0, HANDED_OVER:0, COMPLETED:0,
+    CANCELLED_TRANSIT:0, FAILED_DELIVERY:0, RETURN_REFUND:0,
+    normal:0, cancel:0, return:0, shopee:0, tiktok:0, lazada:0
+  }
   omsCache.forEach(o => {
     const s = o.oms_status || 'PENDING'
     if (cnt[s] !== undefined) cnt[s]++
@@ -955,8 +990,10 @@ function onCheck() {
   document.getElementById('selInfo').innerHTML =
     n > 0 ? `Đã chọn <span>${n}</span> đơn` : 'Chưa chọn đơn nào'
   const has = n > 0
-  ;['btnReady','btnShipped','btnPickList','btnPrint'].forEach(id => {
-    document.getElementById(id).disabled = !has
+  ;['btnConfirm','btnPrepare','btnPacked','btnHandedOver',
+    'btnPickList','btnCancelTransit','btnFailed','btnReturn'].forEach(id => {
+    const el = document.getElementById(id)
+    if (el) el.disabled = !has
   })
 }
 
@@ -975,33 +1012,115 @@ function toggleAll() {
 }
 
 // ── ACTIONS ─────────────────────────────────────────────────────────
-async function markReady() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Đánh dấu ${ids.length} đơn là ĐÃ ĐÓNG GÓI?`)) return
-  await patchOmsStatus(ids, 'READY')
-  showToast(`✅ Đã đóng gói ${ids.length} đơn`)
-  loadOrders(currentPage)
-}
-
-async function markShipped() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Đánh dấu ${ids.length} đơn là ĐÃ GIAO?`)) return
-  await patchOmsStatus(ids, 'SHIPPED')
-  showToast(`🚚 Đã cập nhật ${ids.length} đơn thành Đã giao`)
-  loadOrders(currentPage)
-}
-
+// ── BULK STATUS HELPER ───────────────────────────────────────────────
 async function patchOmsStatus(ids, status) {
-  await Promise.all(ids.map(id =>
-    fetch(API + '/api/orders/' + encodeURIComponent(id) + '/oms-status', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ oms_status: status })
-    })
-  ))
+  await fetch(API + '/api/orders/bulk-oms-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order_ids: ids, oms_status: status })
+  })
 }
+
+// ── QUY TRÌNH: XÁC NHẬN ĐƠN ────────────────────────────────────────
+async function markConfirmed() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Xác nhận ${ids.length} đơn hàng?`)) return
+  await patchOmsStatus(ids, 'CONFIRMED')
+  showToast(`✅ Đã xác nhận ${ids.length} đơn`)
+  loadOrders(currentPage)
+}
+
+// ── QUY TRÌNH: CHUẨN BỊ HÀNG (in PDF → bảng soạn hàng → chuyển PACKING) ──
+async function markPrepare() {
+  const ids = getChecked()
+  if (!ids.length) return
+
+  // Bước 1: Gửi lệnh in PDF lên bot
+  try {
+    await fetch(API + '/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_type: 'print_label',
+        payload:   JSON.stringify({ order_ids: ids }),
+        shop_name: '', platform: '',
+        month: new Date().getMonth()+1, year: new Date().getFullYear(),
+      })
+    })
+    showToast(`🖨️ Đã gửi lệnh in ${ids.length} đơn. Bot sẽ in trong vài phút.`, 3000)
+  } catch(e) {
+    showToast('❌ Lỗi gửi lệnh in: ' + e.message)
+  }
+
+  // Bước 2: Hiện bảng soạn hàng
+  showPickList()
+
+  // Bước 3: Chuyển trạng thái sang PACKING
+  await patchOmsStatus(ids, 'PACKING')
+  loadOrders(currentPage)
+}
+
+// ── QUY TRÌNH: ĐÃ ĐÓNG GÓI XONG ───────────────────────────────────
+async function markPacked() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Xác nhận đã đóng gói xong ${ids.length} đơn?`)) return
+  await patchOmsStatus(ids, 'PACKED')
+  showToast(`📦 Đã đóng gói xong ${ids.length} đơn`)
+  loadOrders(currentPage)
+}
+
+// ── QUY TRÌNH: GIAO CHO SHIPPER ────────────────────────────────────
+async function markHandedOver() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Xác nhận đã giao ${ids.length} đơn cho shipper?`)) return
+  await patchOmsStatus(ids, 'HANDED_OVER')
+  showToast(`🚚 Đã giao ${ids.length} đơn cho shipper`)
+  loadOrders(currentPage)
+}
+
+// ── QUY TRÌNH: HOÀN THÀNH ──────────────────────────────────────────
+async function markCompleted() {
+  const ids = getChecked()
+  if (!ids.length) return
+  await patchOmsStatus(ids, 'COMPLETED')
+  showToast(`🏆 Hoàn thành ${ids.length} đơn`)
+  loadOrders(currentPage)
+}
+
+// ── ĐÁNH DẤU CÁC TRẠNG THÁI VẤN ĐỀ ─────────────────────────────────
+async function markCancelledTransit() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Đánh dấu ${ids.length} đơn bị hủy trong quá trình vận chuyển?`)) return
+  await patchOmsStatus(ids, 'CANCELLED_TRANSIT')
+  showToast(`✗ Đã đánh dấu ${ids.length} đơn hủy khi vận chuyển`)
+  loadOrders(currentPage)
+}
+
+async function markFailedDelivery() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Đánh dấu ${ids.length} đơn giao không thành công?`)) return
+  await patchOmsStatus(ids, 'FAILED_DELIVERY')
+  showToast(`⚠️ Đã đánh dấu ${ids.length} đơn giao thất bại`)
+  loadOrders(currentPage)
+}
+
+async function markReturnRefund() {
+  const ids = getChecked()
+  if (!ids.length) return
+  if (!confirm(`Đánh dấu ${ids.length} đơn trả hàng hoàn tiền?`)) return
+  await patchOmsStatus(ids, 'RETURN_REFUND')
+  showToast(`↩ Đã đánh dấu ${ids.length} đơn trả hàng`)
+  loadOrders(currentPage)
+}
+
+// Giữ lại hàm cũ để tương thích
+async function markReady()   { await markPacked() }
+async function markShipped() { await markHandedOver() }
 
 // ── PICK LIST ────────────────────────────────────────────────────────
 function showPickList() {

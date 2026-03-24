@@ -216,6 +216,19 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return updateOmsStatus(request, env, cors, orderId)
       }
 
+      // Cập nhật nhiều đơn cùng lúc
+      if (url.pathname === "/api/orders/bulk-oms-status" && request.method === "POST") {
+        const { order_ids, oms_status } = await request.json()
+        if (!order_ids?.length || !oms_status)
+          return Response.json({ error: "Missing data" }, { status: 400, headers: cors })
+        const stmts = order_ids.map(id =>
+          env.DB.prepare(`UPDATE orders_v2 SET oms_status=?, oms_updated_at=datetime('now','+7 hours') WHERE order_id=?`)
+            .bind(oms_status, id)
+        )
+        await env.DB.batch(stmts)
+        return Response.json({ status: "ok", updated: order_ids.length }, { headers: cors })
+      }
+
       if (url.pathname === "/api/export-orders")
         return exportOrders(request, env, cors)
 

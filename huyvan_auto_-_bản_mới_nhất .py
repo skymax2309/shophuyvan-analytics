@@ -2087,6 +2087,53 @@ class HuyVanApp(ctk.CTk):
             await asyncio.sleep(5)
             if i % 6 == 0:
                 self.log(f"⏳ Chờ TikTok xuất đơn hàng ({i*5}s)...")
+    async def scrape_new_orders_shopee(self, page, shop):
+        """Scrape đơn hàng mới từ Shopee Seller Center"""
+        self.log(f"📦 [{shop['ten_shop']}] Đang lấy đơn mới Shopee...")
+        try:
+            await page.goto("https://banhang.shopee.vn/portal/sale/order?tab=toProcess",
+                            wait_until="domcontentloaded")
+            await asyncio.sleep(5)
+            orders = []
+            rows = await page.query_selector_all('[class*="order-item"], [class*="orderItem"]')
+            for row in rows[:50]:
+                try:
+                    order_id_el = await row.query_selector('[class*="order-id"], [class*="orderId"]')
+                    order_id = (await order_id_el.inner_text()).strip() if order_id_el else ""
+                    if not order_id:
+                        continue
+                    orders.append({
+                        "order_id":      order_id,
+                        "platform":      "shopee",
+                        "shop":          shop["ten_shop"],
+                        "order_date":    __import__('datetime').date.today().isoformat(),
+                        "order_type":    "normal",
+                        "oms_status":    "PENDING",
+                        "shipping_status": "Chờ xác nhận",
+                        "revenue": 0, "raw_revenue": 0,
+                        "cost_invoice": 0, "cost_real": 0,
+                        "fee": 0, "profit_invoice": 0, "profit_real": 0,
+                        "tax_flat": 0, "tax_income": 0,
+                        "fee_platform": 0, "fee_payment": 0, "fee_affiliate": 0, "fee_ads": 0,
+                        "fee_piship": 0, "fee_service": 0, "fee_packaging": 0,
+                        "fee_operation": 0, "fee_labor": 0,
+                        "cancel_reason": None, "return_fee": 0, "shipped": 0,
+                        "discount_shop": 0, "discount_shopee": 0,
+                        "discount_combo": 0, "shipping_return_fee": 0,
+                    })
+                except:
+                    continue
+            if orders:
+                api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
+                data = json.dumps({"orders": orders, "items": []}).encode('utf-8')
+                req = urllib.request.Request(api_url, data=data,
+                    headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'},
+                    method='POST')
+                with urllib.request.urlopen(req, timeout=30) as res:
+                    result = json.loads(res.read().decode())
+                    self.log(f"✅ Đã import {result.get('imported_orders',0)} đơn mới Shopee")
+        except Exception as e:
+            self.log(f"⚠️ Lỗi scrape đơn Shopee: {str(e)}")            
 
     async def main_logic(self):
         # --- GỌI API LẤY DANH SÁCH LỆNH TỪ CLOUDFLARE D1 ---
