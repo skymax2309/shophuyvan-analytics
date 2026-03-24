@@ -131,11 +131,6 @@ function renderTable() {
   }
 
   document.getElementById('omsTable').innerHTML = omsCache.map(o => {
-    // Tìm chỗ hiển thị product-name và sửa lại:
-<div class="product-name" title="${firstItem.product_name || firstItem.item_name || 'Không có tên'}">
-    ${(firstItem.product_name || firstItem.item_name || '—').substring(0,40)}
-</div>
-<div class="product-sku">SKU: ${firstItem.sku || firstItem.item_sku || '—'}</div>
     const profit   = o.profit_real || 0
     const revenue  = o.revenue || 0
 
