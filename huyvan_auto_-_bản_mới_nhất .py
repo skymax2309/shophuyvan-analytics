@@ -410,14 +410,19 @@ class HuyVanApp(ctk.CTk):
             self.log("⏹ Chế độ tự động ĐÃ TẮT.")
 
     def auto_loop(self):
+        import time
         while self.auto_running:
             self.log("🔍 Đang kiểm tra lệnh mới từ Server...")
             asyncio.run(self.main_logic())
+
+            # ── Scrape đơn hàng mới sau mỗi vòng ──
+            self.log("📦 Đang quét đơn hàng mới từ các sàn...")
+            asyncio.run(self.scrape_all_new_orders())
+
             # Chờ 5 phút rồi kiểm tra lại (chia nhỏ để có thể tắt nhanh)
-            for _ in range(30):
+            for _ in range(300):
                 if not self.auto_running:
                     break
-                import time
                 time.sleep(1)
         self.log("✅ Vòng lặp tự động đã dừng.")
 
@@ -2087,15 +2092,48 @@ class HuyVanApp(ctk.CTk):
             await asyncio.sleep(5)
             if i % 6 == 0:
                 self.log(f"⏳ Chờ TikTok xuất đơn hàng ({i*5}s)...")
-    async def scrape_new_orders_shopee(self, page, shop):
-        """Scrape đơn hàng mới từ Shopee Seller Center"""
-        self.log(f"📦 [{shop['ten_shop']}] Đang lấy đơn mới Shopee...")
+
+    async def scrape_all_new_orders(self):
+        """Vòng lặp chính: mở trình duyệt và scrape đơn mới từ tất cả shop đang bật"""
+        shops = self.get_selected_shops()
+        if not shops:
+            self.log("⚠️ Chưa chọn shop nào để quét đơn.")
+            return
+
+        async with async_playwright() as p:
+            for shop in shops:
+                if not self.auto_running:
+                    break
+                try:
+                    context = await p.chromium.launch_persistent_context(
+                        user_data_dir=shop["profile_dir"],
+                        channel="chrome",
+                        headless=self.var_headless.get(),
+                        args=["--disable-blink-features=AutomationControlled"]
+                    )
+                    page = context.pages[0]
+
+                    platform = shop.get("platform", "shopee")
+                    if platform == "shopee":
+                        await self.scrape_new_orders_shopee(page, shop)
+                    elif platform == "lazada":
+                        await self.scrape_new_orders_lazada(page, shop)
+                    elif platform == "tiktok":
+                        await self.scrape_new_orders_tiktok(page, shop)
+
+                    await context.close()
+                except Exception as e:
+                    self.log(f"❌ Lỗi scrape đơn shop {shop['ten_shop']}: {str(e)}")
+
+    async def scrape_new_orders_lazada(self, page, shop):
+        """Scrape đơn hàng mới từ Lazada Seller Center"""
+        self.log(f"📦 [{shop['ten_shop']}] Đang lấy đơn mới Lazada...")
         try:
-            await page.goto("https://banhang.shopee.vn/portal/sale/order?tab=toProcess",
+            await page.goto("https://sellercenter.lazada.vn/portal/apps/seller-order-manage/orders",
                             wait_until="domcontentloaded")
-            await asyncio.sleep(5)
+            await asyncio.sleep(6)
             orders = []
-            rows = await page.query_selector_all('[class*="order-item"], [class*="orderItem"]')
+            rows = await page.query_selector_all('[class*="order-item-wrap"], [class*="order-row"]')
             for row in rows[:50]:
                 try:
                     order_id_el = await row.query_selector('[class*="order-id"], [class*="orderId"]')
@@ -2103,12 +2141,12 @@ class HuyVanApp(ctk.CTk):
                     if not order_id:
                         continue
                     orders.append({
-                        "order_id":      order_id,
-                        "platform":      "shopee",
-                        "shop":          shop["ten_shop"],
-                        "order_date":    __import__('datetime').date.today().isoformat(),
-                        "order_type":    "normal",
-                        "oms_status":    "PENDING",
+                        "order_id":        order_id,
+                        "platform":        "lazada",
+                        "shop":            shop["ten_shop"],
+                        "order_date":      __import__('datetime').date.today().isoformat(),
+                        "order_type":      "normal",
+                        "oms_status":      "PENDING",
                         "shipping_status": "Chờ xác nhận",
                         "revenue": 0, "raw_revenue": 0,
                         "cost_invoice": 0, "cost_real": 0,
@@ -2131,9 +2169,125 @@ class HuyVanApp(ctk.CTk):
                     method='POST')
                 with urllib.request.urlopen(req, timeout=30) as res:
                     result = json.loads(res.read().decode())
-                    self.log(f"✅ Đã import {result.get('imported_orders',0)} đơn mới Shopee")
+                    self.log(f"✅ Đã import {result.get('imported_orders',0)} đơn mới Lazada")
         except Exception as e:
-            self.log(f"⚠️ Lỗi scrape đơn Shopee: {str(e)}")            
+            self.log(f"⚠️ Lỗi scrape đơn Lazada: {str(e)}")
+
+    async def scrape_new_orders_tiktok(self, page, shop):
+        """Scrape đơn hàng mới từ TikTok Shop Seller Center"""
+        self.log(f"📦 [{shop['ten_shop']}] Đang lấy đơn mới TikTok...")
+        try:
+            await page.goto("https://seller-vn.tiktok.com/order/list?status=AWAITING_SHIPMENT",
+                            wait_until="domcontentloaded")
+            await asyncio.sleep(6)
+            orders = []
+            rows = await page.query_selector_all('[class*="order-item"], [class*="orderItem"]')
+            for row in rows[:50]:
+                try:
+                    order_id_el = await row.query_selector('[class*="order-id"], [class*="orderId"]')
+                    order_id = (await order_id_el.inner_text()).strip() if order_id_el else ""
+                    if not order_id:
+                        continue
+                    orders.append({
+                        "order_id":        order_id,
+                        "platform":        "tiktok",
+                        "shop":            shop["ten_shop"],
+                        "order_date":      __import__('datetime').date.today().isoformat(),
+                        "order_type":      "normal",
+                        "oms_status":      "PENDING",
+                        "shipping_status": "Chờ xác nhận",
+                        "revenue": 0, "raw_revenue": 0,
+                        "cost_invoice": 0, "cost_real": 0,
+                        "fee": 0, "profit_invoice": 0, "profit_real": 0,
+                        "tax_flat": 0, "tax_income": 0,
+                        "fee_platform": 0, "fee_payment": 0, "fee_affiliate": 0, "fee_ads": 0,
+                        "fee_piship": 0, "fee_service": 0, "fee_packaging": 0,
+                        "fee_operation": 0, "fee_labor": 0,
+                        "cancel_reason": None, "return_fee": 0, "shipped": 0,
+                        "discount_shop": 0, "discount_shopee": 0,
+                        "discount_combo": 0, "shipping_return_fee": 0,
+                    })
+                except:
+                    continue
+            if orders:
+                api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
+                data = json.dumps({"orders": orders, "items": []}).encode('utf-8')
+                req = urllib.request.Request(api_url, data=data,
+                    headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'},
+                    method='POST')
+                with urllib.request.urlopen(req, timeout=30) as res:
+                    result = json.loads(res.read().decode())
+                    self.log(f"✅ Đã import {result.get('imported_orders',0)} đơn mới TikTok")
+        except Exception as e:
+            self.log(f"⚠️ Lỗi scrape đơn TikTok: {str(e)}")
+            
+    async def scrape_new_orders_shopee(self, page, shop):
+        self.log(f"📦 [{shop['ten_shop']}] Đang quét đơn Shopee (Tab Chờ xác nhận)...")
+        try:
+            # 1. Chuyển sang dùng 'commit' thay vì 'networkidle' để tránh chờ đợi vô ích
+            # Commit nghĩa là chỉ cần URL thay đổi và Server bắt đầu gửi dữ liệu là ta đi tiếp
+            try:
+                await page.goto(
+                    "https://banhang.shopee.vn/portal/sale/order?tab=toProcess", 
+                    wait_until="commit", 
+                    timeout=60000 # Tăng giới hạn lên 60s cho chắc chắn
+                )
+            except Exception as e:
+                self.log(f"⚠️ Trang load hơi chậm, nhưng Bot vẫn sẽ cố gắng quét...")
+
+            # 2. Đợi đúng cái khung chứa danh sách đơn hàng hiện ra (tối đa 20s)
+            # Selector này bền vững hơn vì nó nhắm vào khung chứa dữ liệu chính
+            self.log("⏳ Đang đợi danh sách đơn hàng hiển thị...")
+            await page.wait_for_selector(".order-item-wrapper, .order-card, .order-list-content", timeout=20000)
+            
+            # Nghỉ 3 giây để đảm bảo JavaScript của Shopee render xong mã đơn
+            await asyncio.sleep(3) 
+
+            # 3. Cuộn trang nhẹ để kích hoạt tải dữ liệu (Lazy load)
+            await page.mouse.wheel(0, 1000)
+            await asyncio.sleep(2)
+
+            orders = []
+            # Lấy tất cả các dòng đơn hàng
+            rows = await page.query_selector_all(".order-item-wrapper, .order-card, [class*='order-item']")
+            
+            for row in rows[:50]:
+                try:
+                    # Selector tìm Order ID linh hoạt (bao gồm cả selector span Huyền gửi)
+                    id_el = await row.query_selector(".order-id-text, .order-id, [class*='id-text'], .order-identifiers span")
+                    if not id_el: continue
+                    
+                    raw_id = await id_el.inner_text()
+                    # Làm sạch chuỗi: xóa chữ "Mã đơn hàng", dấu # và khoảng trắng
+                    order_id = raw_id.replace("Mã đơn hàng", "").replace("#", "").split(':')[-1].strip()
+                    
+                    if order_id and len(order_id) > 5:
+                        orders.append({
+                            "order_id": order_id,
+                            "platform": "shopee",
+                            "shop": shop["ten_shop"],
+                            "order_date": __import__('datetime').datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "order_type": "normal",
+                            "oms_status": "PENDING",
+                            "shipping_status": "Chờ xác nhận"
+                        })
+                except:
+                    continue
+
+            # 4. Gửi dữ liệu về OMS nếu tìm thấy đơn
+            if orders:
+                api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
+                payload = json.dumps({"orders": orders, "items": []}).encode('utf-8')
+                req = urllib.request.Request(api_url, data=payload, method='POST',
+                                             headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'})
+                
+                with urllib.request.urlopen(req, timeout=15) as res:
+                    self.log(f"✅ Thành công: Đã lấy {len(orders)} đơn mới từ {shop['ten_shop']}.")
+            else:
+                self.log(f"ℹ️ {shop['ten_shop']} hiện tại chưa thấy đơn mới nào.")
+
+        except Exception as e:
+            self.log(f"❌ Lỗi quét Shopee ({shop['ten_shop']}): {str(e)}")            
 
     async def main_logic(self):
         # --- GỌI API LẤY DANH SÁCH LỆNH TỪ CLOUDFLARE D1 ---
