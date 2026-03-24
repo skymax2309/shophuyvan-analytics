@@ -308,14 +308,7 @@ function toggleAll() {
 }
 
 // ── ACTIONS ─────────────────────────────────────────────────────────
-// ── BULK STATUS HELPER ───────────────────────────────────────────────
-async function patchOmsStatus(ids, status) {
-  await fetch(API + '/api/orders/bulk-oms-status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ order_ids: ids, oms_status: status })
-  })
-}
+// patchOmsStatus được import từ oms-api.js (dòng 1)
 
 // ── QUY TRÌNH: XÁC NHẬN ĐƠN ────────────────────────────────────────
 async function markConfirmed() {
