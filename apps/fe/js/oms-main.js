@@ -1,4 +1,4 @@
-import { API, patchOmsStatus } from './oms-api.js';
+import { API } from './oms-api.js';
 import { ShopeeHandler } from './modules/handler-shopee.js';
 import { TiktokHandler } from './modules/handler-tiktok.js';
 import { LazadaHandler } from './modules/handler-lazada.js';
@@ -36,13 +36,13 @@ function showToast(msg, duration = 2500) {
 }
 
 // ── DEBOUNCE ────────────────────────────────────────────────────────
-function debounceLoad() {
+export function debounceLoad() {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => loadOrders(1), 400)
 }
 
 // ── SIDEBAR SWITCH ──────────────────────────────────────────────────
-function switchStatus(s) {
+export function switchStatus(s) {
   currentStatus   = s === currentStatus && s !== 'ALL' ? 'ALL' : s
   currentType     = ''
   currentPlatform = ''
@@ -51,7 +51,7 @@ function switchStatus(s) {
   loadOrders(1)
 }
 
-function switchType(t) {
+export function switchType(t) {
   currentType     = t === currentType ? '' : t
   currentStatus   = 'ALL'
   currentPlatform = ''
@@ -61,7 +61,7 @@ function switchType(t) {
   loadOrders(1)
 }
 
-function switchPlatform(p) {
+export function switchPlatform(p) {
   currentPlatform = p === currentPlatform ? '' : p
   currentStatus   = 'ALL'
   currentType     = ''
@@ -160,6 +160,12 @@ function renderTable() {
       cancel: `<span class="type-cancel">✗ Hủy</span>`,
       return: `<span class="type-return">↩ Hoàn</span>`,
     }[o.order_type] || `<span>${o.order_type}</span>`
+
+     // Items data
+    const items     = o.items || []
+    const firstItem = items[0] || {}
+    const uid       = o.order_id
+    const totalQty  = items.reduce((s, i) => s + (i.qty || 1), 0)
 
     // Image
     const imgSrc = firstItem.image_url
@@ -280,7 +286,7 @@ function renderPagination() {
 }
 
 // ── CHECK ────────────────────────────────────────────────────────────
-function onCheck() {
+export function onCheck() {
   const checked = getChecked()
   const n = checked.length
   document.getElementById('selInfo').innerHTML =
@@ -297,7 +303,7 @@ function getChecked() {
   return [...document.querySelectorAll('.oms-chk:checked')].map(c => c.dataset.id)
 }
 
-function toggleAllCheck(checked) {
+export function toggleAllCheck(checked) {
   document.querySelectorAll('.oms-chk').forEach(c => c.checked = checked)
   onCheck()
 }
@@ -308,10 +314,16 @@ function toggleAll() {
 }
 
 // ── ACTIONS ─────────────────────────────────────────────────────────
-// patchOmsStatus được import từ oms-api.js (dòng 1)
+async function patchOmsStatus(ids, status) {
+  await fetch(API + '/api/orders/bulk-oms-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order_ids: ids, oms_status: status })
+  })
+}
 
 // ── QUY TRÌNH: XÁC NHẬN ĐƠN ────────────────────────────────────────
-async function markConfirmed() {
+export async function markConfirmed() {
   const ids = getChecked()
   if (!ids.length) return
   if (!confirm(`Xác nhận ${ids.length} đơn hàng?`)) return
@@ -321,7 +333,7 @@ async function markConfirmed() {
 }
 
 // ── QUY TRÌNH: CHUẨN BỊ HÀNG (in PDF → bảng soạn hàng → chuyển PACKING) ──
-async function markPrepare() {
+export async function markPrepare() {
   const ids = getChecked()
   if (!ids.length) return
 
@@ -351,7 +363,7 @@ async function markPrepare() {
 }
 
 // ── QUY TRÌNH: ĐÃ ĐÓNG GÓI XONG ───────────────────────────────────
-async function markPacked() {
+export async function markPacked() {
   const ids = getChecked()
   if (!ids.length) return
   if (!confirm(`Xác nhận đã đóng gói xong ${ids.length} đơn?`)) return
@@ -361,7 +373,7 @@ async function markPacked() {
 }
 
 // ── QUY TRÌNH: GIAO CHO SHIPPER ────────────────────────────────────
-async function markHandedOver() {
+export async function markHandedOver() {
   const ids = getChecked()
   if (!ids.length) return
   if (!confirm(`Xác nhận đã giao ${ids.length} đơn cho shipper?`)) return
@@ -380,7 +392,7 @@ async function markCompleted() {
 }
 
 // ── ĐÁNH DẤU CÁC TRẠNG THÁI VẤN ĐỀ ─────────────────────────────────
-async function markCancelledTransit() {
+export async function markCancelledTransit() {
   const ids = getChecked()
   if (!ids.length) return
   if (!confirm(`Đánh dấu ${ids.length} đơn bị hủy trong quá trình vận chuyển?`)) return
@@ -389,7 +401,7 @@ async function markCancelledTransit() {
   loadOrders(currentPage)
 }
 
-async function markFailedDelivery() {
+export async function markFailedDelivery() {
   const ids = getChecked()
   if (!ids.length) return
   if (!confirm(`Đánh dấu ${ids.length} đơn giao không thành công?`)) return
@@ -398,7 +410,7 @@ async function markFailedDelivery() {
   loadOrders(currentPage)
 }
 
-async function markReturnRefund() {
+export async function markReturnRefund() {
   const ids = getChecked()
   if (!ids.length) return
   if (!confirm(`Đánh dấu ${ids.length} đơn trả hàng hoàn tiền?`)) return
@@ -412,7 +424,7 @@ async function markReady()   { await markPacked() }
 async function markShipped() { await markHandedOver() }
 
 // ── PICK LIST ────────────────────────────────────────────────────────
-function showPickList() {
+export function showPickList() {
   const ids      = getChecked()
   if (!ids.length) return
   const selected = omsCache.filter(o => ids.includes(o.order_id))
@@ -481,7 +493,7 @@ async function printLabel() {
 }
 
 // ── SYNC (trigger Bot) ───────────────────────────────────────────────
-async function syncOrders() {
+export async function syncOrders() {
   const btn  = document.querySelector('.btn-sync')
   const icon = document.getElementById('syncIcon')
   btn.classList.add('spinning')
@@ -496,7 +508,7 @@ async function syncOrders() {
 }
 
 // ── RESET FILTER ─────────────────────────────────────────────────────
-function resetFilter() {
+export function resetFilter() {
   document.getElementById('f_from').value     = ''
   document.getElementById('f_to').value       = ''
   document.getElementById('f_shop').value     = ''
@@ -511,12 +523,12 @@ function resetFilter() {
 }
 
 // ── COPY ─────────────────────────────────────────────────────────────
-function copyText(text) {
+export function copyText(text) {
   navigator.clipboard.writeText(text).then(() => showToast('✅ Đã copy: ' + text))
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────
-function closeModal(id) {
+export function closeModal(id) {
   document.getElementById(id).classList.remove('open')
 }
 document.querySelectorAll('.modal-overlay').forEach(m => {
@@ -524,7 +536,7 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
 })
 
 // ── LOAD SHOPS for filter ────────────────────────────────────────────
-async function loadShopList() {
+export async function loadShopList() {
   try {
     const data = await fetch(API + '/api/top-shop').then(r => r.json())
     const sel  = document.getElementById('f_shop')
