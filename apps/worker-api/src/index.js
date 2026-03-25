@@ -72,8 +72,13 @@ export default {
         const { skus } = await request.json()
         if (!skus || !Array.isArray(skus) || skus.length === 0)
           return Response.json({ error: "No SKUs" }, { status: 400, headers: cors })
-        const placeholders = skus.map(() => '?').join(',')
-        await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...skus).run()
+        // Chia batch 50 SKU mỗi lần để tránh giới hạn bind của D1
+        const BATCH = 50
+        for (let i = 0; i < skus.length; i += BATCH) {
+          const chunk = skus.slice(i, i + BATCH)
+          const placeholders = chunk.map(() => '?').join(',')
+          await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...chunk).run()
+        }
         return Response.json({ status: "ok", count: skus.length }, { headers: cors })
       }
 
