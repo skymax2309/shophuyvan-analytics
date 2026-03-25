@@ -35,6 +35,29 @@ async function handleProducts(request, env, cors) {
     ).run();
     return Response.json({ status: "ok" }, { headers: cors });
   }
+
+  if (request.method === "DELETE") {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    
+    // Nếu là xóa hàng loạt
+    if (path.endsWith('/bulk')) {
+      const { skus } = await request.json();
+      if (!skus || !Array.isArray(skus) || skus.length === 0) {
+        return Response.json({ error: "No SKUs" }, { status: 400, headers: cors });
+      }
+      const placeholders = skus.map(() => '?').join(',');
+      await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`)
+        .bind(...skus)
+        .run();
+      return Response.json({ status: "ok", count: skus.length }, { headers: cors });
+    }
+
+    // Nếu xóa 1 sản phẩm (lấy sku từ cuối url)
+    const sku = path.split('/').pop();
+    await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run();
+    return Response.json({ status: "ok" }, { headers: cors });
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
