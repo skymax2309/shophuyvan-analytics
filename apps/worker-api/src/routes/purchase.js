@@ -1,16 +1,15 @@
-// worker-api/src/routes/purchase.js
+// src/routes/purchase.js
 
-// 1. Lấy danh sách sản phẩm nhập hàng & Cài đặt tỉ giá
 export async function handlePurchase(request, env, cors) {
   const url = new URL(request.url);
   
-  // Lấy Cài đặt (Tỉ giá, Phí ship)
+  // 1. Lấy Cài đặt (Tỉ giá, Phí ship)
   if (request.method === "GET" && url.pathname === "/api/purchase/settings") {
     const { results } = await env.DB.prepare("SELECT * FROM settings_import").all();
     return Response.json(results, { headers: cors });
   }
 
-  // Cập nhật Cài đặt
+  // 2. Cập nhật Cài đặt
   if (request.method === "POST" && url.pathname === "/api/purchase/settings") {
     const { key, value } = await request.json();
     await env.DB.prepare("UPDATE settings_import SET value = ?, updated_at = datetime('now','+7 hours') WHERE key = ?")
@@ -18,7 +17,7 @@ export async function handlePurchase(request, env, cors) {
     return Response.json({ status: "ok" }, { headers: cors });
   }
 
-  // Lấy danh sách Sản phẩm Nhập hàng
+  // 3. Lấy danh sách Sản phẩm Nhập hàng
   if (request.method === "GET") {
     const search = url.searchParams.get("search") || "";
     let query = "SELECT * FROM purchase_orders";
@@ -34,11 +33,11 @@ export async function handlePurchase(request, env, cors) {
     return Response.json(results, { headers: cors });
   }
 
-  // Thêm hoặc Cập nhật Sản phẩm
+  // 4. Thêm hoặc Cập nhật Sản phẩm
   if (request.method === "POST") {
     const data = await request.json();
     
-    // Gán và ép kiểu dữ liệu cực kỳ chặt chẽ để tránh undefined
+    // Ép kiểu cực kỳ chặt chẽ để tránh lỗi D1_TYPE_ERROR (undefined)
     const id = data.id || null;
     const ma_van_don = String(data.ma_van_don || "");
     const image_url = String(data.image_url || "");
@@ -62,7 +61,7 @@ export async function handlePurchase(request, env, cors) {
     const link_nhap_hang = String(data.link_nhap_hang || "");
 
     if (id) {
-      // ── UPDATE (Đúng 20 tham số + 1 ID = 21 dấu ?) ──────────────
+      // ── UPDATE (20 cột + 1 ID = 21 dấu ?)
       const sql = `UPDATE purchase_orders SET 
         ma_van_don=?, image_url=?, ten_san_pham=?, ma_hang=?, sl_nhap=?, 
         gia_nhap_te=?, gia_khai_thue=?, cong_dung=?, chat_lieu=?, so_kien=?,
@@ -81,7 +80,7 @@ export async function handlePurchase(request, env, cors) {
       
       return Response.json({ status: "updated" }, { headers: cors });
     } else {
-      // ── INSERT (Đúng 20 tham số = 20 dấu ?) ────────────────────
+      // ── INSERT (20 cột = 20 dấu ?)
       const sql = `INSERT INTO purchase_orders (
         ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
         gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
@@ -101,3 +100,13 @@ export async function handlePurchase(request, env, cors) {
       return Response.json({ status: "created" }, { headers: cors });
     }
   }
+
+  // 5. Xóa sản phẩm
+  if (request.method === "DELETE") {
+    const { id } = await request.json();
+    await env.DB.prepare("DELETE FROM purchase_orders WHERE id = ?").bind(id).run();
+    return Response.json({ status: "deleted" }, { headers: cors });
+  }
+
+  return new Response("Method not allowed", { status: 405, headers: cors });
+}
