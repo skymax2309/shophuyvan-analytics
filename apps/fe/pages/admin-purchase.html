@@ -159,7 +159,7 @@
         <tr data-id="${item.id}" class="text-sm border-b border-[#262626]">
             <td class="p-3 text-center"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
             <td class="p-3">
-                <img src="${item.image_url || 'https://via.placeholder.com/40'}" 
+                <img src="${item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect width=%2240%22 height=%2240%22 fill=%22%23334155%22/><text x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>📦</text></svg>'}"` 
                      class="w-12 h-12 object-cover rounded border border-[#333]">
             </td>
             <td class="p-3 text-left">
@@ -291,34 +291,86 @@ async function deleteSelected() {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-        for (const row of json) {
-            const getV = (kw) => {
-                for (let k in row) {
-                    if (k.toString().replace(/\s/g, '').toLowerCase().includes(kw.toLowerCase())) return row[k];
+        // ── FIX: Đọc theo index cột (header:1) thay vì dùng tên cột
+        // Excel có hàng số ở trên → dùng raw array, bỏ 2 hàng đầu (hàng số + hàng header)
+        const raw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+        // Tìm hàng nào là header thực (chứa "Tên Sản Phẩm")
+        let headerRowIdx = -1;
+        for (let i = 0; i < Math.min(raw.length, 5); i++) {
+            const rowStr = raw[i].join("|").toLowerCase().replace(/\s/g, "");
+            if (rowStr.includes("tensanpham") || rowStr.includes("tênSảnPhẩm".toLowerCase())) {
+                headerRowIdx = i;
+                break;
+            }
+        }
+        if (headerRowIdx === -1) { alert("❌ Không tìm thấy hàng tiêu đề trong Excel!"); return; }
+
+        // Map tên cột (chuẩn hoá: bỏ space, newline, lowercase) → index
+        const headers = raw[headerRowIdx];
+        const colIdx = {};
+        headers.forEach((h, i) => {
+            const key = h.toString().replace(/[\s\n\r]/g, "").toLowerCase();
+            colIdx[key] = i;
+        });
+
+        // Hàm lấy giá trị theo từ khoá (tìm key chứa kw)
+        const getCol = (row, kw) => {
+            for (const key in colIdx) {
+                if (key.includes(kw)) {
+                    const val = row[colIdx[key]];
+                    return (val === undefined || val === null) ? "" : val;
                 }
-                return "";
-            };
+            }
+            return "";
+        };
 
-            const tenSP = getV("tensanpham");
-            if (!tenSP || tenSP === "Tên Sản Phẩm") continue; // Bỏ qua dòng tiêu đề/trống
+        // Hàm parse kích thước "DÀI*RỘNG*CAO\n(12*8*5,4) CM" → { d, r, c }
+        const parseDimension = (str) => {
+            const nums = str.toString().replace(/,/g, ".").match(/[\d.]+/g);
+            if (nums && nums.length >= 3) return { d: parseFloat(nums[0]), r: parseFloat(nums[1]), c: parseFloat(nums[2]) };
+            if (nums && nums.length === 2) return { d: parseFloat(nums[0]), r: parseFloat(nums[1]), c: 0 };
+            return { d: 0, r: 0, c: 0 };
+        };
+
+        // Dữ liệu bắt đầu từ hàng sau header
+        const dataRows = raw.slice(headerRowIdx + 1);
+        let imported = 0, skipped = 0;
+
+        for (const row of dataRows) {
+            const tenSP = getCol(row, "tensanpham").toString().trim();
+            // Bỏ qua dòng trống, dòng lỗi Excel (#DIV/0!...), dòng phụ không có tên
+            if (!tenSP || tenSP.startsWith("#") || tenSP.length < 2) { skipped++; continue; }
+
+            const kichThuocRaw = getCol(row, "kichth").toString();
+            const dim = parseDimension(kichThuocRaw);
+
+            // Phân biệt TÍNH KG hay TÍNH KHỐI
+            const cachTinh = getCol(row, "tiền\nkg").toString().toUpperCase().includes("KG") 
+                ? "TÍNH KG" : "TÍNH KHỐI";
 
             const newProduct = {
-                ten_san_pham: tenSP.toString().trim(),
-                ma_van_don: getV("mavan"),
-                ma_hang: getV("mahang"),
-                sl_nhap: parseFloat(getV("slnhap")) || 0,
-                gia_nhap_te: parseFloat(getV("gianhap")) || 0,
-                gia_khai_thue: parseFloat(getV("giakhai")) || 0,
-                ship_noi_dia_te: parseFloat(getV("shipnoidia")) || 0,
-                so_kien: parseInt(getV("sokien")) || 1,
-                sl_sp_tren_kien: parseInt(getV("sl/kien")) || 1,
-                trong_luong_kg: parseFloat(getV("tongkg")) || 0,
-                thue_vat_percent: parseFloat(getV("thuevat")) || 10,
-                cong_dung: getV("mucdich"),
-                chat_lieu: getV("chatlieu"),
-                link_nhap_hang: getV("linksp")
+                ten_san_pham:       tenSP,
+                ma_van_don:         getCol(row, "mavandon").toString().trim(),
+                ma_hang:            getCol(row, "mahang").toString().trim(),
+                sl_nhap:            parseFloat(getCol(row, "slnhap"))    || 0,
+                gia_nhap_te:        parseFloat(getCol(row, "gianhap"))   || 0,
+                gia_khai_thue:      parseFloat(getCol(row, "giakhai"))   || 0,
+                ship_noi_dia_te:    parseFloat(getCol(row, "shipnoi"))   || 0,
+                so_kien:            parseInt(getCol(row, "sokien"))      || 1,
+                sl_sp_tren_kien:    parseInt(getCol(row, "sl/kiện"))     || 1,
+                trong_luong_kg:     parseFloat(getCol(row, "tongkg"))    || 0,
+                thue_vat_percent:   parseFloat(getCol(row, "thuevat"))   || 10,
+                phi_vanchuyen_thuc: parseFloat(getCol(row, "tổngtiềnvận")) || 0,
+                cong_dung:          getCol(row, "mucdich").toString().trim(),
+                chat_lieu:          getCol(row, "chatlieu").toString().trim(),
+                link_nhap_hang:     getCol(row, "linksp").toString().trim(),
+                kich_thuoc_d:       dim.d,
+                kich_thuoc_r:       dim.r,
+                kich_thuoc_c:       dim.c,
+                cach_tinh_vc:       cachTinh,
+                image_url:          "",  // Không lấy từ Excel, để trống
             };
 
             await fetch(API_URL, {
@@ -326,8 +378,9 @@ async function deleteSelected() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(newProduct)
             });
+            imported++;
         }
-        alert("✅ Đã hoàn tất Import cho Huy!");
+        alert(`✅ Đã import ${imported} sản phẩm! (Bỏ qua ${skipped} dòng trống/lỗi)`);
         loadData();
     };
     reader.readAsArrayBuffer(file);
