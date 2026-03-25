@@ -37,14 +37,65 @@ export async function handlePurchase(request, env, cors) {
   // Thêm hoặc Cập nhật Sản phẩm
   if (request.method === "POST") {
     const data = await request.json();
-    const { 
-      id, ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
-      gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
-      kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
-      cach_tinh_vc, phi_vanchuyen_thuc 
-    } = data;
+    
+    // Gán giá trị mặc định nếu dữ liệu gửi lên bị thiếu (undefined)
+    const id = data.id || null;
+    const ma_van_don = data.ma_van_don || "";
+    const image_url = data.image_url || "";
+    const ten_san_pham = data.ten_san_pham || "Sản phẩm mới";
+    const ma_hang = data.ma_hang || "";
+    const sl_nhap = parseFloat(data.sl_nhap) || 0;
+    const gia_nhap_te = parseFloat(data.gia_nhap_te) || 0;
+    const gia_khai_thue = parseFloat(data.gia_khai_thue) || 0;
+    const cong_dung = data.cong_dung || "";
+    const chat_lieu = data.chat_lieu || "";
+    const so_kien = parseInt(data.so_kien) || 1;
+    const sl_sp_tren_kien = parseInt(data.sl_sp_tren_kien) || 1;
+    const ship_noi_dia_te = parseFloat(data.ship_noi_dia_te) || 0;
+    const thue_vat_percent = parseFloat(data.thue_vat_percent) || 10;
+    const kich_thuoc_d = parseFloat(data.kich_thuoc_d) || 0;
+    const kich_thuoc_r = parseFloat(data.kich_thuoc_r) || 0;
+    const kich_thuoc_c = parseFloat(data.kich_thuoc_c) || 0;
+    const trong_luong_kg = parseFloat(data.trong_luong_kg) || 0;
+    const cach_tinh_vc = data.cach_tinh_vc || "TÍNH KG";
+    const phi_vanchuyen_thuc = parseFloat(data.phi_vanchuyen_thuc) || 0;
+    const link_nhap_hang = data.link_nhap_hang || "";
 
     if (id) {
+      // UPDATE - Đã bổ sung các cột mới Huy yêu cầu
+      const sql = `UPDATE purchase_orders SET 
+        ma_van_don=?, image_url=?, ten_san_pham=?, ma_hang=?, sl_nhap=?, 
+        gia_nhap_te=?, gia_khai_thue=?, cong_dung=?, chat_lieu=?, so_kien=?,
+        sl_sp_tren_kien=?, ship_noi_dia_te=?, thue_vat_percent=?,
+        kich_thuoc_d=?, kich_thuoc_r=?, kich_thuoc_c=?, trong_luong_kg=?,
+        cach_tinh_vc=?, phi_vanchuyen_thuc=?, link_nhap_hang=? WHERE id=?`;
+      await env.DB.prepare(sql).bind(
+        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
+        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
+        sl_sp_tren_kien, ship_noi_dia_te, thue_vat_percent,
+        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
+        cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang, id
+      ).run();
+      return Response.json({ status: "updated" }, { headers: cors });
+    } else {
+      // INSERT - Đã bổ sung các cột mới Huy yêu cầu
+      const sql = `INSERT INTO purchase_orders (
+        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
+        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
+        sl_sp_tren_kien, ship_noi_dia_te, thue_vat_percent,
+        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
+        cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+      await env.DB.prepare(sql).bind(
+        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
+        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
+        sl_sp_tren_kien, ship_noi_dia_te, thue_vat_percent,
+        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
+        cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang
+      ).run();
+      return Response.json({ status: "created" }, { headers: cors });
+    }
+  }
       // UPDATE
       const sql = `UPDATE purchase_orders SET 
         ma_van_don=?, image_url=?, ten_san_pham=?, ma_hang=?, sl_nhap=?, 
