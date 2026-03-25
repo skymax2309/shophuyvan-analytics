@@ -66,17 +66,22 @@
         <table id="purchaseTable">
             <thead>
                 <tr>
-                    <th class="p-3 text-center"><input type="checkbox" disabled></th>
+                    <th class="p-3 text-center"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
                     <th class="p-3">Ảnh</th>
-                    <th class="p-3 text-left">Mã Vận Đơn</th>
-                    <th class="p-3 text-left">Tên Sản Phẩm</th>
+                    <th class="p-3 text-left">Thông tin SP</th>
                     <th class="p-3">SKU</th>
-                    <th class="p-3">SL</th>
-                    <th class="p-3">Giá Tệ</th>
+                    <th class="p-3">Số Kiện</th>
+                    <th class="p-3">SL SP/Kiện</th>
+                    <th class="p-3">Giá Tệ (¥)</th>
+                    <th class="p-3">Ship Nội Địa (¥)</th> <th class="p-3">Khai Thuế ($)</th>
+                    <th class="p-3">Thuế VAT (%)</th>
+                    <th class="p-3">Tiền Thuế (VNĐ)</th>
                     <th class="p-3">Kích Thước (DxRxC)</th>
-                    <th class="p-3">Trọng Lượng</th>
-                    <th class="p-3">Phí Ship Tạm Tính</th>
-                    <th class="p-3">Giá Vốn 1 SP</th>
+                    <th class="p-3">Trọng Lượng (KG)</th>
+                    <th class="p-3">Công dụng & Chất liệu</th>
+                    <th class="p-3">Link Nhập</th>
+                    <th class="p-3">Phí Vận Chuyển</th>
+                    <th class="p-3">Giá Vốn</th>
                     <th class="p-3">Thao tác</th>
                 </tr>
             </thead>
@@ -129,40 +134,77 @@
 
     // 2. Render dòng dữ liệu
     function renderRow(item) {
-        const ship = calculateShipping(item);
-        const tongTienVnd = item.sl_nhap * item.gia_nhap_te * settings.ti_gia_te;
-        const giaVon1Sp = (tongTienVnd + ship.cost) / item.sl_nhap;
+    const shipVatTu = calculateShipping(item); // Phí VC quốc tế (kg/khối)
+    const tiGiaTe = settings.ti_gia_te || 3650;
+    const tiGiaUsd = settings.ti_gia_usd || 25000;
+    
+    // 1. Tính tổng số lượng sản phẩm
+    const tongSlSp = (item.so_kien || 1) * (item.sl_sp_tren_kien || 1);
+    
+    // 2. Tiền hàng + Ship nội địa (đều tính bằng Tệ)
+    const shipNoiDiaTe = item.ship_noi_dia_te || 0;
+    const tongTienHangVnd = (tongSlSp * item.gia_nhap_te + shipNoiDiaTe) * tiGiaTe;
+    
+    // 3. Tính Tiền Thuế VAT (Giá khai thuế $ * Tỉ giá USD * % Thuế)
+    const phanTramThue = item.thue_vat_percent || 10;
+    const tienThueVnd = (item.gia_khai_thue || 0) * tiGiaUsd * (phanTramThue / 100);
+    
+    // 4. Tổng Giá Vốn về tay 1 SP = (Tiền hàng VND + Thuế VND + Phí Ship QT) / Tổng SL
+    const giaVon1Sp = tongSlSp > 0 ? (tongTienHangVnd + tienThueVnd + shipVatTu.cost) / tongSlSp : 0;
 
-        return `
-            <tr data-id="${item.id}">
-                <td class="p-3 text-center"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
-                <td class="p-3">
-                    <img src="${item.image_url || 'https://via.placeholder.com/40'}" 
-                         class="w-10 h-10 object-cover rounded border border-[#333] cursor-pointer hover:scale-150 transition"
-                         onclick="changeImageUrl(${item.id})">
-                </td>
-                <td class="p-3 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">${item.ma_van_don || ''}</td>
-                <td class="p-3 editable font-semibold" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</td>
-                <td class="p-3 editable text-[#00CED1]" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
-                <td class="p-3 text-center editable" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${item.sl_nhap}</td>
-                <td class="p-3 text-center editable" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_nhap_te', this.innerText)">${item.gia_nhap_te}</td>
-                <td class="p-3 text-center">
-                    <span class="text-xs text-gray-500">D:</span><span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span>
-                    <span class="text-xs text-gray-500">R:</span><span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span>
-                    <span class="text-xs text-gray-500">C:</span><span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
-                </td>
-                <td class="p-3 text-center editable" contenteditable="true" onblur="updateNumField(${item.id}, 'trong_luong_kg', this.innerText)">${item.trong_luong_kg}</td>
-                <td class="p-3 text-center">
-                    <div class="font-bold text-sm">${Math.round(ship.cost).toLocaleString()}đ</div>
-                    <span class="${ship.badge}">${ship.label}</span>
-                </td>
-                <td class="p-3 text-center font-bold text-[#00FF88]">${Math.round(giaVon1Sp).toLocaleString()}đ</td>
-                <td class="p-3 text-center">
-                    <button onclick="deleteRow(${item.id})" class="text-red-500 hover:text-red-400">🗑</button>
-                </td>
-            </tr>
-        `;
-    }
+    return `
+        <tr data-id="${item.id}" class="text-sm border-b border-[#262626]">
+            <td class="p-3 text-center"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
+            <td class="p-3">
+                <img src="${item.image_url || 'https://via.placeholder.com/40'}" 
+                     class="w-12 h-12 object-cover rounded border border-[#333]">
+            </td>
+            <td class="p-3 text-left">
+                <div class="editable font-bold text-[#00CED1]" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</div>
+                <div class="text-[10px] text-gray-500 mt-1 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
+            </td>
+            <td class="p-3 text-center editable text-yellow-500" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
+            
+            <td class="p-3 text-center editable font-bold" contenteditable="true" onblur="updateNumField(${item.id}, 'so_kien', this.innerText)">${item.so_kien || 1}</td>
+            <td class="p-3 text-center editable text-blue-400" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_sp_tren_kien', this.innerText)">${item.sl_sp_tren_kien || 1}</td>
+            <td class="p-3 text-center editable text-orange-400" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_nhap_te', this.innerText)">${item.gia_nhap_te}</td>
+            
+            <td class="p-3 text-center editable text-pink-400" contenteditable="true" onblur="updateNumField(${item.id}, 'ship_noi_dia_te', this.innerText)">${item.ship_noi_dia_te || 0}</td>
+            
+            <td class="p-3 text-center editable text-gray-300" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_khai_thue', this.innerText)">${item.gia_khai_thue || 0}</td>
+            <td class="p-3 text-center editable text-red-400" contenteditable="true" onblur="updateNumField(${item.id}, 'thue_vat_percent', this.innerText)">${phanTramThue}</td>
+            <td class="p-3 text-center font-bold text-red-500">${Math.round(tienThueVnd).toLocaleString()}đ</td>
+
+            <td class="p-3 text-center whitespace-nowrap">
+                <span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span>x
+                <span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span>x
+                <span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
+            </td>
+            <td class="p-3 text-center editable font-bold text-gray-300" contenteditable="true" onblur="updateNumField(${item.id}, 'trong_luong_kg', this.innerText)">${item.trong_luong_kg}</td>
+            
+            <td class="p-3 text-[11px] text-left">
+                <div>CD: <span class="editable text-white" contenteditable="true" onblur="updateField(${item.id}, 'cong_dung', this.innerText)">${item.cong_dung || '...'}</span></div>
+                <div>CL: <span class="editable text-white" contenteditable="true" onblur="updateField(${item.id}, 'chat_lieu', this.innerText)">${item.chat_lieu || '...'}</span></div>
+            </td>
+            
+            <td class="p-3 text-center">
+                <a href="${item.link_nhap_hang || '#'}" target="_blank" class="text-blue-400 hover:underline text-[10px] block mb-1">Mở Link</a>
+                <button onclick="updateLink(${item.id})" class="text-[9px] bg-[#333] px-1 rounded text-gray-400">Sửa</button>
+            </td>
+            
+            <td class="p-3 text-center">
+                <div class="font-bold">${Math.round(shipVatTu.cost).toLocaleString()}đ</div>
+                <span class="${shipVatTu.badge} text-[9px]">${shipVatTu.label}</span>
+            </td>
+            
+            <td class="p-3 text-center font-bold text-[#00FF88]">${Math.round(giaVon1Sp).toLocaleString()}đ</td>
+            
+            <td class="p-3 text-center">
+                <button onclick="deleteRow(${item.id})" class="text-red-500 opacity-50 hover:opacity-100">🗑</button>
+            </td>
+        </tr>
+    `;
+}
 
     // 3. Logic Xuất file PDF/Excel (9 cột đầy đủ)
     function exportData(type) {
