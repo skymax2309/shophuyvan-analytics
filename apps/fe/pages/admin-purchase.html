@@ -239,71 +239,48 @@
         }
     }
 	
-	async function deleteSelected() {
+	function updateSelectedCount() {
+    const selectedCount = document.querySelectorAll('.row-check:checked').length;
+    document.getElementById('selectedCount').innerText = selectedCount;
+    
+    // Nếu có tích chọn thì hiện nút "Xóa đã chọn", không thì ẩn đi
+    const btnDelete = document.getElementById('btnBulkDelete');
+    if (selectedCount > 0) {
+        btnDelete.classList.remove('hidden');
+    } else {
+        btnDelete.classList.add('hidden');
+    }
+}
+
+// Hàm xóa hàng loạt các mục đã tích
+async function deleteSelected() {
     const selectedCheckboxes = document.querySelectorAll('.row-check:checked');
     const ids = Array.from(selectedCheckboxes).map(cb => cb.closest('tr').dataset.id);
 
     if (!confirm(`Huy có chắc chắn muốn xóa ${ids.length} sản phẩm đã chọn không?`)) return;
 
     // Hiển thị trạng thái đang xử lý
-    document.getElementById('btnDeleteAll').innerText = "ĐANG XÓA...";
+    const btn = document.getElementById('btnBulkDelete');
+    btn.innerText = "⏳ ĐANG XÓA...";
+    btn.disabled = true;
 
-    for (const id of ids) {
-        await fetch(API_URL, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: parseInt(id) })
-        });
-    }
-
-    alert("✅ Đã xóa các mục thành công!");
-    loadData(); // Tải lại bảng
-}
-
-    // 4. Các hàm phụ trợ
-    function updateSelectedCount() {
-        document.getElementById('selectedCount').innerText = document.querySelectorAll('.row-check:checked').length;
-    }
-
-    function toggleSelectAll() {
-        const checked = document.getElementById('selectAll').checked;
-        document.querySelectorAll('.row-check').forEach(cb => cb.checked = checked);
-        updateSelectedCount();
-    }
-
-    function changeImageUrl(id) {
-        const url = prompt("Dán link hình ảnh mới vào đây:");
-        if (url) updateField(id, 'image_url', url);
-    }
-
-    // Cấu hình URL API (Khớp với Worker của Huy)
-    const API_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/purchase";
-
-    // 1. Tải dữ liệu khi mở trang
-    async function loadData() {
-        try {
-            // Lấy cài đặt tỉ giá/phí ship trước
-            const resSet = await fetch(`${API_URL}/settings`);
-            const dataSet = await resSet.json();
-            dataSet.forEach(s => settings[s.key] = s.value);
-
-            // Lấy danh sách hàng nhập
-            const search = document.getElementById('searchInput').value;
-            const resData = await fetch(`${API_URL}?search=${encodeURIComponent(search)}`);
-            purchaseData = await resData.json();
-
-            renderTable();
-        } catch (e) {
-            console.error("Lỗi tải dữ liệu:", e);
+    try {
+        for (const id of ids) {
+            await fetch(API_URL, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: parseInt(id) })
+            });
         }
+        alert("✅ Đã xóa thành công các mục đã chọn!");
+    } catch (e) {
+        alert("❌ Có lỗi khi xóa, vui lòng kiểm tra lại.");
+    } finally {
+        btn.innerText = "🗑️ XÓA ĐÃ CHỌN";
+        btn.disabled = false;
+        loadData(); // Load lại bảng
     }
-
-    function renderTable() {
-        const html = purchaseData.map(item => renderRow(item)).join('');
-        document.getElementById('purchaseBody').innerHTML = html;
-        updateSelectedCount();
-    }
-
+}
     // Logic Import từ file Excel "NHẬP HÀNG CHÍNH NGẠCH" của Huy
     async function importExcel(input) {
     const file = input.files[0];
@@ -316,38 +293,32 @@
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-        console.log("Dữ liệu thô từ Excel:", json);
-
         for (const row of json) {
-            // Hàm lấy giá trị linh hoạt, bỏ qua khoảng trắng và xuống dòng trong tên cột
-            const getV = (keywords) => {
-                const cleanKey = (k) => k.replace(/\s+/g, '').toLowerCase();
-                for (let key in row) {
-                    if (keywords.some(kw => cleanKey(key).includes(cleanKey(kw)))) {
-                        return row[key];
-                    }
+            const getV = (kw) => {
+                for (let k in row) {
+                    if (k.toString().replace(/\s/g, '').toLowerCase().includes(kw.toLowerCase())) return row[k];
                 }
                 return "";
             };
 
-            const tenSP = getV(["Tên Sản Phẩm"]);
-            if (!tenSP || tenSP.includes("Tên Sản Phẩm")) continue; // Bỏ qua dòng tiêu đề hoặc dòng trống
+            const tenSP = getV("tensanpham");
+            if (!tenSP || tenSP === "Tên Sản Phẩm") continue; // Bỏ qua dòng tiêu đề/trống
 
             const newProduct = {
-                ten_san_pham: tenSP,
-                ma_van_don: getV(["Mã vận đơn"]),
-                ma_hang: getV(["Mã Hàng", "SKU"]),
-                sl_nhap: parseFloat(getV(["SL Nhập"])) || 0,
-                gia_nhap_te: parseFloat(getV(["Giá Nhập"])) || 0,
-                gia_khai_thue: parseFloat(getV(["GIÁ KHAI"])) || 0,
-                ship_noi_dia_te: parseFloat(getV(["Ship Nội Địa"])) || 0,
-                so_kien: parseInt(getV(["Số Kiện"])) || 1,
-                sl_sp_tren_kien: parseInt(getV(["SL /Kiện"])) || 1,
-                trong_luong_kg: parseFloat(getV(["Tổng KG", "Số KG/Kiện"])) || 0,
-                kich_thuoc_d: 0, kich_thuoc_r: 0, kich_thuoc_c: 0, // Kích thước thường ghi gộp nên để Huy nhập tay sau
-                cong_dung: getV(["Mục đích"]),
-                chat_lieu: getV(["Chất liệu"]),
-                link_nhap_hang: getV(["LINK SP"])
+                ten_san_pham: tenSP.toString().trim(),
+                ma_van_don: getV("mavan"),
+                ma_hang: getV("mahang"),
+                sl_nhap: parseFloat(getV("slnhap")) || 0,
+                gia_nhap_te: parseFloat(getV("gianhap")) || 0,
+                gia_khai_thue: parseFloat(getV("giakhai")) || 0,
+                ship_noi_dia_te: parseFloat(getV("shipnoidia")) || 0,
+                so_kien: parseInt(getV("sokien")) || 1,
+                sl_sp_tren_kien: parseInt(getV("sl/kien")) || 1,
+                trong_luong_kg: parseFloat(getV("tongkg")) || 0,
+                thue_vat_percent: parseFloat(getV("thuevat")) || 10,
+                cong_dung: getV("mucdich"),
+                chat_lieu: getV("chatlieu"),
+                link_nhap_hang: getV("linksp")
             };
 
             await fetch(API_URL, {
@@ -356,7 +327,7 @@
                 body: JSON.stringify(newProduct)
             });
         }
-        alert("✅ Đã Import dữ liệu thành công!");
+        alert("✅ Đã hoàn tất Import cho Huy!");
         loadData();
     };
     reader.readAsArrayBuffer(file);
