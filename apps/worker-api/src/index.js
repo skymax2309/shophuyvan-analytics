@@ -68,6 +68,15 @@ export default {
       if (url.pathname === "/api/sync-variations")
         return handleVariations(request, env, cors)
 
+      if (url.pathname === "/api/products/bulk" && request.method === "DELETE") {
+        const { skus } = await request.json()
+        if (!skus || !Array.isArray(skus) || skus.length === 0)
+          return Response.json({ error: "No SKUs" }, { status: 400, headers: cors })
+        const placeholders = skus.map(() => '?').join(',')
+        await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...skus).run()
+        return Response.json({ status: "ok", count: skus.length }, { headers: cors })
+      }
+
       if (url.pathname.startsWith("/api/products/") && request.method === "DELETE") {
         const sku = decodeURIComponent(url.pathname.replace("/api/products/", ""))
         await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run()

@@ -716,10 +716,9 @@ window.switchTab = function(tab) {
 
 // Logic xử lý xóa hàng loạt SKU
 function updateSkuBulkDeleteUI() {
-    const selected = document.querySelectorAll('.tab-pane.active .product-checkbox:checked');
+    const selected = document.querySelectorAll('.product-checkbox:checked');
     const btnBulk = document.getElementById('btnBulkDeleteSku');
     const countSpan = document.getElementById('selectedSkuCount');
-    
     if (selected.length > 0) {
         btnBulk.style.display = 'inline-block';
         countSpan.textContent = selected.length;
@@ -728,36 +727,32 @@ function updateSkuBulkDeleteUI() {
     }
 }
 
-// Lắng nghe sự kiện check vào các ô checkbox trong bảng SKU
 document.addEventListener('change', (e) => {
     if (e.target.classList.contains('product-checkbox') || e.target.id.startsWith('chk-all-')) {
-        // Đợi một chút để hàm toggleAllCheck của bạn chạy xong rồi mới đếm
         setTimeout(updateSkuBulkDeleteUI, 10);
     }
 });
 
-// Xử lý khi nhấn nút Xóa
 document.getElementById('btnBulkDeleteSku').onclick = async function() {
-    const selectedCbs = document.querySelectorAll('.tab-pane.active .product-checkbox:checked');
-    const skus = Array.from(selectedCbs).map(cb => {
-        // Lấy SKU từ cột thứ 3 (index 2) của hàng đó
-        return cb.closest('tr').cells[2].textContent.trim();
-    });
-
+    const selectedCbs = document.querySelectorAll('.product-checkbox:checked');
+    const skus = Array.from(selectedCbs).map(cb => cb.dataset.sku);
+    if (!skus.length) return;
     if (confirm(`Bạn có chắc chắn muốn xóa ${skus.length} sản phẩm này khỏi hệ thống?`)) {
         try {
-            const res = await fetch(API + '/api/products', {
+            const res = await fetch(API + '/api/products/bulk', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ skus })
             });
             if (res.ok) {
-                alert('Đã xóa thành công!');
-                if (typeof loadSkus === 'function') loadSkus(); // Gọi hàm load lại bảng của sku-manager.js
+                showToast(`✅ Đã xóa ${skus.length} sản phẩm!`);
+                if (typeof loadSkus === 'function') loadSkus();
                 this.style.display = 'none';
+            } else {
+                showToast('❌ Xóa thất bại!', true);
             }
         } catch (err) {
-            alert('Lỗi: ' + err.message);
+            showToast('❌ Lỗi: ' + err.message, true);
         }
     }
 };

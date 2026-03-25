@@ -58,7 +58,7 @@ function renderSkuTables() {
   const imgUrl = p.image_url || "https://placehold.co/40x40?text=No+Image"
   return `
     <tr id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
-      <td><input type="checkbox" class="sku-chk" data-sku="${p.sku}" onchange="updateGroupHint()"></td>
+      <td><input type="checkbox" class="sku-chk product-checkbox" data-sku="${p.sku}" onchange="updateGroupHint(); if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()"></td>
       <td><img src="${imgUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb" onerror="this.src='https://placehold.co/40x40?text=Loi'"></td>
       <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
       <td style="font-size:13px">${p.product_name || "—"}</td>
