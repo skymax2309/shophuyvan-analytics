@@ -82,4 +82,124 @@ async function handleCostSettings(request, env, cors) {
 }
 
 
-export { handleProducts, handleCostSettings }
+// ════════════════════════════════════════════════════════════════════
+// PRODUCT VARIATIONS — Map SKU Shopee → Internal SKU
+// ════════════════════════════════════════════════════════════════════
+async function handleVariations(request, env, cors) {
+
+  // GET: Lấy danh sách variations (có filter map_status, shop)
+  if (request.method === 'GET') {
+    const url    = new URL(request.url)
+    const status = url.searchParams.get('map_status')
+    const shop   = url.searchParams.get('shop')
+    const conds  = ['1=1']
+    const params = []
+    if (status) { conds.push('map_status = ?'); params.push(status) }
+    if (shop)   { conds.push('shop = ?');       params.push(shop)   }
+    const rows = await env.DB.prepare(
+      `SELECT * FROM product_variations WHERE ${conds.join(' AND ')} ORDER BY map_status, product_name`
+    ).bind(...params).all()
+    return Response.json(rows.results, { headers: cors })
+  }
+
+  // POST /api/sync-variations — Bot gửi lên sau khi crawl SP Shopee
+  if (request.method === 'POST') {
+    const { variations } = await request.json()
+    if (!variations?.length)
+      return Response.json({ status: 'ok', synced: 0 }, { headers: cors })
+
+    // Lấy sku_alias để auto-map
+    const aliasRows = await env.DB.prepare(`SELECT platform_sku, internal_sku FROM sku_alias`).all()
+    const aliasMap  = {}
+    for (const a of aliasRows.results) aliasMap[a.platform_sku.toLowerCase()] = a.internal_sku
+
+    // Lấy products để fuzzy-match SKU (K159 ↔ H159)
+    const prodRows = await env.DB.prepare(`SELECT sku FROM products`).all()
+    const allSkus  = prodRows.results.map(p => p.sku)
+
+    let synced = 0, autoMapped = 0
+    const stmts = []
+
+    for (const v of variations) {
+      const pSku = (v.platform_sku || '').trim()
+      if (!pSku) continue
+
+      // Thử auto-map: 1) exact alias, 2) exact sku, 3) fuzzy (K159 ~ H159)
+      let internalSku = aliasMap[pSku.toLowerCase()] || ''
+      let mapStatus   = internalSku ? 'MAPPED' : 'UNMAPPED'
+
+      if (!internalSku) {
+        // Exact match với internal SKU
+        const exactMatch = allSkus.find(s => s.toLowerCase() === pSku.toLowerCase())
+        if (exactMatch) { internalSku = exactMatch; mapStatus = 'MAPPED' }
+      }
+
+      if (!internalSku) {
+        // Fuzzy: bỏ chữ cái đầu rồi so số (K159 → 159, H159 → 159)
+        const numPart = pSku.replace(/^[A-Za-z]+/, '')
+        if (numPart.length >= 2) {
+          const fuzzy = allSkus.find(s => s.replace(/^[A-Za-z]+/, '') === numPart)
+          if (fuzzy) { internalSku = fuzzy; mapStatus = 'MAPPED' }
+        }
+      }
+
+      if (internalSku) autoMapped++
+
+      stmts.push(env.DB.prepare(`
+        INSERT INTO product_variations
+          (platform, shop, platform_item_id, product_name, variation_name,
+           platform_sku, internal_sku, image_url, price, stock, map_status, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        ON CONFLICT(platform, shop, platform_sku) DO UPDATE SET
+          product_name     = CASE WHEN excluded.product_name != '' THEN excluded.product_name ELSE product_variations.product_name END,
+          variation_name   = excluded.variation_name,
+          image_url        = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE product_variations.image_url END,
+          price            = excluded.price,
+          stock            = excluded.stock,
+          internal_sku     = CASE WHEN product_variations.map_status = 'MAPPED' THEN product_variations.internal_sku ELSE excluded.internal_sku END,
+          map_status       = CASE WHEN product_variations.map_status = 'MAPPED' THEN 'MAPPED' ELSE excluded.map_status END,
+          updated_at       = datetime('now')
+      `).bind(
+        v.platform || 'shopee', v.shop || '', v.platform_item_id || '',
+        v.product_name || '', v.variation_name || '',
+        pSku, internalSku, v.image_url || '',
+        v.price || 0, v.stock || 0, mapStatus
+      ))
+      synced++
+    }
+
+    // Batch insert theo 50
+    for (let i = 0; i < stmts.length; i += 50) {
+      await env.DB.batch(stmts.slice(i, i + 50))
+    }
+
+    return Response.json({ status: 'ok', synced, auto_mapped: autoMapped }, { headers: cors })
+  }
+
+  // PATCH /api/sync-variations — Lưu map thủ công từ FE
+  if (request.method === 'PATCH') {
+    const { id, internal_sku } = await request.json()
+    if (!id || !internal_sku)
+      return Response.json({ error: 'Missing id or internal_sku' }, { status: 400, headers: cors })
+
+    await env.DB.prepare(`
+      UPDATE product_variations
+      SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(internal_sku, id).run()
+
+    // Lưu vào sku_alias để dùng cho lần sau
+    const row = await env.DB.prepare(`SELECT platform_sku FROM product_variations WHERE id=?`).bind(id).first()
+    if (row?.platform_sku) {
+      await env.DB.prepare(`
+        INSERT INTO sku_alias (platform_sku, internal_sku)
+        VALUES (?, ?)
+        ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku
+      `).bind(row.platform_sku, internal_sku).run()
+    }
+
+    return Response.json({ status: 'ok' }, { headers: cors })
+  }
+}
+
+export { handleProducts, handleCostSettings, handleVariations }

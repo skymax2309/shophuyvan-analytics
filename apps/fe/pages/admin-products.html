@@ -17,10 +17,34 @@
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('sku')">📦 Sản phẩm / SKU</button>
     <button class="tab-btn" onclick="switchTab('combo')">🎁 Combo</button>
+    <button class="tab-btn" onclick="switchTab('variations')">🔗 Map SKU Variation <span id="badge-unmapped" style="background:#ef4444;color:white;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
     <button class="tab-btn" onclick="switchTab('orders')">📋 Toàn bộ đơn hàng</button>
     <button class="tab-btn" onclick="switchTab('oms')">📦 Quản lý OMS</button>
     <button class="tab-btn" onclick="switchTab('invoice')">🧾 Hóa Đơn Nhập Hàng</button>
     <button class="tab-btn" onclick="switchTab('loss')">🔴 Đơn âm tiền</button>
+  </div>
+
+  <!-- ══════════ TAB: VARIATIONS ══════════ -->
+  <div id="tab-variations" class="tab-pane">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div class="card-title" style="margin:0">🔗 Variation Shopee & Map SKU nội bộ</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="loadVariations()">
+            <option value="">Tất cả</option>
+            <option value="UNMAPPED">⚠️ Chưa map</option>
+            <option value="MAPPED">✅ Đã map</option>
+            <option value="IGNORED">🚫 Bỏ qua</option>
+          </select>
+          <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..."
+            oninput="filterVariations()"
+            style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:220px">
+        </div>
+      </div>
+      <div id="variationsTable">
+        <p style="text-align:center;color:#888;padding:40px">Bấm vào tab để tải dữ liệu</p>
+      </div>
+    </div>
   </div>
 
   <!-- ══════════ TAB: SKU ══════════ -->
@@ -533,6 +557,160 @@
 <script src="../js/admin/order-manager.js"></script>
 <script src="../js/admin/invoice-manager.js"></script>
 <script src="../js/admin/main.js"></script>
+<script>
+// ── VARIATION MANAGER ──────────────────────────────────────────────
+let allVariations = []
+
+async function loadVariations() {
+  const status = document.getElementById('var_filter_status').value
+  document.getElementById('variationsTable').innerHTML =
+    '<p style="text-align:center;color:#888;padding:40px">⏳ Đang tải...</p>'
+  try {
+    const qs = status ? `?map_status=${status}` : ''
+    allVariations = await fetch(API + '/api/sync-variations' + qs).then(r => r.json())
+    renderVariations()
+    updateUnmappedBadge()
+  } catch(e) {
+    document.getElementById('variationsTable').innerHTML =
+      `<p style="color:#ef4444;padding:20px">❌ Lỗi: ${e.message}</p>`
+  }
+}
+
+function updateUnmappedBadge() {
+  const n = allVariations.filter(v => v.map_status === 'UNMAPPED').length
+  document.getElementById('badge-unmapped').textContent = n
+  document.getElementById('badge-unmapped').style.display = n > 0 ? '' : 'none'
+}
+
+function filterVariations() {
+  renderVariations()
+}
+
+function renderVariations() {
+  const kw   = (document.getElementById('var_search').value || '').toLowerCase()
+  const list = kw
+    ? allVariations.filter(v =>
+        (v.platform_sku || '').toLowerCase().includes(kw) ||
+        (v.product_name || '').toLowerCase().includes(kw) ||
+        (v.variation_name || '').toLowerCase().includes(kw) ||
+        (v.internal_sku || '').toLowerCase().includes(kw)
+      )
+    : allVariations
+
+  if (!list.length) {
+    document.getElementById('variationsTable').innerHTML =
+      '<p style="text-align:center;color:#888;padding:40px">Không có dữ liệu</p>'
+    return
+  }
+
+  const skuOptions = (window.allSkus || [])
+    .filter(s => !s.is_combo)
+    .map(s => `<option value="${s.sku}">${s.sku} — ${s.product_name || ''}</option>`)
+    .join('')
+
+  const statusBadge = s => ({
+    MAPPED:   '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✅ Đã map</span>',
+    UNMAPPED: '<span style="background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⚠️ Chưa map</span>',
+    IGNORED:  '<span style="background:#f3f4f6;color:#9ca3af;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">🚫 Bỏ qua</span>',
+  })[s] || s
+
+  const rows = list.map(v => `
+    <tr id="var-row-${v.id}">
+      <td style="width:48px">
+        ${v.image_url
+          ? `<img src="${v.image_url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb">`
+          : `<div style="width:40px;height:40px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
+      </td>
+      <td>
+        <div style="font-weight:600;font-size:13px;color:#1e293b">${v.product_name || '—'}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">${v.variation_name || '—'}</div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:1px">${v.shop || ''}</div>
+      </td>
+      <td>
+        <code style="font-size:11px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${v.platform_sku || '—'}</code>
+      </td>
+      <td>${statusBadge(v.map_status)}</td>
+      <td>
+        ${v.map_status === 'MAPPED'
+          ? `<div style="display:flex;align-items:center;gap:6px">
+               <code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d">${v.internal_sku}</code>
+               <button onclick="resetVarMap(${v.id})"
+                 style="padding:3px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;font-size:11px;cursor:pointer">✕</button>
+             </div>`
+          : `<div style="display:flex;gap:6px;align-items:center">
+               <select id="sel-${v.id}"
+                 style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;max-width:200px">
+                 <option value="">— Chọn SKU nội bộ —</option>
+                 ${skuOptions}
+               </select>
+               <button onclick="saveVarMap(${v.id})"
+                 style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">
+                 💾 Lưu
+               </button>
+               <button onclick="ignoreVar(${v.id})"
+                 style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;font-size:12px;cursor:pointer">
+                 🚫
+               </button>
+             </div>`}
+      </td>
+    </tr>`)
+    .join('')
+
+  document.getElementById('variationsTable').innerHTML = `
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr style="background:#f8fafc">
+          <th>Ảnh</th>
+          <th>Tên SP / Phân loại</th>
+          <th>SKU Sàn</th>
+          <th>Trạng thái</th>
+          <th style="min-width:280px">Map SKU nội bộ</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`
+}
+
+async function saveVarMap(id) {
+  const sel = document.getElementById('sel-' + id)
+  const internal_sku = sel?.value
+  if (!internal_sku) { showToast('⚠️ Chọn SKU nội bộ trước!', true); return }
+  await fetch(API + '/api/sync-variations', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, internal_sku })
+  })
+  showToast('✅ Đã map SKU!')
+  loadVariations()
+}
+
+async function resetVarMap(id) {
+  await fetch(API + '/api/sync-variations', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, internal_sku: '', map_status: 'UNMAPPED' })
+  })
+  showToast('↩ Đã reset map')
+  loadVariations()
+}
+
+async function ignoreVar(id) {
+  await fetch(API + '/api/sync-variations', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, internal_sku: '', map_status: 'IGNORED' })
+  })
+  showToast('🚫 Đã bỏ qua variation này')
+  loadVariations()
+}
+
+// Hook vào switchTab để load khi bấm tab lần đầu
+const _origSwitchTab = window.switchTab
+window.switchTab = function(tab) {
+  _origSwitchTab && _origSwitchTab(tab)
+  if (tab === 'variations' && allVariations.length === 0) loadVariations()
+}
+</script>
 
 </body>
 </html>

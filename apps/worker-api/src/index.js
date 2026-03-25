@@ -1,7 +1,7 @@
 
 import { getFilters, buildWhere }        from './utils/filters.js'
 import { getCostSettings, calcProfit }   from './utils/db.js'
-import { handleProducts, handleCostSettings } from './routes/products.js'
+import { handleProducts, handleCostSettings, handleVariations } from './routes/products.js'
 import { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus } from './routes/orders.js'
 import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          topSku, topProduct, topShop, topPlatform,
@@ -64,6 +64,9 @@ export default {
       // ── Products ──────────────────────────────────────────────────
       if (url.pathname === "/api/products")
         return handleProducts(request, env, cors)
+
+      if (url.pathname === "/api/sync-variations")
+        return handleVariations(request, env, cors)
 
       if (url.pathname.startsWith("/api/products/") && request.method === "DELETE") {
         const sku = decodeURIComponent(url.pathname.replace("/api/products/", ""))

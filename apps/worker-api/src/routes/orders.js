@@ -277,11 +277,30 @@ async function importOrdersV2(request, env, cors) {
     }
   })
 
-  // 3. Cập nhật cost_real cho items
+  // 3a. Lấy bảng product_variations để map platform_sku → internal_sku + image_url
+  const varRows = await env.DB.prepare(
+    `SELECT platform_sku, internal_sku, image_url, variation_name FROM product_variations WHERE map_status='MAPPED'`
+  ).all()
+  const varMap = {}
+  for (const v of varRows.results) {
+    varMap[v.platform_sku.toLowerCase()] = v
+    // Map thêm theo variation_name để khớp khi bot gửi tên phân loại thay vì SKU
+    if (v.variation_name) varMap[v.variation_name.toLowerCase()] = v
+  }
+
+  // 3. Cập nhật cost_real cho items + map internal_sku nếu có
   const processedItems = items.map(i => {
-    const p = productMap[i.sku] || { cost_real: 0, cost_invoice: 0 }
+    const rawSku  = (i.sku || '').toLowerCase()
+    const rawName = (i.product_name || '').toLowerCase()
+    // Tìm trong varMap theo platform_sku rồi variation_name
+    const mapped  = varMap[rawSku] || varMap[rawName] || null
+    const finalSku = mapped?.internal_sku || i.sku || ''
+    const imageUrl = mapped?.image_url    || ''
+    const p = productMap[finalSku] || { cost_real: 0, cost_invoice: 0 }
     return {
       ...i,
+      sku:          finalSku,
+      image_url:    imageUrl,
       cost_real:    p.cost_real    * (i.qty || 1),
       cost_invoice: p.cost_invoice * (i.qty || 1),
     }
@@ -388,12 +407,13 @@ async function importOrdersV2(request, env, cors) {
   for (let i = 0; i < processedItems.length; i += BATCH) {
     const chunk = processedItems.slice(i, i + BATCH)
     const stmts = chunk.map(item => env.DB.prepare(`
-      INSERT INTO order_items (order_id, sku, product_name, qty, revenue_line, cost_real, cost_invoice)
-      VALUES (?,?,?,?,?,?,?)
+      INSERT INTO order_items (order_id, sku, product_name, qty, revenue_line, cost_real, cost_invoice, image_url)
+      VALUES (?,?,?,?,?,?,?,?)
     `).bind(
       item.order_id, item.sku, item.product_name || "",
       item.qty || 1, item.revenue_line || 0,
-      item.cost_real || 0, item.cost_invoice || 0
+      item.cost_real || 0, item.cost_invoice || 0,
+      item.image_url || ""
     ))
     try {
       await env.DB.batch(stmts)

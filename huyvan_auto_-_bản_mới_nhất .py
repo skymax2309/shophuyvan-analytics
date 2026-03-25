@@ -88,6 +88,7 @@ class HuyVanApp(ctk.CTk):
 
         tab_quanly = self.tabview.add("👤 Quản Lý Tài Khoản")
         tab_chay   = self.tabview.add("🚀 Chạy Tự Động (Auto)")
+        tab_sp     = self.tabview.add("🛍️ Đồng bộ Sản phẩm")
 
        # ── TAB QUẢN LÝ ──────────────────────────────────────────────
         top_frame = ctk.CTkFrame(tab_quanly, fg_color="transparent")
@@ -397,6 +398,249 @@ class HuyVanApp(ctk.CTk):
         self.btn_confirm.configure(state="normal")
         self.confirm_event.clear()
         self.confirm_event.wait()
+
+    # ── TAB ĐỒNG BỘ SẢN PHẨM ────────────────────────────────────
+        ctk.CTkLabel(tab_sp, text="🛍️ Đồng bộ Variation từ Shopee",
+                     font=("Segoe UI", 14, "bold"), text_color="#FFD700").pack(pady=(15,5))
+        ctk.CTkLabel(tab_sp,
+                     text="Bot sẽ vào trang Sản phẩm Shopee, lấy tất cả SP + phân loại + SKU + tồn kho → gửi lên OMS",
+                     font=("Segoe UI", 11), text_color="#AAAAAA", wraplength=700).pack(pady=(0,10))
+
+        sp_shop_frame = ctk.CTkFrame(tab_sp, fg_color="#1A1A1A")
+        sp_shop_frame.pack(padx=20, fill="x")
+        ctk.CTkLabel(sp_shop_frame, text="Chọn shop Shopee:", text_color="white",
+                     font=("Segoe UI", 12)).grid(row=0, column=0, padx=10, pady=8)
+        self.sp_shop_var = ctk.StringVar(value="Tất cả shop")
+        shopee_shops = ["Tất cả shop"] + [s["ten_shop"] for s in self.DANH_SACH_SHOP if s.get("platform") == "shopee"]
+        self.sp_shop_combo = ctk.CTkComboBox(sp_shop_frame, values=shopee_shops,
+                                              variable=self.sp_shop_var, width=280)
+        self.sp_shop_combo.grid(row=0, column=1, padx=10, pady=8)
+
+        ctk.CTkButton(tab_sp, text="▶ Bắt đầu đồng bộ Sản phẩm",
+                      fg_color="#00CED1", text_color="black",
+                      font=("Segoe UI", 13, "bold"),
+                      command=self.start_sync_products).pack(pady=10)
+
+        self.sp_log = ctk.CTkTextbox(tab_sp, height=350, fg_color="#0A0A0A",
+                                     text_color="#00FF88", font=("Consolas", 11))
+        self.sp_log.pack(fill="both", expand=True, padx=15, pady=(5, 15))
+
+    def sp_log_msg(self, msg):
+        self.sp_log.configure(state="normal")
+        self.sp_log.insert("end", msg + "\n")
+        self.sp_log.see("end")
+        self.sp_log.configure(state="disabled")
+
+    def start_sync_products(self):
+        threading.Thread(target=lambda: asyncio.run(self.sync_shopee_products()), daemon=True).start()
+
+    async def sync_shopee_products(self):
+        import re, datetime
+        chosen = self.sp_shop_var.get()
+        shops_to_run = [s for s in self.DANH_SACH_SHOP
+                        if s.get("platform") == "shopee" and
+                        (chosen == "Tất cả shop" or s["ten_shop"] == chosen)]
+
+        if not shops_to_run:
+            self.sp_log_msg("⚠️ Không tìm thấy shop Shopee nào!")
+            return
+
+        async with async_playwright() as pw:
+            for shop in shops_to_run:
+                self.sp_log_msg(f"\n{'='*50}")
+                self.sp_log_msg(f"🛍️ [{shop['ten_shop']}] Bắt đầu đồng bộ sản phẩm...")
+                browser = await pw.chromium.launch_persistent_context(
+                    shop["profile_dir"], headless=False,
+                    args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
+                    viewport={"width": 1280, "height": 800}
+                )
+                page = browser.pages[0] if browser.pages else await browser.new_page()
+
+                all_variations = []
+                page_num = 1
+
+                while True:
+                    url = f"https://banhang.shopee.vn/portal/product/list/live/all?page={page_num}&size=48"
+                    self.sp_log_msg(f"  📄 Trang {page_num}: {url}")
+                    try:
+                        await page.goto(url, wait_until="commit", timeout=60000)
+                        await asyncio.sleep(4)
+
+                        # Chờ product list load
+                        try:
+                            await page.wait_for_selector(
+                                "[class*='product-item'],[class*='item-card'],[class*='product-card']",
+                                timeout=15000
+                            )
+                        except:
+                            self.sp_log_msg("  ℹ️ Không còn sản phẩm nào.")
+                            break
+
+                        # Extract data từ DOM
+                        raw_products = await page.evaluate(r"""
+                            () => {
+                                const results = [];
+                                // Lấy tất cả product card
+                                const cards = document.querySelectorAll(
+                                    '[class*="product-item"],[class*="item-card"],[class*="product-card"],[class*="list-item"]'
+                                );
+                                for (const card of cards) {
+                                    const text = card.innerText || '';
+                                    if (text.length < 5) continue;
+                                    
+                                    // Tên sản phẩm
+                                    const nameEl = card.querySelector('[class*="name"],[class*="title"],[class*="product-name"]');
+                                    const name = nameEl ? nameEl.innerText.trim() : '';
+                                    
+                                    // Ảnh
+                                    const imgEl = card.querySelector('img');
+                                    const img = imgEl ? (imgEl.src || imgEl.dataset.src || '') : '';
+                                    
+                                    // Item ID từ link
+                                    const linkEl = card.querySelector('a[href*="/product/"]');
+                                    let itemId = '';
+                                    if (linkEl) {
+                                        const m = linkEl.href.match(/\/product\/(\d+)/);
+                                        if (m) itemId = m[1];
+                                    }
+                                    
+                                    if (name || itemId) {
+                                        results.push({ name, img, item_id: itemId, text });
+                                    }
+                                }
+                                return results;
+                            }
+                        """)
+
+                        if not raw_products:
+                            self.sp_log_msg("  ℹ️ Trang này không có SP nào, dừng.")
+                            break
+
+                        self.sp_log_msg(f"  → Tìm thấy {len(raw_products)} SP, đang lấy variation...")
+
+                        # Với mỗi product, vào trang chi tiết để lấy variation + SKU
+                        for rp in raw_products:
+                            item_id = rp.get("item_id", "")
+                            product_name = rp.get("name", "")
+                            product_img  = rp.get("img", "")
+
+                            if not item_id:
+                                continue
+
+                            # Vào trang edit để lấy variation SKU
+                            edit_url = f"https://banhang.shopee.vn/portal/product/{item_id}/edit"
+                            try:
+                                await page.goto(edit_url, wait_until="commit", timeout=30000)
+                                await asyncio.sleep(3)
+
+                                variations = await page.evaluate(r"""
+                                    () => {
+                                        const vars = [];
+                                        // Tìm bảng variation
+                                        const rows = document.querySelectorAll(
+                                            '[class*="variation-row"],[class*="sku-row"],[class*="tier-row"],' +
+                                            'tbody tr,[class*="model-row"]'
+                                        );
+                                        for (const row of rows) {
+                                            const cells = row.querySelectorAll('td,[class*="cell"]');
+                                            if (cells.length < 2) continue;
+                                            
+                                            let varName = '', sku = '', price = 0, stock = 0, img = '';
+                                            
+                                            // Cell đầu: thường là tên variation + ảnh
+                                            const imgEl = cells[0].querySelector('img');
+                                            if (imgEl) img = imgEl.src || '';
+                                            varName = cells[0].innerText.trim();
+                                            
+                                            // Tìm SKU input
+                                            const skuInput = row.querySelector('input[placeholder*="SKU"],[class*="sku-input"] input');
+                                            if (skuInput) sku = skuInput.value.trim();
+                                            
+                                            // Tìm giá
+                                            const priceInput = row.querySelector('input[placeholder*="giá"],[class*="price"] input');
+                                            if (priceInput) price = parseFloat(priceInput.value.replace(/[^\d.]/g,'')) || 0;
+                                            
+                                            // Tìm tồn kho
+                                            const stockInput = row.querySelector('input[placeholder*="tồn"],[class*="stock"] input');
+                                            if (stockInput) stock = parseInt(stockInput.value.replace(/\D/g,'')) || 0;
+                                            
+                                            if (varName || sku) {
+                                                vars.push({ variation_name: varName, sku, price, stock, img });
+                                            }
+                                        }
+                                        return vars;
+                                    }
+                                """)
+
+                                if variations:
+                                    for v in variations:
+                                        if not v.get("sku") and not v.get("variation_name"):
+                                            continue
+                                        all_variations.append({
+                                            "platform":        "shopee",
+                                            "shop":            shop["ten_shop"],
+                                            "platform_item_id": item_id,
+                                            "product_name":    product_name,
+                                            "variation_name":  v.get("variation_name", ""),
+                                            "platform_sku":    v.get("sku", "") or v.get("variation_name", ""),
+                                            "image_url":       v.get("img", "") or product_img,
+                                            "price":           v.get("price", 0),
+                                            "stock":           v.get("stock", 0),
+                                        })
+                                    self.sp_log_msg(f"    ✔ {product_name[:30]} → {len(variations)} variation")
+                                else:
+                                    # SP không có variation → tạo 1 entry đơn
+                                    all_variations.append({
+                                        "platform":        "shopee",
+                                        "shop":            shop["ten_shop"],
+                                        "platform_item_id": item_id,
+                                        "product_name":    product_name,
+                                        "variation_name":  "",
+                                        "platform_sku":    item_id,
+                                        "image_url":       product_img,
+                                        "price":           0,
+                                        "stock":           0,
+                                    })
+                                    self.sp_log_msg(f"    ✔ {product_name[:30]} → 1 SP (không có variation)")
+
+                            except Exception as e:
+                                self.sp_log_msg(f"    ⚠️ Lỗi lấy variation {item_id}: {str(e)[:60]}")
+                            await asyncio.sleep(1)
+
+                        page_num += 1
+                        # Kiểm tra có trang tiếp không
+                        try:
+                            btn_next = page.locator('button:has-text("Tiếp"), [aria-label="Next page"]').first
+                            if not await btn_next.is_visible():
+                                break
+                        except:
+                            break
+
+                    except Exception as e:
+                        self.sp_log_msg(f"  ❌ Lỗi trang {page_num}: {str(e)[:80]}")
+                        break
+
+                # Gửi lên API
+                if all_variations:
+                    self.sp_log_msg(f"\n📤 Gửi {len(all_variations)} variation lên OMS...")
+                    try:
+                        api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/sync-variations"
+                        data = json.dumps({"variations": all_variations}).encode('utf-8')
+                        req  = urllib.request.Request(api_url, data=data,
+                                headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'},
+                                method='POST')
+                        with urllib.request.urlopen(req, timeout=60) as res:
+                            result = json.loads(res.read().decode())
+                            self.sp_log_msg(
+                                f"✅ Đã sync {result.get('synced',0)} variation | "
+                                f"Tự map được {result.get('auto_mapped',0)} SKU"
+                            )
+                    except Exception as e:
+                        self.sp_log_msg(f"❌ Lỗi gửi API: {str(e)}")
+                else:
+                    self.sp_log_msg("ℹ️ Không có variation nào để gửi.")
+
+                await browser.close()
 
     def toggle_auto(self):
         if not self.auto_running:
@@ -2222,84 +2466,334 @@ class HuyVanApp(ctk.CTk):
             self.log(f"⚠️ Lỗi scrape đơn TikTok: {str(e)}")
             
     async def scrape_new_orders_shopee(self, page, shop):
-        self.log(f"📦 [{shop['ten_shop']}] Đang quét đơn Shopee (Tab Chờ xác nhận)...")
-        try:
-            # 1. Chuyển sang dùng 'commit' thay vì 'networkidle' để tránh chờ đợi vô ích
-            # Commit nghĩa là chỉ cần URL thay đổi và Server bắt đầu gửi dữ liệu là ta đi tiếp
+        """
+        Quét 5 loại trạng thái đơn Shopee từ trang LIST (không cần click từng đơn).
+        Mỗi URL tương ứng 1 trạng thái, lấy đủ: mã đơn, SP, SKU, SL, doanh thu, ĐVVC.
+        """
+        import re, datetime
+
+        # ── Định nghĩa 5 URL cần quét ────────────────────────────────────────
+        SCAN_TARGETS = [
+            {
+                "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=to_process&sort_by=ship_by_date_asc",
+                "oms_status":      "PENDING",
+                "shipping_status": "Chờ xác nhận",
+                "label":           "Chờ xác nhận (mới)",
+            },
+            {
+                "url": "https://banhang.shopee.vn/portal/sale/order?type=unpaid",
+                "oms_status":      "PENDING",
+                "shipping_status": "Chờ thanh toán",
+                "label":           "Chưa thanh toán",
+            },
+            {
+                "url": "https://banhang.shopee.vn/portal/sale/order?type=shipping",
+                "oms_status":      "SHIPPING",
+                "shipping_status": "Đã giao cho vận chuyển",
+                "label":           "Đang giao hàng",
+            },
+            {
+                "url": "https://banhang.shopee.vn/portal/sale/order?type=completed",
+                "oms_status":      "COMPLETED",
+                "shipping_status": "Đã giao thành công",
+                "label":           "Đã hoàn thành",
+            },
+            {
+                "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel",
+                "oms_status":      "CANCELLED",
+                "shipping_status": "Trả hàng/Hoàn tiền",
+                "label":           "Trả hàng/Hoàn tiền/Huỷ",
+            },
+        ]
+
+        def parse_money(text: str) -> float:
+            """Chuyển chuỗi '₫8.820' hoặc '8,820' thành float 8820.0"""
+            cleaned = re.sub(r'[^\d]', '', text)
+            return float(cleaned) if cleaned else 0.0
+
+        async def scrape_one_page(target: dict):
+            """Quét 1 URL, trả về (orders[], items[])"""
+            orders, items = [], []
             try:
-                await page.goto(
-                    "https://banhang.shopee.vn/portal/sale/order?tab=toProcess", 
-                    wait_until="commit", 
-                    timeout=60000 # Tăng giới hạn lên 60s cho chắc chắn
+                await page.goto(target["url"], wait_until="commit", timeout=60000)
+            except:
+                pass
+
+            self.log(f"  ⏳ [{target['label']}] Đang đợi danh sách...")
+            try:
+                await page.wait_for_selector(
+                    "[class*='order-item'], [class*='order-row'], "
+                    "[class*='shipment-item'], [class*='table-body']",
+                    timeout=20000
                 )
-            except Exception as e:
-                self.log(f"⚠️ Trang load hơi chậm, nhưng Bot vẫn sẽ cố gắng quét...")
+            except:
+                self.log(f"  ℹ️ [{target['label']}] Không có đơn nào.")
+                return orders, items
 
-            # 2. Đợi đúng cái khung chứa danh sách đơn hàng hiện ra (tối đa 20s)
-            # Selector này bền vững hơn vì nó nhắm vào khung chứa dữ liệu chính
-            self.log("⏳ Đang đợi danh sách đơn hàng hiển thị...")
-            await page.wait_for_selector(".order-item-wrapper, .order-card, .order-list-content", timeout=20000)
-            
-            # Nghỉ 3 giây để đảm bảo JavaScript của Shopee render xong mã đơn
-            await asyncio.sleep(3) 
+            # Scroll để lazy-load
+            await asyncio.sleep(3)
+            for _ in range(3):
+                await page.mouse.wheel(0, 800)
+                await asyncio.sleep(1)
 
-            # 3. Cuộn trang nhẹ để kích hoạt tải dữ liệu (Lazy load)
-            await page.mouse.wheel(0, 1000)
-            await asyncio.sleep(2)
+            # ── Dùng JS để extract toàn bộ dữ liệu từ DOM ─────────────────
+            raw_orders = await page.evaluate(r"""
+                () => {
+                    const result = [];
 
-            orders = []
-            # Lấy tất cả các dòng đơn hàng
-            rows = await page.query_selector_all(".order-item-wrapper, .order-card, [class*='order-item']")
-            
-            for row in rows[:50]:
-                try:
-                    # Selector tìm Order ID linh hoạt (bao gồm cả selector span Huyền gửi)
-                    id_el = await row.query_selector(".order-id-text, .order-id, [class*='id-text'], .order-identifiers span")
-                    if not id_el: continue
-                    
-                    raw_id = await id_el.inner_text()
-                    # Làm sạch chuỗi: xóa chữ "Mã đơn hàng", dấu # và khoảng trắng
-                    order_id = raw_id.replace("Mã đơn hàng", "").replace("#", "").split(':')[-1].strip()
-                    
-                    if order_id and len(order_id) > 5:
-                        orders.append({
-                        "order_id":      str(order_id),
-                        "platform":      "shopee",
-                        "shop":          str(shop["ten_shop"]),
-                        "order_date":    __import__('datetime').datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "order_type":    "normal",
-                        "oms_status":    "PENDING",
-                        "shipping_status": "Chờ xác nhận",
-                        "revenue": 0.0, "raw_revenue": 0.0,
-                        "cost_invoice": 0.0, "cost_real": 0.0,
-                        "fee": 0.0, "profit_invoice": 0.0, "profit_real": 0.0,
-                        "tax_flat": 0.0, "tax_income": 0.0,
-                        "fee_platform": 0.0, "fee_payment": 0.0, "fee_affiliate": 0.0, "fee_ads": 0.0,
-                        "fee_piship": 0.0, "fee_service": 0.0, "fee_packaging": 0.0,
-                        "fee_operation": 0.0, "fee_labor": 0.0,
-                        "cancel_reason": "", # Không để None/Null
-                        "return_fee": 0.0, "shipped": 0,
-                        "discount_shop": 0.0, "discount_shopee": 0.0,
-                        "discount_combo": 0.0, "shipping_return_fee": 0.0
-                    })
-                except:
+                    // Mỗi "đơn hàng" là 1 block chứa mã đơn + các sản phẩm
+                    // Shopee thường dùng cấu trúc: header row (mã đơn) + product rows bên dưới
+
+                    // Lấy tất cả element chứa "Mã đơn hàng"
+                    const allText = document.querySelectorAll('*');
+                    const orderBlocks = [];
+
+                    // Tìm các container chứa mã đơn - thường là div/section cấp cao
+                    // Shopee: mỗi đơn là 1 <div> lớn có text "Mã đơn hàng XXXXXX"
+                    const walker = document.createTreeWalker(
+                        document.body, NodeFilter.SHOW_TEXT, null
+                    );
+                    const orderIdPattern = /Mã đơn hàng\s*([A-Z0-9]{10,20})/;
+                    const seenIds = new Set();
+
+                    let node;
+                    while (node = walker.nextNode()) {
+                        const match = node.textContent.match(orderIdPattern);
+                        if (match) {
+                            const orderId = match[1].trim();
+                            if (seenIds.has(orderId)) continue;
+                            seenIds.add(orderId);
+
+                            // Leo lên để tìm container đơn hàng (4-6 cấp)
+                            let container = node.parentElement;
+                            for (let i = 0; i < 8; i++) {
+                                if (!container || !container.parentElement) break;
+                                const h = container.getBoundingClientRect().height;
+                                if (h > 100) break;
+                                container = container.parentElement;
+                            }
+
+                            // Lấy thông tin từ container
+                            const containerText = container ? container.innerText : '';
+
+                            // Lấy doanh thu - tìm "₫" gần nhất
+                            let revenue = 0;
+                            const moneyEls = container
+                                ? container.querySelectorAll('[class*="price"],[class*="money"],[class*="amount"]')
+                                : [];
+                            for (const el of moneyEls) {
+                                const t = el.innerText.replace(/[^\d]/g,'');
+                                if (t && parseInt(t) > revenue) revenue = parseInt(t);
+                            }
+
+                            // Lấy ĐVVC
+                            let carrier = '';
+                            const carrierEl = container
+                                ? container.querySelector('[class*="carrier"],[class*="logistic"],[class*="shipping-provider"]')
+                                : null;
+                            if (carrierEl) carrier = carrierEl.innerText.trim();
+
+                            // Lấy username khách
+                            let customer = '';
+                            const buyerEl = container
+                                ? container.querySelector('[class*="buyer"],[class*="username"],[class*="customer"]')
+                                : null;
+                            if (buyerEl) customer = buyerEl.innerText.trim();
+
+                            // Lấy toàn bộ text của container để parse SP
+                            result.push({
+                                order_id:      orderId,
+                                revenue:       revenue,
+                                carrier:       carrier,
+                                customer:      customer,
+                                raw_text:      containerText,
+                            });
+                        }
+                    }
+                    return result;
+                }
+            """)
+
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            for rd in raw_orders:
+                order_id = rd.get("order_id", "").strip()
+                if not order_id or len(order_id) < 8:
                     continue
 
-            # 4. Gửi dữ liệu về OMS nếu tìm thấy đơn
-            if orders:
+                revenue   = float(rd.get("revenue", 0) or 0)
+                carrier   = rd.get("carrier", "")
+                customer  = rd.get("customer", "")
+                raw_text  = rd.get("raw_text", "")
+
+                # ── Parse sản phẩm từ raw_text ─────────────────────────────
+                order_items = []
+                lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+
+                i = 0
+                while i < len(lines):
+                    line = lines[i]
+
+                    # Bỏ qua các dòng header/footer
+                    skip_keywords = [
+                        "Mã đơn hàng", "Tổng số tiền", "Trang thái", "Đơn vị vận chuyển",
+                        "Thao tác", "Chuẩn bị hàng", "Chờ lấy hàng", "Hạn giao",
+                        "Cần được xử lý", "SPX", "Nhanh", "Drop off", "Pickup",
+                        "Thanh toán khi", "ShopeePay", "Ngân hàng",
+                    ]
+                    if any(kw in line for kw in skip_keywords):
+                        i += 1
+                        continue
+
+                    # Dòng tiền thuần (₫ hoặc toàn số với dấu chấm/phẩy)
+                    if re.match(r'^[₫đ]?[\d,\.]+$', line):
+                        i += 1
+                        continue
+
+                    # Kiểm tra: dòng này có phải tên sản phẩm không?
+                    # Tên SP thường dài > 10 ký tự, chứa chữ cái
+                    if len(line) < 8 or not re.search(r'[A-Za-zÀ-ỹ]', line):
+                        i += 1
+                        continue
+
+                    # Đây có thể là tên sản phẩm
+                    product_name = line
+                    sku = ""
+                    qty = 1
+                    price = 0.0
+                    i += 1
+
+                    # Đọc các dòng tiếp theo trong block sản phẩm
+                    while i < len(lines):
+                        next_line = lines[i]
+
+                        # Dòng SKU / Variation
+                        if re.match(r'^(Variation|Phân loại|SKU phân loại|SKU:|Model)[\s:]+', next_line, re.IGNORECASE):
+                            sku_part = re.split(r'[\s:]+', next_line, maxsplit=1)
+                            sku = sku_part[-1].strip() if len(sku_part) > 1 else next_line
+                            # Trường hợp "[SKU123]" trong ngoặc vuông
+                        elif re.match(r'^\[.+\]$', next_line):
+                            sku = next_line.strip("[]")
+                        # Dòng số lượng "x1", "x2", ... hoặc chỉ "1", "2"
+                        elif re.match(r'^x?\d+$', next_line) and int(re.sub(r'\D','',next_line)) < 1000:
+                            qty = int(re.sub(r'\D', '', next_line))
+                        # Dòng giá tiền
+                        elif re.match(r'^[₫đ]?[\d,\.]+$', next_line):
+                            val = parse_money(next_line)
+                            if val > price:
+                                price = val
+                            i += 1
+                            break
+                        # Dòng mới có vẻ là tên SP khác → kết thúc block này
+                        elif len(next_line) > 10 and re.search(r'[A-Za-zÀ-ỹ]', next_line) \
+                                and not re.match(r'^(Variation|Phân loại|SKU)', next_line, re.IGNORECASE):
+                            break
+                        i += 1
+
+                    if product_name and len(product_name) > 5:
+                        line_rev = price * qty if price > 0 else 0.0
+                        order_items.append({
+                            "order_id":     order_id,
+                            "sku":          sku,
+                            "product_name": product_name,
+                            "qty":          qty,
+                            "revenue_line": line_rev,
+                            "cost_real":    0.0,
+                            "cost_invoice": 0.0,
+                        })
+
+                # Nếu không parse được SP nào nhưng có revenue → tạo 1 item placeholder
+                if not order_items and revenue > 0:
+                    order_items.append({
+                        "order_id":     order_id,
+                        "sku":          "",
+                        "product_name": "(Chưa parse được tên SP)",
+                        "qty":          1,
+                        "revenue_line": revenue,
+                        "cost_real":    0.0,
+                        "cost_invoice": 0.0,
+                    })
+
+                orders.append({
+                    "order_id":          order_id,
+                    "platform":          "shopee",
+                    "shop":              str(shop["ten_shop"]),
+                    "order_date":        now_str,
+                    "order_type":        "normal",
+                    "oms_status":        target["oms_status"],
+                    "shipping_status":   target["shipping_status"],
+                    "customer_name":     customer,
+                    "customer_phone":    "",
+                    "revenue":           revenue,
+                    "raw_revenue":       revenue,
+                    "net_revenue":       0.0,
+                    "cost_invoice":      0.0,
+                    "cost_real":         0.0,
+                    "fee":               0.0,
+                    "profit_invoice":    0.0,
+                    "profit_real":       0.0,
+                    "tax_flat":          0.0,
+                    "tax_income":        0.0,
+                    "fee_platform":      0.0,
+                    "fee_payment":       0.0,
+                    "fee_affiliate":     0.0,
+                    "fee_ads":           0.0,
+                    "fee_piship":        0.0,
+                    "fee_service":       0.0,
+                    "fee_packaging":     0.0,
+                    "fee_operation":     0.0,
+                    "fee_labor":         0.0,
+                    "cancel_reason":     "",
+                    "return_fee":        0.0,
+                    "shipped":           1 if target["oms_status"] in ("SHIPPING","COMPLETED") else 0,
+                    "discount_shop":     0.0,
+                    "discount_shopee":   0.0,
+                    "discount_combo":    0.0,
+                    "shipping_return_fee": 0.0,
+                    "shipping_carrier":  carrier,
+                    "tracking_number":   "",
+                })
+                items.extend(order_items)
+                self.log(f"    ✔ {order_id} | {len(order_items)} SP | {revenue:,.0f}đ | {carrier}")
+
+            return orders, items
+
+        # ── CHẠY TUẦN TỰ 5 URL ───────────────────────────────────────────────
+        self.log(f"\n📦 [{shop['ten_shop']}] Bắt đầu quét Shopee (5 trạng thái)...")
+        all_orders, all_items = [], []
+
+        for target in SCAN_TARGETS:
+            self.log(f"\n🔍 Đang quét: {target['label']}")
+            try:
+                o, it = await scrape_one_page(target)
+                all_orders.extend(o)
+                all_items.extend(it)
+                self.log(f"  → {len(o)} đơn, {len(it)} sản phẩm")
+            except Exception as e:
+                self.log(f"  ❌ Lỗi quét [{target['label']}]: {str(e)}")
+            await asyncio.sleep(2)
+
+        # ── GỬI TẤT CẢ VỀ OMS ───────────────────────────────────────────────
+        if all_orders:
+            try:
                 api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
-                payload = json.dumps({"orders": orders, "items": []}).encode('utf-8')
-                req = urllib.request.Request(api_url, data=payload, method='POST',
-                                             headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'})
-                
-                with urllib.request.urlopen(req, timeout=15) as res:
-                    self.log(f"✅ Thành công: Đã lấy {len(orders)} đơn mới từ {shop['ten_shop']}.")
-            else:
-                self.log(f"ℹ️ {shop['ten_shop']} hiện tại chưa thấy đơn mới nào.")
+                payload = json.dumps({"orders": all_orders, "items": all_items}).encode('utf-8')
+                req = urllib.request.Request(
+                    api_url, data=payload, method='POST',
+                    headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'}
+                )
+                with urllib.request.urlopen(req, timeout=30) as res:
+                    result = json.loads(res.read().decode())
+                    self.log(
+                        f"\n✅ [{shop['ten_shop']}] Import thành công: "
+                        f"{len(all_orders)} đơn | {len(all_items)} sản phẩm"
+                    )
+            except Exception as e:
+                self.log(f"❌ Lỗi gửi API OMS: {str(e)}")
+        else:
+            self.log(f"ℹ️ [{shop['ten_shop']}] Không tìm thấy đơn nào trên cả 5 trạng thái.")
 
-        except Exception as e:
-            self.log(f"❌ Lỗi quét Shopee ({shop['ten_shop']}): {str(e)}")            
-
+            
     async def main_logic(self):
         # --- GỌI API LẤY DANH SÁCH LỆNH TỪ CLOUDFLARE D1 ---
         api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/jobs"
