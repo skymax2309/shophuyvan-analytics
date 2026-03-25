@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản Lý Nhập Hàng Chính Ngạch | Huy Vân Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        body { background-color: #0d0d0d; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; }
+        .glass-card { background: rgba(26, 26, 26, 0.8); backdrop-filter: blur(10px); border: 1px solid #333; border-radius: 12px; }
+        .btn-cyan { background-color: #00CED1; color: #000; transition: 0.3s; }
+        .btn-cyan:hover { background-color: #00FFFF; box-shadow: 0 0 15px rgba(0, 206, 209, 0.4); }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { background: #1f1f1f; color: #00CED1; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #333; }
+        td { border-bottom: 1px solid #262626; transition: 0.2s; }
+        tr:hover td { background: #1a1a1a; }
+        .editable:focus { background: #222; outline: 1px solid #00CED1; border-radius: 4px; }
+        input[type="checkbox"] { accent-color: #00CED1; width: 18px; height: 18px; }
+        .badge-kg { background: #FFA500; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; }
+        .badge-khoi { background: #00CED1; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; }
+    </style>
+</head>
+<body class="p-6">
+
+<div class="max-w-[1600px] mx-auto">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-[#00CED1] flex items-center gap-2">
+                📦 QUẢN LÝ NHẬP HÀNG CHÍNH NGẠCH
+            </h1>
+            <p class="text-gray-500 italic mt-1">Tự động tối ưu chi phí vận chuyển & xuất hồ sơ hải quan</p>
+        </div>
+        
+        <div class="flex gap-3">
+            <input type="text" id="searchInput" placeholder="Tìm tên SP, SKU hoặc Mã vận đơn..." 
+                   class="bg-[#1a1a1a] border border-[#333] rounded-lg px-4 py-2 w-80 focus:border-[#00CED1] outline-none">
+            <button onclick="addNewRow()" class="btn-cyan px-5 py-2 rounded-lg font-bold">✚ THÊM MỚI</button>
+        </div>
+    </div>
+
+    <div class="glass-card p-4 mb-4 flex justify-between items-center">
+        <div class="flex items-center gap-4 text-sm">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="selectAll" onclick="toggleSelectAll()"> Chọn tất cả
+            </label>
+            <span id="selectedCount" class="text-[#00CED1] font-bold">0</span> sản phẩm đã chọn
+        </div>
+        <div class="flex gap-3">
+            <button onclick="exportData('excel')" class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                📥 XUẤT EXCEL
+            </button>
+            <button onclick="exportData('pdf')" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                📄 XUẤT PDF
+            </button>
+            <button onclick="openSettings()" class="bg-[#333] hover:bg-[#444] px-4 py-2 rounded-lg text-sm font-bold">
+                ⚙️ TỈ GIÁ & PHÍ SHIP
+            </button>
+        </div>
+    </div>
+
+    <div class="glass-card overflow-x-auto max-h-[700px]">
+        <table id="purchaseTable">
+            <thead>
+                <tr>
+                    <th class="p-3 text-center"><input type="checkbox" disabled></th>
+                    <th class="p-3">Ảnh</th>
+                    <th class="p-3 text-left">Mã Vận Đơn</th>
+                    <th class="p-3 text-left">Tên Sản Phẩm</th>
+                    <th class="p-3">SKU</th>
+                    <th class="p-3">SL</th>
+                    <th class="p-3">Giá Tệ</th>
+                    <th class="p-3">Kích Thước (DxRxC)</th>
+                    <th class="p-3">Trọng Lượng</th>
+                    <th class="p-3">Phí Ship Tạm Tính</th>
+                    <th class="p-3">Giá Vốn 1 SP</th>
+                    <th class="p-3">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody id="purchaseBody">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="settingsModal" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center z-50">
+    <div class="glass-card p-6 w-96">
+        <h2 class="text-[#00CED1] text-xl font-bold mb-4">CÀI ĐẶT THÔNG SỐ</h2>
+        <div class="space-y-4">
+            <div>
+                <label class="text-xs text-gray-400">TỈ GIÁ NHÂN TỆ (VNĐ)</label>
+                <input type="number" id="set_tigia" class="w-full bg-[#0d0d0d] border border-[#333] p-2 rounded mt-1">
+            </div>
+            <div>
+                <label class="text-xs text-gray-400">PHÍ VẬN CHUYỂN / KG (VNĐ)</label>
+                <input type="number" id="set_phikg" class="w-full bg-[#0d0d0d] border border-[#333] p-2 rounded mt-1">
+            </div>
+            <div>
+                <label class="text-xs text-gray-400">PHÍ VẬN CHUYỂN / KHỐI (VNĐ)</label>
+                <input type="number" id="set_phikhoi" class="w-full bg-[#0d0d0d] border border-[#333] p-2 rounded mt-1">
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-6">
+            <button onclick="closeSettings()" class="text-gray-500 hover:text-white">Đóng</button>
+            <button onclick="saveSettings()" class="btn-cyan px-4 py-2 rounded font-bold">LƯU CÀI ĐẶT</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let settings = { ti_gia_te: 3650, phi_vanchuyen_kg: 30000, phi_vanchuyen_khoi: 3000000 };
+    let purchaseData = [];
+
+    // 1. Tự động tính toán logic theo yêu cầu
+    function calculateShipping(item) {
+        const soKhoi = (item.kich_thuoc_d * item.kich_thuoc_r * item.kich_thuoc_c) / 1000000;
+        const tienKhoi = soKhoi * settings.phi_vanchuyen_khoi;
+        const tienKg = item.trong_luong_kg * settings.phi_vanchuyen_kg;
+
+        if (tienKg > tienKhoi) {
+            return { cost: tienKg, label: "TÍNH KG", badge: "badge-kg" };
+        } else {
+            return { cost: tienKhoi, label: "TÍNH KHỐI", badge: "badge-khoi" };
+        }
+    }
+
+    // 2. Render dòng dữ liệu
+    function renderRow(item) {
+        const ship = calculateShipping(item);
+        const tongTienVnd = item.sl_nhap * item.gia_nhap_te * settings.ti_gia_te;
+        const giaVon1Sp = (tongTienVnd + ship.cost) / item.sl_nhap;
+
+        return `
+            <tr data-id="${item.id}">
+                <td class="p-3 text-center"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
+                <td class="p-3">
+                    <img src="${item.image_url || 'https://via.placeholder.com/40'}" 
+                         class="w-10 h-10 object-cover rounded border border-[#333] cursor-pointer hover:scale-150 transition"
+                         onclick="changeImageUrl(${item.id})">
+                </td>
+                <td class="p-3 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">${item.ma_van_don || ''}</td>
+                <td class="p-3 editable font-semibold" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</td>
+                <td class="p-3 editable text-[#00CED1]" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
+                <td class="p-3 text-center editable" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${item.sl_nhap}</td>
+                <td class="p-3 text-center editable" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_nhap_te', this.innerText)">${item.gia_nhap_te}</td>
+                <td class="p-3 text-center">
+                    <span class="text-xs text-gray-500">D:</span><span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span>
+                    <span class="text-xs text-gray-500">R:</span><span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span>
+                    <span class="text-xs text-gray-500">C:</span><span class="editable px-1" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
+                </td>
+                <td class="p-3 text-center editable" contenteditable="true" onblur="updateNumField(${item.id}, 'trong_luong_kg', this.innerText)">${item.trong_luong_kg}</td>
+                <td class="p-3 text-center">
+                    <div class="font-bold text-sm">${Math.round(ship.cost).toLocaleString()}đ</div>
+                    <span class="${ship.badge}">${ship.label}</span>
+                </td>
+                <td class="p-3 text-center font-bold text-[#00FF88]">${Math.round(giaVon1Sp).toLocaleString()}đ</td>
+                <td class="p-3 text-center">
+                    <button onclick="deleteRow(${item.id})" class="text-red-500 hover:text-red-400">🗑</button>
+                </td>
+            </tr>
+        `;
+    }
+
+    // 3. Logic Xuất file PDF/Excel (9 cột đầy đủ)
+    function exportData(type) {
+        const selectedIds = Array.from(document.querySelectorAll('.row-check:checked')).map(cb => cb.closest('tr').dataset.id);
+        if (selectedIds.length === 0) return alert("Vui lòng chọn ít nhất 1 sản phẩm để xuất!");
+
+        const dataToExport = purchaseData.filter(item => selectedIds.includes(item.id.toString()));
+
+        if (type === 'excel') {
+            const ws = XLSX.utils.json_to_sheet(dataToExport.map(i => ({
+                "Mã Vận Đơn": i.ma_van_don, "Tên SP": i.ten_san_pham, "SKU": i.ma_hang,
+                "SL Nhập": i.sl_nhap, "Giá Khai Thuế": i.gia_khai_thue, "Công Dụng": i.cong_dung,
+                "Chất Liệu": i.chat_lieu, "Số Kiện": i.so_kien, "Ảnh": i.image_url
+            })));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "ChinhNgach");
+            XLSX.writeFile(wb, `HuyVan_ChinhNgach_${new Date().toISOString().slice(0,10)}.xlsx`);
+        } else {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+            doc.text("DANH SÁCH HÀNG NHẬP CHÍNH NGẠCH - HUY VÂN", 14, 15);
+            doc.autoTable({
+                startY: 20,
+                head: [['Mã Vận Đơn', 'Tên SP', 'SKU', 'SL', 'Giá Khai', 'Công Dụng', 'Chất Liệu', 'Số Kiện']],
+                body: dataToExport.map(i => [i.ma_van_don, i.ten_san_pham, i.ma_hang, i.sl_nhap, i.gia_khai_thue, i.cong_dung, i.chat_lieu, i.so_kien]),
+                theme: 'grid', headStyles: { fillStyle: '#00CED1' }
+            });
+            doc.save("HuyVan_ChinhNgach.pdf");
+        }
+    }
+
+    // 4. Các hàm phụ trợ
+    function updateSelectedCount() {
+        document.getElementById('selectedCount').innerText = document.querySelectorAll('.row-check:checked').length;
+    }
+
+    function toggleSelectAll() {
+        const checked = document.getElementById('selectAll').checked;
+        document.querySelectorAll('.row-check').forEach(cb => cb.checked = checked);
+        updateSelectedCount();
+    }
+
+    function changeImageUrl(id) {
+        const url = prompt("Dán link hình ảnh mới vào đây:");
+        if (url) updateField(id, 'image_url', url);
+    }
+
+    // Cấu hình URL API (Khớp với Worker của Huy)
+    const API_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/purchase";
+
+    // 1. Tải dữ liệu khi mở trang
+    async function loadData() {
+        try {
+            // Lấy cài đặt tỉ giá/phí ship trước
+            const resSet = await fetch(`${API_URL}/settings`);
+            const dataSet = await resSet.json();
+            dataSet.forEach(s => settings[s.key] = s.value);
+
+            // Lấy danh sách hàng nhập
+            const search = document.getElementById('searchInput').value;
+            const resData = await fetch(`${API_URL}?search=${encodeURIComponent(search)}`);
+            purchaseData = await resData.json();
+
+            renderTable();
+        } catch (e) {
+            console.error("Lỗi tải dữ liệu:", e);
+        }
+    }
+
+    function renderTable() {
+        const html = purchaseData.map(item => renderRow(item)).join('');
+        document.getElementById('purchaseBody').innerHTML = html;
+        updateSelectedCount();
+    }
+
+    // 2. Thêm mới một dòng trống
+    async function addNewRow() {
+        const newProduct = {
+            ten_san_pham: "Sản phẩm mới",
+            sl_nhap: 1,
+            gia_nhap_te: 0,
+            kich_thuoc_d: 0, kich_thuoc_r: 0, kich_thuoc_c: 0,
+            trong_luong_kg: 0
+        };
+
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newProduct)
+            });
+            if (res.ok) loadData(); // Tải lại bảng sau khi thêm
+        } catch (e) {
+            alert("Lỗi khi thêm sản phẩm mới");
+        }
+    }
+
+    // 3. Cập nhật từng ô khi Huy sửa trực tiếp (Inline Edit)
+    async function updateField(id, field, value) {
+        const item = purchaseData.find(i => i.id === id);
+        if (!item) return;
+
+        item[field] = value;
+        
+        // Tính toán lại logic vận chuyển trước khi lưu
+        const calculated = calculateShipping(item);
+        item.phi_vanchuyen_thuc = calculated.cost;
+        item.cach_tinh_vc = calculated.label;
+
+        try {
+            await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(item)
+            });
+            // Cập nhật giao diện mà không cần load lại cả trang
+            renderTable();
+        } catch (e) {
+            console.error("Lỗi cập nhật:", e);
+        }
+    }
+
+    // Hàm hỗ trợ cập nhật số
+    function updateNumField(id, field, value) {
+        const num = parseFloat(value.replace(/,/g, '')) || 0;
+        updateField(id, field, num);
+    }
+
+    // 4. Xóa dòng
+    async function deleteRow(id) {
+        if (!confirm("Huy có chắc chắn muốn xóa sản phẩm này không?")) return;
+        try {
+            await fetch(API_URL, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id })
+            });
+            loadData();
+        } catch (e) {
+            alert("Lỗi khi xóa");
+        }
+    }
+
+    // 5. Quản lý Cài đặt Tỉ giá & Phí Ship
+    function openSettings() {
+        document.getElementById('set_tigia').value = settings.ti_gia_te;
+        document.getElementById('set_phikg').value = settings.phi_vanchuyen_kg;
+        document.getElementById('set_phikhoi').value = settings.phi_vanchuyen_khoi;
+        document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    async function saveSettings() {
+        const newSettings = [
+            { key: 'ti_gia_te', value: document.getElementById('set_tigia').value },
+            { key: 'phi_vanchuyen_kg', value: document.getElementById('set_phikg').value },
+            { key: 'phi_vanchuyen_khoi', value: document.getElementById('set_phikhoi').value }
+        ];
+
+        for (const s of newSettings) {
+            await fetch(`${API_URL}/settings`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(s)
+            });
+        }
+        
+        closeSettings();
+        loadData(); // Tính toán lại toàn bộ bảng theo tỉ giá mới
+    }
+
+    // Lắng nghe sự kiện tìm kiếm
+    document.getElementById('searchInput').addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') loadData();
+    });
+
+    // Khởi chạy khi trang load xong
+    window.onload = loadData;
+</script>
+</body>
+</html>

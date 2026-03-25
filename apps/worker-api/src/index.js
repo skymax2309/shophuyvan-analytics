@@ -12,6 +12,7 @@ import { createJob, getJobs, updateJob, deleteJob } from './routes/jobs.js'
 import { parseInvoiceAI, saveInvoice, listInvoices, getInvoiceFile,
          updateCostPrices, getSkuMap, getSkuGroups, saveSkuGroup,
          updateGroupPrice, deleteSkuGroup, deleteInvoice } from './routes/invoices.js'
+import { handlePurchase } from './routes/purchase.js'
 		 
 export default {
   // ── Tự động chạy mỗi 24h (Cron Trigger) ─────────────────
@@ -60,6 +61,11 @@ export default {
       return new Response("ShopHuyVan Profit API v2")
 
     try {
+		
+	// ── Purchase Orders (Nhập hàng Chính ngạch) ───────────────────
+      if (url.pathname.startsWith("/api/purchase")) {
+        return handlePurchase(request, env, cors)
+      }
 
       // ── Products ──────────────────────────────────────────────────
       if (url.pathname === "/api/products")
