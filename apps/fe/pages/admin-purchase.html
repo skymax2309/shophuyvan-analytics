@@ -58,6 +58,7 @@
             <button onclick="exportData('pdf')" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
                 📄 XUẤT PDF
             </button>
+<button id="btnDeleteAll" onclick="deleteSelected()" class="hidden bg-orange-700 hover:bg-orange-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">🗑️ XÓA ĐÃ CHỌN</button>
             <button onclick="openSettings()" class="bg-[#333] hover:bg-[#444] px-4 py-2 rounded-lg text-sm font-bold">
                 ⚙️ TỈ GIÁ & PHÍ SHIP
             </button>
@@ -237,6 +238,27 @@
             doc.save("HuyVan_ChinhNgach.pdf");
         }
     }
+	
+	async function deleteSelected() {
+    const selectedCheckboxes = document.querySelectorAll('.row-check:checked');
+    const ids = Array.from(selectedCheckboxes).map(cb => cb.closest('tr').dataset.id);
+
+    if (!confirm(`Huy có chắc chắn muốn xóa ${ids.length} sản phẩm đã chọn không?`)) return;
+
+    // Hiển thị trạng thái đang xử lý
+    document.getElementById('btnDeleteAll').innerText = "ĐANG XÓA...";
+
+    for (const id of ids) {
+        await fetch(API_URL, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: parseInt(id) })
+        });
+    }
+
+    alert("✅ Đã xóa các mục thành công!");
+    loadData(); // Tải lại bảng
+}
 
     // 4. Các hàm phụ trợ
     function updateSelectedCount() {
@@ -284,87 +306,62 @@
 
     // Logic Import từ file Excel "NHẬP HÀNG CHÍNH NGẠCH" của Huy
     async function importExcel(input) {
-        const file = input.files[0];
-        if (!file) return;
+    const file = input.files[0];
+    if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json = XLSX.utils.sheet_to_json(worksheet);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-            this.log = `Đang xử lý ${json.length} dòng dữ liệu...`;
-            
-            for (const row of json) {
-                // Hàm phụ để tìm giá trị cột bất kể viết hoa hay viết thường
-                const getVal = (names) => {
-                    for (let name of names) {
-                        if (row[name] !== undefined) return row[name];
+        console.log("Dữ liệu thô từ Excel:", json);
+
+        for (const row of json) {
+            // Hàm lấy giá trị linh hoạt, bỏ qua khoảng trắng và xuống dòng trong tên cột
+            const getV = (keywords) => {
+                const cleanKey = (k) => k.replace(/\s+/g, '').toLowerCase();
+                for (let key in row) {
+                    if (keywords.some(kw => cleanKey(key).includes(cleanKey(kw)))) {
+                        return row[key];
                     }
-                    return null;
-                };
-
-                const newProduct = {
-                    ten_san_pham: getVal(["Tên sản phẩm", "TÊN SẢN PHẨM", "Sản phẩm", "Name"]) || "Không tên",
-                    ma_hang: getVal(["Mã hàng", "SKU", "Mã SP"]) || "",
-                    sl_nhap: parseFloat(getVal(["Số lượng", "SL", "Số lượng nhập"])) || 0,
-                    so_kien: parseFloat(getVal(["Số kiện", "Số thùng"])) || 1,
-                    sl_sp_tren_kien: parseFloat(getVal(["SL SP/Kiện", "Quy cách"])) || 1,
-                    gia_nhap_te: parseFloat(getVal(["Giá tệ", "Đơn giá tệ", "Giá nhập"])) || 0,
-                    gia_khai_thue: parseFloat(getVal(["Giá khai thuế", "Khai báo USD"])) || 0,
-                    ship_noi_dia_te: parseFloat(getVal(["Ship nội địa", "Phí nội địa"])) || 0,
-                    thue_vat_percent: parseFloat(getVal(["VAT%", "Thuế %", "Thuế suất"])) || 10,
-                    kich_thuoc_d: parseFloat(getVal(["Dài", "D"])) || 0,
-                    kich_thuoc_r: parseFloat(getVal(["Rộng", "R"])) || 0,
-                    kich_thuoc_c: parseFloat(getVal(["Cao", "C"])) || 0,
-                    trong_luong_kg: parseFloat(getVal(["KG", "Trọng lượng", "Cân nặng"])) || 0,
-                    cong_dung: getVal(["Công dụng", "Mục đích"]) || "",
-                    chat_lieu: getVal(["Chất liệu", "Thành phần"]) || "",
-                    link_nhap_hang: getVal(["Link", "Link nhập", "URL"]) || "",
-                    ma_van_don: getVal(["Mã vận đơn", "Mã vận chuyển"]) || ""
-                };
-
-                // Chỉ gửi lên nếu có tên sản phẩm hoặc mã hàng
-                if (newProduct.ten_san_pham !== "Không tên" || newProduct.ma_hang !== "") {
-                    await fetch(API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(newProduct)
-                    });
                 }
-            }
-                    ten_san_pham: row["Tên sản phẩm"] || row["TÊN SẢN PHẨM"] || "Không tên",
-                    ma_hang: row["Mã hàng"] || row["SKU"] || "",
-                    sl_nhap: parseFloat(row["Số lượng"]) || 1,
-                    so_kien: parseFloat(row["Số kiện"]) || 1,
-                    sl_sp_tren_kien: parseFloat(row["SL SP/Kiện"]) || 1,
-                    gia_nhap_te: parseFloat(row["Giá tệ"]) || 0,
-                    gia_khai_thue: parseFloat(row["Giá khai thuế"]) || 0,
-                    ship_noi_dia_te: parseFloat(row["Ship nội địa"]) || 0,
-                    thue_vat_percent: parseFloat(row["VAT%"]) || 10,
-                    kich_thuoc_d: parseFloat(row["Dài"]) || 0,
-                    kich_thuoc_r: parseFloat(row["Rộng"]) || 0,
-                    kich_thuoc_c: parseFloat(row["Cao"]) || 0,
-                    trong_luong_kg: parseFloat(row["KG"]) || 0,
-                    cong_dung: row["Công dụng"] || "",
-                    chat_lieu: row["Chất liệu"] || "",
-                    link_nhap_hang: row["Link"] || ""
-                };
+                return "";
+            };
 
-                await fetch(API_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(newProduct)
-                });
-            }
-            alert("✅ Đã import thành công dữ liệu từ Excel!");
-            loadData();
-        };
-        reader.readAsArrayBuffer(file);
-        input.value = ""; // Reset input
-    }
+            const tenSP = getV(["Tên Sản Phẩm"]);
+            if (!tenSP || tenSP.includes("Tên Sản Phẩm")) continue; // Bỏ qua dòng tiêu đề hoặc dòng trống
+
+            const newProduct = {
+                ten_san_pham: tenSP,
+                ma_van_don: getV(["Mã vận đơn"]),
+                ma_hang: getV(["Mã Hàng", "SKU"]),
+                sl_nhap: parseFloat(getV(["SL Nhập"])) || 0,
+                gia_nhap_te: parseFloat(getV(["Giá Nhập"])) || 0,
+                gia_khai_thue: parseFloat(getV(["GIÁ KHAI"])) || 0,
+                ship_noi_dia_te: parseFloat(getV(["Ship Nội Địa"])) || 0,
+                so_kien: parseInt(getV(["Số Kiện"])) || 1,
+                sl_sp_tren_kien: parseInt(getV(["SL /Kiện"])) || 1,
+                trong_luong_kg: parseFloat(getV(["Tổng KG", "Số KG/Kiện"])) || 0,
+                kich_thuoc_d: 0, kich_thuoc_r: 0, kich_thuoc_c: 0, // Kích thước thường ghi gộp nên để Huy nhập tay sau
+                cong_dung: getV(["Mục đích"]),
+                chat_lieu: getV(["Chất liệu"]),
+                link_nhap_hang: getV(["LINK SP"])
+            };
+
+            await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newProduct)
+            });
+        }
+        alert("✅ Đã Import dữ liệu thành công!");
+        loadData();
+    };
+    reader.readAsArrayBuffer(file);
+    input.value = "";
+}
 
     async function addNewRow() {
         const newProduct = {
