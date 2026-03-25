@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Import SKU từ Shopee → Analytics</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, sans-serif; background: #f0f4f8; min-height: 100vh; padding: 24px; }
+  .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  h1 { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+  label { font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 6px; }
+  input[type=text], input[type=url] {
+    width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px;
+    padding: 9px 13px; font-size: 13px; outline: none; transition: border .15s;
+  }
+  input:focus { border-color: #6366f1; }
+  .btn { padding: 9px 20px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: #6366f1; color: white; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-success { background: #10b981; color: white; }
+  .btn-gray { background: #f1f5f9; color: #475569; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; min-width: 120px; }
+  .stat-val { font-size: 22px; font-weight: 700; color: #1e293b; }
+  .stat-label { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f8fafc; padding: 9px 10px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; z-index: 1; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  tr:hover td { background: #f8fafc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge-wait  { background: #fef3c7; color: #92400e; }
+  .badge-ok    { background: #dcfce7; color: #166534; }
+  .badge-skip  { background: #f1f5f9; color: #64748b; }
+  .badge-err   { background: #fee2e2; color: #991b1b; }
+  .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin: 8px 0; }
+  .progress-fill { height: 100%; background: #6366f1; border-radius: 3px; transition: width .3s; }
+  .log { font-size: 12px; color: #64748b; margin-top: 6px; min-height: 18px; }
+  .tbl-wrap { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+  .chk-col { width: 32px; }
+  .img-thumb { width: 36px; height: 36px; object-fit: cover; border-radius: 5px; border: 1px solid #e2e8f0; }
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  select { border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+  .api-row { display: flex; gap: 8px; align-items: flex-end; }
+  .api-row > div { flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>📦 Import SKU Shopee → Analytics</h1>
+  <p class="sub">Upload 2 file Shopee (sales_info + media_info) để tự động parse và import SKU + ảnh vào hệ thống</p>
+
+  <div class="api-row" style="margin-bottom:16px">
+    <div>
+      <label>🔗 API URL của bạn</label>
+      <input type="url" id="apiUrl" value="https://huyvan-worker-api.nghiemchihuy.workers.dev" placeholder="https://your-worker.workers.dev">
+    </div>
+    <button class="btn btn-gray" onclick="testApi()">🔍 Test kết nối</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+    <div>
+      <label>📄 File sales_info (*.xlsx)</label>
+      <input type="file" id="salesFile" accept=".xlsx" onchange="onFileChange()">
+    </div>
+    <div>
+      <label>🖼️ File media_info (*.xlsx)</label>
+      <input type="file" id="mediaFile" accept=".xlsx" onchange="onFileChange()">
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="parseBtn" onclick="parseFiles()" disabled>🔍 Phân tích file</button>
+  <span id="parseLog" class="log"></span>
+</div>
+
+<div id="previewCard" class="card" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="font-size:15px;font-weight:700;color:#1e293b">📋 Danh sách SKU (<span id="totalCount">0</span>)</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="filterStatus" onchange="renderTable()">
+        <option value="">Tất cả</option>
+        <option value="wait">⏳ Chờ import</option>
+        <option value="skip">⏭️ Bỏ qua (đã tồn tại)</option>
+        <option value="ok">✅ Đã import</option>
+        <option value="err">❌ Lỗi</option>
+      </select>
+      <input type="text" id="searchInput" placeholder="🔍 Tìm SKU..." oninput="renderTable()" style="width:180px">
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-val" id="s_total">0</div><div class="stat-label">Tổng SKU</div></div>
+    <div class="stat"><div class="stat-val" id="s_wait" style="color:#d97706">0</div><div class="stat-label">Chờ import</div></div>
+    <div class="stat"><div class="stat-val" id="s_skip" style="color:#64748b">0</div><div class="stat-label">Bỏ qua</div></div>
+    <div class="stat"><div class="stat-val" id="s_ok" style="color:#10b981">0</div><div class="stat-label">Đã import</div></div>
+    <div class="stat"><div class="stat-val" id="s_err" style="color:#ef4444">0</div><div class="stat-label">Lỗi</div></div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="importBtn" onclick="startImport()">⬆️ Import tất cả vào Analytics</button>
+    <button class="btn btn-gray" onclick="checkExisting()">🔄 Kiểm tra SKU đã tồn tại</button>
+    <button class="btn btn-gray" onclick="selectAll(true)">☑️ Chọn tất cả</button>
+    <button class="btn btn-gray" onclick="selectAll(false)">⬜ Bỏ chọn</button>
+    <button class="btn btn-gray" onclick="downloadJson()">📥 Tải JSON</button>
+  </div>
+
+  <div id="progressWrap" style="display:none">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="log" id="progressLog">Đang import...</div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="chk-col"><input type="checkbox" id="chkAll" onchange="toggleAll(this.checked)"></th>
+          <th>Ảnh</th>
+          <th>SKU</th>
+          <th>Tên sản phẩm</th>
+          <th>Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+let allProducts = []   // [{sku, product_name, image_url, status, error}]
+let existingSkus = new Set()
+
+// ── FILE CHANGE ─────────────────────────────────────────────────────
+function onFileChange() {
+  const s = document.getElementById('salesFile').files[0]
+  const m = document.getElementById('mediaFile').files[0]
+  document.getElementById('parseBtn').disabled = !(s && m)
+}
+
+// ── TEST API ─────────────────────────────────────────────────────────
+async function testApi() {
+  const api = document.getElementById('apiUrl').value.trim()
+  try {
+    const r = await fetch(api + '/api/products')
+    if (r.ok) {
+      const data = await r.json()
+      alert(`✅ Kết nối OK! Hệ thống đang có ${data.length} SKU.`)
+      existingSkus = new Set(data.map(p => p.sku))
+    } else {
+      alert('❌ API lỗi: ' + r.status)
+    }
+  } catch(e) {
+    alert('❌ Không kết nối được: ' + e.message)
+  }
+}
+
+// ── PARSE FILES ──────────────────────────────────────────────────────
+async function parseFiles() {
+  const salesFile = document.getElementById('salesFile').files[0]
+  const mediaFile = document.getElementById('mediaFile').files[0]
+  document.getElementById('parseLog').textContent = '⏳ Đang đọc file...'
+  document.getElementById('parseBtn').disabled = true
+
+  try {
+    const [salesWb, mediaWb] = await Promise.all([
+      readXlsx(salesFile), readXlsx(mediaFile)
+    ])
+
+    // ── Parse media: pid → {cover, varImgs{name: url}} ──
+    const mediaMap = {}
+    const mediaRows = getDataRows(mediaWb)
+    for (const r of mediaRows) {
+      const pid = str(r['A'])
+      if (!pid || isNaN(pid)) continue
+      const cover = str(r['E'])
+      const varImgs = {}
+      const pairs = [['Q','R'],['S','T'],['U','V'],['W','X'],['Y','Z']]
+      for (const [nc, ic] of pairs) {
+        const n = str(r[nc]), i = str(r[ic])
+        if (n && i) varImgs[n] = i
+      }
+      mediaMap[pid] = { cover, varImgs }
+    }
+
+    // ── Parse sales: build SKU list ──
+    const products = {}
+    const salesRows = getDataRows(salesWb)
+    for (const r of salesRows) {
+      const pid   = str(r['A'])
+      if (!pid || isNaN(pid)) continue
+      const name  = str(r['B'])
+      let skuSp   = str(r['E'])
+      let skuPl   = str(r['F'])
+      const tenPl = str(r['D'])
+      
+      // Bỏ qua nếu giá trị là số thuần (index của sharedStrings)
+      if (/^\d+$/.test(skuSp)) skuSp = ''
+      if (/^\d+$/.test(skuPl)) skuPl = ''
+      
+      const finalSku = skuPl || skuSp
+      if (!finalSku || products[finalSku]) continue
+
+      const m = mediaMap[pid] || {}
+      const varImg = m.varImgs && m.varImgs[tenPl]
+      const img = varImg || m.cover || ''
+
+      products[finalSku] = {
+        sku: finalSku,
+        product_name: name,
+        image_url: img,
+        cost_invoice: 0,
+        cost_real: 0,
+        status: 'wait',
+        error: ''
+      }
+    }
+
+    allProducts = Object.values(products)
+    document.getElementById('parseLog').textContent = `✅ Đọc xong — ${allProducts.length} SKU`
+    document.getElementById('previewCard').style.display = ''
+    updateStats()
+    renderTable()
+  } catch(e) {
+    document.getElementById('parseLog').textContent = '❌ Lỗi: ' + e.message
+    console.error(e)
+  } finally {
+    document.getElementById('parseBtn').disabled = false
+  }
+}
+
+// ── READ XLSX ────────────────────────────────────────────────────────
+function readXlsx(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' })
+        res(wb)
+      } catch(err) { rej(err) }
+    }
+    reader.onerror = rej
+    reader.readAsArrayBuffer(file)
+  })
+}
+
+function getDataRows(wb) {
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  // Lấy tất cả rows dưới dạng array of objects với key = col letter
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+  const rows = []
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    const row = {}
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C })
+      const col = XLSX.utils.encode_col(C)
+      const cell = ws[addr]
+      if (cell) row[col] = cell.v !== undefined ? String(cell.v) : ''
+    }
+    rows.push(row)
+  }
+  // Bỏ qua 6 rows đầu (header + meta của Shopee)
+  return rows.slice(6)
+}
+
+function str(v) { return (v || '').toString().trim() }
+
+// ── CHECK EXISTING ───────────────────────────────────────────────────
+async function checkExisting() {
+  const api = document.getElementById('apiUrl').value.trim()
+  try {
+    const r = await fetch(api + '/api/products')
+    if (!r.ok) { alert('❌ Không lấy được danh sách SKU hiện tại'); return }
+    const data = await r.json()
+    existingSkus = new Set(data.map(p => p.sku))
+    
+    let skipCount = 0
+    for (const p of allProducts) {
+      if (existingSkus.has(p.sku) && p.status === 'wait') {
+        p.status = 'skip'
+        skipCount++
+      }
+    }
+    updateStats()
+    renderTable()
+    alert(`✅ Kiểm tra xong! ${skipCount} SKU đã tồn tại → đánh dấu bỏ qua.`)
+  } catch(e) {
+    alert('❌ Lỗi: ' + e.message)
+  }
+}
+
+// ── IMPORT ───────────────────────────────────────────────────────────
+async function startImport() {
+  const api = document.getElementById('apiUrl').value.trim()
+  if (!api) { alert('Nhập API URL trước!'); return }
+
+  const toImport = allProducts.filter(p => p.status === 'wait')
+  if (!toImport.length) { alert('Không có SKU nào cần import!'); return }
+  
+  if (!confirm(`Import ${toImport.length} SKU vào hệ thống?`)) return
+
+  document.getElementById('progressWrap').style.display = ''
+  document.getElementById('importBtn').disabled = true
+  
+  let done = 0, ok = 0, err = 0
+  for (const p of toImport) {
+    try {
+      const res = await fetch(api + '/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: p.sku,
+          product_name: p.product_name,
+          cost_invoice: 0,
+          cost_real: 0,
+          image_url: p.image_url
+        })
+      })
+      if (res.ok) { p.status = 'ok'; ok++ }
+      else { p.status = 'err'; p.error = 'HTTP ' + res.status; err++ }
+    } catch(e) {
+      p.status = 'err'; p.error = e.message; err++
+    }
+    done++
+    const pct = Math.round(done / toImport.length * 100)
+    document.getElementById('progressFill').style.width = pct + '%'
+    document.getElementById('progressLog').textContent = 
+      `${done}/${toImport.length} — ✅ ${ok} thành công, ❌ ${err} lỗi`
+    
+    if (done % 5 === 0) { updateStats(); renderTable() }
+    await new Promise(r => setTimeout(r, 80)) // throttle
+  }
+
+  updateStats()
+  renderTable()
+  document.getElementById('importBtn').disabled = false
+  document.getElementById('progressLog').textContent = 
+    `✅ Hoàn tất! Import ${ok} SKU thành công, ${err} lỗi.`
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────
+function renderTable() {
+  const filter = document.getElementById('filterStatus').value
+  const kw = document.getElementById('searchInput').value.toLowerCase()
+  
+  const list = allProducts.filter(p => {
+    if (filter && p.status !== filter) return false
+    if (kw && !p.sku.toLowerCase().includes(kw) && !p.product_name.toLowerCase().includes(kw)) return false
+    return true
+  })
+
+  document.getElementById('totalCount').textContent = list.length
+
+  const badgeMap = {
+    wait: '<span class="badge badge-wait">⏳ Chờ</span>',
+    skip: '<span class="badge badge-skip">⏭️ Bỏ qua</span>',
+    ok:   '<span class="badge badge-ok">✅ Xong</span>',
+    err:  '<span class="badge badge-err">❌ Lỗi</span>',
+  }
+
+  document.getElementById('tableBody').innerHTML = list.map((p, i) => `
+    <tr>
+      <td><input type="checkbox" class="row-chk" data-sku="${p.sku}" ${p.status==='wait'?'checked':''}></td>
+      <td>${p.image_url 
+        ? `<img src="${p.image_url}" class="img-thumb" onerror="this.style.display='none'">`
+        : `<div style="width:36px;height:36px;background:#f1f5f9;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:18px">📦</div>`
+      }</td>
+      <td><code style="font-size:11px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
+      <td style="font-size:12px;color:#374151;max-width:320px">${p.product_name}</td>
+      <td>${badgeMap[p.status] || p.status}${p.error ? `<div style="font-size:10px;color:#ef4444">${p.error}</div>` : ''}</td>
+    </tr>`).join('')
+}
+
+function updateStats() {
+  const count = s => allProducts.filter(p => p.status === s).length
+  document.getElementById('s_total').textContent = allProducts.length
+  document.getElementById('s_wait').textContent  = count('wait')
+  document.getElementById('s_skip').textContent  = count('skip')
+  document.getElementById('s_ok').textContent    = count('ok')
+  document.getElementById('s_err').textContent   = count('err')
+}
+
+function toggleAll(checked) {
+  allProducts.forEach(p => { if (p.status === 'wait') p._checked = checked })
+}
+
+function selectAll(v) {
+  document.querySelectorAll('.row-chk').forEach(c => c.checked = v)
+}
+
+function downloadJson() {
+  const data = allProducts.map(({sku, product_name, image_url, cost_invoice, cost_real}) => 
+    ({sku, product_name, image_url, cost_invoice, cost_real}))
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'shopee-sku-import.json'
+  a.click()
+}
+</script>
+</body>
+</html>
