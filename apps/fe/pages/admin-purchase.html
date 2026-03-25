@@ -298,8 +298,43 @@
             this.log = `Đang xử lý ${json.length} dòng dữ liệu...`;
             
             for (const row of json) {
-                // Khớp các cột từ file Excel của Huy vào Database
+                // Hàm phụ để tìm giá trị cột bất kể viết hoa hay viết thường
+                const getVal = (names) => {
+                    for (let name of names) {
+                        if (row[name] !== undefined) return row[name];
+                    }
+                    return null;
+                };
+
                 const newProduct = {
+                    ten_san_pham: getVal(["Tên sản phẩm", "TÊN SẢN PHẨM", "Sản phẩm", "Name"]) || "Không tên",
+                    ma_hang: getVal(["Mã hàng", "SKU", "Mã SP"]) || "",
+                    sl_nhap: parseFloat(getVal(["Số lượng", "SL", "Số lượng nhập"])) || 0,
+                    so_kien: parseFloat(getVal(["Số kiện", "Số thùng"])) || 1,
+                    sl_sp_tren_kien: parseFloat(getVal(["SL SP/Kiện", "Quy cách"])) || 1,
+                    gia_nhap_te: parseFloat(getVal(["Giá tệ", "Đơn giá tệ", "Giá nhập"])) || 0,
+                    gia_khai_thue: parseFloat(getVal(["Giá khai thuế", "Khai báo USD"])) || 0,
+                    ship_noi_dia_te: parseFloat(getVal(["Ship nội địa", "Phí nội địa"])) || 0,
+                    thue_vat_percent: parseFloat(getVal(["VAT%", "Thuế %", "Thuế suất"])) || 10,
+                    kich_thuoc_d: parseFloat(getVal(["Dài", "D"])) || 0,
+                    kich_thuoc_r: parseFloat(getVal(["Rộng", "R"])) || 0,
+                    kich_thuoc_c: parseFloat(getVal(["Cao", "C"])) || 0,
+                    trong_luong_kg: parseFloat(getVal(["KG", "Trọng lượng", "Cân nặng"])) || 0,
+                    cong_dung: getVal(["Công dụng", "Mục đích"]) || "",
+                    chat_lieu: getVal(["Chất liệu", "Thành phần"]) || "",
+                    link_nhap_hang: getVal(["Link", "Link nhập", "URL"]) || "",
+                    ma_van_don: getVal(["Mã vận đơn", "Mã vận chuyển"]) || ""
+                };
+
+                // Chỉ gửi lên nếu có tên sản phẩm hoặc mã hàng
+                if (newProduct.ten_san_pham !== "Không tên" || newProduct.ma_hang !== "") {
+                    await fetch(API_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(newProduct)
+                    });
+                }
+            }
                     ten_san_pham: row["Tên sản phẩm"] || row["TÊN SẢN PHẨM"] || "Không tên",
                     ma_hang: row["Mã hàng"] || row["SKU"] || "",
                     sl_nhap: parseFloat(row["Số lượng"]) || 1,
