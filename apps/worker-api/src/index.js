@@ -63,7 +63,7 @@ export default {
     try {
 		
 	// ── Purchase Orders (Nhập hàng Chính ngạch) ───────────────────
-      if (url.pathname.startsWith("/api/purchase")) {
+      if (url.pathname === "/api/purchase" || url.pathname.startsWith("/api/purchase/")) {
         return handlePurchase(request, env, cors)
       }
 

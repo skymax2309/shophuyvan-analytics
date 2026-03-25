@@ -38,6 +38,8 @@
         <div class="flex gap-3">
             <input type="text" id="searchInput" placeholder="Tìm tên SP, SKU hoặc Mã vận đơn..." 
                    class="bg-[#1a1a1a] border border-[#333] rounded-lg px-4 py-2 w-80 focus:border-[#00CED1] outline-none">
+            <button onclick="document.getElementById('excelInput').click()" class="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg font-bold text-white">📥 IMPORT EXCEL</button>
+            <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="importExcel(this)">
             <button onclick="addNewRow()" class="btn-cyan px-5 py-2 rounded-lg font-bold">✚ THÊM MỚI</button>
         </div>
     </div>
@@ -280,7 +282,55 @@
         updateSelectedCount();
     }
 
-    // 2. Thêm mới một dòng trống
+    // Logic Import từ file Excel "NHẬP HÀNG CHÍNH NGẠCH" của Huy
+    async function importExcel(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+
+            this.log = `Đang xử lý ${json.length} dòng dữ liệu...`;
+            
+            for (const row of json) {
+                // Khớp các cột từ file Excel của Huy vào Database
+                const newProduct = {
+                    ten_san_pham: row["Tên sản phẩm"] || row["TÊN SẢN PHẨM"] || "Không tên",
+                    ma_hang: row["Mã hàng"] || row["SKU"] || "",
+                    sl_nhap: parseFloat(row["Số lượng"]) || 1,
+                    so_kien: parseFloat(row["Số kiện"]) || 1,
+                    sl_sp_tren_kien: parseFloat(row["SL SP/Kiện"]) || 1,
+                    gia_nhap_te: parseFloat(row["Giá tệ"]) || 0,
+                    gia_khai_thue: parseFloat(row["Giá khai thuế"]) || 0,
+                    ship_noi_dia_te: parseFloat(row["Ship nội địa"]) || 0,
+                    thue_vat_percent: parseFloat(row["VAT%"]) || 10,
+                    kich_thuoc_d: parseFloat(row["Dài"]) || 0,
+                    kich_thuoc_r: parseFloat(row["Rộng"]) || 0,
+                    kich_thuoc_c: parseFloat(row["Cao"]) || 0,
+                    trong_luong_kg: parseFloat(row["KG"]) || 0,
+                    cong_dung: row["Công dụng"] || "",
+                    chat_lieu: row["Chất liệu"] || "",
+                    link_nhap_hang: row["Link"] || ""
+                };
+
+                await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(newProduct)
+                });
+            }
+            alert("✅ Đã import thành công dữ liệu từ Excel!");
+            loadData();
+        };
+        reader.readAsArrayBuffer(file);
+        input.value = ""; // Reset input
+    }
+
     async function addNewRow() {
         const newProduct = {
             ten_san_pham: "Sản phẩm mới",
