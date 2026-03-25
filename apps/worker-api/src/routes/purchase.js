@@ -38,7 +38,7 @@ export async function handlePurchase(request, env, cors) {
   if (request.method === "POST") {
     const data = await request.json();
     
-    // Gán giá trị mặc định nếu dữ liệu gửi lên bị thiếu (undefined)
+    // Gán giá trị mặc định để tránh lỗi D1_TYPE_ERROR (undefined)
     const id = data.id || null;
     const ma_van_don = data.ma_van_don || "";
     const image_url = data.image_url || "";
@@ -62,13 +62,15 @@ export async function handlePurchase(request, env, cors) {
     const link_nhap_hang = data.link_nhap_hang || "";
 
     if (id) {
-      // UPDATE - Đã bổ sung các cột mới Huy yêu cầu
+      // ── UPDATE ────────────────────────────────────────────────────
       const sql = `UPDATE purchase_orders SET 
         ma_van_don=?, image_url=?, ten_san_pham=?, ma_hang=?, sl_nhap=?, 
         gia_nhap_te=?, gia_khai_thue=?, cong_dung=?, chat_lieu=?, so_kien=?,
         sl_sp_tren_kien=?, ship_noi_dia_te=?, thue_vat_percent=?,
         kich_thuoc_d=?, kich_thuoc_r=?, kich_thuoc_c=?, trong_luong_kg=?,
-        cach_tinh_vc=?, phi_vanchuyen_thuc=?, link_nhap_hang=? WHERE id=?`;
+        cach_tinh_vc=?, phi_vanchuyen_thuc=?, link_nhap_hang=? 
+        WHERE id=?`;
+        
       await env.DB.prepare(sql).bind(
         ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
         gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
@@ -76,9 +78,10 @@ export async function handlePurchase(request, env, cors) {
         kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
         cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang, id
       ).run();
+      
       return Response.json({ status: "updated" }, { headers: cors });
     } else {
-      // INSERT - Đã bổ sung các cột mới Huy yêu cầu
+      // ── INSERT ────────────────────────────────────────────────────
       const sql = `INSERT INTO purchase_orders (
         ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
         gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
@@ -86,6 +89,7 @@ export async function handlePurchase(request, env, cors) {
         kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
         cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang
       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+      
       await env.DB.prepare(sql).bind(
         ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
         gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
@@ -93,36 +97,7 @@ export async function handlePurchase(request, env, cors) {
         kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
         cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang
       ).run();
-      return Response.json({ status: "created" }, { headers: cors });
-    }
-  }
-      // UPDATE
-      const sql = `UPDATE purchase_orders SET 
-        ma_van_don=?, image_url=?, ten_san_pham=?, ma_hang=?, sl_nhap=?, 
-        gia_nhap_te=?, gia_khai_thue=?, cong_dung=?, chat_lieu=?, so_kien=?,
-        kich_thuoc_d=?, kich_thuoc_r=?, kich_thuoc_c=?, trong_luong_kg=?,
-        cach_tinh_vc=?, phi_vanchuyen_thuc=? WHERE id=?`;
-      await env.DB.prepare(sql).bind(
-        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
-        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
-        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
-        cach_tinh_vc, phi_vanchuyen_thuc, id
-      ).run();
-      return Response.json({ status: "updated" }, { headers: cors });
-    } else {
-      // INSERT
-      const sql = `INSERT INTO purchase_orders (
-        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
-        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
-        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
-        cach_tinh_vc, phi_vanchuyen_thuc
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
-      await env.DB.prepare(sql).bind(
-        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap, 
-        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
-        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
-        cach_tinh_vc, phi_vanchuyen_thuc
-      ).run();
+      
       return Response.json({ status: "created" }, { headers: cors });
     }
   }
@@ -133,4 +108,6 @@ export async function handlePurchase(request, env, cors) {
     await env.DB.prepare("DELETE FROM purchase_orders WHERE id = ?").bind(id).run();
     return Response.json({ status: "deleted" }, { headers: cors });
   }
+
+  return new Response("Method not allowed", { status: 405, headers: cors });
 }
