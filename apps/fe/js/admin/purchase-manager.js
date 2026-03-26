@@ -101,84 +101,78 @@
 
     return `
         <tr data-id="${item.id}" class="text-xs border-b border-[#262626] hover:bg-[#1a1a1a]">
-            <td class="py-1 px-1.5 text-center align-middle"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
-            <td class="py-1 px-1.5 relative group min-w-[60px] align-middle">
+            <td class="py-1 px-1 text-center align-top"><input type="checkbox" class="row-check mt-1.5" onchange="updateSelectedCount()"></td>
+            <td class="py-1 px-1 relative group min-w-[50px] align-top">
                 <label class="cursor-pointer block relative" title="Click để tải ảnh lên">
                     <input type="file" accept="image/*" class="hidden" onchange="uploadInlineImage(event, ${item.id})">
                     <img src="${item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect width=%2240%22 height=%2240%22 fill=%22%23334155%22/><text x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>📦</text></svg>'}" 
-                         class="w-12 h-12 object-cover rounded border border-[#333] group-hover:opacity-50 transition mx-auto">
+                         class="w-10 h-10 object-cover rounded border border-[#333] group-hover:opacity-50 transition mx-auto">
                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[9px] font-bold text-white pointer-events-none">Sửa</div>
                 </label>
             </td>
-            <td class="py-1 px-1.5 text-left min-w-[200px] align-middle">
-                <div class="editable font-bold text-[#00CED1] whitespace-normal max-h-12 overflow-y-auto" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</div>
-                <div class="text-[9px] text-gray-500 mt-1 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
+            <td class="py-1 px-1 text-left max-w-[180px] align-top">
+                <div class="editable font-bold text-[#00CED1] line-clamp-2 leading-tight" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)" title="${item.ten_san_pham}">${item.ten_san_pham}</div>
+                <div class="text-[9px] text-gray-500 mt-0.5 editable truncate" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
             </td>
-            <td class="py-1 px-1.5 text-center editable text-yellow-500 align-middle" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
+            <td class="py-1 px-1 text-center editable text-yellow-500 align-top" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
             
-            <td class="py-1 px-1.5 text-center editable font-bold text-[#00FF88] align-middle" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${slNhap}</td>
-            <td class="py-1 px-1.5 text-center align-middle">
+            <td class="py-1 px-1 text-center editable font-bold text-[#00FF88] align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${slNhap}</td>
+            <td class="py-1 px-1 text-center align-top">
                 <div class="editable font-bold text-yellow-300" contenteditable="true" onblur="updateNumField(${item.id}, 'so_kien', this.innerText)">${parseFloat(soKienCalculated.toFixed(2))}</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">${slNhap} / ${slSpTrenKien} = <span class="text-white">${parseFloat(soKienCalculated.toFixed(2))}</span></div>
+                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">${slNhap}/${slSpTrenKien}=<span class="text-white">${parseFloat(soKienCalculated.toFixed(2))}</span></div>
             </td>
-            <td class="py-1 px-1.5 text-center editable text-blue-400 align-middle" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_sp_tren_kien', this.innerText)">${slSpTrenKien}</td>
-            <td class="py-1 px-1.5 text-center align-middle">
+            <td class="py-1 px-1 text-center editable text-blue-400 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_sp_tren_kien', this.innerText)">${slSpTrenKien}</td>
+            <td class="py-1 px-1 text-center align-top">
                 <div class="editable text-orange-400 font-bold" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_nhap_te', this.innerText)">${giaNhapTe}</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">¥${giaNhapTe} x ${tiGiaTe} = <span class="text-white">${(giaNhapTe * tiGiaTe).toLocaleString()}đ</span></div>
+                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">¥${giaNhapTe}x${tiGiaTe}</div>
             </td>
             
-            <td class="py-1 px-1.5 text-center editable text-pink-400 align-middle" contenteditable="true" onblur="updateNumField(${item.id}, 'ship_noi_dia_te', this.innerText)">${shipNoiDiaTe}</td>
+            <td class="py-1 px-1 text-center editable text-pink-400 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'ship_noi_dia_te', this.innerText)">${shipNoiDiaTe}</td>
             
-            <td class="py-1 px-1.5 text-center editable text-gray-300 align-middle" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_khai_thue', this.innerText)">${giaKhaiThue}</td>
-            <td class="py-1 px-1.5 text-center editable text-red-400 align-middle" contenteditable="true" onblur="updateNumField(${item.id}, 'thue_vat_percent', this.innerText)">${phanTramThue}</td>
-            <td class="py-1 px-1.5 text-center align-middle">
-                <div class="font-bold text-red-500">${Math.round(tienThueVnd).toLocaleString()}đ</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">${phanTramThue}% x ${giaKhaiThue} x ${slNhap}</div>
+            <td class="py-1 px-1 text-center editable text-gray-300 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_khai_thue', this.innerText)">${giaKhaiThue}</td>
+            <td class="py-1 px-1 text-center editable text-red-400 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'thue_vat_percent', this.innerText)">${phanTramThue}</td>
+            <td class="py-1 px-1 text-center align-top">
+                <div class="font-bold text-red-500">${Math.round(tienThueVnd).toLocaleString()}</div>
+                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">${phanTramThue}%x${giaKhaiThue}x${slNhap}</div>
             </td>
 
-            <td class="py-1 px-1.5 text-center whitespace-nowrap text-[10px] align-middle">
-                <span class="editable px-0.5" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span>x
-                <span class="editable px-0.5" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span>x
-                <span class="editable px-0.5" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
-                <div class="text-[8px] text-gray-400 mt-0.5" title="((D*R*C)/1000000) x Số Kiện">
-                    (V/10⁶) x ${parseFloat(soKienCalculated.toFixed(2))}k = <span class="text-[#00CED1]">${((item.kich_thuoc_d * item.kich_thuoc_r * item.kich_thuoc_c / 1000000) * soKienCalculated).toFixed(4)}m³</span>
+            <td class="py-1 px-1 text-center whitespace-nowrap text-[9px] align-top">
+                <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
+                <div class="text-[8px] text-gray-400 mt-0.5">
+                    <span class="text-[#00CED1]">${((item.kich_thuoc_d * item.kich_thuoc_r * item.kich_thuoc_c / 1000000) * soKienCalculated).toFixed(4)}m³</span>
                 </div>
             </td>
-            <td class="py-1 px-1.5 text-center align-middle">
+            <td class="py-1 px-1 text-center align-top">
                 <div class="editable font-bold text-gray-300" contenteditable="true" onblur="updateNumField(${item.id}, 'trong_luong_kg', this.innerText)">${item.trong_luong_kg}</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap" title="KG/Kiện x Số Kiện">
-                    ${item.trong_luong_kg} x ${parseFloat(soKienCalculated.toFixed(2))} = <span class="text-[#FFA500]">${(item.trong_luong_kg * soKienCalculated).toFixed(2)}kg</span>
+                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">
+                    <span class="text-[#FFA500]">${(item.trong_luong_kg * soKienCalculated).toFixed(2)}kg</span>
                 </div>
             </td>
             
-            <td class="py-1 px-1.5 text-[10px] text-left max-w-[100px] truncate align-middle">
+            <td class="py-1 px-1 text-[9px] text-left max-w-[80px] align-top">
                 <div class="truncate" title="${item.cong_dung || ''}">CD: <span class="editable text-white" contenteditable="true" onblur="updateField(${item.id}, 'cong_dung', this.innerText)">${item.cong_dung || '...'}</span></div>
                 <div class="truncate" title="${item.chat_lieu || ''}">CL: <span class="editable text-white" contenteditable="true" onblur="updateField(${item.id}, 'chat_lieu', this.innerText)">${item.chat_lieu || '...'}</span></div>
             </td>
             
-            <td class="py-1 px-1.5 text-center align-middle">
+            <td class="py-1 px-1 text-center align-top">
                 <a href="${item.link_nhap_hang || '#'}" target="_blank" class="text-blue-400 hover:underline text-[9px] block mb-0.5">Mở Link</a>
-                <button onclick="updateLink(${item.id})" class="text-[9px] bg-[#333] px-1.5 py-0.5 rounded text-gray-400">Sửa</button>
+                <button onclick="updateLink(${item.id})" class="text-[9px] bg-[#333] px-1 py-0.5 rounded text-gray-400">Sửa</button>
             </td>
             
-            <td class="py-1 px-1.5 text-center align-middle">
+            <td class="py-1 px-1 text-center align-top">
                 <div class="font-bold">${Math.round(shipVatTu.cost).toLocaleString()}đ</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 mb-0.5 whitespace-nowrap">${shipVatTu.formula}</div>
-                <span class="${shipVatTu.badge} text-[8px]">${shipVatTu.label}</span>
+                <span class="${shipVatTu.badge} text-[8px] mt-0.5 block mx-auto w-fit">${shipVatTu.label}</span>
             </td>
             
-            <td class="py-1 px-1.5 text-center align-middle">
-                <div class="font-bold text-[#00FF88] text-sm">${Math.round(giaVon1Sp).toLocaleString()}đ</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap" title="(Tiền Hàng + Ship NĐ + Thuế + Phí VC) / SL">
-                    (${Math.round(tongTienHangVnd/1000)}k+${Math.round(tienShipNoiDiaVnd/1000)}k+${Math.round(tienThueVnd/1000)}k+${Math.round(shipVatTu.cost/1000)}k)/${slNhap}
-                </div>
+            <td class="py-1 px-1 text-center align-top">
+                <div class="font-bold text-[#00FF88] text-xs">${Math.round(giaVon1Sp).toLocaleString()}đ</div>
             </td>
-            
-            <td class="py-1 px-1.5 text-center align-middle">
-                <button onclick="deleteRow(${item.id})" class="text-red-500 opacity-50 hover:opacity-100 p-1">🗑</button>
-            </td>
-        </tr>
-    `;
+            
+            <td class="py-1 px-1 text-center align-top">
+                <button onclick="deleteRow(${item.id})" class="text-red-500 opacity-50 hover:opacity-100 p-1 mt-1">🗑</button>
+            </td>
+        </tr>
+    `;
 } // <-- MÌNH BỔ SUNG DẤU ĐÓNG HÀM BỊ THIẾU Ở ĐÂY
 
     // 3. Logic Xuất file PDF/Excel (9 cột đầy đủ)
