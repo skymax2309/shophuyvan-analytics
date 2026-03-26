@@ -370,21 +370,46 @@ async function deleteSelected() {
 }
 
     async function addNewRow() {
+        // 1. Khai báo đầy đủ toàn bộ 20 trường dữ liệu để Database không bị lỗi thiếu trường (undefined)
         const newProduct = {
             ten_san_pham: "Sản phẩm mới",
+            ma_van_don: "",
+            ma_hang: "",
             sl_nhap: 1,
             gia_nhap_te: 0,
-            kich_thuoc_d: 0, kich_thuoc_r: 0, kich_thuoc_c: 0,
-            trong_luong_kg: 0
+            gia_khai_thue: 0,
+            ship_noi_dia_te: 0,
+            so_kien: 1,
+            sl_sp_tren_kien: 1,
+            thue_vat_percent: 10,
+            trong_luong_kg: 0,
+            kich_thuoc_d: 0,
+            kich_thuoc_r: 0,
+            kich_thuoc_c: 0,
+            cong_dung: "",
+            chat_lieu: "",
+            link_nhap_hang: "",
+            image_url: "",
+            cach_tinh_vc: "TÍNH KG",
+            phi_vanchuyen_thuc: 0
         };
 
         try {
+            // 2. Delay 300ms để đảm bảo thao tác gõ chữ ở dòng cũ kịp lưu xong vào Database trước khi thêm mới
+            await new Promise(resolve => setTimeout(resolve, 300));
+
             const res = await fetch(API_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(newProduct)
             });
-            if (res.ok) loadData(); // Tải lại bảng sau khi thêm
+            
+            if (res.ok) {
+                // 3. Xóa ô tìm kiếm để đảm bảo "Sản phẩm mới" hiện ra mà không bị bộ lọc giấu đi
+                document.getElementById('searchInput').value = ""; 
+                // 4. Delay thêm 300ms đợi Server xử lý dứt điểm rồi mới tải lại giao diện
+                setTimeout(() => loadData(), 300);
+            }
         } catch (e) {
             alert("Lỗi khi thêm sản phẩm mới");
         }
