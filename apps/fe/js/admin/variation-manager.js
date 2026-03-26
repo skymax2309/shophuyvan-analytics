@@ -1,24 +1,43 @@
 // ── VARIATION MANAGER (QUẢN LÝ MAP SKU ĐA SÀN) ──────────────────
 let allVariations = [];
 
-// 1. TẢI DỮ LIỆU & RÚT TRÍCH DANH SÁCH SHOP
+// 1. TẢI DỮ LIỆU & RÚT TRÍCH DANH SÁCH SÀN/SHOP
 async function loadVariations() {
   document.getElementById('variationsTable').innerHTML = '<p style="text-align:center;color:#888;padding:40px">⏳ Đang tải dữ liệu đa sàn...</p>';
   try {
     allVariations = await fetch(API + '/api/sync-variations').then(r => r.json());
     
-    // Tự động rút trích danh sách các Shop đang có để đưa vào Bộ Lọc
-    const uniqueShops = [...new Set(allVariations.map(v => v.shop).filter(Boolean))];
-    const shopSelect = document.getElementById('var_filter_shop');
-    const currentShop = shopSelect.value;
-    shopSelect.innerHTML = '<option value="">🛒 Tất cả Shop</option>' + 
-                           uniqueShops.map(s => `<option value="${s}">${s}</option>`).join('');
-    shopSelect.value = currentShop; // Giữ lại shop đang chọn nếu có
-
+    updateShopDropdown(); // Gọi hàm cập nhật danh sách Shop
     renderVariations();
     updateUnmappedBadge();
   } catch(e) {
     document.getElementById('variationsTable').innerHTML = `<p style="color:#ef4444;padding:20px">❌ Lỗi kết nối: ${e.message}</p>`;
+  }
+}
+
+// HÀM MỚI: Cập nhật danh sách Shop dựa theo Sàn đang chọn
+window.updateShopDropdown = function() {
+  const platformFilter = document.getElementById('var_filter_platform').value;
+  
+  // Lọc ra các shop thuộc sàn đã chọn (hoặc lấy tất cả nếu không chọn sàn)
+  const filteredShops = allVariations
+    .filter(v => !platformFilter || v.platform === platformFilter)
+    .map(v => v.shop)
+    .filter(Boolean);
+    
+  const uniqueShops = [...new Set(filteredShops)];
+  
+  const shopSelect = document.getElementById('var_filter_shop');
+  const currentShop = shopSelect.value;
+  
+  shopSelect.innerHTML = '<option value="">🛒 Tất cả Shop</option>' + 
+                         uniqueShops.map(s => `<option value="${s}">${s}</option>`).join('');
+  
+  // Giữ lại shop đang chọn nếu nó vẫn hợp lệ
+  if (uniqueShops.includes(currentShop)) {
+      shopSelect.value = currentShop;
+  } else {
+      shopSelect.value = "";
   }
 }
 
@@ -34,6 +53,7 @@ function updateUnmappedBadge() {
 // 2. RENDER BẢNG & BỘ LỌC
 function renderVariations() {
   const kw = (document.getElementById('var_search').value || '').toLowerCase();
+  const platformFilter = document.getElementById('var_filter_platform').value;
   const shopFilter = document.getElementById('var_filter_shop').value;
   const statusFilter = document.getElementById('var_filter_status').value;
 
@@ -42,9 +62,10 @@ function renderVariations() {
                            (v.product_name || '').toLowerCase().includes(kw) || 
                            (v.variation_name || '').toLowerCase().includes(kw) || 
                            (v.internal_sku || '').toLowerCase().includes(kw);
+    const matchPlatform = !platformFilter || v.platform === platformFilter;
     const matchShop = !shopFilter || v.shop === shopFilter;
     const matchStatus = !statusFilter || v.map_status === statusFilter;
-    return matchKw && matchShop && matchStatus;
+    return matchKw && matchPlatform && matchShop && matchStatus;
   });
 
   if (!list.length) {

@@ -28,9 +28,15 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <div class="card-title" style="margin:0">🔗 Variation Đa Sàn & Map SKU</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select id="var_filter_shop" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="renderVariations()">
-            <option value="">🛒 Tất cả Shop</option>
-          </select>
+          <select id="var_filter_platform" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="updateShopDropdown(); renderVariations()">
+                  <option value="">🌐 Tất cả Sàn</option>
+                  <option value="shopee">Shopee</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="lazada">Lazada</option>
+                </select>
+                <select id="var_filter_shop" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="renderVariations()">
+                  <option value="">🛒 Tất cả Shop</option>
+                </select>
           
           <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="renderVariations()">
             <option value="">Trạng thái Map</option>
