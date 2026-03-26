@@ -315,7 +315,7 @@
                 "SL Nhập": i.sl_nhap, "Giá Khai Thuế": i.gia_khai_thue, "Công Dụng": i.cong_dung,
                 "Chất Liệu": i.chat_lieu, 
                 "Số Kiện": parseFloat(((i.sl_nhap || 0) / (i.sl_sp_tren_kien || 1)).toFixed(2)), 
-                "Ảnh": (i.image_url && i.image_url.startsWith('data:image')) ? '[Ảnh đính kèm]' : i.image_url
+                "Link SP": i.link_nhap_hang || ""
             })));
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "ChinhNgach");
