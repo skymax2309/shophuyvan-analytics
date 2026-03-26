@@ -229,13 +229,21 @@ async function handleVariations(request, env, cors) {
       return Response.json({ error: 'Missing id or internal_sku' }, { status: 400, headers: cors })
 
     await env.DB.prepare(`
-      UPDATE product_variations
-      SET internal_sku = ?, mapped_items = ?, map_status = 'MAPPED', updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(internal_sku, mapped_items || '[]', id).run()
+          UPDATE product_variations
+          SET internal_sku = ?, mapped_items = ?, map_status = 'MAPPED', updated_at = datetime('now')
+          WHERE id = ?
+        `).bind(internal_sku, mapped_items || '[]', id).run()
 
-    // Lưu vào sku_alias để dùng cho lần sau
-    const row = await env.DB.prepare(`SELECT platform_sku FROM product_variations WHERE id=?`).bind(id).first()
+        // Đảm bảo bảng sku_alias tồn tại để Database không bị sập (Lỗi 500)
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS sku_alias (
+            platform_sku TEXT PRIMARY KEY,
+            internal_sku TEXT
+          )
+        `).run()
+
+        // Lưu vào sku_alias để dùng cho lần sau
+        const row = await env.DB.prepare(`SELECT platform_sku FROM product_variations WHERE id=?`).bind(id).first()
     if (row?.platform_sku) {
       await env.DB.prepare(`
         INSERT INTO sku_alias (platform_sku, internal_sku)

@@ -234,7 +234,13 @@ async function saveVarMap(id) {
   let first_sku = '';
   
   rows.forEach(row => {
-      const sku = row.querySelector('.map-sku-select').value;
+      let sku = row.querySelector('.map-sku-select').value;
+      
+      // Tự động tách lấy mã SKU chuẩn xác nếu trình duyệt vô tình lấy cả tên sản phẩm
+      if (sku.includes(' — ')) {
+          sku = sku.split(' — ')[0].trim();
+      }
+      
       const qty = parseInt(row.querySelector('.map-qty-input').value) || 1;
       if (sku) {
           mapped_items.push({ sku, qty });
