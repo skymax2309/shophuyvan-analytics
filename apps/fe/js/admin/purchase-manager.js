@@ -179,6 +179,7 @@
             </td>
         </tr>
     `;
+} // <-- MÌNH BỔ SUNG DẤU ĐÓNG HÀM BỊ THIẾU Ở ĐÂY
 
     // 3. Logic Xuất file PDF/Excel (9 cột đầy đủ)
     function exportData(type) {
