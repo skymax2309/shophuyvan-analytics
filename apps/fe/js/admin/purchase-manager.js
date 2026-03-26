@@ -30,6 +30,8 @@
             const res = await fetch(`${API_URL}?search=${encodeURIComponent(search)}`);
             if (res.ok) {
                 purchaseData = await res.json();
+                // Đảo ngược mảng để sản phẩm mới nhất (vừa thêm/nhập) luôn hiện lên dòng đầu tiên
+                purchaseData.sort((a, b) => b.id - a.id);
                 renderTable();
             }
         } catch (e) {
@@ -100,17 +102,18 @@
     return `
         <tr data-id="${item.id}" class="text-xs border-b border-[#262626] hover:bg-[#1a1a1a]">
             <td class="p-1.5 text-center"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
-            <td class="p-1.5 relative group">
+            <td class="p-1.5 relative group min-w-[60px]">
                 <label class="cursor-pointer block relative" title="Click để tải ảnh lên">
                     <input type="file" accept="image/*" class="hidden" onchange="uploadInlineImage(event, ${item.id})">
                     <img src="${item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect width=%2240%22 height=%2240%22 fill=%22%23334155%22/><text x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>📦</text></svg>'}" 
-                         class="w-10 h-10 object-cover rounded border border-[#333] group-hover:opacity-50 transition">
+                         class="w-14 h-14 object-cover rounded border border-[#333] group-hover:opacity-50 transition">
                     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[9px] font-bold text-white pointer-events-none">Sửa</div>
                 </label>
             </td>
-            <td class="p-1.5 text-left max-w-[160px] truncate" title="${item.ten_san_pham}">
-                <div class="editable font-bold text-[#00CED1] truncate" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</div>
-                <div class="text-[9px] text-gray-500 mt-0.5 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
+            <td class="p-1.5 text-left min-w-[200px]">
+                <div class="editable font-bold text-[#00CED1] whitespace-normal" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</div>
+                <div class="text-[9px] text-gray-500 mt-1 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
+            </td>
             </td>
             <td class="p-1.5 text-center editable text-yellow-500" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
             
