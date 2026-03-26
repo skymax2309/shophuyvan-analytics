@@ -2,8 +2,8 @@
 
 ├── shophuyvan-analytics/
     └── .gitignore
-    └── huyvan_auto_-_bản_mới_nhất  - Copy.py
-    └── huyvan_auto_-_bản_mới_nhất .py
+    └── import_purchase.py
+    └── NHẬP HÀNG CHÍNH NGẠCH.xlsx
     └── project_tree_full.txt
     └── schema_huyvan-analytics-db.sql
     └── shv_products_export_2026-03-23.json
@@ -14,6 +14,7 @@
             └── package.json
             └── wrangler.jsonc
             ├── css/
+                └── admin-purchase.css
                 └── admin.css
                 └── dashboard.css
                 └── oms-dashboard.css
@@ -31,7 +32,9 @@
                     └── invoice-manager.js
                     └── main.js
                     └── order-manager.js
+                    └── purchase-manager.js
                     └── sku-manager.js
+                    └── variation-manager.js
                 ├── components/
                     └── ChartRenderer.js
                     └── DateRangePicker.js
@@ -77,8 +80,22 @@
                 ├── utils/
                     └── db.js
                     └── filters.js
+    ├── auto OMS Python/
+        └── config.py
+        └── main.py
+        └── super_export_purchase.py
+        └── utils.py
+        ├── engines/
+            └── lazada_engine.py
+            └── scraper_engine.py
+            └── shopee_engine.py
+            └── tiktok_engine.py
+        ├── parsers/
+            └── lazada_parser.py
+            └── shopee_parser.py
+            └── tiktok_parser.py
     ├── backup/
         └── backup.sql
-    ├── chuyển đổi github/
+    ├── switch github/
         └── profiles.json
         └── switch_env.py

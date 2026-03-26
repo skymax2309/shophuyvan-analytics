@@ -71,6 +71,9 @@ export default {
       if (url.pathname === "/api/products")
         return handleProducts(request, env, cors)
 
+      if (url.pathname === "/api/sync-variations/bulk" && request.method === "DELETE")
+        return handleVariations(request, env, cors)
+
       if (url.pathname === "/api/sync-variations")
         return handleVariations(request, env, cors)
 
