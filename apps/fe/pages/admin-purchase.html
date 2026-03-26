@@ -69,11 +69,13 @@
         <table id="purchaseTable">
             <thead>
                 <tr>
-                    <th class="p-3 text-center"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
-                    <th class="p-3">Ảnh</th>
-                    <th class="p-3 text-left">Thông tin SP</th>
-                    <th class="p-3">SKU</th>
-                    <th class="p-3">Số Kiện</th>
+                    <tr>
+                    <th class="p-3 text-center"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                    <th class="p-3">Ảnh</th>
+                    <th class="p-3 text-left">Thông tin SP</th>
+                    <th class="p-3">SKU</th>
+                    <th class="p-3 text-[#00FF88]">SL Nhập</th>
+                    <th class="p-3">Số Kiện</th>
                     <th class="p-3">SL SP/Kiện</th>
                     <th class="p-3">Giá Tệ (¥)</th>
                     <th class="p-3">Ship Nội Địa (¥)</th> <th class="p-3">Khai Thuế ($)</th>
@@ -192,27 +194,32 @@
     const shipNoiDiaTe = item.ship_noi_dia_te || 0;
     const tongTienHangVnd = (tongSlSp * item.gia_nhap_te + shipNoiDiaTe) * tiGiaTe;
     
-    // 3. Tính Tiền Thuế VAT (Giá khai thuế $ * Tỉ giá USD * % Thuế)
-    const phanTramThue = item.thue_vat_percent || 10;
-    const tienThueVnd = (item.gia_khai_thue || 0) * tiGiaUsd * (phanTramThue / 100);
-    
-    // 4. Tổng Giá Vốn về tay 1 SP = (Tiền hàng VND + Thuế VND + Phí Ship QT) / Tổng SL
-    const giaVon1Sp = tongSlSp > 0 ? (tongTienHangVnd + tienThueVnd + shipVatTu.cost) / tongSlSp : 0;
+    // 3. Tính Tiền Thuế VAT (Giá khai thuế * % Thuế) - Đã bỏ nhân tỉ giá USD theo yêu cầu
+    const phanTramThue = item.thue_vat_percent || 10;
+    const tienThueVnd = (item.gia_khai_thue || 0) * (phanTramThue / 100);
+    
+    // 4. Tổng Giá Vốn về tay 1 SP = (Tiền hàng VND + Thuế VND + Phí Ship QT) / Tổng SL
+    const giaVon1Sp = tongSlSp > 0 ? (tongTienHangVnd + tienThueVnd + shipVatTu.cost) / tongSlSp : 0;
 
-    return `
-        <tr data-id="${item.id}" class="text-sm border-b border-[#262626]">
-            <td class="p-3 text-center"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
-            <td class="p-3">
-                <img src="${item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect width=%2240%22 height=%2240%22 fill=%22%23334155%22/><text x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>📦</text></svg>'}" 
-                     class="w-12 h-12 object-cover rounded border border-[#333]">
-            </td>
-            <td class="p-3 text-left">
-                <div class="editable font-bold text-[#00CED1]" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</div>
-                <div class="text-[10px] text-gray-500 mt-1 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
-            </td>
-            <td class="p-3 text-center editable text-yellow-500" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
-            
-            <td class="p-3 text-center editable font-bold" contenteditable="true" onblur="updateNumField(${item.id}, 'so_kien', this.innerText)">${item.so_kien || 1}</td>
+    return `
+        <tr data-id="${item.id}" class="text-sm border-b border-[#262626]">
+            <td class="p-3 text-center"><input type="checkbox" class="row-check" onchange="updateSelectedCount()"></td>
+            <td class="p-3 relative group">
+                <label class="cursor-pointer block relative" title="Click để tải ảnh lên">
+                    <input type="file" accept="image/*" class="hidden" onchange="uploadInlineImage(event, ${item.id})">
+                    <img src="${item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect width=%2240%22 height=%2240%22 fill=%22%23334155%22/><text x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>📦</text></svg>'}" 
+                         class="w-12 h-12 object-cover rounded border border-[#333] group-hover:opacity-50 transition">
+                    <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[10px] font-bold text-white pointer-events-none">Sửa ảnh</div>
+                </label>
+            </td>
+            <td class="p-3 text-left">
+                <div class="editable font-bold text-[#00CED1]" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham}</div>
+                <div class="text-[10px] text-gray-500 mt-1 editable" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
+            </td>
+            <td class="p-3 text-center editable text-yellow-500" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
+            
+            <td class="p-3 text-center editable font-bold text-[#00FF88]" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${item.sl_nhap || 0}</td>
+            <td class="p-3 text-center editable font-bold" contenteditable="true" onblur="updateNumField(${item.id}, 'so_kien', this.innerText)">${item.so_kien || 1}</td>
             <td class="p-3 text-center editable text-blue-400" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_sp_tren_kien', this.innerText)">${item.sl_sp_tren_kien || 1}</td>
             <td class="p-3 text-center editable text-orange-400" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_nhap_te', this.innerText)">${item.gia_nhap_te}</td>
             
@@ -544,8 +551,19 @@ async function deleteSelected() {
         if (e.key === 'Enter') loadData();
     });
 
-    // Khởi chạy khi trang load xong
-    window.onload = loadData;
+    // Xử lý upload ảnh trực tiếp trên dòng
+    function uploadInlineImage(event, id) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            updateField(id, 'image_url', e.target.result);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // Khởi chạy khi trang load xong
+    window.onload = loadData;
 </script>
 </body>
 </html>
