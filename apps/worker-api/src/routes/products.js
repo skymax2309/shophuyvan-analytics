@@ -127,8 +127,30 @@ async function handleVariations(request, env, cors) {
 
   // POST /api/sync-variations — Bot gửi lên sau khi crawl SP Shopee
   if (request.method === 'POST') {
-    const { variations } = await request.json()
-    if (!variations?.length)
+    const body = await request.json()
+    
+    // Tự động chuyển đổi định dạng từ Bot (products) sang định dạng của API (variations)
+    const variations = body.variations || []
+    if (body.products) {
+      for (const p of body.products) {
+         const p_img = p.images && p.images.length > 0 ? p.images[0] : '';
+         for (const v of (p.variations || [])) {
+            variations.push({
+               platform: body.platform || 'shopee',
+               shop: body.shop || '',
+               platform_item_id: p.item_id,
+               product_name: p.product_name,
+               variation_name: v.variation_name,
+               platform_sku: v.sku,
+               image_url: v.variation_image || p_img,
+               price: v.price,
+               stock: v.stock
+            })
+         }
+      }
+    }
+
+    if (!variations.length)
       return Response.json({ status: 'ok', synced: 0 }, { headers: cors })
 
     // Lấy sku_alias để auto-map
