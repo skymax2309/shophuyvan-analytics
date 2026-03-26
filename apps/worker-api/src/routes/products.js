@@ -242,14 +242,15 @@ async function handleVariations(request, env, cors) {
           )
         `).run()
 
-        // Lưu vào sku_alias để dùng cho lần sau
-        const row = await env.DB.prepare(`SELECT platform_sku FROM product_variations WHERE id=?`).bind(id).first()
+        // Lưu vào sku_alias để dùng cho lần sau (Dùng SELECT -> UPDATE/INSERT để tránh lỗi ON CONFLICT)
+    const row = await env.DB.prepare(`SELECT platform_sku FROM product_variations WHERE id=?`).bind(id).first()
     if (row?.platform_sku) {
-      await env.DB.prepare(`
-        INSERT INTO sku_alias (platform_sku, internal_sku)
-        VALUES (?, ?)
-        ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku
-      `).bind(row.platform_sku, internal_sku).run()
+      const existAlias = await env.DB.prepare(`SELECT platform_sku FROM sku_alias WHERE platform_sku = ?`).bind(row.platform_sku).first()
+      if (existAlias) {
+        await env.DB.prepare(`UPDATE sku_alias SET internal_sku = ? WHERE platform_sku = ?`).bind(internal_sku, row.platform_sku).run()
+      } else {
+        await env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)`).bind(row.platform_sku, internal_sku).run()
+      }
     }
 
     return Response.json({ status: 'ok' }, { headers: cors })
