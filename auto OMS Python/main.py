@@ -46,7 +46,7 @@ class HuyVanApp(ctk.CTk):
         import tkinter.messagebox as messagebox
 
         self.configure(fg_color="#101010")
-        self.minsize(200, 550)  # Kích thước gọn gàng hơn
+        self.minsize(150, 600)  # Kích thước gọn gàng hơn
 
         ctk.CTkLabel(self, text="⚡ AUTO E-COM DATA CENTER",
                      font=("Segoe UI", 24, "bold"),

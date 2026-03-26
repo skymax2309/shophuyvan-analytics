@@ -23,21 +23,28 @@
     <button class="tab-btn" onclick="switchTab('loss')">🔴 Đơn âm tiền</button>
   </div>
 
-  <!-- ══════════ TAB: VARIATIONS ══════════ -->
   <div id="tab-variations" class="tab-pane">
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-        <div class="card-title" style="margin:0">🔗 Variation Shopee & Map SKU nội bộ</div>
+        <div class="card-title" style="margin:0">🔗 Variation Đa Sàn & Map SKU</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="loadVariations()">
-            <option value="">Tất cả</option>
+          <select id="var_filter_shop" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="renderVariations()">
+            <option value="">🛒 Tất cả Shop</option>
+          </select>
+          
+          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="renderVariations()">
+            <option value="">Trạng thái Map</option>
             <option value="UNMAPPED">⚠️ Chưa map</option>
             <option value="MAPPED">✅ Đã map</option>
             <option value="IGNORED">🚫 Bỏ qua</option>
           </select>
-          <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..."
-            oninput="filterVariations()"
+          
+          <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..." oninput="renderVariations()"
             style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:220px">
+          
+          <button id="btnBulkDeleteVar" style="display:none; background:#ef4444; color:white; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:600; cursor:pointer" onclick="bulkDeleteVariations()">
+            🗑️ Xóa (<span id="selectedVarCount">0</span>)
+          </button>
         </div>
       </div>
       <div id="variationsTable">
