@@ -100,83 +100,119 @@
     const giaVon1Sp = slNhap > 0 ? tongChiPhiVnd / slNhap : 0;
 
     return `
-        <tr data-id="${item.id}" class="text-xs border-b border-[#262626] hover:bg-[#1a1a1a]">
-            <td class="py-1 px-1 text-center align-top"><input type="checkbox" class="row-check mt-1.5" onchange="updateSelectedCount()"></td>
-            <td class="py-1 px-1 relative group min-w-[50px] align-top">
-                <label class="cursor-pointer block relative" title="Click để tải ảnh lên">
-                    <input type="file" accept="image/*" class="hidden" onchange="uploadInlineImage(event, ${item.id})">
-                    <img src="${item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect width=%2240%22 height=%2240%22 fill=%22%23334155%22/><text x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>📦</text></svg>'}" 
-                         class="w-10 h-10 object-cover rounded border border-[#333] group-hover:opacity-50 transition mx-auto">
-                    <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[9px] font-bold text-white pointer-events-none">Sửa</div>
-                </label>
-            </td>
-            <td class="py-1 px-1 text-left max-w-[180px] align-top">
-                <div class="editable font-bold text-[#00CED1] line-clamp-2 leading-tight" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)" title="${item.ten_san_pham}">${item.ten_san_pham}</div>
-                <div class="text-[9px] text-gray-500 mt-0.5 editable truncate" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">MVĐ: ${item.ma_van_don || '...'}</div>
-            </td>
-            <td class="py-1 px-1 text-center editable text-yellow-500 align-top" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || ''}</td>
-            
-            <td class="py-1 px-1 text-center editable font-bold text-[#00FF88] align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${slNhap}</td>
-            <td class="py-1 px-1 text-center align-top">
-                <div class="editable font-bold text-yellow-300" contenteditable="true" onblur="updateNumField(${item.id}, 'so_kien', this.innerText)">${parseFloat(soKienCalculated.toFixed(2))}</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">${slNhap}/${slSpTrenKien}=<span class="text-white">${parseFloat(soKienCalculated.toFixed(2))}</span></div>
-            </td>
-            <td class="py-1 px-1 text-center editable text-blue-400 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_sp_tren_kien', this.innerText)">${slSpTrenKien}</td>
-            <td class="py-1 px-1 text-center align-top">
-                <div class="editable text-orange-400 font-bold" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_nhap_te', this.innerText)">${giaNhapTe}</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">¥${giaNhapTe}x${tiGiaTe}</div>
-            </td>
-            
-            <td class="py-1 px-1 text-center editable text-pink-400 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'ship_noi_dia_te', this.innerText)">${shipNoiDiaTe}</td>
-            
-            <td class="py-1 px-1 text-center editable text-gray-300 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_khai_thue', this.innerText)">${giaKhaiThue}</td>
-            <td class="py-1 px-1 text-center editable text-red-400 align-top" contenteditable="true" onblur="updateNumField(${item.id}, 'thue_vat_percent', this.innerText)">${phanTramThue}</td>
-            <td class="py-1 px-1 text-center align-top">
-                <div class="font-bold text-red-500">${Math.round(tienThueVnd).toLocaleString()}</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">${phanTramThue}%x${giaKhaiThue}x${slNhap}</div>
-            </td>
-
-            <td class="py-1 px-1 text-center whitespace-nowrap text-[9px] align-top text-purple-400">
-                <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_d', this.innerText)">${item.kich_thuoc_sp_d || 0}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_r', this.innerText)">${item.kich_thuoc_sp_r || 0}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_c', this.innerText)">${item.kich_thuoc_sp_c || 0}</span>
-                <div class="text-[8px] text-gray-500 mt-0.5">mm</div>
+        <tr data-id="${item.id}" class="text-xs border-b border-[#262626] hover:bg-[#151515] transition align-top">
+            <td class="p-4 text-center align-middle">
+                <input type="checkbox" class="row-check" onchange="updateSelectedCount()">
             </td>
-            <td class="py-1 px-1 text-center whitespace-nowrap text-[9px] align-top">
-                <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
-                <div class="text-[8px] text-gray-400 mt-0.5">
-                    <span class="text-[#00CED1]">${((item.kich_thuoc_d * item.kich_thuoc_r * item.kich_thuoc_c / 1000000) * soKienCalculated).toFixed(4)}m³</span>
-                </div>
-            </td>
-            <td class="py-1 px-1 text-center align-top">
-                <div class="editable font-bold text-gray-300" contenteditable="true" onblur="updateNumField(${item.id}, 'trong_luong_kg', this.innerText)">${item.trong_luong_kg}</div>
-                <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">
-                    <span class="text-[#FFA500]">${(item.trong_luong_kg * soKienCalculated).toFixed(2)}kg</span>
-                </div>
-            </td>
-            
-            <td class="py-1 px-1 text-[9px] text-left max-w-[80px] align-top">
-                <div class="truncate" title="${item.cong_dung || ''}">CD: <span class="editable text-white" contenteditable="true" onblur="updateField(${item.id}, 'cong_dung', this.innerText)">${item.cong_dung || '...'}</span></div>
-                <div class="truncate" title="${item.chat_lieu || ''}">CL: <span class="editable text-white" contenteditable="true" onblur="updateField(${item.id}, 'chat_lieu', this.innerText)">${item.chat_lieu || '...'}</span></div>
-            </td>
-            
-            <td class="py-1 px-1 text-center align-top">
-                <a href="${item.link_nhap_hang || '#'}" target="_blank" class="text-blue-400 hover:underline text-[9px] block mb-0.5">Mở Link</a>
-                <button onclick="updateLink(${item.id})" class="text-[9px] bg-[#333] px-1 py-0.5 rounded text-gray-400">Sửa</button>
-            </td>
-            
-            <td class="py-1 px-1 text-center align-top">
-                <div class="font-bold">${Math.round(shipVatTu.cost).toLocaleString()}đ</div>
-                <span class="${shipVatTu.badge} text-[8px] mt-0.5 block mx-auto w-fit">${shipVatTu.label}</span>
-            </td>
-            
-            <td class="py-1 px-1 text-center align-top">
-                <div class="font-bold text-[#00FF88] text-xs">${Math.round(giaVon1Sp).toLocaleString()}đ</div>
-            </td>
-            
-            <td class="py-1 px-1 text-center align-top">
-                <button onclick="deleteRow(${item.id})" class="text-red-500 opacity-50 hover:opacity-100 p-1 mt-1">🗑</button>
-            </td>
-        </tr>
-    `;
+
+            <td class="p-4">
+                <div class="flex gap-4">
+                    <label class="cursor-pointer shrink-0 relative group" title="Click đổi ảnh">
+                        <input type="file" accept="image/*" class="hidden" onchange="uploadInlineImage(event, ${item.id})">
+                        <img src="${item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><rect width=%2240%22 height=%2240%22 fill=%22%23334155%22/><text x=%2250%25%22 y=%2255%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2218%22>📦</text></svg>'}" class="w-20 h-20 object-cover rounded border border-[#444] group-hover:opacity-50 transition">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 text-[10px] font-bold text-white pointer-events-none bg-black/50 rounded">Sửa</div>
+                    </label>
+                    <div class="flex flex-col gap-1 w-full">
+                        <div class="editable font-bold text-[#00CED1] text-sm leading-relaxed whitespace-pre-wrap" contenteditable="true" onblur="updateField(${item.id}, 'ten_san_pham', this.innerText)">${item.ten_san_pham || 'Nhập tên SP...'}</div>
+                        <div class="flex flex-wrap items-center gap-3 text-[11px] text-gray-400 mt-1">
+                            <span>MVĐ: <span class="editable text-white bg-[#222] px-1 rounded" contenteditable="true" onblur="updateField(${item.id}, 'ma_van_don', this.innerText)">${item.ma_van_don || '...'}</span></span>
+                            <span>SKU: <span class="editable text-yellow-500 bg-[#222] px-1 rounded" contenteditable="true" onblur="updateField(${item.id}, 'ma_hang', this.innerText)">${item.ma_hang || '...'}</span></span>
+                            <a href="${item.link_nhap_hang || '#'}" target="_blank" class="text-blue-400 hover:underline">🔗 Mở Link</a>
+                            <button onclick="updateLink(${item.id})" class="text-[9px] bg-[#333] hover:bg-[#444] px-1.5 py-0.5 rounded text-white transition">Sửa Link</button>
+                        </div>
+                        <div class="flex flex-col gap-1 text-[11px] mt-2 text-gray-300">
+                            <div><span class="text-gray-500">C.Dụng:</span> <span class="editable" contenteditable="true" onblur="updateField(${item.id}, 'cong_dung', this.innerText)">${item.cong_dung || '...'}</span></div>
+                            <div><span class="text-gray-500">C.Liệu:</span> <span class="editable" contenteditable="true" onblur="updateField(${item.id}, 'chat_lieu', this.innerText)">${item.chat_lieu || '...'}</span></div>
+                        </div>
+                    </div>
+                </div>
+            </td>
+
+            <td class="p-4 text-center">
+                <div class="flex flex-col gap-1.5 items-center">
+                    <div class="bg-[#1a1a1a] px-2 py-1.5 rounded w-full border border-[#333]">
+                        <div class="text-[9px] text-gray-500 uppercase">SL Nhập</div>
+                        <div class="editable font-bold text-[#00FF88] text-sm" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${slNhap}</div>
+                    </div>
+                    <div class="bg-[#1a1a1a] px-2 py-1.5 rounded w-full border border-[#333]">
+                        <div class="text-[9px] text-gray-500 uppercase">SP / Kiện</div>
+                        <div class="editable text-blue-400 font-bold" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_sp_tren_kien', this.innerText)">${slSpTrenKien}</div>
+                    </div>
+                    <div class="text-xs text-yellow-300 font-bold mt-1">📦 ${parseFloat(soKienCalculated.toFixed(2))} Kiện</div>
+                </div>
+            </td>
+
+            <td class="p-4 text-center">
+                <div class="flex flex-col gap-3">
+                    <div>
+                        <div class="text-[10px] text-purple-400 mb-1">KT Sản Phẩm (mm)</div>
+                        <div class="text-xs bg-[#1a1a1a] border border-[#333] rounded px-1.5 py-1 inline-block">
+                            <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_d', this.innerText)">${item.kich_thuoc_sp_d || 0}</span> x 
+                            <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_r', this.innerText)">${item.kich_thuoc_sp_r || 0}</span> x 
+                            <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_c', this.innerText)">${item.kich_thuoc_sp_c || 0}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-[#00CED1] mb-1">KT Kiện (cm)</div>
+                        <div class="text-xs bg-[#1a1a1a] border border-[#333] rounded px-1.5 py-1 inline-block">
+                            <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span> x 
+                            <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span> x 
+                            <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 mt-1">${((item.kich_thuoc_d * item.kich_thuoc_r * item.kich_thuoc_c / 1000000) * soKienCalculated).toFixed(4)} m³</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-[#FFA500] mb-1">Trọng Lượng (kg/Kiện)</div>
+                        <div class="editable font-bold text-gray-300 bg-[#1a1a1a] border border-[#333] rounded px-2 py-1 inline-block text-xs" contenteditable="true" onblur="updateNumField(${item.id}, 'trong_luong_kg', this.innerText)">${item.trong_luong_kg}</div>
+                        <div class="text-[10px] text-gray-500 mt-1">Tổng: ${(item.trong_luong_kg * soKienCalculated).toFixed(2)} kg</div>
+                    </div>
+                </div>
+            </td>
+
+            <td class="p-4 text-right">
+                <div class="flex flex-col gap-2 text-xs">
+                    <div class="flex justify-between border-b border-[#333] pb-1.5">
+                        <span class="text-gray-500">Giá Tệ (¥):</span>
+                        <span class="editable text-orange-400 font-bold ml-2 bg-[#1a1a1a] px-1 rounded" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_nhap_te', this.innerText)">${giaNhapTe}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-[#333] pb-1.5">
+                        <span class="text-gray-500">Ship NĐ (¥):</span>
+                        <span class="editable text-pink-400 font-bold ml-2 bg-[#1a1a1a] px-1 rounded" contenteditable="true" onblur="updateNumField(${item.id}, 'ship_noi_dia_te', this.innerText)">${shipNoiDiaTe}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-[#333] pb-1.5">
+                        <span class="text-gray-500">Khai Thuế ($):</span>
+                        <span class="editable text-gray-300 font-bold ml-2 bg-[#1a1a1a] px-1 rounded" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_khai_thue', this.innerText)">${giaKhaiThue}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-[#333] pb-1.5">
+                        <span class="text-gray-500">Thuế VAT (%):</span>
+                        <span class="editable text-red-400 font-bold ml-2 bg-[#1a1a1a] px-1 rounded" contenteditable="true" onblur="updateNumField(${item.id}, 'thue_vat_percent', this.innerText)">${phanTramThue}</span>
+                    </div>
+                    <div class="flex justify-between pt-1">
+                        <span class="text-red-500 font-bold">Tổng Thuế:</span>
+                        <span class="text-red-500 font-bold">${Math.round(tienThueVnd).toLocaleString()}đ</span>
+                    </div>
+                </div>
+            </td>
+
+            <td class="p-4 text-right">
+                <div class="flex flex-col gap-3 h-full justify-center">
+                    <div class="bg-[#1a1a1a] p-3 rounded-lg border border-[#333]">
+                        <div class="text-[10px] text-gray-400 uppercase mb-1">Phí Vận Chuyển</div>
+                        <div class="font-bold text-lg">${Math.round(shipVatTu.cost).toLocaleString()}đ</div>
+                        <div class="mt-1.5"><span class="${shipVatTu.badge} px-2 py-1 rounded text-[9px] shadow-sm">${shipVatTu.label}</span></div>
+                    </div>
+                    <div class="bg-gradient-to-br from-[#003322] to-[#001a11] p-3 rounded-lg border border-[#00FF88] shadow-[0_0_10px_rgba(0,255,136,0.1)]">
+                        <div class="text-[10px] text-[#00FF88] uppercase mb-1">Giá Vốn 1 SP</div>
+                        <div class="font-bold text-[#00FF88] text-xl">${Math.round(giaVon1Sp).toLocaleString()}đ</div>
+                    </div>
+                </div>
+            </td>
+
+            <td class="p-4 text-center align-middle">
+                <button onclick="deleteRow(${item.id})" class="text-red-500 bg-red-500/10 hover:bg-red-500/30 p-2.5 rounded-lg transition" title="Xóa sản phẩm này">🗑️</button>
+            </td>
+        </tr>
+    `;
 } // <-- MÌNH BỔ SUNG DẤU ĐÓNG HÀM BỊ THIẾU Ở ĐÂY
 
     // 3. Logic Xuất file PDF/Excel (9 cột đầy đủ)

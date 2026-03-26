@@ -54,27 +54,14 @@
     <div class="glass-card overflow-x-auto max-h-[700px]">
         <table id="purchaseTable">
             <thead>
-                <tr class="text-[11px] whitespace-nowrap">
-                    <th class="p-2 text-center"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
-                    <th class="p-2">Ảnh</th>
-                    <th class="p-2 text-left">Thông tin SP</th>
-                    <th class="p-2">SKU</th>
-                    <th class="p-2 text-[#00FF88]">SL Nhập</th>
-                    <th class="p-2">Số Kiện</th>
-                    <th class="p-2">SL SP/Kiện</th>
-                    <th class="p-2">Giá Tệ (¥)</th>
-                    <th class="p-2">Ship Nội Địa (¥)</th>
-                    <th class="p-2">Khai Thuế ($)</th>
-                    <th class="p-2">Thuế VAT (%)</th>
-                    <th class="p-2">Tiền Thuế (VNĐ)</th>
-                    <th class="p-2 text-purple-400">Kích Thước SP (mm)</th>
-                    <th class="p-2 text-[#00CED1]">Kích Thước Kiện (cm)</th>
-                    <th class="p-2 text-[#FFA500]">Trọng Lượng Kiện (KG)</th>
-                    <th class="p-2">Công dụng & Chất liệu</th>
-                    <th class="p-2">Link Nhập</th>
-                    <th class="p-2">Phí Vận Chuyển</th>
-                    <th class="p-2">Giá Vốn</th>
-                    <th class="p-2">Thao tác</th>
+                <tr class="text-[11px] uppercase text-gray-400 bg-[#1f1f1f] sticky top-0 z-20 shadow-md">
+                    <th class="p-4 text-center w-10"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                    <th class="p-4 text-left min-w-[300px]">Sản Phẩm & Phân Loại</th>
+                    <th class="p-4 text-center w-32">Số Lượng</th>
+                    <th class="p-4 text-center min-w-[150px]">Kích Thước & Cân Nặng</th>
+                    <th class="p-4 text-right w-48">Chi Phí TQ & Thuế</th>
+                    <th class="p-4 text-right w-40">Tổng Phí & Giá Vốn</th>
+                    <th class="p-4 text-center w-16">Xóa</th>
                 </tr>
             </thead>
             <tbody id="purchaseBody">
