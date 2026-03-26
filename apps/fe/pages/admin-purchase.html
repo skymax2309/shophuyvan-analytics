@@ -211,10 +211,10 @@
     const tongTienHangVnd = slNhap * giaNhapTe * tiGiaTe; // Tổng tệ * tỉ giá
     const tienShipNoiDiaVnd = shipNoiDiaTe * tiGiaTe;
     
-    // 3. Tính Tiền Thuế VAT (Giá khai thuế * % Thuế)
+// 3. Tính Tiền Thuế VAT (Giá khai thuế * % Thuế * SL Nhập)
     const phanTramThue = item.thue_vat_percent || 10;
     const giaKhaiThue = item.gia_khai_thue || 0;
-    const tienThueVnd = giaKhaiThue * (phanTramThue / 100);
+    const tienThueVnd = giaKhaiThue * (phanTramThue / 100) * slNhap;
     
     // 4. Tổng Giá Vốn về tay 1 SP = (Hàng + Ship NĐ + Thuế + Phí VC) / SL Nhập
     const tongChiPhiVnd = tongTienHangVnd + tienShipNoiDiaVnd + tienThueVnd + shipVatTu.cost;
@@ -253,8 +253,8 @@
             <td class="p-3 text-center editable text-gray-300" contenteditable="true" onblur="updateNumField(${item.id}, 'gia_khai_thue', this.innerText)">${giaKhaiThue}</td>
             <td class="p-3 text-center editable text-red-400" contenteditable="true" onblur="updateNumField(${item.id}, 'thue_vat_percent', this.innerText)">${phanTramThue}</td>
             <td class="p-3 text-center">
-                <div class="font-bold text-red-500">${Math.round(tienThueVnd).toLocaleString()}</div>
-                <div class="text-[9px] text-gray-400 mt-1 whitespace-nowrap">${phanTramThue}% x ${giaKhaiThue}</div>
+                <div class="font-bold text-red-500">${Math.round(tienThueVnd).toLocaleString()}đ</div>
+                <div class="text-[9px] text-gray-400 mt-1 whitespace-nowrap">${phanTramThue}% x ${giaKhaiThue} x ${slNhap}</div>
             </td>
 
             <td class="p-3 text-center whitespace-nowrap">
@@ -537,10 +537,19 @@ async function deleteSelected() {
     }
 
     // Hàm hỗ trợ cập nhật số
-    function updateNumField(id, field, value) {
-        const num = parseFloat(value.replace(/,/g, '')) || 0;
-        updateField(id, field, num);
-    }
+    function updateNumField(id, field, value) {
+        const num = parseFloat(value.replace(/,/g, '')) || 0;
+        updateField(id, field, num);
+    }
+
+    // Hàm cập nhật Link Nhập Hàng
+    function updateLink(id) {
+        const currentLink = purchaseData.find(i => i.id === id)?.link_nhap_hang || "";
+        const newLink = prompt("Nhập link sản phẩm mới:", currentLink);
+        if (newLink !== null) {
+            updateField(id, 'link_nhap_hang', newLink);
+        }
+    }
 
     // 4. Xóa dòng
     async function deleteRow(id) {
