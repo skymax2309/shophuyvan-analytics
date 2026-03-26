@@ -239,7 +239,7 @@
             
             <td class="p-3 text-center editable font-bold text-[#00FF88]" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_nhap', this.innerText)">${slNhap}</td>
             <td class="p-3 text-center">
-                <div class="editable font-bold" contenteditable="true" onblur="updateNumField(${item.id}, 'so_kien', this.innerText)">${item.so_kien || 1}</div>
+                <div class="editable font-bold text-yellow-300" contenteditable="true" onblur="updateNumField(${item.id}, 'so_kien', this.innerText)">${parseFloat(soKienCalculated.toFixed(2))}</div>
                 <div class="text-[9px] text-gray-400 mt-1 whitespace-nowrap">${slNhap} / ${slSpTrenKien} = <span class="text-white">${parseFloat(soKienCalculated.toFixed(2))}</span></div>
             </td>
             <td class="p-3 text-center editable text-blue-400" contenteditable="true" onblur="updateNumField(${item.id}, 'sl_sp_tren_kien', this.innerText)">${slSpTrenKien}</td>
@@ -310,11 +310,13 @@
         const dataToExport = purchaseData.filter(item => selectedIds.includes(item.id.toString()));
 
         if (type === 'excel') {
-            const ws = XLSX.utils.json_to_sheet(dataToExport.map(i => ({
-                "Mã Vận Đơn": i.ma_van_don, "Tên SP": i.ten_san_pham, "SKU": i.ma_hang,
-                "SL Nhập": i.sl_nhap, "Giá Khai Thuế": i.gia_khai_thue, "Công Dụng": i.cong_dung,
-                "Chất Liệu": i.chat_lieu, "Số Kiện": i.so_kien, "Ảnh": i.image_url
-            })));
+            const ws = XLSX.utils.json_to_sheet(dataToExport.map(i => ({
+                "Mã Vận Đơn": i.ma_van_don, "Tên SP": i.ten_san_pham, "SKU": i.ma_hang,
+                "SL Nhập": i.sl_nhap, "Giá Khai Thuế": i.gia_khai_thue, "Công Dụng": i.cong_dung,
+                "Chất Liệu": i.chat_lieu, 
+                "Số Kiện": parseFloat(((i.sl_nhap || 0) / (i.sl_sp_tren_kien || 1)).toFixed(2)), 
+                "Ảnh": (i.image_url && i.image_url.startsWith('data:image')) ? '[Ảnh đính kèm]' : i.image_url
+            })));
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "ChinhNgach");
             XLSX.writeFile(wb, `HuyVan_ChinhNgach_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -512,13 +514,18 @@ async function deleteSelected() {
     }
 
     // 3. Cập nhật từng ô khi Huy sửa trực tiếp (Inline Edit)
-    async function updateField(id, field, value) {
-        const item = purchaseData.find(i => i.id === id);
-        if (!item) return;
+    async function updateField(id, field, value) {
+        const item = purchaseData.find(i => i.id === id);
+        if (!item) return;
 
-        item[field] = value;
-        
-        // Tính toán lại logic vận chuyển trước khi lưu
+        item[field] = value;
+        
+        // Tự động cập nhật lại số kiện nếu thay đổi SL nhập hoặc SL/kiện
+        if (field === 'sl_nhap' || field === 'sl_sp_tren_kien') {
+            item.so_kien = (item.sl_nhap || 0) / (item.sl_sp_tren_kien || 1);
+        }
+        
+        // Tính toán lại logic vận chuyển trước khi lưu
         const calculated = calculateShipping(item);
         item.phi_vanchuyen_thuc = calculated.cost;
         item.cach_tinh_vc = calculated.label;
