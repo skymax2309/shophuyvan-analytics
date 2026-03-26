@@ -430,9 +430,6 @@ class ShopeeEngine:
 
                     # ── BƯỚC 2: Vào từng trang chi tiết sản phẩm ──────────
                     for idx, link_info in enumerate(links):
-                        if idx >= 3:  # CHỐT CHẶN: CHỈ CHẠY 3 SẢN PHẨM ĐỂ TEST
-                            self.log("🛑 ĐÃ CHẠY ĐỦ 3 SẢN PHẨM TEST. DỪNG LẠI ĐỂ BẠN KIỂM TRA!")
-                            break
 
                         item_id = link_info["item_id"]
                         detail_url = f"https://banhang.shopee.vn/portal/product/{item_id}"

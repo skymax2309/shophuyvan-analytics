@@ -11,6 +11,7 @@ async function loadSkus() {
   try {
     const data = await fetch(API + "/api/products").then(r => r.json())
     allSkus = data
+    window.allSkus = data // Bổ sung dòng này để đồng bộ dữ liệu sang tab Map SKU
     renderSkuTables()
   } catch (e) {
     document.getElementById("skuNoPriceTable").innerHTML =

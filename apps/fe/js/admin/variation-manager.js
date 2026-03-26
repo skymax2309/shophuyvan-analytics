@@ -7,6 +7,11 @@ async function loadVariations() {
   try {
     allVariations = await fetch(API + '/api/sync-variations').then(r => r.json());
     
+    // Tự động kéo SKU nội bộ về nếu chưa có
+    if (!window.allSkus || window.allSkus.length === 0) {
+      window.allSkus = await fetch(API + '/api/products').then(r => r.json());
+    }
+
     updateShopDropdown(); // Gọi hàm cập nhật danh sách Shop
     renderVariations();
     updateUnmappedBadge();
@@ -131,10 +136,7 @@ function renderVariations() {
           : `<div style="display:flex;flex-direction:column;gap:6px;background:#f8fafc;padding:8px;border-radius:8px;border:1px dashed #cbd5e1">
                <div id="map-container-${v.id}" style="display:flex;flex-direction:column;gap:6px">
                  <div class="map-row" style="display:flex;gap:6px;align-items:center">
-                   <select class="map-sku-select" style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;max-width:180px">
-                     <option value="">— Chọn SKU nội bộ —</option>
-                     ${window.skuOptionsHtml}
-                   </select>
+                   <input type="text" list="sku-datalist" class="map-sku-select" placeholder="🔍 Gõ tìm mã hoặc tên SKU..." style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;width:180px">
                    <input type="number" class="map-qty-input" value="1" min="1" style="width:45px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px" title="Số lượng">
                    <button onclick="window.addMapRow(${v.id})" style="padding:4px 8px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold" title="Thêm SKU thành phần">+</button>
                  </div>
@@ -149,6 +151,7 @@ function renderVariations() {
   }).join('');
 
   document.getElementById('variationsTable').innerHTML = `
+    <datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>
     <div style="overflow-x:auto">
       <table style="width:100%; border-collapse:collapse; text-align:left;">
         <thead><tr style="background:#f8fafc; border-bottom:2px solid #e5e7eb;">
@@ -217,10 +220,7 @@ window.addMapRow = function(id) {
   row.className = 'map-row';
   row.style.cssText = 'display:flex;gap:6px;align-items:center';
   row.innerHTML = `
-     <select class="map-sku-select" style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;max-width:180px">
-       <option value="">— Chọn SKU nội bộ —</option>
-       ${window.skuOptionsHtml}
-     </select>
+     <input type="text" list="sku-datalist" class="map-sku-select" placeholder="🔍 Gõ tìm mã hoặc tên SKU..." style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;width:180px">
      <input type="number" class="map-qty-input" value="1" min="1" style="width:45px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px" title="Số lượng">
      <button onclick="this.parentElement.remove()" style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold" title="Xóa dòng này">✕</button>
   `;
