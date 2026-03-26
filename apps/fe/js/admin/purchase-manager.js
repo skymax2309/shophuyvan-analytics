@@ -136,6 +136,10 @@
                 <div class="text-[8px] text-gray-400 mt-0.5 whitespace-nowrap">${phanTramThue}%x${giaKhaiThue}x${slNhap}</div>
             </td>
 
+            <td class="py-1 px-1 text-center whitespace-nowrap text-[9px] align-top text-purple-400">
+                <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_d', this.innerText)">${item.kich_thuoc_sp_d || 0}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_r', this.innerText)">${item.kich_thuoc_sp_r || 0}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_sp_c', this.innerText)">${item.kich_thuoc_sp_c || 0}</span>
+                <div class="text-[8px] text-gray-500 mt-0.5">mm</div>
+            </td>
             <td class="py-1 px-1 text-center whitespace-nowrap text-[9px] align-top">
                 <span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_d', this.innerText)">${item.kich_thuoc_d}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_r', this.innerText)">${item.kich_thuoc_r}</span>x<span class="editable" contenteditable="true" onblur="updateNumField(${item.id}, 'kich_thuoc_c', this.innerText)">${item.kich_thuoc_c}</span>
                 <div class="text-[8px] text-gray-400 mt-0.5">
@@ -379,6 +383,9 @@ async function deleteSelected() {
             sl_sp_tren_kien: 1,
             thue_vat_percent: 10,
             trong_luong_kg: 0,
+            kich_thuoc_sp_d: 0,
+            kich_thuoc_sp_r: 0,
+            kich_thuoc_sp_c: 0,
             kich_thuoc_d: 0,
             kich_thuoc_r: 0,
             kich_thuoc_c: 0,
