@@ -186,12 +186,14 @@ class SwitchEnvApp(ctk.CTk):
             messagebox.showerror("Lỗi", "Có lỗi xảy ra trong quá trình chạy lệnh hệ thống.")
             self.status_label.configure(text="Lỗi chuyển đổi!", text_color="red")
 
-    def run_action_ps(self, commands, title):
+    def run_action_ps(self, commands, title, target_path=None):
         """Hàm phụ trợ mở PowerShell chạy lệnh Quick Action"""
         if not self.current_profile_data: return
-        project_path = self.current_profile_data.get("project_path", "")
-        if not project_path:
-            messagebox.showwarning("Cảnh báo", "Bạn chưa cấu hình project_path cho tài khoản này!")
+        
+        # Ưu tiên dùng target_path nếu có, không thì dùng project_path mặc định
+        run_path = target_path if target_path else self.current_profile_data.get("project_path", "")
+        if not run_path:
+            messagebox.showwarning("Cảnh báo", "Bạn chưa cấu hình đường dẫn (project_path hoặc wrangler_path) cho tài khoản này!")
             return
             
         # Nạp biến môi trường cho PowerShell mới
@@ -204,7 +206,7 @@ class SwitchEnvApp(ctk.CTk):
             "Clear-Host; "
             f"Write-Host '=== {title} ===' -ForegroundColor Cyan; "
             f"{env_cmd}"
-            f"cd '{project_path}'; "
+            f"cd '{run_path}'; "
             f"{commands}; "
             "Write-Host '-------------------------------------------' -ForegroundColor Green; "
             "Write-Host 'Da chay xong lenh!' -ForegroundColor Green;"
@@ -257,18 +259,51 @@ class SwitchEnvApp(ctk.CTk):
         self.run_action_ps(cmd, "DANG KEO CODE TU GITHUB VE MAY")
 
     def action_deploy(self):
+        wrangler_path = self.current_profile_data.get("wrangler_path", self.current_profile_data.get("project_path", ""))
         cmd = 'wrangler deploy'
-        self.run_action_ps(cmd, "DANG DAY CODE LEN SERVER CLOUDFLARE (DEPLOY)")
+        self.run_action_ps(cmd, "DANG DAY CODE LEN SERVER CLOUDFLARE (DEPLOY)", target_path=wrangler_path)
 
     def action_tail(self):
         # Thêm --format json hoặc tự động tìm tên worker nếu project_path chuẩn
+        wrangler_path = self.current_profile_data.get("wrangler_path", self.current_profile_data.get("project_path", ""))
         cmd = 'wrangler tail'
-        self.run_action_ps(cmd, "DANG XEM LIVE LOG SERVER (AN CTRL+C DE THOAT)")
+        self.run_action_ps(cmd, "DANG XEM LIVE LOG SERVER (AN CTRL+C DE THOAT)", target_path=wrangler_path)
 
     def action_tree(self):
-        # Bỏ tham số /nfl và /ndl để dữ liệu không bị trắng xóa
-        cmd = 'robocopy . . /e /l /njh /njs /xf *.exe *.dll /xd node_modules .git dist .next > cau_truc_thu_muc.txt; Start-Process cau_truc_thu_muc.txt'
-        self.run_action_ps(cmd, "DANG XUAT CAU TRUC THU MUC (CHONG LOI DUONG DAN DAI)")
+    # Neo tìm kiếm: Xuất cấu trúc thư mục bằng Python thuần để tránh lỗi PowerShell
+        if not self.current_profile_data: return
+        project_path = self.current_profile_data.get("project_path", "")
+        if not project_path:
+            messagebox.showwarning("Cảnh báo", "Bạn chưa cấu hình project_path!")
+            return
+
+        output_file = os.path.join(project_path, "project_tree_full.txt")
+        exclude_dirs = {'.git', '.wrangler', 'node_modules', '__pycache__', '.venv', 'dist', '.next'}
+        exclude_files = {'*.exe', '*.dll', '*.pyc'}
+
+        try:
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(f"=== CAU TRUC DU AN: {os.path.basename(project_path)} ===\n\n")
+                for root, dirs, files in os.walk(project_path):
+                    # Loại bỏ thư mục rác
+                    dirs[:] = [d for d in dirs if d not in exclude_dirs]
+
+                    level = root.replace(project_path, '').count(os.sep)
+                    indent = '    ' * level
+                    f.write(f'{indent}├── {os.path.basename(root)}/\n')
+
+                    sub_indent = '    ' * (level + 1)
+                    for file in files:
+                        # Bỏ qua các file rác nếu cần
+                        if not any(file.endswith(ext.replace('*', '')) for ext in exclude_files):
+                            f.write(f'{sub_indent}└── {file}\n')
+
+            # Mở file ngay sau khi xuất xong
+            os.startfile(output_file)
+            self.status_label.configure(text="✅ Đã xuất cấu trúc thư mục!", text_color="#28A745")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể xuất thư mục: {str(e)}")
+        
     def check_startup_status(self):
         """Kiểm tra xem tool đã có trong Startup chưa"""
         try:
