@@ -526,13 +526,30 @@ function renderVariations() {
     .map(s => `<option value="${s.sku}">${s.sku} — ${s.product_name || ''}</option>`)
     .join('')
 
+  window.skuOptionsHtml = skuOptions; // Lưu biến global để dùng khi thêm dòng
+
   const statusBadge = s => ({
     MAPPED:   '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✅ Đã map</span>',
     UNMAPPED: '<span style="background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⚠️ Chưa map</span>',
     IGNORED:  '<span style="background:#f3f4f6;color:#9ca3af;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">🚫 Bỏ qua</span>',
   })[s] || s
 
-  const rows = list.map(v => `
+  const rows = list.map(v => {
+    let mappedHtml = '';
+    if (v.map_status === 'MAPPED') {
+      try {
+        const items = JSON.parse(v.mapped_items || '[]');
+        if (items.length > 0) {
+          mappedHtml = items.map(i => `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d;white-space:nowrap">${i.qty} x ${i.sku}</code>`).join(' + ');
+        } else {
+          mappedHtml = `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d;white-space:nowrap">${v.internal_sku}</code>`;
+        }
+      } catch(e) {
+        mappedHtml = `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d;white-space:nowrap">${v.internal_sku}</code>`;
+      }
+    }
+    
+    return `
     <tr id="var-row-${v.id}">
       <td style="width:48px">
         ${v.image_url
@@ -550,29 +567,36 @@ function renderVariations() {
       <td>${statusBadge(v.map_status)}</td>
       <td>
         ${v.map_status === 'MAPPED'
-          ? `<div style="display:flex;align-items:center;gap:6px">
-               <code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d">${v.internal_sku}</code>
+          ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+               ${mappedHtml}
                <button onclick="resetVarMap(${v.id})"
                  style="padding:3px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;font-size:11px;cursor:pointer">✕</button>
              </div>`
-          : `<div style="display:flex;gap:6px;align-items:center">
-               <select id="sel-${v.id}"
-                 style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;max-width:200px">
-                 <option value="">— Chọn SKU nội bộ —</option>
-                 ${skuOptions}
-               </select>
-               <button onclick="saveVarMap(${v.id})"
-                 style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">
-                 💾 Lưu
-               </button>
-               <button onclick="ignoreVar(${v.id})"
-                 style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;font-size:12px;cursor:pointer">
-                 🚫
-               </button>
+          : `<div style="display:flex;flex-direction:column;gap:6px;background:#f8fafc;padding:8px;border-radius:8px;border:1px dashed #cbd5e1">
+               <div id="map-container-${v.id}" style="display:flex;flex-direction:column;gap:6px">
+                 <div class="map-row" style="display:flex;gap:6px;align-items:center">
+                   <select class="map-sku-select" style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;max-width:180px">
+                     <option value="">— Chọn SKU nội bộ —</option>
+                     ${skuOptions}
+                   </select>
+                   <input type="number" class="map-qty-input" value="1" min="1" style="width:45px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px" title="Số lượng">
+                   <button onclick="window.addMapRow(${v.id})" style="padding:4px 8px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold" title="Thêm SKU thành phần">+</button>
+                 </div>
+               </div>
+               <div style="display:flex;gap:6px;margin-top:4px">
+                 <button onclick="saveVarMap(${v.id})"
+                   style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">
+                   💾 Lưu Map
+                 </button>
+                 <button onclick="ignoreVar(${v.id})"
+                   style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;font-size:12px;cursor:pointer">
+                   🚫 Bỏ qua
+                 </button>
+               </div>
              </div>`}
       </td>
-    </tr>`)
-    .join('')
+    </tr>`
+    }).join('')
 
   document.getElementById('variationsTable').innerHTML = `
     <div style="overflow-x:auto">
@@ -589,16 +613,50 @@ function renderVariations() {
     </div>`
 }
 
+// Hàm global để add thêm dòng SKU vào Variation
+window.addMapRow = function(id) {
+    const container = document.getElementById('map-container-' + id);
+    const row = document.createElement('div');
+    row.className = 'map-row';
+    row.style.cssText = 'display:flex;gap:6px;align-items:center';
+    row.innerHTML = `
+       <select class="map-sku-select" style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;max-width:180px">
+         <option value="">— Chọn SKU nội bộ —</option>
+         ${window.skuOptionsHtml}
+       </select>
+       <input type="number" class="map-qty-input" value="1" min="1" style="width:45px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px" title="Số lượng">
+       <button onclick="this.parentElement.remove()" style="padding:4px 8px;background:#ef4444;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold" title="Xóa dòng này">✕</button>
+    `;
+    container.appendChild(row);
+}
+
 async function saveVarMap(id) {
-  const sel = document.getElementById('sel-' + id)
-  const internal_sku = sel?.value
-  if (!internal_sku) { showToast('⚠️ Chọn SKU nội bộ trước!', true); return }
+  const container = document.getElementById('map-container-' + id)
+  const rows = container.querySelectorAll('.map-row')
+  const mapped_items = []
+  let first_sku = ''
+  
+  rows.forEach(row => {
+      const sku = row.querySelector('.map-sku-select').value
+      const qty = parseInt(row.querySelector('.map-qty-input').value) || 1
+      if (sku) {
+          mapped_items.push({ sku, qty })
+          if (!first_sku) first_sku = sku
+      }
+  })
+
+  if (mapped_items.length === 0) { showToast('⚠️ Chọn ít nhất 1 SKU nội bộ!', true); return }
+  
   await fetch(API + '/api/sync-variations', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, internal_sku })
+    body: JSON.stringify({ 
+      id, 
+      internal_sku: first_sku,
+      mapped_items: JSON.stringify(mapped_items) 
+    })
   })
-  showToast('✅ Đã map SKU!')
+  showToast('✅ Đã map SKU & Số lượng!')
   loadVariations()
 }
 

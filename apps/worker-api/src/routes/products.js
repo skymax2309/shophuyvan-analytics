@@ -171,8 +171,8 @@ async function handleVariations(request, env, cors) {
       stmts.push(env.DB.prepare(`
         INSERT INTO product_variations
           (platform, shop, platform_item_id, product_name, variation_name,
-           platform_sku, internal_sku, image_url, price, stock, map_status, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+           platform_sku, internal_sku, mapped_items, image_url, price, stock, map_status, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
         ON CONFLICT(platform, shop, platform_sku) DO UPDATE SET
           product_name     = CASE WHEN excluded.product_name != '' THEN excluded.product_name ELSE product_variations.product_name END,
           variation_name   = excluded.variation_name,
@@ -180,12 +180,13 @@ async function handleVariations(request, env, cors) {
           price            = excluded.price,
           stock            = excluded.stock,
           internal_sku     = CASE WHEN product_variations.map_status = 'MAPPED' THEN product_variations.internal_sku ELSE excluded.internal_sku END,
+          mapped_items     = CASE WHEN product_variations.map_status = 'MAPPED' THEN product_variations.mapped_items ELSE excluded.mapped_items END,
           map_status       = CASE WHEN product_variations.map_status = 'MAPPED' THEN 'MAPPED' ELSE excluded.map_status END,
           updated_at       = datetime('now')
       `).bind(
         v.platform || 'shopee', v.shop || '', v.platform_item_id || '',
         v.product_name || '', v.variation_name || '',
-        pSku, internalSku, v.image_url || '',
+        pSku, internalSku, internalSku ? JSON.stringify([{sku: internalSku, qty: 1}]) : '[]', v.image_url || '',
         v.price || 0, v.stock || 0, mapStatus
       ))
       synced++
@@ -201,15 +202,15 @@ async function handleVariations(request, env, cors) {
 
   // PATCH /api/sync-variations — Lưu map thủ công từ FE
   if (request.method === 'PATCH') {
-    const { id, internal_sku } = await request.json()
+    const { id, internal_sku, mapped_items } = await request.json()
     if (!id || !internal_sku)
       return Response.json({ error: 'Missing id or internal_sku' }, { status: 400, headers: cors })
 
     await env.DB.prepare(`
       UPDATE product_variations
-      SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now')
+      SET internal_sku = ?, mapped_items = ?, map_status = 'MAPPED', updated_at = datetime('now')
       WHERE id = ?
-    `).bind(internal_sku, id).run()
+    `).bind(internal_sku, mapped_items || '[]', id).run()
 
     // Lưu vào sku_alias để dùng cho lần sau
     const row = await env.DB.prepare(`SELECT platform_sku FROM product_variations WHERE id=?`).bind(id).first()
