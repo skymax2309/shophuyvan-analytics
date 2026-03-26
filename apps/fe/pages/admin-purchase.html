@@ -119,8 +119,51 @@
 </div>
 
 <script>
-    let settings = { ti_gia_te: 3650, phi_vanchuyen_kg: 30000, phi_vanchuyen_khoi: 3000000 };
+    const API_URL = '/api/purchase';
+    const SETTINGS_URL = '/api/purchase/settings'; // Thêm đường dẫn settings riêng
+    let settings = { ti_gia_te: 3650, phi_vanchuyen_kg: 30000, phi_vanchuyen_khoi: 3000000, ti_gia_usd: 25000 };
+
+    // Hàm load cài đặt từ Server khi vừa mở trang
+    async function loadSettings() {
+        try {
+            const res = await fetch(SETTINGS_URL);
+            if (res.ok) {
+                const data = await res.json();
+                // Chuyển mảng [{key: '...', value: ...}] thành object để dễ dùng
+                data.forEach(s => {
+                    if (s.key === 'ti_gia_te') settings.ti_gia_te = Number(s.value);
+                    if (s.key === 'phi_vanchuyen_kg') settings.phi_vanchuyen_kg = Number(s.value);
+                    if (s.key === 'phi_vanchuyen_khoi') settings.phi_vanchuyen_khoi = Number(s.value);
+                    if (s.key === 'ti_gia_usd') settings.ti_gia_usd = Number(s.value);
+                });
+            }
+        } catch (e) {
+            console.error("Lỗi load settings:", e);
+        }
+    }
     let purchaseData = [];
+
+    // Hàm load dữ liệu từ Server
+    async function loadData() {
+        try {
+            await loadSettings(); // Lấy tỉ giá mới nhất trước
+            const search = document.getElementById('searchInput').value;
+            const res = await fetch(`${API_URL}?search=${encodeURIComponent(search)}`);
+            if (res.ok) {
+                purchaseData = await res.json();
+                renderTable();
+            }
+        } catch (e) {
+            console.error("Lỗi load data:", e);
+        }
+    }
+
+    // Hàm render bảng
+    function renderTable() {
+        const body = document.getElementById('purchaseBody');
+        body.innerHTML = purchaseData.map(item => renderRow(item)).join('');
+        updateSelectedCount();
+    }
 
     // 1. Tự động tính toán logic theo yêu cầu
     function calculateShipping(item) {
@@ -243,8 +286,8 @@
     const selectedCount = document.querySelectorAll('.row-check:checked').length;
     document.getElementById('selectedCount').innerText = selectedCount;
     
-    // Nếu có tích chọn thì hiện nút "Xóa đã chọn", không thì ẩn đi
-    const btnDelete = document.getElementById('btnBulkDelete');
+    // Sửa lại ID cho đúng với HTML (btnDeleteAll)
+    const btnDelete = document.getElementById('btnDeleteAll');
     if (selectedCount > 0) {
         btnDelete.classList.remove('hidden');
     } else {
@@ -259,8 +302,8 @@ async function deleteSelected() {
 
     if (!confirm(`Huy có chắc chắn muốn xóa ${ids.length} sản phẩm đã chọn không?`)) return;
 
-    // Hiển thị trạng thái đang xử lý
-    const btn = document.getElementById('btnBulkDelete');
+    // Sửa lại ID cho đúng với HTML (btnDeleteAll)
+    const btn = document.getElementById('btnDeleteAll');
     btn.innerText = "⏳ ĐANG XÓA...";
     btn.disabled = true;
 
@@ -474,7 +517,7 @@ async function deleteSelected() {
         ];
 
         for (const s of newSettings) {
-            await fetch(`${API_URL}/settings`, {
+            await fetch(SETTINGS_URL, { // Dùng SETTINGS_URL đã định nghĩa
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(s)
