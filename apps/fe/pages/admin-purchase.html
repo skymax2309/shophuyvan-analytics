@@ -283,6 +283,16 @@
         }
     }
 	
+	// Hàm xử lý khi click "Chọn tất cả"
+    function toggleSelectAll() {
+        const isChecked = event.target.checked;
+        // Tích chọn hoặc bỏ chọn tất cả các dòng
+        document.querySelectorAll('.row-check').forEach(cb => cb.checked = isChecked);
+        // Đồng bộ trạng thái cho cả 2 nút "Chọn tất cả" trên giao diện
+        document.querySelectorAll('#selectAll').forEach(cb => cb.checked = isChecked);
+        updateSelectedCount();
+    }
+
 	function updateSelectedCount() {
     const selectedCount = document.querySelectorAll('.row-check:checked').length;
     document.getElementById('selectedCount').innerText = selectedCount;
