@@ -246,6 +246,22 @@ async function handleVariations(request, env, cors) {
 
     return Response.json({ status: 'ok' }, { headers: cors })
   }
+
+  // ── THÊM MỚI: XỬ LÝ DELETE CHO VARIATIONS (Xóa hàng loạt) ──
+  if (request.method === 'DELETE') {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith('/bulk')) {
+      const { ids } = await request.json();
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return Response.json({ error: "No IDs provided" }, { status: 400, headers: cors });
+      }
+      const placeholders = ids.map(() => '?').join(',');
+      await env.DB.prepare(`DELETE FROM product_variations WHERE id IN (${placeholders})`)
+        .bind(...ids)
+        .run();
+      return Response.json({ status: "ok", count: ids.length }, { headers: cors });
+    }
+  }
 }
 
 export { handleProducts, handleCostSettings, handleVariations }
