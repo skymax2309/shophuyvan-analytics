@@ -36,7 +36,6 @@ export async function getJobs(req, env, cors) {
   const { results } = await env.DB.prepare(`
     SELECT * FROM jobs 
     WHERE status = 'pending' 
-    AND (scheduled_at IS NULL OR replace(scheduled_at, 'T', ' ') <= datetime('now', '+7 hours'))
     ORDER BY created_at ASC
   `).all()
 
