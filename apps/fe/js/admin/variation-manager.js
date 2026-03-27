@@ -138,7 +138,7 @@ function renderVariations() {
           ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                ${mappedHtml}
                <button onclick="resetVarMap(${v.id})" style="padding:3px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;font-size:11px;cursor:pointer">✕</button>
-               <button onclick='openEditVarModal(${JSON.stringify(v).replace(/'/g, "&#39;")})' style="padding:3px 8px;background:#fef3c7;color:#d97706;border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:bold" title="Sửa Giá & Tồn Kho">✏️ Sửa</button>
+               <button onclick="openEditVarModal(${v.id})" style="padding:3px 8px;background:#fef3c7;color:#d97706;border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:bold" title="Sửa Giá & Tồn Kho">✏️ Sửa</button>
              </div>`
           : `<div style="display:flex;flex-direction:column;gap:6px;background:#f8fafc;padding:8px;border-radius:8px;border:1px dashed #cbd5e1">
                <div id="map-container-${v.id}" style="display:flex;flex-direction:column;gap:6px">
@@ -151,7 +151,7 @@ function renderVariations() {
                <div style="display:flex;gap:6px;margin-top:4px">
                  <button onclick="saveVarMap(${v.id})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Lưu Map</button>
                  <button onclick="ignoreVar(${v.id})" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;font-size:12px;cursor:pointer">🚫 Bỏ qua</button>
-                 <button onclick='openEditVarModal(${JSON.stringify(v).replace(/'/g, "&#39;")})' style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">✏️ Sửa</button>
+                 <button onclick="openEditVarModal(${v.id})" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">✏️ Sửa</button>
                </div>
              </div>`}
       </td>
@@ -359,7 +359,9 @@ function injectEditModalUI() {
 }
 
 // Hàm mở Popup
-window.openEditVarModal = function(v) {
+window.openEditVarModal = function(id) {
+    const v = allVariations.find(item => item.id === id);
+    if (!v) return;
     document.getElementById('editVarId').value = v.id;
     document.getElementById('editVarOldImg').value = v.image_url || '';
     document.getElementById('editVarImgPreview').src = v.image_url || 'https://via.placeholder.com/150?text=No+Image';
