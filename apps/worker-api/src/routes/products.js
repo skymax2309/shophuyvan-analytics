@@ -225,8 +225,21 @@ async function handleVariations(request, env, cors) {
     return Response.json({ status: 'ok', synced, auto_mapped: autoMapped }, { headers: cors })
   }
 
-  // PATCH /api/sync-variations — Lưu map thủ công từ FE
   if (request.method === 'PATCH') {
+    const url = new URL(request.url);
+    
+    // Nhánh 1: Lưu chỉnh sửa thông tin (Tên, Giá, Tồn, Ảnh)
+    if (url.pathname.endsWith('/edit')) {
+      const { id, variation_name, price, discount_price, stock, image_url } = await request.json();
+      await env.DB.prepare(`
+        UPDATE product_variations
+        SET variation_name = ?, price = ?, discount_price = ?, stock = ?, image_url = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(variation_name, price, discount_price, stock, image_url, id).run();
+      return Response.json({ status: 'ok' }, { headers: cors });
+    }
+
+    // Nhánh 2: Lưu map thủ công từ FE
     const { id, internal_sku, mapped_items } = await request.json()
     if (!id || !internal_sku)
       return Response.json({ error: 'Missing id or internal_sku' }, { status: 400, headers: cors })

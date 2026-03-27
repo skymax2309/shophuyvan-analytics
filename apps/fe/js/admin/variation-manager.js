@@ -105,68 +105,80 @@ function renderVariations() {
     }
     
     // Format Giá
-    const priceFormatted = v.price ? v.price.toLocaleString('vi-VN') + 'đ' : '—';
-    const stockStr = v.stock !== null && v.stock !== undefined ? v.stock : '—';
-    
-    return `
-    <tr id="var-row-${v.id}">
-      <td style="width:32px; text-align:center;">
-        <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()">
+    const priceFormatted = v.price ? v.price.toLocaleString('vi-VN') + 'đ' : '0đ';
+    const discountFormatted = v.discount_price ? v.discount_price.toLocaleString('vi-VN') + 'đ' : '0đ';
+    const stockStr = v.stock !== null && v.stock !== undefined ? v.stock : '0';
+    
+    return `
+    <tr id="var-row-${v.id}">
+      <td style="width:32px; text-align:center; padding:12px 8px; border-bottom:1px solid #e5e7eb">
+        <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()">
+      </td>
+      <td style="width:48px; border-bottom:1px solid #e5e7eb">
+        ${v.image_url
+          ? `<img src="${v.image_url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb">`
+          : `<div style="width:40px;height:40px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
+      </td>
+      <td style="border-bottom:1px solid #e5e7eb; padding-right:10px">
+        <div style="font-weight:600;font-size:13px;color:#1e293b">${v.product_name || '—'}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:2px">${v.variation_name || '—'}</div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:1px;font-weight:600">[${v.platform ? v.platform.toUpperCase() : 'SÀN'}] ${v.shop || ''}</div>
+      </td>
+      <td style="border-bottom:1px solid #e5e7eb">
+        <code style="font-size:11px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${v.platform_sku || '—'}</code>
       </td>
-      <td style="width:48px">
-        ${v.image_url
-          ? `<img src="${v.image_url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb">`
-          : `<div style="width:40px;height:40px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
-      </td>
-      <td>
-        <div style="font-weight:600;font-size:13px;color:#1e293b">${v.product_name || '—'}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px">${v.variation_name || '—'}</div>
-        <div style="font-size:10px;color:#9ca3af;margin-top:1px;font-weight:600">[${v.platform ? v.platform.toUpperCase() : 'SÀN'}] ${v.shop || ''}</div>
-      </td>
-      <td><code style="font-size:11px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${v.platform_sku || '—'}</code></td>
-      <td style="color:#ef4444; font-weight:600; font-size:12px;">${priceFormatted}</td>
-      <td style="color:#2563eb; font-weight:600; font-size:12px; text-align:center;">${stockStr}</td>
-      <td>${statusBadge(v.map_status)}</td>
-      <td>
-        ${v.map_status === 'MAPPED'
-          ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-               ${mappedHtml}
-               <button onclick="resetVarMap(${v.id})" style="padding:3px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;font-size:11px;cursor:pointer">✕</button>
-             </div>`
-          : `<div style="display:flex;flex-direction:column;gap:6px;background:#f8fafc;padding:8px;border-radius:8px;border:1px dashed #cbd5e1">
-               <div id="map-container-${v.id}" style="display:flex;flex-direction:column;gap:6px">
-                 <div class="map-row" style="display:flex;gap:6px;align-items:center">
-                   <input type="text" list="sku-datalist" class="map-sku-select" placeholder="🔍 Gõ tìm mã hoặc tên SKU..." style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;width:180px">
-                   <input type="number" class="map-qty-input" value="1" min="1" style="width:45px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px" title="Số lượng">
-                   <button onclick="window.addMapRow(${v.id})" style="padding:4px 8px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold" title="Thêm SKU thành phần">+</button>
-                 </div>
-               </div>
-               <div style="display:flex;gap:6px;margin-top:4px">
-                 <button onclick="saveVarMap(${v.id})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Lưu Map</button>
-                 <button onclick="ignoreVar(${v.id})" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;font-size:12px;cursor:pointer">🚫 Bỏ qua</button>
-               </div>
-             </div>`}
-      </td>
-    </tr>`;
-  }).join('');
+      
+            <td style="border-bottom:1px solid #e5e7eb; color:#64748b; font-size:12px;">${priceFormatted}</td>
+      <td style="border-bottom:1px solid #e5e7eb; color:#ef4444; font-weight:600; font-size:12px;">${discountFormatted}</td>
+      <td style="border-bottom:1px solid #e5e7eb; color:#2563eb; font-weight:600; font-size:12px; text-align:center;">${stockStr}</td>
+      
+      <td style="border-bottom:1px solid #e5e7eb">${statusBadge(v.map_status)}</td>
+      <td style="border-bottom:1px solid #e5e7eb">
+        ${v.map_status === 'MAPPED'
+          ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+               ${mappedHtml}
+               <button onclick="resetVarMap(${v.id})" style="padding:3px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;font-size:11px;cursor:pointer">✕</button>
+               <button onclick='openEditVarModal(${JSON.stringify(v).replace(/'/g, "&#39;")})' style="padding:3px 8px;background:#fef3c7;color:#d97706;border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:bold" title="Sửa Giá & Tồn Kho">✏️ Sửa</button>
+             </div>`
+          : `<div style="display:flex;flex-direction:column;gap:6px;background:#f8fafc;padding:8px;border-radius:8px;border:1px dashed #cbd5e1">
+               <div id="map-container-${v.id}" style="display:flex;flex-direction:column;gap:6px">
+                 <div class="map-row" style="display:flex;gap:6px;align-items:center">
+                   <input type="text" list="sku-datalist" class="map-sku-select" placeholder="🔍 Gõ tìm mã hoặc tên SKU..." style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;width:180px">
+                   <input type="number" class="map-qty-input" value="1" min="1" style="width:45px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px" title="Số lượng">
+                   <button onclick="window.addMapRow(${v.id})" style="padding:4px 8px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold" title="Thêm SKU thành phần">+</button>
+                 </div>
+               </div>
+               <div style="display:flex;gap:6px;margin-top:4px">
+                 <button onclick="saveVarMap(${v.id})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Lưu Map</button>
+                 <button onclick="ignoreVar(${v.id})" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;font-size:12px;cursor:pointer">🚫 Bỏ qua</button>
+                 <button onclick='openEditVarModal(${JSON.stringify(v).replace(/'/g, "&#39;")})' style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">✏️ Sửa</button>
+               </div>
+             </div>`}
+      </td>
+    </tr>`;
+  }).join('');
 
-  document.getElementById('variationsTable').innerHTML = `
-    <datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>
-    <div style="overflow-x:auto">
-      <table style="width:100%; border-collapse:collapse; text-align:left;">
-        <thead><tr style="background:#f8fafc; border-bottom:2px solid #e5e7eb;">
-          <th style="width:32px; text-align:center;"><input type="checkbox" onchange="toggleAllVarCheck(this.checked)"></th>
-          <th>Ảnh</th>
-          <th>Tên SP / Phân loại</th>
-          <th>SKU Sàn</th>
-          <th>Giá Sàn</th>
-          <th style="text-align:center;">Tồn Kho</th>
-          <th>Trạng thái</th>
-          <th style="min-width:280px">Map SKU nội bộ</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
+  document.getElementById('variationsTable').innerHTML = `
+    <datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>
+    <div style="overflow-x:auto">
+      <table style="width:100%; border-collapse:collapse; text-align:left;">
+        <thead><tr style="background:#f8fafc; border-bottom:2px solid #e5e7eb;">
+          <th style="width:32px; text-align:center; padding:12px 8px"><input type="checkbox" onchange="toggleAllVarCheck(this.checked)"></th>
+          <th style="padding:12px 8px; font-size:13px">Ảnh</th>
+          <th style="padding:12px 8px; font-size:13px">Tên SP / Phân loại</th>
+          <th style="padding:12px 8px; font-size:13px">SKU Sàn</th>
+          <th style="padding:12px 8px; font-size:13px">Giá Gốc</th>
+          <th style="padding:12px 8px; font-size:13px; color:#ef4444">Giá KM</th>
+          <th style="padding:12px 8px; font-size:13px; text-align:center;">Tồn Kho</th>
+          <th style="padding:12px 8px; font-size:13px">Trạng thái</th>
+          <th style="min-width:280px; padding:12px 8px; font-size:13px">Thao tác Map & Sửa</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+    
+    // Đảm bảo popup modal được tiêm vào thẻ body nếu chưa có
+    injectEditModalUI();
 }
 
 // 3. LOGIC XÓA HÀNG LOẠT SẢN PHẨM SÀN LỖI
@@ -284,4 +296,149 @@ const _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
   if(_origSwitchTab) _origSwitchTab(tab);
   if (tab === 'variations' && allVariations.length === 0) loadVariations();
+}
+
+// =========================================================================
+// GIAO DIỆN & LOGIC CHỈNH SỬA PHÂN LOẠI (UPDATE ẢNH MÁY TÍNH, GIÁ, TỒN)
+// =========================================================================
+
+// Hàm tự động tiêm giao diện Popup (Modal) vào cuối trang Web
+function injectEditModalUI() {
+    if (document.getElementById('editVarModalWrap')) return;
+    
+    const modalHtml = `
+    <div id="editVarModalWrap" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; width:500px; border-radius:12px; padding:24px; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e5e7eb; padding-bottom:12px; margin-bottom:16px;">
+                <h3 style="margin:0; font-size:18px; color:#1e293b;">✏️ Sửa Thông Tin Phân Loại</h3>
+                <button onclick="closeEditVarModal()" style="background:none; border:none; font-size:20px; cursor:pointer; color:#9ca3af;">✕</button>
+            </div>
+            
+            <input type="hidden" id="editVarId">
+            <input type="hidden" id="editVarOldImg">
+            
+            <div style="display:flex; flex-direction:column; gap:14px;">
+                <div>
+                    <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Hình ảnh phân loại (Từ máy tính)</label>
+                    <div style="display:flex; align-items:center; gap:16px;">
+                        <img id="editVarImgPreview" src="" style="width:64px; height:64px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb; background:#f8fafc;">
+                        <input type="file" id="editVarImgFile" accept="image/*" onchange="previewVarImage(event)" 
+                               style="font-size:13px; color:#64748b; background:#f1f5f9; padding:8px; border-radius:6px; width:100%; cursor:pointer;">
+                    </div>
+                </div>
+                
+                <div>
+                    <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Tên phân loại</label>
+                    <input type="text" id="editVarName" style="width:100%; border:1px solid #cbd5e1; border-radius:6px; padding:10px; font-size:14px; box-sizing:border-box;">
+                </div>
+                
+                <div style="display:flex; gap:12px;">
+                    <div style="flex:1;">
+                        <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Giá Gốc (đ)</label>
+                        <input type="number" id="editVarPrice" style="width:100%; border:1px solid #cbd5e1; border-radius:6px; padding:10px; font-size:14px; box-sizing:border-box;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:13px; font-weight:600; color:#ef4444; display:block; margin-bottom:6px;">Giá Khuyến Mại (đ)</label>
+                        <input type="number" id="editVarDiscountPrice" style="width:100%; border:1px solid #fca5a5; border-radius:6px; padding:10px; font-size:14px; box-sizing:border-box; background:#fef2f2;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:13px; font-weight:600; color:#475569; display:block; margin-bottom:6px;">Tồn Kho</label>
+                    <input type="number" id="editVarStock" style="width:100%; border:1px solid #cbd5e1; border-radius:6px; padding:10px; font-size:14px; box-sizing:border-box;">
+                </div>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+                <button onclick="closeEditVarModal()" style="padding:10px 16px; background:#f1f5f9; color:#475569; border:none; border-radius:6px; font-weight:600; cursor:pointer;">Hủy bỏ</button>
+                <button onclick="saveEditVar()" id="btnSaveEditVar" style="padding:10px 16px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer;">💾 Lưu Thay Đổi</button>
+            </div>
+        </div>
+    </div>`;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+// Hàm mở Popup
+window.openEditVarModal = function(v) {
+    document.getElementById('editVarId').value = v.id;
+    document.getElementById('editVarOldImg').value = v.image_url || '';
+    document.getElementById('editVarImgPreview').src = v.image_url || 'https://via.placeholder.com/150?text=No+Image';
+    document.getElementById('editVarName').value = v.variation_name || '';
+    document.getElementById('editVarPrice').value = v.price || 0;
+    document.getElementById('editVarDiscountPrice').value = v.discount_price || 0;
+    document.getElementById('editVarStock').value = v.stock || 0;
+    document.getElementById('editVarImgFile').value = ''; 
+    
+    document.getElementById('editVarModalWrap').style.display = 'flex';
+}
+
+// Hàm đóng Popup
+window.closeEditVarModal = function() {
+    document.getElementById('editVarModalWrap').style.display = 'none';
+}
+
+// Hàm xem trước ảnh khi chọn từ máy
+window.previewVarImage = function(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) { document.getElementById('editVarImgPreview').src = e.target.result; }
+        reader.readAsDataURL(file);
+    }
+}
+
+// Hàm gọi API Lưu thông tin
+window.saveEditVar = async function() {
+    const btn = document.getElementById('btnSaveEditVar');
+    btn.innerHTML = '⏳ Đang lưu...';
+    btn.disabled = true;
+
+    try {
+        const id = document.getElementById('editVarId').value;
+        const fileInput = document.getElementById('editVarImgFile');
+        let finalImageUrl = document.getElementById('editVarOldImg').value;
+
+        // Nếu có chọn file mới -> Upload lên R2
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const fileName = 'products/img_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
+            
+            // Lấy url upload từ API của bạn
+            const uploadUrl = `${API}/api/upload?file=${encodeURIComponent(fileName)}&token=huyvan_secret_2026`;
+            const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: file });
+            
+            if (!uploadRes.ok) throw new Error("Tải ảnh lên hệ thống thất bại!");
+            
+            // --- THAY LINK NÀY BẰNG TÊN MIỀN R2 PUBLIC CỦA BẠN (Ví dụ: pub-xxxx.r2.dev) ---
+            finalImageUrl = `https://huyvan-worker-api.nghiemchihuy.workers.dev/api/file/${fileName}`; // Thay bằng domain R2 thật nếu có
+        }
+
+        const payload = {
+            id: id,
+            variation_name: document.getElementById('editVarName').value,
+            price: parseFloat(document.getElementById('editVarPrice').value) || 0,
+            discount_price: parseFloat(document.getElementById('editVarDiscountPrice').value) || 0,
+            stock: parseInt(document.getElementById('editVarStock').value) || 0,
+            image_url: finalImageUrl
+        };
+
+        const res = await fetch(`${API}/api/sync-variations/edit`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            closeEditVarModal();
+            showToast("✅ Đã cập nhật Phân loại thành công!");
+            loadVariations(); // Load lại bảng
+        } else {
+            throw new Error("Lỗi lưu dữ liệu lên Server");
+        }
+    } catch (error) {
+        alert('Lỗi: ' + error.message);
+    } finally {
+        btn.innerHTML = '💾 Lưu Thay Đổi';
+        btn.disabled = false;
+    }
 }

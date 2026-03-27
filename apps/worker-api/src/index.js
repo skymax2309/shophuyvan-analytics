@@ -74,7 +74,7 @@ export default {
       if (url.pathname === "/api/sync-variations/bulk" && request.method === "DELETE")
         return handleVariations(request, env, cors)
 
-      if (url.pathname === "/api/sync-variations")
+      if (url.pathname === "/api/sync-variations" || url.pathname === "/api/sync-variations/edit")
         return handleVariations(request, env, cors)
 
       if (url.pathname === "/api/products/bulk" && request.method === "DELETE") {
