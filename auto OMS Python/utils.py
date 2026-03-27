@@ -81,10 +81,12 @@ def trigger_server_import(self, file_key, shop_name, platform, report_type, loca
     except Exception as e:
         self.log(f"⚠️ Lỗi kích hoạt Import: {str(e)}")
 
-def upload_to_r2(self, local_path, remote_name):
+def upload_to_r2(local_path, remote_name):
     try:
         api_upload = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/upload"
         
+        import urllib.request
+        import urllib.parse
         with open(local_path, 'rb') as f:
             file_data = f.read()
 
@@ -100,8 +102,148 @@ def upload_to_r2(self, local_path, remote_name):
         req = urllib.request.Request(req_url, data=file_data, headers=headers, method='PUT')
         with urllib.request.urlopen(req) as res:
             if res.status == 200:
-                self.log(f"☁️ Đã đồng bộ lên Cloud R2: {remote_name}")
+                print(f"☁️ Đã đồng bộ lên Cloud R2: {remote_name}")
                 return True
     except Exception as e:
-        self.log(f"⚠️ Lỗi Upload R2: {str(e)}")
+        print(f"⚠️ Lỗi Upload R2: {str(e)}")
     return False
+# ==========================================
+# XỬ LÝ GHÉP NỐI EXCEL SHOPEE
+# ==========================================
+import pandas as pd
+import requests
+
+def process_and_sync_files(shop_name, file_paths, log_func):
+    from config import SYNC_VARIATIONS_URL
+    
+    def read_shopee_file(filepath):
+        try:
+            if filepath.endswith('.csv'):
+                df = pd.read_csv(filepath, header=0, dtype=str)
+            else:
+                # Dùng engine calamine để lách lỗi định dạng của Shopee
+                df = pd.read_excel(filepath, header=0, dtype=str, engine='calamine')
+            return df[pd.to_numeric(df['et_title_product_id'], errors='coerce').notnull()]
+        except Exception as e:
+            log_func(f"❌ Lỗi đọc file {filepath}: {e}")
+            return None
+
+    log_func("⏳ Đang bóc tách và gom dữ liệu 3 file...")
+    df_basic = read_shopee_file(file_paths['basic'])
+    df_sales = read_shopee_file(file_paths['sales'])
+    df_media = read_shopee_file(file_paths['media'])
+    
+    if df_basic is None or df_sales is None or df_media is None:
+        log_func("❌ Lỗi: Không thể đọc dữ liệu từ file Excel.")
+        return
+
+    basic_map = {row['et_title_product_id']: row.get('et_title_product_description', '') for _, row in df_basic.iterrows()}
+    media_map = {row['et_title_product_id']: row.get('ps_item_cover_image', '') for _, row in df_media.iterrows()}
+
+    products_dict = {}
+    for _, row in df_sales.iterrows():
+        p_id = row['et_title_product_id']
+        if p_id not in products_dict:
+            products_dict[p_id] = {
+                "item_id": str(p_id),
+                "product_name": str(row.get('et_title_product_name', '')),
+                "description": str(basic_map.get(p_id, '')),
+                "images": [str(media_map.get(p_id, ''))] if media_map.get(p_id, '') else [],
+                "variations": []
+            }
+            
+        var_sku = str(row.get('et_title_variation_sku', '')).strip()
+        price = str(row.get('et_title_variation_price', '0')).replace(',', '')
+        stock = str(row.get('et_title_variation_stock', '0')).replace(',', '')
+        
+        products_dict[p_id]["variations"].append({
+            "variation_name": str(row.get('et_title_variation_name', '')).strip(),
+            "sku": var_sku if var_sku != 'nan' else '',
+            "price": float(price) if price.replace('.', '', 1).isdigit() else 0,
+            "stock": int(stock) if float(stock).is_integer() else 0,
+            "variation_image": ""
+        })
+
+    payload = {"platform": "shopee", "shop": shop_name, "products": list(products_dict.values())}
+    
+    log_func(f"🚀 Đang bắn {len(payload['products'])} Sản phẩm lên Website...")
+    try:
+        res = requests.post(SYNC_VARIATIONS_URL, json=payload)
+        if res.status_code == 200:
+            data = res.json()
+            log_func(f"🎉 HOÀN TẤT! Đã đồng bộ {data.get('synced', 0)} phân loại lên Web.")
+            log_func(f"🤖 Hệ thống tự động Map được: {data.get('auto_mapped', 0)} SKU.")
+        else:
+            log_func(f"❌ Lỗi từ Server: {res.status_code} - {res.text}")
+    except Exception as e:
+        log_func(f"❌ Lỗi mạng: {e}")
+
+# ==========================================
+# XỬ LÝ GHÉP NỐI EXCEL TIKTOK
+# ==========================================
+def process_tiktok_excel_and_sync(shop_name, filepath, log_func):
+    import pandas as pd
+    import requests
+    from config import SYNC_VARIATIONS_URL
+
+    log_func("⏳ Đang bóc tách dữ liệu từ file Template TikTok...")
+    try:
+        # Đọc file CSV, TikTok dùng dòng 0 làm mã cột chuẩn
+        if filepath.endswith('.csv'):
+            df = pd.read_csv(filepath, header=0, dtype=str)
+        else:
+            # File TikTok có nhiều sheet, bắt buộc phải đọc đích danh sheet 'Template'
+            try:
+                df = pd.read_excel(filepath, sheet_name='Template', header=0, dtype=str, engine='calamine')
+            except ValueError:
+                # Nếu lỡ file không có sheet Template thì đọc sheet đầu tiên chữa cháy
+                df = pd.read_excel(filepath, header=0, dtype=str, engine='calamine')
+        
+        # Dòng dữ liệu thật luôn có product_id là số
+        df = df[pd.to_numeric(df['product_id'], errors='coerce').notnull()]
+    except Exception as e:
+        log_func(f"❌ Lỗi đọc file Template: {e}")
+        return
+
+    products_dict = {}
+    for _, row in df.iterrows():
+        p_id = str(row.get('product_id', '')).strip()
+        if not p_id or p_id == 'nan': continue
+
+        if p_id not in products_dict:
+            products_dict[p_id] = {
+                "item_id": p_id,
+                "product_name": str(row.get('product_name', '')),
+                "description": str(row.get('product_description', '')),
+                "images": [str(row.get('main_image', ''))] if row.get('main_image', '') and str(row.get('main_image', '')) != 'nan' else [],
+                "variations": []
+            }
+        
+        var_sku = str(row.get('seller_sku', '')).strip()
+        price = str(row.get('price', '0')).replace(',', '')
+        stock = str(row.get('quantity', '0')).replace(',', '')
+        
+        # Bóc tách hình ảnh của phân loại
+        var_image = str(row.get('variation_image', '')).strip()
+
+        products_dict[p_id]["variations"].append({
+            "variation_name": str(row.get('variation_value', '')).strip(),
+            "sku": var_sku if var_sku != 'nan' else '',
+            "price": float(price) if price.replace('.', '', 1).isdigit() else 0,
+            "stock": int(stock) if float(stock).is_integer() else 0,
+            "variation_image": var_image if var_image != 'nan' else ""
+        })
+
+    payload = {"platform": "tiktok", "shop": shop_name, "products": list(products_dict.values())}
+    
+    log_func(f"🚀 Đang bắn {len(payload['products'])} Sản phẩm TikTok lên Website...")
+    try:
+        res = requests.post(SYNC_VARIATIONS_URL, json=payload)
+        if res.status_code == 200:
+            data = res.json()
+            log_func(f"🎉 HOÀN TẤT! Đã đồng bộ {data.get('synced', 0)} phân loại lên Web.")
+            log_func(f"🤖 Hệ thống tự động Map được: {data.get('auto_mapped', 0)} SKU.")
+        else:
+            log_func(f"❌ Lỗi từ Server: {res.status_code} - {res.text}")
+    except Exception as e:
+        log_func(f"❌ Lỗi mạng: {e}")

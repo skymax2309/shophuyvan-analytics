@@ -10,6 +10,62 @@ class TikTokEngine:
         self.log = log_func # Đảm bảo có dòng này để dùng self.log
         self.psr = psr
 
+    async def login_tiktok(self, page, shop):
+        self.log("🔍 Kiểm tra trạng thái đăng nhập TikTok...")
+        await asyncio.sleep(5)
+        if "login" not in page.url and "account/login" not in page.url:
+            self.log("✅ Tài khoản này đã đăng nhập sẵn từ trước!")
+            return True
+
+        self.log("⚠️ TikTok yêu cầu đăng nhập. Đang tự động điền thông tin...")
+        try:
+            # 1. Bấm chữ "Đăng nhập" ở góc dưới (như hình bạn khoanh đỏ) để đổi form
+            btn_chuyen_form = page.locator('span:has-text("Đăng nhập"), span:has-text("Log in"), div:has-text("Đăng nhập")').last
+            if await btn_chuyen_form.is_visible():
+                await btn_chuyen_form.click(force=True)
+                await asyncio.sleep(2)
+            
+            # 2. Bấm "Sử dụng số điện thoại / email / TikTok ID" nếu hiện ra
+            btn_email_phone = page.locator('text="Số điện thoại / Email / TikTok ID", text="Đăng nhập bằng số điện thoại/email", div:has-text("điện thoại / email")').last
+            if await btn_email_phone.is_visible():
+                await btn_email_phone.click(force=True)
+                await asyncio.sleep(2)
+
+            # 3. Điền Tài khoản
+            tk_loc = page.locator('input[type="text"], input[name="email"]').first
+            await tk_loc.wait_for(state="visible", timeout=5000)
+            await tk_loc.fill(shop.get("email_login", ""))
+            await asyncio.sleep(1)
+            
+            # 4. Điền Mật khẩu
+            mk_loc = page.locator('input[type="password"]').first
+            await mk_loc.fill(shop.get("mat_khau", ""))
+            await asyncio.sleep(1)
+            
+            # 5. Bấm trực tiếp vào nút "Đăng nhập" màu đỏ
+            self.log("🔑 Đã điền xong. Đang bấm nút Đăng nhập...")
+            btn_login = page.locator('button:has-text("Đăng nhập"), button[type="submit"], button:has-text("Log in")').first
+            await btn_login.click(force=True)
+            
+        except Exception as e:
+            self.log(f"⚠️ Bot vướng giao diện, bạn hãy tự điền nhé.")
+
+        self.log("⏳ Mời bạn vượt Captcha/OTP nếu có. Bot sẽ CHỜ TỐI ĐA 3 PHÚT (180s)...")
+        login_success = False
+        for _ in range(60):
+            await asyncio.sleep(3)
+            if "login" not in page.url and "account/login" not in page.url:
+                login_success = True
+                break
+                
+        if not login_success:
+            self.log("❌ Quá thời gian chờ (3 phút). Vui lòng thao tác lại!")
+            return False
+            
+        self.log("✅ Đăng nhập thành công! Đã lưu phiên bản quyền (Session).")
+        await asyncio.sleep(5)
+        return True
+
     async def tiktok_xu_ly_doanh_thu(self, page, shop, THANG_TAI, NAM):
         import calendar # Đã nhấn Tab để thụt vào
         self.log(f"Đang xử lý DOANH THU TikTok tháng {THANG_TAI}/{NAM}")
@@ -465,6 +521,158 @@ class TikTokEngine:
             except:
                 pass
             await asyncio.sleep(5)
+
+    async def tai_va_dong_bo_san_pham_excel(self, page, shop):
+        self.log(f"🤖 Bắt đầu tự động tải file Excel Tiktok cho shop: {shop['ten_shop']}")
+        await page.goto("https://seller-vn.tiktok.com/product/batch/edit-prods?entry-from=manage&shop_region=VN", wait_until="commit")
+        await asyncio.sleep(8)
+
+        # Gọi hàm xử lý Đăng nhập thông minh
+        if not await self.login_tiktok(page, shop):
+            return # Nếu đăng nhập thất bại thì dừng luôn
+
+        try:
+            # 1. Chọn Tất cả thông tin
+            self.log("👉 Đang chọn 'Tất cả thông tin'...")
+            await page.get_by_text("Tất cả thông tin", exact=True).first.click(force=True)
+            await asyncio.sleep(2)
+
+            # 2. Bấm Chọn sản phẩm
+            self.log("👉 Đang mở danh sách Chọn sản phẩm...")
+            await page.locator('button:has-text("Chọn các sản phẩm"), button:has-text("Chọn sản phẩm")').first.click(force=True)
+            await asyncio.sleep(4)
+
+            # 3. Vòng lặp tích chọn các trang
+            self.log("👉 Đang quét và tích chọn sản phẩm qua các trang...")
+            page_num = 1
+            while True:
+                self.log(f"   Đang tích chọn tất cả ở trang {page_num}...")
+                # Tích checkbox All ở tiêu đề bảng (Dùng Javascript chọc thẳng vào lõi Arco Design để né lỗi cuộn màn hình)
+                await page.evaluate('''() => {
+                    // Ưu tiên click vào thẻ bọc ngoài cùng của giao diện Tiktok
+                    const wrapper = document.querySelector('th .arco-checkbox');
+                    if (wrapper) { 
+                        wrapper.click(); 
+                        return; 
+                    }
+                    // Nếu không có thì click thẳng vào ô input gốc
+                    const cb = document.querySelector('th input[type="checkbox"], thead input[type="checkbox"]');
+                    if (cb) { 
+                        cb.click(); 
+                    }
+                }''')
+                await asyncio.sleep(5)
+
+                # Kiểm tra và bấm nút Trang tiếp theo bằng Javascript
+                next_status = await page.evaluate('''() => {
+                    const nextBtn = document.querySelector('.arco-pagination-item-next, li[title="Next"], button[aria-label="Next"]');
+                    if (!nextBtn) return "not_found";
+                    
+                    // Kiểm tra xem nút có bị mờ (đã ở trang cuối cùng) không
+                    if (nextBtn.classList.contains('arco-pagination-item-disabled') || 
+                        nextBtn.hasAttribute('disabled') || 
+                        nextBtn.getAttribute('aria-disabled') === 'true') {
+                        return "disabled";
+                    }
+                    
+                    nextBtn.click();
+                    return "clicked";
+                }''')
+
+                if next_status == "clicked":
+                    page_num += 1
+                    await asyncio.sleep(5) # Đợi trang mới load xong
+                else:
+                    self.log(f"   Đã quét đến trang cuối cùng.")
+                    break
+
+            # 4. Bấm Chọn mục đã lọc (Xác nhận)
+            self.log("👉 Xác nhận chọn sản phẩm...")
+            await page.locator('button:has-text("Chọn mục đã lọc"), button:has-text("Xác nhận")').first.click(force=True)
+            await asyncio.sleep(3)
+
+            # 5. Bấm Tạo mẫu
+            self.log("⏳ Đang yêu cầu Tạo mẫu...")
+            await page.locator('button:has-text("Tạo mẫu")').first.click(force=True)
+            await asyncio.sleep(5)
+
+            # 6. Chờ nút Tải xuống
+            self.log("⏳ Đang chờ TikTok nén file (tối đa 3 phút)...")
+            file_ready = False
+            for _ in range(60):
+                await asyncio.sleep(3)
+                btn_dl = page.locator('button:has-text("Tải xuống")').first
+                if await btn_dl.is_visible() and not await btn_dl.is_disabled():
+                    file_ready = True
+                    break
+
+            if not file_ready:
+                self.log("❌ LỖI: Quá thời gian chờ TikTok tạo file.")
+                return
+
+            # 7. Tải file ZIP
+            self.log("📥 File đã sẵn sàng, đang tải ZIP về máy...")
+            async with page.expect_download(timeout=120000) as download_info:
+                await page.locator('button:has-text("Tải xuống")').first.click(force=True)
+
+            download = await download_info.value
             
+            import os, zipfile, shutil
+            from utils import upload_to_r2, process_tiktok_excel_and_sync
+
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            zip_path = os.path.join(current_dir, f"{shop['ten_shop'].replace('/', '_')}_tiktok.zip")
+            await download.save_as(zip_path)
+            self.log(f"✅ Đã tải file ZIP: {os.path.basename(zip_path)}")
+
+            # 8. Giải nén và Xử lý
+            self.log("📦 Đang giải nén, đổi tên và Upload TOÀN BỘ file lên Server...")
+            extract_dir = os.path.join(current_dir, f"{shop['ten_shop'].replace('/', '_')}_extracted")
+            if os.path.exists(extract_dir):
+                shutil.rmtree(extract_dir)
+            os.makedirs(extract_dir)
+
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+
+            template_files = []
+            extracted_files = os.listdir(extract_dir)
+            self.log(f"👉 Tìm thấy {len(extracted_files)} file trong ZIP.")
+
+            for file in extracted_files:
+                old_path = os.path.join(extract_dir, file)
+                new_name = f"{shop['ten_shop'].replace('/', '_')}_{file}"
+                new_path = os.path.join(extract_dir, new_name)
+                os.rename(old_path, new_path)
+                
+                # Upload lên R2
+                self.log(f"  ☁️ Đang up: {new_name} ...")
+                upload_to_r2(new_path, new_name)
+                
+                # Gom TẤT CẢ các file có chữ "template" để sync (không phân biệt hoa/thường)
+                if "template" in new_name.lower() and new_name.endswith('.xlsx'):
+                    template_files.append(new_path)
+
+            # 9. Sync sản phẩm (Xử lý cuốn chiếu từng file một)
+            if template_files:
+                for idx, t_file in enumerate(template_files):
+                    self.log(f"⏳ Đang xử lý bóc tách file dữ liệu {idx + 1}/{len(template_files)}...")
+                    process_tiktok_excel_and_sync(shop['ten_shop'], t_file, self.log)
+            else:
+                self.log("❌ Không tìm thấy file Template để đồng bộ Sản phẩm.")
+
+            # 10. Dọn dẹp PC
+            self.log("🧹 Đang dọn dẹp xóa file trên máy tính...")
+            try:
+                os.remove(zip_path)
+                shutil.rmtree(extract_dir)
+                self.log("✅ Đã xóa sạch file tạm trên PC, không để lại rác!")
+            except Exception as e:
+                self.log(f"⚠️ Không thể xóa file tạm: {e}")
+
+            self.log("🎉 HOÀN TẤT ĐỒNG BỘ TIKTOK!")
+
+        except Exception as e:
+            self.log(f"❌ Lỗi khi thao tác Tiktok: {str(e)}")
             
     

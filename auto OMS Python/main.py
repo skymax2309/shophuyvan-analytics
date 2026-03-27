@@ -126,6 +126,8 @@ class HuyVanApp(ctk.CTk):
             font=("Segoe UI",12,"bold"),
             fg_color="#444", hover_color="#DC3545",
             height=32, corner_radius=8).pack(side="left")
+        self.btn_login_shop = ctk.CTkButton(tab_quanly, text="🔑 Đăng Nhập / Lưu Phiên", command=self.run_manual_login, fg_color="#f59e0b", hover_color="#d97706")
+        self.btn_login_shop.pack(pady=10) # (Nếu các nút khác đang dùng .grid() hoặc .pack(side="left") thì bạn chỉnh lại xíu cho nó xếp hàng ngay ngắn nhé)
 
         # Bảng danh sách
         list_frame = ctk.CTkFrame(tab_quanly, fg_color="transparent")
@@ -285,18 +287,39 @@ class HuyVanApp(ctk.CTk):
 
         sp_shop_frame = ctk.CTkFrame(tab_sp, fg_color="#1A1A1A")
         sp_shop_frame.pack(padx=20, fill="x")
-        ctk.CTkLabel(sp_shop_frame, text="Chọn shop Shopee:", text_color="white",
+        
+        # Ô 1: Chọn Sàn
+        ctk.CTkLabel(sp_shop_frame, text="Chọn Sàn:", text_color="white",
                      font=("Segoe UI", 12)).grid(row=0, column=0, padx=10, pady=8)
-        self.sp_shop_var = ctk.StringVar(value="Tất cả shop")
-        shopee_shops = ["Tất cả shop"] + [s["ten_shop"] for s in self.DANH_SACH_SHOP if s.get("platform") == "shopee"]
-        self.sp_shop_combo = ctk.CTkComboBox(sp_shop_frame, values=shopee_shops,
-                                              variable=self.sp_shop_var, width=280)
-        self.sp_shop_combo.grid(row=0, column=1, padx=10, pady=8)
+        self.sp_san_var = ctk.StringVar(value="shopee")
+        self.sp_san_combo = ctk.CTkComboBox(sp_shop_frame, values=["shopee", "tiktok", "lazada"],
+                                            variable=self.sp_san_var, width=120, command=self.update_sp_shop_list)
+        self.sp_san_combo.grid(row=0, column=1, padx=10, pady=8)
 
-        ctk.CTkButton(tab_sp, text="▶ Bắt đầu đồng bộ Sản phẩm",
+        # Ô 2: Chọn Shop
+        ctk.CTkLabel(sp_shop_frame, text="Chọn Shop:", text_color="white",
+                     font=("Segoe UI", 12)).grid(row=0, column=2, padx=10, pady=8)
+        self.sp_shop_var = ctk.StringVar(value="Tất cả shop")
+        self.sp_shop_combo = ctk.CTkComboBox(sp_shop_frame, values=["Tất cả shop"],
+                                              variable=self.sp_shop_var, width=280)
+        self.sp_shop_combo.grid(row=0, column=3, padx=10, pady=8)
+        
+        # Mặc định load danh sách shop của Shopee lúc mới mở App
+        self.update_sp_shop_list("shopee")
+
+        btn_sp_frame = ctk.CTkFrame(tab_sp, fg_color="transparent")
+        btn_sp_frame.pack(pady=10)
+
+        ctk.CTkButton(btn_sp_frame, text="▶ Quét Sản phẩm Web",
                       fg_color="#00CED1", text_color="black",
                       font=("Segoe UI", 13, "bold"),
-                      command=self.start_sync_products).pack(pady=10)
+                      command=self.start_sync_products).pack(side="left", padx=10)
+
+        self.btn_sync_excel = ctk.CTkButton(btn_sp_frame, text="📊 Bot Đồng Bộ SP Excel",
+                      fg_color="#10b981", text_color="white", hover_color="#059669",
+                      font=("Segoe UI", 13, "bold"),
+                      command=self.run_sync_excel_bot)
+        self.btn_sync_excel.pack(side="left", padx=10)
 
         self.sp_log = ctk.CTkTextbox(tab_sp, height=350, fg_color="#0A0A0A",
                                      text_color="#00FF88", font=("Consolas", 11))
@@ -397,17 +420,24 @@ class HuyVanApp(ctk.CTk):
         self.sp_log.see("end")
         self.sp_log.configure(state="disabled")
 
+    def update_sp_shop_list(self, selected_platform):
+        """Tự động đổi danh sách shop khi người dùng chọn Sàn khác"""
+        shops = ["Tất cả shop"] + [s["ten_shop"] for s in self.DANH_SACH_SHOP if s.get("platform") == selected_platform]
+        self.sp_shop_combo.configure(values=shops)
+        self.sp_shop_var.set("Tất cả shop")
+
     def start_sync_products(self):
+        platform = self.sp_san_var.get()
+        shop_name = self.sp_shop_var.get()
+        
         def _run_sync():
-            # Tạm thời chuyển hướng log sang khung xanh của tab Sản phẩm
-            old_log = self.shopee_eng.log
-            self.shopee_eng.log = self.sp_log_msg
-            
-            # Chạy đồng bộ
-            asyncio.run(self.shopee_eng.sync_shopee_products(self.DANH_SACH_SHOP, self.sp_shop_var.get()))
-            
-            # Trả lại log về vị trí cũ (cho bot Auto chạy ngầm sau này)
-            self.shopee_eng.log = old_log
+            if platform == "shopee":
+                old_log = self.shopee_eng.log
+                self.shopee_eng.log = self.sp_log_msg
+                asyncio.run(self.shopee_eng.sync_shopee_products(self.DANH_SACH_SHOP, shop_name))
+                self.shopee_eng.log = old_log
+            else:
+                self.sp_log_msg(f"⚠️ Tính năng quét Web của {platform.upper()} đang phát triển. Vui lòng dùng nút 'Bot Đồng Bộ SP Excel' kế bên!")
 
         threading.Thread(target=_run_sync, daemon=True).start()
         
@@ -583,6 +613,118 @@ class HuyVanApp(ctk.CTk):
                 idx = int(self.tree.item(item, "tags")[0])
                 selected.append(self.DANH_SACH_SHOP[idx])
         return selected
+    def run_manual_login(self):
+        selected = self.get_selected_shops()
+        if not selected:
+            self.log("⚠️ Vui lòng tích chọn 1 shop trong bảng trên để Đăng nhập!")
+            return
+        if len(selected) > 1:
+            self.log("⚠️ Chỉ chọn 1 shop mỗi lần để Đăng nhập!")
+            return
+            
+        shop = selected[0]
+        def task():
+            if hasattr(self, 'btn_login_shop'):
+                self.btn_login_shop.configure(state="disabled", text="⏳ Đang mở...")
+            try:
+                import asyncio
+                asyncio.run(self.playwright_manual_login(shop))
+            except Exception as e:
+                self.log(f"❌ Lỗi hệ thống: {str(e)}")
+            finally:
+                if hasattr(self, 'btn_login_shop'):
+                    self.btn_login_shop.configure(state="normal", text="🔑 Đăng Nhập / Lưu Phiên")
+                
+        import threading
+        threading.Thread(target=task, daemon=True).start()
+
+    async def playwright_manual_login(self, shop):
+        self.log(f"🚀 Mở trình duyệt để Đăng nhập & Lưu phiên cho Shop: {shop['ten_shop']}")
+        from playwright.async_api import async_playwright
+        import asyncio
+        async with async_playwright() as p:
+            browser = await p.chromium.launch_persistent_context(
+                user_data_dir=shop['profile_dir'],
+                channel="chrome",
+                headless=False,
+                viewport={"width": 1280, "height": 720},
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+            try:
+                page = browser.pages[0] if browser.pages else await browser.new_page()
+                
+                if shop.get('platform') == 'tiktok':
+                    await page.goto("https://seller-vn.tiktok.com/", wait_until="commit")
+                    await self.tiktok_eng.login_tiktok(page, shop)
+                elif shop.get('platform') == 'shopee':
+                    await page.goto("https://banhang.shopee.vn/", wait_until="commit")
+                    self.log("⏳ Vui lòng đăng nhập Shopee. Trình duyệt tự đóng và lưu sau 3 phút...")
+                    await asyncio.sleep(180)
+                elif shop.get('platform') == 'lazada':
+                    await page.goto("https://sellercenter.lazada.vn/", wait_until="commit")
+                    self.log("⏳ Vui lòng đăng nhập Lazada. Trình duyệt tự đóng và lưu sau 3 phút...")
+                    await asyncio.sleep(180)
+                    
+            except Exception as e:
+                self.log(f"❌ Lỗi khi mở shop {shop['ten_shop']}: {str(e)}")
+            finally:
+                await browser.close()
+                self.log(f"✅ Đã đóng trình duyệt và lưu phiên (Cookies) cho {shop['ten_shop']}.")
+
+
+    def run_sync_excel_bot(self):
+        platform = self.sp_san_var.get()
+        shop_name = self.sp_shop_var.get()
+        if shop_name == "Tất cả shop" or not shop_name:
+            self.sp_log_msg("⚠️ Vui lòng chọn 1 shop cụ thể (Không chọn 'Tất cả shop') để tải file Excel!")
+            return
+            
+        shop = next((s for s in self.DANH_SACH_SHOP if s.get("ten_shop") == shop_name and s.get("platform") == platform), None)
+        if not shop:
+            self.sp_log_msg("❌ Lỗi: Không tìm thấy thông tin shop! Hãy kiểm tra xem tài khoản đã thêm đúng Sàn chưa.")
+            return
+            
+        def task():
+            self.btn_sync_excel.configure(state="disabled", text="⏳ Bot Đang Chạy...")
+            try:
+                asyncio.run(self.playwright_excel_job(shop))
+            except Exception as e:
+                self.sp_log_msg(f"❌ Lỗi hệ thống: {str(e)}")
+            finally:
+                self.btn_sync_excel.configure(state="normal", text="📊 Bot Đồng Bộ SP Excel")
+                
+        threading.Thread(target=task, daemon=True).start()
+
+    async def playwright_excel_job(self, shop):
+        # Chuyển log xuống màn hình console xanh của tab Đồng Bộ
+        old_log_shopee = self.shopee_eng.log
+        old_log_tiktok = self.tiktok_eng.log
+        self.shopee_eng.log = self.sp_log_msg
+        self.tiktok_eng.log = self.sp_log_msg
+        
+        async with async_playwright() as p:
+            self.sp_log_msg(f"🚀 Mở trình duyệt tải Excel cho Shop: {shop['ten_shop']}")
+            browser = await p.chromium.launch_persistent_context(
+                user_data_dir=shop['profile_dir'],
+                channel="chrome",
+                headless=False,
+                viewport={"width": 1280, "height": 720},
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+            try:
+                page = browser.pages[0] if browser.pages else await browser.new_page()
+                if shop.get('platform') == 'tiktok':
+                    await self.tiktok_eng.tai_va_dong_bo_san_pham_excel(page, shop)
+                else:
+                    await self.shopee_eng.tai_va_dong_bo_san_pham_excel(page, shop)
+            except Exception as e:
+                self.sp_log_msg(f"❌ Lỗi khi xử lý shop {shop['ten_shop']}: {str(e)}")
+            finally:
+                await browser.close()
+                
+        # Trả lại log về vị trí cũ
+        self.shopee_eng.log = old_log_shopee
+        self.tiktok_eng.log = old_log_tiktok
 
 if __name__ == "__main__":
     HuyVanApp().mainloop()

@@ -10,6 +10,67 @@ class ShopeeEngine:
         self.psr = psr
         self.rescue_wait = rescue_func
 
+    async def tai_va_dong_bo_san_pham_excel(self, page, shop):
+        self.log(f"🤖 Bắt đầu tự động tải file Excel cho shop: {shop['ten_shop']}")
+        await page.goto("https://banhang.shopee.vn/portal/product-mass/mass-update/download", wait_until="commit")
+        await asyncio.sleep(5)
+
+        # Định nghĩa 3 loại file cần tải dựa trên hướng dẫn của Huy
+        file_types = {
+            "basic": "Thông tin cơ bản",
+            "sales": "Thông tin bán hàng",
+            "media": "Hình ảnh"
+        }
+
+        import os
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        downloaded_paths = {}
+
+        for key, tab_name in file_types.items():
+            self.log(f"👉 Đang xử lý mục: {tab_name}...")
+            
+            # 1. Tích chọn mục tương ứng (Tìm theo class của Shopee, không phân biệt hoa thường và ép click xuyên thông báo)
+            await page.locator(f".eds-radio__label:has-text('{tab_name}')").first.click(force=True)
+            await asyncio.sleep(1.5)
+
+            # 2. Bấm nút Tải về (để xuất file). Chọn nút đầu tiên trên cùng.
+            await page.locator("button:has-text('Tải về')").first.click()
+            self.log(f"⏳ Đã yêu cầu xuất file {tab_name}, đang chờ Shopee xử lý...")
+
+            # 3. Chờ nút 'Đang đợi' chuyển sang 'Tải về' ở dòng ĐẦU TIÊN của bảng lịch sử
+            file_ready = False
+            for _ in range(40): # Lặp 40 lần, mỗi lần 3s => Chờ tối đa 2 phút
+                await asyncio.sleep(3)
+                btn_download = page.locator("tbody tr").first.locator("button:has-text('Tải về')")
+                if await btn_download.count() > 0 and await btn_download.is_visible() and not await btn_download.is_disabled():
+                    file_ready = True
+                    break
+
+            if not file_ready:
+                self.log(f"❌ LỖI: Quá thời gian chờ Shopee xuất file {tab_name}.")
+                return False
+
+            # 4. Bấm Tải Về và lưu file
+            self.log(f"📥 File {tab_name} đã sẵn sàng, tiến hành tải về máy...")
+            async with page.expect_download() as download_info:
+                await page.locator("tbody tr").first.locator("button:has-text('Tải về')").click()
+
+            download = await download_info.value
+            ext = ".xlsx" if "xlsx" in download.suggested_filename else ".csv"
+            safe_shop_name = shop['ten_shop'].replace("/", "_").replace("\\", "_")
+            save_path = os.path.join(current_dir, f"{key}_{safe_shop_name}{ext}")
+            
+            await download.save_as(save_path)
+            downloaded_paths[key] = save_path
+            self.log(f"✅ Đã lưu thành công: {os.path.basename(save_path)}")
+            await asyncio.sleep(2)
+
+        self.log("🎉 Đã cào thành công 3 file từ Shopee. Bắt đầu ghép nối dữ liệu...")
+        
+        # Gọi hàm xử lý và bắn lên Web từ file utils
+        from utils import process_and_sync_files
+        process_and_sync_files(shop['ten_shop'], downloaded_paths, self.log)
+
     async def xu_ly_doanh_thu(self, page, shop, THANG_TAI, NAM):
         self.log(f"Đang xử lý DOANH THU cho shop: {shop['ten_shop']}")
         await page.goto("https://banhang.shopee.vn/portal/finance/income/statement", wait_until="commit")

@@ -142,7 +142,8 @@ async function handleVariations(request, env, cors) {
                product_name: p.product_name,
                variation_name: v.variation_name,
                platform_sku: v.sku,
-               image_url: v.variation_image || p_img,
+               image_url: v.variation_image || '',
+               main_image: p_img || '',
                price: v.price,
                stock: v.stock
             })
@@ -194,11 +195,11 @@ async function handleVariations(request, env, cors) {
         INSERT INTO product_variations
           (platform, shop, platform_item_id, product_name, variation_name,
            platform_sku, internal_sku, mapped_items, image_url, price, stock, map_status, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+        VALUES (?,?,?,?,?,?,?,?, CASE WHEN ? != '' THEN ? ELSE ? END, ?, ?, ?, datetime('now'))
         ON CONFLICT(platform, shop, platform_sku) DO UPDATE SET
           product_name     = CASE WHEN excluded.product_name != '' THEN excluded.product_name ELSE product_variations.product_name END,
           variation_name   = excluded.variation_name,
-          image_url        = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE product_variations.image_url END,
+          image_url        = CASE WHEN ? != '' THEN ? ELSE product_variations.image_url END,
           price            = excluded.price,
           stock            = excluded.stock,
           internal_sku     = CASE WHEN product_variations.map_status = 'MAPPED' THEN product_variations.internal_sku ELSE excluded.internal_sku END,
@@ -208,8 +209,10 @@ async function handleVariations(request, env, cors) {
       `).bind(
         v.platform || 'shopee', v.shop || '', v.platform_item_id || '',
         v.product_name || '', v.variation_name || '',
-        pSku, internalSku, internalSku ? JSON.stringify([{sku: internalSku, qty: 1}]) : '[]', v.image_url || '',
-        v.price || 0, v.stock || 0, mapStatus
+        pSku, internalSku, internalSku ? JSON.stringify([{sku: internalSku, qty: 1}]) : '[]', 
+        v.image_url, v.image_url, v.main_image,
+        v.price || 0, v.stock || 0, mapStatus,
+        v.image_url, v.image_url
       ))
       synced++
     }
