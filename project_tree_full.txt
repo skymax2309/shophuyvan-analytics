@@ -7,6 +7,7 @@
     └── project_tree_full.txt
     └── schema_huyvan-analytics-db.sql
     └── shv_products_export_2026-03-23.json
+    └── super_export_purchase.py
     ├── apps/
         ├── fe/
             └── index.html
@@ -83,7 +84,6 @@
     ├── auto OMS Python/
         └── config.py
         └── main.py
-        └── super_export_purchase.py
         └── utils.py
         ├── engines/
             └── lazada_engine.py
