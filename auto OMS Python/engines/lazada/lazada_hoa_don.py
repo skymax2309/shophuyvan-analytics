@@ -40,14 +40,19 @@ class LazadaHoaDon:
                     empty_pages_count = 0
                     safe_chu_ky = chu_ky_text.replace("/","-").replace(":","-").replace("\n","").strip()
                     cycle_counts[safe_chu_ky] = cycle_counts.get(safe_chu_ky, 0) + 1
-                    file_name = f"LAZADA_{shop['ten_shop']}_{safe_chu_ky}_{cycle_counts[safe_chu_ky]}.pdf"
+                    
+                    thang_nam = f"Tháng {str(THANG_TAI).zfill(2)} {NAM}"
+                    folder = os.path.join(shop["thu_muc_luu"], thang_nam)
+                    if not os.path.exists(folder): os.makedirs(folder)
+                    
+                    file_name = f"lazada_{shop['ten_shop']}_hoadon_{safe_chu_ky}_{cycle_counts[safe_chu_ky]}.pdf"
 
                     btn_tai = row.locator("td.next-table-cell.last").get_by_text("Tải xuống")
                     if await btn_tai.is_visible():
                         async with page.expect_download(timeout=60000) as dl_info:
                             await btn_tai.click(force=True)
                         dl = await dl_info.value
-                        full_path = os.path.join(shop["thu_muc_luu"], file_name)
+                        full_path = os.path.join(folder, file_name)
                         await dl.save_as(full_path)
                         self.log(f"🏆 Đã lưu hóa đơn: {file_name}")
 

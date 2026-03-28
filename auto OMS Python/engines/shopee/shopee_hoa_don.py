@@ -33,7 +33,7 @@ class ShopeeHoaDon:
                         dl = await dl_info.value
                         folder = os.path.join(shop["thu_muc_luu"], f"Tháng {str(THANG_TAI).zfill(2)} {NAM}")
                         if not os.path.exists(folder): os.makedirs(folder)
-                        file_name = f"{shop['ten_shop']}{duoi}_{NAM}{str(THANG_TAI).zfill(2)}.pdf"
+                        file_name = f"shopee_{shop['ten_shop']}_hoadon{duoi}_{NAM}{str(THANG_TAI).zfill(2)}.pdf"
                         full_path = os.path.join(folder, file_name)
                         zip_path = full_path.replace(".pdf", ".zip")
                         await dl.save_as(zip_path)

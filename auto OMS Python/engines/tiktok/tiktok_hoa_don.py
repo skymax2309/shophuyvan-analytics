@@ -36,8 +36,11 @@ class TikTokHoaDon:
                         async with page.expect_download(timeout=45000) as dl_info:
                             await btn_tai.evaluate("node => node.click()")
                         dl = await dl_info.value
-                        file_name = f"{shop['ten_shop']}_hoadon_{loai_hd}_{target_period}_{cycle_counts[loai_hd]}.{dl.suggested_filename.split('.')[-1]}"
-                        full_path = os.path.join(shop["thu_muc_luu"], file_name)
+                        thang_nam = f"Tháng {str(THANG_TAI).zfill(2)} {NAM}"
+                        folder = os.path.join(shop["thu_muc_luu"], thang_nam)
+                        if not os.path.exists(folder): os.makedirs(folder)
+                        file_name = f"tiktok_{shop['ten_shop']}_hoadon{loai_hd}_{target_period.replace('-', '')}_{cycle_counts[loai_hd]}.{dl.suggested_filename.split('.')[-1]}"
+                        full_path = os.path.join(folder, file_name)
                         await dl.save_as(full_path)
                         self.log(f"🏆 Đã lưu: {file_name}")
                         if upload_to_r2(full_path, file_name):

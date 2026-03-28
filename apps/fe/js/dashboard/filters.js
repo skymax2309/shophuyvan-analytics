@@ -55,7 +55,28 @@ function setFilterMonth() {
   applyFilter()
 }
 
-function setFilterYear() {
+// Hàm mới xử lý khi chọn tháng từ Menu Dropdown
+function onMonthSelectChange(select) {
+  const val = select.value;
+  const now = new Date();
+  let targetMonth = now.getMonth(); // Mặc định là tháng hiện tại
+  let targetYear = now.getFullYear();
+
+  if (val === "current") {
+      targetMonth = now.getMonth();
+  } else if (val) {
+      targetMonth = parseInt(val) - 1; // JS đếm tháng từ 0-11
+  }
+
+  const monthStr = String(targetMonth + 1).padStart(2, "0");
+  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+  document.getElementById("filterFrom").value = `${targetYear}-${monthStr}-01`;
+  document.getElementById("filterTo").value   = `${targetYear}-${monthStr}-${lastDay}`;
+  applyFilter(); // Kích hoạt tự động lọc dữ liệu
+}
+
+function setFilterYear() { {
   const year = new Date().getFullYear()
   document.getElementById("filterFrom").value = `${year}-01-01`
   document.getElementById("filterTo").value   = `${year}-12-31`

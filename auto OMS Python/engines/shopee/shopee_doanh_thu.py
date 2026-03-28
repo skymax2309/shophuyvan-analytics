@@ -53,7 +53,7 @@ class ShopeeDoanhThu:
                         download = await download_info.value
                         folder = os.path.join(shop["thu_muc_luu"], f"Tháng {str(THANG_TAI).zfill(2)} {NAM}")
                         if not os.path.exists(folder): os.makedirs(folder)
-                        file_name = f"{shop['ten_shop']}_DoanhThu_{NAM}{str(THANG_TAI).zfill(2)}.pdf"
+                        file_name = f"shopee_{shop['ten_shop']}_doanhthu_{NAM}{str(THANG_TAI).zfill(2)}.pdf"
                         full_path = os.path.join(folder, file_name)
                         await download.save_as(full_path)
                         self.log(f"🏆 THÀNH CÔNG! Đã lưu: {file_name}")
@@ -84,8 +84,8 @@ class ShopeeDoanhThu:
                         await btn_popup.click(force=True)
                     download = await download_info.value
                     folder = os.path.join(shop["thu_muc_luu"], f"Tháng {str(THANG_TAI).zfill(2)} {NAM}")
-                    file_name = f"{shop['ten_shop']}_DoanhThu_{NAM}{str(THANG_TAI).zfill(2)}.pdf"
                     if not os.path.exists(folder): os.makedirs(folder)
+                    file_name = f"shopee_{shop['ten_shop']}_doanhthu_{NAM}{str(THANG_TAI).zfill(2)}.pdf"
                     full_path_rescue = os.path.join(folder, file_name)
                     await download.save_as(full_path_rescue)
                     self.log(f"🏆 CỨU HỘ THÀNH CÔNG! Đã lấy file từ lịch sử.")

@@ -53,7 +53,7 @@ class ShopeeDonHang:
                 folder = os.path.join(shop["thu_muc_luu"], f"Tháng {str(THANG_TAI).zfill(2)} {NAM}")
                 if not os.path.exists(folder):
                     os.makedirs(folder)
-                file_name = f"{shop['ten_shop'].replace('_DoanhThu','')}_shopee_donhang_{NAM}{str(THANG_TAI).zfill(2)}.xlsx"
+                file_name = f"shopee_{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}.xlsx"
                 full_path = os.path.join(folder, file_name)
                 await dl.save_as(full_path)
                 self.log("🏆 Xong Đơn hàng")
@@ -120,10 +120,11 @@ class ShopeeDonHang:
                 async with page.expect_download(timeout=120000) as dl_info:
                     await btn_tai.click(force=True)
                 dl = await dl_info.value
-                folder = shop["thu_muc_luu"]
+                thang_nam = f"Tháng {from_date.split('-')[1]} {from_date.split('-')[0]}"
+                folder = os.path.join(shop["thu_muc_luu"], thang_nam)
                 if not os.path.exists(folder):
                     os.makedirs(folder)
-                file_name = f"{shop['ten_shop']}_shopee_donhang_{from_date}_{to_date}.xlsx"
+                file_name = f"shopee_{shop['ten_shop']}_donhang_{from_date}_{to_date}.xlsx"
                 full_path = os.path.join(folder, file_name)
                 await dl.save_as(full_path)
                 self.log(f"🏆 Xong đơn hàng Shopee {from_date} → {to_date}")

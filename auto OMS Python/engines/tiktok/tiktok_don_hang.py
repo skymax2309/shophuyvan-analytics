@@ -20,8 +20,12 @@ class TikTokDonHang:
         
         await self._apply_filter(page, THANG_TAI, NAM)
         await self._trigger_export(page)
-        # Tên file sẽ là: tiktok_ShopHuyVan_donhang_202602.xlsx
-        await self._wait_and_download(page, shop, f"tiktok_{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}")
+        # Đã bọc thêm thư mục lưu theo tháng
+        thang_nam = f"Tháng {str(THANG_TAI).zfill(2)} {NAM}"
+        thu_muc_thang = os.path.join(shop["thu_muc_luu"], thang_nam)
+        shop_luu_tam = shop.copy()
+        shop_luu_tam["thu_muc_luu"] = thu_muc_thang
+        await self._wait_and_download(page, shop_luu_tam, f"tiktok_{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}")
 
     async def run_by_date(self, page, shop, from_date, to_date):
         self.log(f"📅 TikTok: tải đơn từ {from_date} đến {to_date}")
@@ -32,7 +36,11 @@ class TikTokDonHang:
         
         await self._apply_filter(page, d_from.month, str(d_from.year), d_from.day, datetime.datetime.strptime(to_date, "%Y-%m-%d").day)
         await self._trigger_export(page)
-        await self._wait_and_download(page, shop, f"{shop['ten_shop']}_donhang_{from_date}_{to_date}")
+        thang_nam = f"Tháng {str(d_from.month).zfill(2)} {d_from.year}"
+        thu_muc_thang = os.path.join(shop["thu_muc_luu"], thang_nam)
+        shop_luu_tam = shop.copy()
+        shop_luu_tam["thu_muc_luu"] = thu_muc_thang
+        await self._wait_and_download(page, shop_luu_tam, f"tiktok_{shop['ten_shop']}_donhang_{from_date}_{to_date}")
 
     async def _apply_filter(self, page, month, year, day_start=1, day_end=None):
         import datetime

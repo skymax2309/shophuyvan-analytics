@@ -62,7 +62,23 @@
   <!-- Hidden inputs để getFilterParams() hoạt động -->
   <input type="hidden" id="filterPlatform">
   <input type="hidden" id="filterShop">
-  <button onclick="setFilterMonth()" style="padding:6px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;background:white;cursor:pointer">📅 Tháng này</button>
+  
+  <select id="monthSelector" onchange="onMonthSelectChange(this)" style="padding:6px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;background:white;cursor:pointer;outline:none">
+    <option value="current">📅 Tháng này</option>
+    <option value="1">Tháng 1</option>
+    <option value="2">Tháng 2</option>
+    <option value="3">Tháng 3</option>
+    <option value="4">Tháng 4</option>
+    <option value="5">Tháng 5</option>
+    <option value="6">Tháng 6</option>
+    <option value="7">Tháng 7</option>
+    <option value="8">Tháng 8</option>
+    <option value="9">Tháng 9</option>
+    <option value="10">Tháng 10</option>
+    <option value="11">Tháng 11</option>
+    <option value="12">Tháng 12</option>
+  </select>
+
   <button onclick="setFilterYear()"  style="padding:6px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;background:white;cursor:pointer">📆 Năm này</button>
   <button class="btn-filter" onclick="applyFilter()">🔍 Lọc</button>
   <button class="btn-reset" onclick="resetFilter()">✕ Reset</button>

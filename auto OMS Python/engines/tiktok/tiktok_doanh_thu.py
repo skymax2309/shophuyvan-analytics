@@ -67,9 +67,11 @@ class TikTokDoanhThu:
                         try: await page.evaluate(f'document.querySelector("{js_tai}").click()')
                         except: await btn_tai.click(force=True)
                     dl = await dl_info.value
-                    if not os.path.exists(shop["thu_muc_luu"]): os.makedirs(shop["thu_muc_luu"])
-                    file_name = f"{shop['ten_shop']}_doanhthu_{NAM}{str(THANG_TAI).zfill(2)}.{dl.suggested_filename.split('.')[-1]}"
-                    full_path = os.path.join(shop["thu_muc_luu"], file_name)
+                    thang_nam = f"Tháng {str(THANG_TAI).zfill(2)} {NAM}"
+                    folder = os.path.join(shop["thu_muc_luu"], thang_nam)
+                    if not os.path.exists(folder): os.makedirs(folder)
+                    file_name = f"tiktok_{shop['ten_shop']}_doanhthu_{NAM}{str(THANG_TAI).zfill(2)}.{dl.suggested_filename.split('.')[-1]}"
+                    full_path = os.path.join(folder, file_name)
                     await dl.save_as(full_path)
                     self.log(f"🏆 Xong Doanh Thu TikTok tháng {THANG_TAI}")
                     if upload_to_r2(full_path, file_name):

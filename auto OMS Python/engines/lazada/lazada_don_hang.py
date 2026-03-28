@@ -25,7 +25,10 @@ class LazadaDonHang:
         
         await self._select_date_range(page, ngay_bat_dau, ngay_ket_thuc)
         await self._trigger_export(page)
-        await self._wait_and_download(page, shop, f"LAZADA_{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}")
+        thang_nam = f"Tháng {str(THANG_TAI).zfill(2)} {NAM}"
+        shop_luu_tam = shop.copy()
+        shop_luu_tam["thu_muc_luu"] = os.path.join(shop["thu_muc_luu"], thang_nam)
+        await self._wait_and_download(page, shop_luu_tam, f"lazada_{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}")
 
     async def run_by_date(self, page, shop, from_date, to_date):
         self.log(f"📅 Lazada: tải đơn từ {from_date} đến {to_date}")
@@ -36,7 +39,10 @@ class LazadaDonHang:
         
         await self._select_date_range(page, from_date, to_date)
         await self._trigger_export(page)
-        await self._wait_and_download(page, shop, f"LAZADA_{shop['ten_shop']}_donhang_{from_date}_{to_date}")
+        thang_nam = f"Tháng {from_date.split('-')[1]} {from_date.split('-')[0]}"
+        shop_luu_tam = shop.copy()
+        shop_luu_tam["thu_muc_luu"] = os.path.join(shop["thu_muc_luu"], thang_nam)
+        await self._wait_and_download(page, shop_luu_tam, f"lazada_{shop['ten_shop']}_donhang_{from_date}_{to_date}")
 
     async def _select_date_range(self, page, start, end):
         js_tuy_chinh = '#root > section > div.a-l-page-container > div > div.mount-node-container.middle-container-width > div > div > form > div.next-card.next-card-hide-divider > div > div > div > div.expand-body > div:nth-child(1) > div.next-col.next-form-item-control > div > div:nth-child(2) > div > span'
@@ -68,6 +74,7 @@ class LazadaDonHang:
                 dl = await dl_info.value
                 ext = dl.suggested_filename.split(".")[-1]
                 file_name = f"{file_prefix}.{ext}"
+                if not os.path.exists(shop["thu_muc_luu"]): os.makedirs(shop["thu_muc_luu"])
                 full_path = os.path.join(shop["thu_muc_luu"], file_name)
                 await dl.save_as(full_path)
                 self.log(f"🏆 Xong đơn hàng: {file_name}")
