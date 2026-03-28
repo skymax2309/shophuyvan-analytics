@@ -58,41 +58,103 @@ class TikTokDonHang:
         await asyncio.sleep(2)
 
     async def _trigger_export(self, page):
-        await page.evaluate('''() => {
-            let btn = Array.from(document.querySelectorAll('button, div')).reverse().find(el => el.innerText && el.innerText.trim() === 'Xuất');
-            if (btn) btn.click();
-        }''')
-        await asyncio.sleep(5)
-        try: await page.locator('label').filter(has_text="Excel").first.click(force=True)
+        self.log("⏳ Đang bấm Xuất dữ liệu...")
+        
+        # 1. Đóng mọi popup thông báo sản phẩm sắp hết hàng/quảng cáo
+        try:
+            await page.locator('.arco-icon-close, .arco-modal-close-icon, [class*="close"]').first.click(timeout=3000)
+            await asyncio.sleep(1)
         except: pass
-        await asyncio.sleep(3)
-        await page.get_by_text("Xuất", exact=True).last.click(force=True)
+
+        # 2. Bấm nút Xuất chính
+        try:
+            btn_xuat = page.locator('button').filter(has_text="Xuất").first
+            await btn_xuat.click(timeout=5000)
+            await asyncio.sleep(3)
+        except:
+            await page.evaluate('''() => {
+                let target = Array.from(document.querySelectorAll('button, div')).reverse().find(el => el.innerText && el.innerText.trim() === 'Xuất');
+                if (target) target.click();
+            }''')
+            await asyncio.sleep(3)
+
+        # 3. ÉP CHỌN ĐỊNH DẠNG EXCEL (Quan trọng nhất)
+        try:
+            # Tìm và click vào ô tròn hoặc chữ "Excel"
+            excel_option = page.locator('label').filter(has_text="Excel")
+            if await excel_option.is_visible():
+                await excel_option.click(force=True)
+                self.log("✅ Đã chọn định dạng Excel.")
+                await asyncio.sleep(1)
+        except:
+            self.log("⚠️ Không tìm thấy nút chọn Excel, dùng mặc định của sàn.")
+
+        # 4. Bấm nút xác nhận Xuất cuối cùng trong popup
+        try:
+            confirm_btn = page.locator('.arco-modal-footer button, button:has-text("Xuất")').last
+            await confirm_btn.click(timeout=5000)
+            self.log("✅ Đã gửi lệnh Xuất file Excel thành công.")
+        except:
+            # Click bằng tọa độ hoặc JS nếu bị che
+            await page.evaluate('''() => {
+                let b = Array.from(document.querySelectorAll('button')).find(el => el.innerText === 'Xuất' && el.className.includes('primary'));
+                if (b) b.click();
+            }''')
+        
         await asyncio.sleep(5)
 
     async def _wait_and_download(self, page, shop, file_prefix):
-        for i in range(120):
-            btn = page.locator('a, button, span').filter(has_text="Tải xuống").first
-            if await btn.is_visible():
-                async with page.expect_download(timeout=60000) as dl_info:
-                    await btn.evaluate("node => node.click()")
-                dl = await dl_info.value
-                if not os.path.exists(shop["thu_muc_luu"]): os.makedirs(shop["thu_muc_luu"])
-                file_name = f"{file_prefix}.{dl.suggested_filename.split('.')[-1]}"
-                full_path = os.path.join(shop["thu_muc_luu"], file_name)
-                self.log(f"📍 ĐƯỜNG DẪN THỰC TẾ ĐANG LƯU FILE: {full_path}")
-                await dl.save_as(full_path)
-                self.log(f"🏆 Xong đơn hàng: {file_name}")
-                if upload_to_r2(full_path, file_name):
-                    v2_data = self.psr.parse_tiktok_order_excel_local(full_path, shop['ten_shop'])
-                    if v2_data: self._import_to_server(v2_data)
-                    trigger_server_import(file_name, shop['ten_shop'], 'tiktok', 'orders')
-                break
+        self.log("📂 Đang chờ nút Tải xuống xuất hiện tại popup...")
+        # Không nhảy trang, đứng im tại popup vừa bấm Xuất
+
+        # Tăng số lần quét lên 100 lần để tool kiên nhẫn đợi file xuất hiện
+        for i in range(100):
+            if page.is_closed(): return 
+
+            # Quét tìm chính xác thẻ div chứa chữ "Tải xuống" dựa trên HTML thực tế
+            btn_download = page.locator('div._content_17wai_1, div:has-text("Tải xuống")').last
+            
+            try:
+                if await btn_download.is_visible(timeout=2000):
+                    self.log("✅ Đã thấy nút Tải xuống! Tiến hành bốc file...")
+                    async with page.expect_download(timeout=60000) as dl_info:
+                        # Dùng force=True vì đôi khi popup thông báo sản phẩm che nhẹ lên nút
+                        await btn_download.click(force=True)
+                    
+                    dl = await dl_info.value
+                    if not os.path.exists(shop["thu_muc_luu"]): os.makedirs(shop["thu_muc_luu"])
+                    file_name = f"{file_prefix}.{dl.suggested_filename.split('.')[-1]}"
+                    full_path = os.path.join(shop["thu_muc_luu"], file_name)
+                    
+                    await dl.save_as(full_path)
+                    self.log(f"🏆 Xong đơn hàng: {file_name}")
+                    
+                    # Đóng popup sau khi tải xong để sạch giao diện
+                    try: await page.locator('button:has-text("Đóng")').click()
+                    except: pass
+
+                    # Tiến hành Import
+                    if upload_to_r2(full_path, file_name):
+                        v2_data = self.psr.parse_tiktok_order_excel_local(full_path, shop['ten_shop'])
+                        if v2_data: self._import_to_server(v2_data)
+                        trigger_server_import(file_name, shop['ten_shop'], 'tiktok', 'orders')
+                    return
+            except:
+                pass
+
+            if (i + 1) % 5 == 0:
+                self.log(f"...Đang đợi file hiện ra trong lịch sử (Lần {i+1}/100)...")
+            
+            # Đợi 5 giây trước khi quét lại nút
             await asyncio.sleep(5)
+            
 
     def _import_to_server(self, data):
         try:
             api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
-            req = urllib.request.Request(api_url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'}, method='POST')
+            req = urllib.request.Request(api_url, data=json.dumps(data).encode('utf-8'), 
+                                       headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'}, 
+                                       method='POST')
             with urllib.request.urlopen(req, timeout=60) as res:
                 result = json.loads(res.read().decode())
                 self.log(f"✅ Import: {result.get('imported_orders',0)} đơn")

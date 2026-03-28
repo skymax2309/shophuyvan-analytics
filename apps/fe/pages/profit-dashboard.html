@@ -9,29 +9,38 @@
 </head>
 <body>
 
-<!-- TOPBAR -->
-<div class="topbar">
-  <div class="logo">🛒 ShopHuyVan</div>
-  <nav>
-    <a href="#" class="active" onclick="showTab('dashboard')">📊 Dashboard</a>
-    <a href="#" onclick="showTab('top')">🔥 Top SKU</a>
-    <a href="#" onclick="showTab('cancel')">⚠️ Hủy / Hoàn</a>
-    <a href="#" onclick="showTab('calc')">🧮 Máy tính</a>
-    <a href="admin-products.html">📦 Sản phẩm</a>
-	<a href="oms-dashboard.html">📦 Đơn Hàng</a>
-    <a href="report-upload.html">📁 Báo Cáo</a>
-    <a href="../index.html">⬆️ Import</a>
-	<a href="import-sku-tool.html">📁 UP SẢN PHẨM BẰNG EXCEL</a>
-	<a href="admin-purchase.html" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-[#262626] text-gray-400 hover:text-[#00CED1] transition-all">
-    <span>🚢 Nhập Hàng Chính Ngạch</span>
-</a>
-	
-	
-  </nav>
-  <div class="spacer"></div>
-  <a href="cost-settings.html" class="btn-settings">⚙️ Cài đặt chi phí</a>
-  <button class="btn-settings" onclick="exportData()" style="background:#10b981">⬇️ Xuất Excel</button>
-</div>
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">🛒 ShopHuyVan</div>
+      <button class="btn-close-sidebar" onclick="toggleSidebar()">✕</button>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" class="active" onclick="showTab('dashboard')">📊 Dashboard</a>
+      <a href="#" onclick="showTab('top')">🔥 Top SKU</a>
+      <a href="#" onclick="showTab('cancel')">⚠️ Hủy / Hoàn</a>
+      <a href="#" onclick="showTab('calc')">🧮 Máy tính</a>
+      <a href="admin-products.html">📦 Sản phẩm</a>
+      <a href="oms-dashboard.html">📦 Đơn Hàng</a>
+      <a href="report-upload.html">📁 Báo Cáo</a>
+      <a href="../index.html">⬆️ Import</a>
+      <a href="import-sku-tool.html">📁 UP SẢN PHẨM BẰNG EXCEL</a>
+      <a href="admin-purchase.html">🚢 Nhập Hàng Chính Ngạch</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="cost-settings.html" class="btn-settings" style="justify-content:center">⚙️ Cài đặt chi phí</a>
+      <button class="btn-settings" onclick="exportData()" style="background:#10b981;justify-content:center">⬇️ Xuất Excel</button>
+    </div>
+  </aside>
+
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <div class="main-wrapper">
+    
+    <div class="mobile-topbar">
+      <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+      <div class="logo">🛒 ShopHuyVan</div>
+    </div>
 
 <!-- FILTER BAR -->
 <div class="filter-bar">
@@ -253,7 +262,6 @@
 
         <div id="calcBreakdown" style="font-size:13px"></div>
 
-        <!-- Cảnh báo lỗ -->
         <div class="warning-loss" id="warnLoss" style="display:none">
           ⚠️ CẢNH BÁO: Giá bán này bị LỖ! Cần tăng giá lên ít nhất <span id="minPrice">-</span> đ
         </div>
@@ -262,14 +270,13 @@
   </div>
 
 </div>
+  </div> </div> <script>
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+  }
+</script>
 
-<!-- ═══════════════════════════════════════════════════════
-     SCRIPTS — thứ tự load rất quan trọng!
-     1. utils (không phụ thuộc gì)
-     2. components (phụ thuộc utils)
-     3. dashboard/filters (phụ thuộc components)
-     4. dashboard/main (phụ thuộc tất cả)
-═══════════════════════════════════════════════════════ -->
 <script src="../js/utils/api.js"></script>
 <script src="../js/utils/format.js"></script>
 <script src="../js/components/ChartRenderer.js"></script>
