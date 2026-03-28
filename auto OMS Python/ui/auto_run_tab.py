@@ -232,13 +232,21 @@ class AutoRunTab(ctk.CTkFrame):
                 NAM = str(job['year'])
                 job_id = job['id']
                 task_type = job.get('task_type', 'all')
+                platform_job = job.get('platform', 'shopee')
 
-                shop = next((s for s in self.app.DANH_SACH_SHOP if s["ten_shop"] == shop_name), None)
-                if not shop:
-                    self.log(f"⚠️ Bỏ qua lệnh ID {job_id}: Không tìm thấy shop '{shop_name}' trong máy.")
+                # TÌM CHÍNH XÁC: Khớp cả Tên Shop LẪN Tên Sàn
+                shop_goc = next((s for s in self.app.DANH_SACH_SHOP if s["ten_shop"] == shop_name and s.get("platform", "shopee") == platform_job), None)
+                if not shop_goc:
+                    self.log(f"⚠️ Bỏ qua lệnh ID {job_id}: Không tìm thấy shop '{shop_name}' sàn '{platform_job}' trong máy.")
                     continue
 
-                self.log(f"\n🚀 ĐANG CHẠY LỆNH (ID: {job_id}) SHOP: {shop_name} - Tháng {THANG_TAI}/{NAM}")
+                # TẠO THƯ MỤC THÁNG: Copy cấu hình gốc và tự động chèn thêm folder "MMYYYY" vào đường dẫn lưu
+                shop = shop_goc.copy()
+                thang_nam_dir = f"{str(THANG_TAI).zfill(2)}{NAM}"
+                shop["thu_muc_luu"] = os.path.join(shop.get("thu_muc_luu", ""), thang_nam_dir)
+
+                self.log(f"\n🚀 ĐANG CHẠY LỆNH (ID: {job_id}) SHOP: {shop_name} ({platform_job.upper()}) - Tháng {THANG_TAI}/{NAM}")
+                self.log(f"📂 Thư mục lưu file: {shop['thu_muc_luu']}")
                 
                 if not os.path.exists(shop["profile_dir"]):
                     os.makedirs(shop["profile_dir"])
@@ -250,7 +258,6 @@ class AutoRunTab(ctk.CTkFrame):
                 page = context.pages[0]
 
                 try:
-                    platform_job = job.get('platform', 'shopee')
                     from_date = job.get('from_date') or None
                     to_date   = job.get('to_date')   or None
 

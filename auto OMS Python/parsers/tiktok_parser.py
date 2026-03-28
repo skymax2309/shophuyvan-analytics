@@ -147,6 +147,7 @@ class TikTokParser:
             for i, row in enumerate(ws.iter_rows(values_only=True)):
                 if i == 0:
                     headers = [str(c).strip() if c else "" for c in row]
+                    self.log(f"🔍 [DEBUG TÊN CỘT TIKTOK]: {', '.join(headers)}")
                     continue
                 if not any(row):
                     continue

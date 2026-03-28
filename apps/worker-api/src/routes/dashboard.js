@@ -46,10 +46,10 @@ const cancelRow = await env.DB.prepare(`
 
       -- TikTok
       SUM(CASE WHEN platform='tiktok' AND (order_type='cancel' OR order_type='return') AND return_fee > 0 THEN return_fee ELSE 0 END) AS total_tiktok_cancel_fee,
-      COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 1620 THEN order_id END) AS tiktok_failed_delivery_count,
+      COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND (return_fee > 0 OR cancel_reason LIKE '%thất bại%' OR cancel_reason LIKE '%không giao được%') THEN order_id END) AS tiktok_failed_delivery_count,
       COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='return' THEN order_id END) AS tiktok_return_count,
-      COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 0 THEN order_id END) AS tiktok_free_cancel_count,
-      SUM(CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 1620 THEN return_fee ELSE 0 END) AS tiktok_failed_delivery_fee,
+      COUNT(DISTINCT CASE WHEN platform='tiktok' AND order_type='cancel' AND return_fee = 0 AND cancel_reason NOT LIKE '%thất bại%' AND cancel_reason NOT LIKE '%không giao được%' THEN order_id END) AS tiktok_free_cancel_count,
+      SUM(CASE WHEN platform='tiktok' AND order_type='cancel' AND (return_fee > 0 OR cancel_reason LIKE '%thất bại%' OR cancel_reason LIKE '%không giao được%') THEN return_fee ELSE 0 END) AS tiktok_failed_delivery_fee,
 
       -- Shopee
       COUNT(DISTINCT CASE WHEN platform='shopee' AND order_type='cancel' THEN order_id END) AS shopee_cancel_count,

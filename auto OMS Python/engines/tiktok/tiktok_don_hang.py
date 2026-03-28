@@ -82,6 +82,7 @@ class TikTokDonHang:
                 if not os.path.exists(shop["thu_muc_luu"]): os.makedirs(shop["thu_muc_luu"])
                 file_name = f"{file_prefix}.{dl.suggested_filename.split('.')[-1]}"
                 full_path = os.path.join(shop["thu_muc_luu"], file_name)
+                self.log(f"📍 ĐƯỜNG DẪN THỰC TẾ ĐANG LƯU FILE: {full_path}")
                 await dl.save_as(full_path)
                 self.log(f"🏆 Xong đơn hàng: {file_name}")
                 if upload_to_r2(full_path, file_name):
