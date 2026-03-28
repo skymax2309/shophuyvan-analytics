@@ -189,8 +189,8 @@ class TikTokParser:
                         
                 elif "đã hủy" in status or "cancel" in status:
                     if "cancel" in cancel_type and "giao gói hàng thất bại" in cancel_reason_lower:
-                        # Đơn giao thất bại mất phí -> Xếp vào nhóm Return để tính phí
-                        order_type = "return" 
+                        # Đơn giao thất bại -> Trả về nhóm Cancel để Server đếm đúng vào mục Giao thất bại
+                        order_type = "cancel" 
                         shipping_status = "Giao thất bại"
                     else:
                         # Các lý do hủy khác -> Nhóm Cancel thuần túy

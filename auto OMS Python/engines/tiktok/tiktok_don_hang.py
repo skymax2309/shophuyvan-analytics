@@ -34,31 +34,28 @@ class TikTokDonHang:
         await self._wait_and_download(page, shop, f"{shop['ten_shop']}_donhang_{from_date}_{to_date}")
 
     async def _apply_filter(self, page, month, year, day_start=1, day_end=None):
-        if not day_end: day_end = calendar.monthrange(int(year), month)[1]
-        try: await page.get_by_text("Bộ lọc", exact=True).first.click(force=True)
-        except: pass
-        await asyncio.sleep(3)
-        await page.locator('.arco-picker-range, .core-picker-range').first.click(force=True)
-        await asyncio.sleep(3)
-        
-        target_month = f"{str(month).zfill(2)}/{year}"
-        for _ in range(24):
-            if target_month in (await page.locator('.core-picker-header-value').first.inner_text()).replace(" ",""): break
-            await page.locator('.core-picker-header').first.locator('svg.arco-icon-left').first.click(force=True)
-            await asyncio.sleep(2)
+        import datetime
+        import calendar
 
-        js_click = '''(args) => {
-            const leftPanel = document.querySelectorAll('.core-panel-date-inner, .arco-picker-date-panel')[0];
-            const cells = Array.from(leftPanel.querySelectorAll('div[class*="-picker-cell-inner"], div[class*="-picker-date"]'));
-            const matches = cells.filter(c => c.innerText.trim() === args.target);
-            matches[args.isFirst ? 0 : matches.length-1].click();
-        }'''
-        await page.evaluate(js_click, {"target": str(day_start).zfill(2), "isFirst": True})
+        if not day_end: day_end = calendar.monthrange(int(year), int(month))[1]
+        
+        # 1. Tính toán Timestamp chuẩn đến từng mili-giây
+        start_dt = datetime.datetime(int(year), int(month), int(day_start), 0, 0, 0)
+        end_dt = datetime.datetime(int(year), int(month), int(day_end), 23, 59, 59)
+        start_ts = int(start_dt.timestamp() * 1000)
+        end_ts = int(end_dt.timestamp() * 1000)
+        
+        # 2. Tuyệt chiêu: Ép trình duyệt đi thẳng đến URL đã lọc sẵn ngày, BỎ QUA hoàn toàn việc bấm Lịch!
+        target_url = f"https://seller-vn.tiktok.com/order?selected_sort=6&tab=all&time_order_created[]={start_ts}&time_order_created[]={end_ts}"
+        self.log(f"🚀 [Bypass UI] Ép URL lấy đơn: {day_start}/{month}/{year} -> {day_end}/{month}/{year}")
+        
+        await page.goto(target_url)
+        await asyncio.sleep(5)
+        
+        # 3. Đấm bay mọi popup ngáng đường nếu có
+        try: await page.locator('.arco-dialog-close, .arco-modal-close-icon, svg[class*="close"]').first.click(timeout=2000)
+        except: pass
         await asyncio.sleep(2)
-        await page.evaluate(js_click, {"target": str(day_end).zfill(2), "isFirst": False})
-        await asyncio.sleep(3)
-        await page.get_by_text("Áp dụng", exact=True).last.click(force=True)
-        await asyncio.sleep(12)
 
     async def _trigger_export(self, page):
         await page.evaluate('''() => {

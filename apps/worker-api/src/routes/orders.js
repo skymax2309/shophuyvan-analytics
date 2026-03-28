@@ -353,7 +353,8 @@ async function importOrdersV2(request, env, cors) {
         discount_shopee      = excluded.discount_shopee,
         discount_combo       = excluded.discount_combo,
         shipping_return_fee  = excluded.shipping_return_fee,
-        shipping_status      = excluded.shipping_status
+        shipping_status      = excluded.shipping_status,
+        order_date           = excluded.order_date
     `).bind(
       o.order_id          ?? null, 
       o.platform          ?? '', 
