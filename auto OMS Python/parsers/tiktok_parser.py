@@ -170,42 +170,65 @@ class TikTokParser:
                 try: order_amount = float(r.get("Order Amount") or 0)
                 except: order_amount = 0.0
 
-                # Phân loại đơn
+                # Phân loại đơn & Chuẩn hóa shipping_status theo rule mới của shop
                 order_type = "normal"
-                if "return" in cancel_type or "hoàn" in status:
+                shipping_status = status or ""
+                cancel_reason_lower = cancel_reason.lower()
+
+                if "đã hoàn tất" in status or "completed" in status:
+                    if not cancel_type:
+                        order_type = "normal"
+                        shipping_status = "Đã giao"
+                    elif "return" in cancel_type or "refund" in cancel_type:
+                        order_type = "return"
+                        shipping_status = "Hoàn hàng"
+                    else:
+                        order_type = "normal"
+                        shipping_status = "Đã giao"
+                        
+                elif "đã hủy" in status or "cancel" in status:
+                    if "cancel" in cancel_type and "giao gói hàng thất bại" in cancel_reason_lower:
+                        # Đơn giao thất bại mất phí -> Xếp vào nhóm Return để tính phí
+                        order_type = "return" 
+                        shipping_status = "Giao thất bại"
+                    else:
+                        # Các lý do hủy khác -> Nhóm Cancel thuần túy
+                        order_type = "cancel"
+                        shipping_status = "Đã hủy"
+                        
+                elif "return" in cancel_type or "trả hàng" in status or ("hoàn" in status and "hoàn thành" not in status and "hoàn tất" not in status):
                     order_type = "return"
-                elif "hủy" in status or "cancel" in status:
-                    order_type = "cancel"
-
-                # Chuẩn hóa shipping_status TikTok
-                if "awaiting collection" in status or "chờ lấy" in status:
-                    shipping_status = "Chờ lấy hàng"
-                elif "in transit" in status or "đang giao" in status:
-                    shipping_status = "Đang giao"
-                elif "delivered" in status or "đã giao" in status or "completed" in status:
-                    shipping_status = "Đã giao"
-                elif order_type == "cancel":
-                    shipping_status = "Đã hủy"
-                elif order_type == "return":
                     shipping_status = "Hoàn hàng"
+                    
                 else:
-                    shipping_status = status or ""
+                    # Các trạng thái vận chuyển khác
+                    if "awaiting collection" in status or "chờ lấy" in status:
+                        shipping_status = "Chờ lấy hàng"
+                    elif "in transit" in status or "đang giao" in status:
+                        shipping_status = "Đang giao"
+                    elif "delivered" in status or "đã giao" in status:
+                        shipping_status = "Đã giao"
 
-                # Ngày: ưu tiên Paid Time, fallback Created Time
-                raw_date = str(r.get("Paid Time") or r.get("Created Time") or "").strip()
+                # Ngày: ưu tiên tìm mọi dạng tên cột ngày tháng để chống lỗi file tháng/ngày
+                raw_date = ""
+                for k, v in r.items():
+                    if k:
+                        kl = str(k).lower()
+                        if "paid time" in kl or "created time" in kl or "order time" in kl or "thời gian tạo" in kl or "thời gian thanh toán" in kl:
+                            raw_date = str(v).strip()
+                            if raw_date: break
+
                 order_date = ""
-                try:
-                    d = datetime.datetime.strptime(raw_date.split(" ")[0] + " " +
-                        raw_date.split(" ")[1] + " " + raw_date.split(" ")[2], "%d/%m/%Y %H:%M:%S")
-                    order_date = d.strftime("%Y-%m-%d")
-                except:
-                    try:
-                        dm = raw_date[:10]
-                        parts = dm.split("/")
+                if raw_date:
+                    date_part = raw_date.split(" ")[0]
+                    if "-" in date_part:
+                        parts = date_part.split("-")
                         if len(parts) == 3:
-                            order_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
-                    except:
-                        pass
+                            order_date = f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}" if len(parts[0]) == 4 else f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
+                    elif "/" in date_part:
+                        parts = date_part.split("/")
+                        if len(parts) == 3:
+                            order_date = f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}" if len(parts[0]) == 4 else f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
 
                 revenue = order_amount if order_type == "normal" else 0
 

@@ -324,6 +324,8 @@ async function importOrdersV2(request, env, cors) {
          shipping_status)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET
+        platform      = excluded.platform,
+        shop          = excluded.shop,
         order_type    = excluded.order_type,
         revenue       = excluded.revenue,
         raw_revenue   = excluded.raw_revenue,
