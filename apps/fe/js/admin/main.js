@@ -5,10 +5,18 @@
 function switchTab(name) {
   document.querySelectorAll(".tab-pane").forEach(el => el.classList.remove("active"))
   document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"))
-  document.getElementById("tab-" + name).classList.add("active")
-  document.querySelectorAll(".tab-btn").forEach((btn, i) => {
-    if (["sku", "combo", "orders", "invoice"][i] === name) btn.classList.add("active")
-  })
+  
+  const tabPane = document.getElementById("tab-" + name);
+  if (tabPane) tabPane.classList.add("active");
+  
+  // Cách mới: Tự động tìm đúng nút được bấm dựa vào thuộc tính onclick, không cần đếm thứ tự nữa
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    const onClickAttr = btn.getAttribute("onclick") || "";
+    if (onClickAttr.includes(`'${name}'`) || onClickAttr.includes(`"${name}"`)) {
+      btn.classList.add("active");
+    }
+  });
+  
   if (name === "combo")   loadCombos()
   if (name === "orders")  { populateOrderShops(); loadOrders(1) }
   if (name === "invoice") loadInvoices()

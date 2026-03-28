@@ -142,10 +142,15 @@ class AutoRunTab(ctk.CTkFrame):
     def auto_loop(self):
         import time
         while self.auto_running:
-            self.log("🔍 Đang kiểm tra lệnh từ Server...")
+            self.log("🔍 Đang kiểm tra lệnh mới từ Server...")
             asyncio.run(self.run_main_logic())
-            for _ in range(300): # Đợi 5 phút
-                if not self.auto_running: break
+            
+            # Đếm ngược 30 giây để người dùng biết tool vẫn đang sống
+            for i in range(30, 0, -1): 
+                if not self.auto_running: 
+                    break
+                if i % 10 == 0: # Chỉ in log mỗi 10s để đỡ rác màn hình
+                    self.log(f"⏳ Quét lại sau {i} giây...")
                 time.sleep(1)
 
     def confirm_step(self):
