@@ -48,7 +48,7 @@ def upload_to_r2(local_path, remote_name):
         print(f"⚠️ Lỗi Upload R2: {e}")
         return False
         
-def trigger_server_import(self, file_key, shop_name, platform, report_type, local_path=None):
+def trigger_server_import(file_key, shop_name, platform, report_type, local_path=None):
     """Kích hoạt Server tự động xử lý file sau khi đã lên R2"""
     try:
         url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/auto-import-trigger"
@@ -56,9 +56,9 @@ def trigger_server_import(self, file_key, shop_name, platform, report_type, loca
         # Extract PDF text trên máy local để gửi kèm
         pdf_text = ""
         if local_path and local_path.endswith(".pdf"):
-            pdf_text = self.extract_pdf_text(local_path)
+            pdf_text = extract_pdf_text(local_path)
             if pdf_text:
-                self.log(f"📄 Đã extract PDF text: {len(pdf_text)} ký tự")
+                print(f"📄 Đã extract PDF text: {len(pdf_text)} ký tự")
 
         payload = {
             "file_key":    file_key,
@@ -67,19 +67,16 @@ def trigger_server_import(self, file_key, shop_name, platform, report_type, loca
             "report_type": report_type,
             "pdf_text":    pdf_text,
         }
-        # Nếu có parsed_json truyền vào thì gửi kèm
-        if hasattr(self, '_pending_parsed_json') and self._pending_parsed_json:
-            payload["parsed_json"] = self._pending_parsed_json
-            self._pending_parsed_json = None
+        
         data = json.dumps(payload).encode('utf-8')
         
         headers = {'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'}
         req = urllib.request.Request(url, data=data, headers=headers, method='POST')
         with urllib.request.urlopen(req) as res:
             if res.status == 200:
-                self.log(f"⚡ [Auto-Import] Đã báo Server xử lý {report_type} cho Shop: {shop_name}")
+                print(f"⚡ [Auto-Import] Đã báo Server xử lý {report_type} cho Shop: {shop_name}")
     except Exception as e:
-        self.log(f"⚠️ Lỗi kích hoạt Import: {str(e)}")
+        print(f"⚠️ Lỗi kích hoạt Import: {str(e)}")
 
 def upload_to_r2(local_path, remote_name):
     try:

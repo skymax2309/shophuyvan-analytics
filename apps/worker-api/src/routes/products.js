@@ -289,4 +289,31 @@ async function handleVariations(request, env, cors) {
   }
 }
 
+// ==========================================
+// API: LẤY DANH SÁCH GIÁ KHUYẾN MÃI THEO SHOP
+// ==========================================
+router.get('/promo-prices', async (request, env) => {
+    try {
+        const { searchParams } = new URL(request.url);
+        const platform = searchParams.get('platform') || 'shopee';
+        const shop = searchParams.get('shop');
+
+        if (!shop) {
+            return Response.json({ success: false, error: "Missing shop parameter" }, { status: 400 });
+        }
+
+        // Truy vấn lấy platform_sku và discount_price từ DB
+        const query = `
+            SELECT platform_sku, discount_price 
+            FROM product_variations 
+            WHERE platform = ? AND shop = ? AND discount_price > 0
+        `;
+        const { results } = await env.DB.prepare(query).bind(platform, shop).all();
+
+        return Response.json({ success: true, data: results });
+    } catch (error) {
+        return Response.json({ success: false, error: error.message }, { status: 500 });
+    }
+});
+
 export { handleProducts, handleCostSettings, handleVariations }

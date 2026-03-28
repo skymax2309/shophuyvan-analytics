@@ -1,0 +1,109 @@
+📦 NHÓM SẢN PHẨM & PHÂN LOẠI (routes/products.js)
+
+GET /api/products : Lấy danh sách sản phẩm gốc.
+
+POST /api/products : Thêm mới hoặc cập nhật sản phẩm gốc (ON CONFLICT).
+
+PUT /api/products : Cập nhật 1 sản phẩm gốc.
+
+DELETE /api/products/:sku : Xóa sản phẩm gốc.
+
+GET /api/products/cost-settings : Lấy cấu hình giá vốn.
+
+PUT /api/products/cost-settings : Cập nhật giá vốn, trọng lượng hàng loạt.
+
+GET /api/variations : Lấy danh sách phân loại hàng (Variations).
+
+POST /api/variations : Thêm/Cập nhật phân loại hàng (Tool Python đang dùng cái này).
+
+PUT /api/variations/:id : Cập nhật 1 phân loại hàng (Map SKU nội bộ).
+
+DELETE /api/variations/bulk : Xóa hàng loạt phân loại hàng.
+
+🛒 NHÓM ĐƠN HÀNG (routes/orders.js)
+
+GET /api/orders/export : Xuất dữ liệu đơn hàng.
+
+POST /api/orders/recalc-cost : Tính toán lại giá vốn cho đơn hàng.
+
+POST /api/orders/import-v2 : Nhập dữ liệu đơn hàng version 2.
+
+GET /api/orders : Lấy danh sách đơn hàng.
+
+PUT /api/orders/status : Cập nhật trạng thái đơn hàng trên OMS.
+
+📊 NHÓM THỐNG KÊ & DASHBOARD (routes/dashboard.js)
+
+GET /api/dashboard : Tổng quan Dashboard.
+
+GET /api/dashboard/revenue-by-day : Doanh thu theo ngày.
+
+GET /api/dashboard/profit-by-day : Lợi nhuận theo ngày.
+
+GET /api/dashboard/unique-skus : Tổng hợp SKU duy nhất.
+
+GET /api/dashboard/top-sku : Top SKU bán chạy.
+
+GET /api/dashboard/top-sku-full : Top SKU bán chạy chi tiết.
+
+GET /api/dashboard/top-product : Top Sản phẩm bán chạy.
+
+GET /api/dashboard/top-shop : Top Shop bán chạy.
+
+GET /api/dashboard/top-platform : Top Sàn bán chạy.
+
+GET /api/dashboard/cancel-stats : Thống kê đơn hủy.
+
+GET /api/dashboard/price-calc : Công cụ tính giá.
+
+📁 NHÓM FILE & BÁO CÁO (routes/reports.js & R2 Upload)
+
+GET /api/upload-url : Lấy URL để cấp quyền Upload file.
+
+PUT /api/upload : Đẩy file lên Cloud R2 (Tool Python Khuyến Mại đang dùng cái này).
+
+POST /api/reports/upload : Upload báo cáo lên hệ thống.
+
+GET /api/reports/summary : Tóm tắt báo cáo.
+
+GET /api/reports/operation-costs : Báo cáo chi phí vận hành.
+
+GET /api/reports : Danh sách báo cáo.
+
+GET /api/reports/file/:id : Lấy file báo cáo theo ID.
+
+⚙️ NHÓM JOBS (routes/jobs.js)
+
+POST /api/jobs : Tạo tiến trình ngầm.
+
+GET /api/jobs : Danh sách tiến trình.
+
+PUT /api/jobs/:id : Cập nhật tiến trình.
+
+DELETE /api/jobs/:id : Xóa tiến trình.
+
+🧾 NHÓM HÓA ĐƠN & NHẬP HÀNG (routes/invoices.js & routes/purchase.js)
+
+POST /api/invoices/parse-ai : Đọc hóa đơn bằng AI.
+
+POST /api/invoices : Lưu hóa đơn.
+
+GET /api/invoices : Danh sách hóa đơn.
+
+GET /api/invoices/file/:id : Lấy file hóa đơn.
+
+POST /api/invoices/update-costs : Cập nhật giá vốn từ hóa đơn.
+
+GET /api/invoices/sku-map : Map SKU hóa đơn.
+
+GET /api/invoices/sku-groups : Nhóm SKU.
+
+POST /api/invoices/sku-groups : Lưu nhóm SKU.
+
+PUT /api/invoices/sku-groups/:id/price : Cập nhật giá theo nhóm SKU.
+
+DELETE /api/invoices/sku-groups/:id : Xóa nhóm SKU.
+
+DELETE /api/invoices/:id : Xóa hóa đơn.
+
+/api/purchase/* : Các API liên quan nhập hàng chính ngạch/tiểu ngạch.

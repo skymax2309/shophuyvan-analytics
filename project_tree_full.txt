@@ -2,10 +2,12 @@
 
 ├── shophuyvan-analytics/
     └── .gitignore
+    └── API endpoint.txt
     └── import_purchase.py
     └── NHẬP HÀNG CHÍNH NGẠCH.xlsx
     └── project_tree_full.txt
     └── schema_huyvan-analytics-db.sql
+    └── shopee_engine.py
     └── shv_products_export_2026-03-23.json
     └── super_export_purchase.py
     ├── apps/
@@ -82,18 +84,44 @@
                     └── db.js
                     └── filters.js
     ├── auto OMS Python/
+        └── cau truc thu muc OMS python.txt
         └── config.py
         └── main.py
         └── utils.py
+        ├── data/
+            └── shops.json
         ├── engines/
             └── lazada_engine.py
             └── scraper_engine.py
             └── shopee_engine.py
             └── tiktok_engine.py
+            ├── lazada/
+                └── lazada_auth.py
+                └── lazada_doanh_thu.py
+                └── lazada_don_hang.py
+                └── lazada_hoa_don.py
+            ├── shopee/
+                └── shopee_auth.py
+                └── shopee_doanh_thu.py
+                └── shopee_don_hang.py
+                └── shopee_hoa_don.py
+                └── shopee_products.py
+                └── shopee_promo.py
+            ├── tiktok/
+                └── tiktok_auth.py
+                └── tiktok_doanh_thu.py
+                └── tiktok_don_hang.py
+                └── tiktok_hoa_don.py
+                └── tiktok_products.py
         ├── parsers/
             └── lazada_parser.py
             └── shopee_parser.py
             └── tiktok_parser.py
+        ├── ui/
+            └── auto_run_tab.py
+            └── login_tab.py
+            └── main_window.py
+            └── sync_product_tab.py
     ├── backup/
         └── backup.sql
     ├── switch github/
