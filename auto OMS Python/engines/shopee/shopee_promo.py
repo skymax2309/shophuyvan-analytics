@@ -128,16 +128,49 @@ class ShopeePromo:
                 )
                 
                 if ket_qua_up:
-                    self.log("✅ Đã Upload file lên R2. Đang báo Server xử lý Khuyến Mại...")
-                    # Kích hoạt server xử lý file
-                    await asyncio.to_thread(
-                        trigger_server_import,
-                        remote_name,
-                        shop.get('ten_shop', 'KhongRo'),
-                        'shopee',
-                        'promo_excel'
-                    )
-                    self.log("🎉 HOÀN THÀNH TÍNH NĂNG 1: Dữ liệu Khuyến Mại đã bắn lên Website!")
+                    self.log("✅ Đã Upload file lên R2.")
+                    
+                    # --- [BỔ SUNG] ĐỌC EXCEL VÀ BẮN GIÁ LÊN DATABASE WEB ---
+                    self.log("⏳ Đang bóc tách Giá Khuyến Mãi từ file Excel...")
+                    
+                    def process_and_push_promo():
+                        import pandas as pd
+                        import requests
+                        try:
+                            # Đọc file bỏ qua cảnh báo định dạng
+                            df = pd.read_excel(file_path, dtype=str)
+                            COT_SKU = "SKU phân loại"
+                            COT_GIA_KM = "Giá sau giảm"
+                            
+                            items = []
+                            if COT_SKU in df.columns and COT_GIA_KM in df.columns:
+                                for _, row in df.iterrows():
+                                    sku = str(row[COT_SKU]).strip()
+                                    gia_km_str = str(row[COT_GIA_KM]).replace(',', '').replace('.', '').strip()
+                                    if sku and sku != 'nan' and gia_km_str.isdigit():
+                                        items.append({"sku": sku, "price": float(gia_km_str)})
+                                        
+                            if not items:
+                                return False, "Không tìm thấy dữ liệu hợp lệ (Cột SKU hoặc Giá sau giảm trống)."
+                                
+                            api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/products/update-promo-prices"
+                            payload = {"platform": "shopee", "shop": shop.get("ten_shop", ""), "items": items}
+                            res = requests.post(api_url, json=payload)
+                            
+                            if res.status_code == 200 and res.json().get("success"):
+                                return True, f"Đã cập nhật {len(items)} mức Giá KM lên Database Website!"
+                            else:
+                                return False, f"Lỗi từ Server: {res.text}"
+                        except Exception as e:
+                            return False, f"Lỗi bóc tách file: {str(e)}"
+                    
+                    # Chạy ngầm hàm bóc tách để không đơ Tool
+                    success, msg = await asyncio.to_thread(process_and_push_promo)
+                    if success:
+                        self.log(f"🎉 HOÀN THÀNH TÍNH NĂNG 1: {msg}")
+                    else:
+                        self.log(f"❌ Lỗi cập nhật Giá KM lên Web: {msg}")
+                        
                 else:
                     self.log("❌ Lỗi: Đẩy file Khuyến Mại lên R2 thất bại.")
                 
@@ -151,50 +184,107 @@ class ShopeePromo:
     # NHÁNH 2: UP GIÁ KHUYẾN MẠI TỪ WEB LÊN SHOPEE
     # ==========================================
     async def _nhap_gia_km_tu_web(self, page, shop):
-        self.log("👉 BƯỚC 2: Bắt đầu quá trình Up Giá mới lên Shopee...")
-        
-        # --- LƯU Ý VỀ CODE ---
-        # Để không đoán bừa API, mình đang dùng tạm chính cái file bạn vừa tải lúc nãy để test Playwright.
-        # Lát nữa test xong, bạn gửi API tải file của Website để mình ráp vào thay thế đoạn lấy file này nhé!
+        self.log("👉 BƯỚC 2: Bắt đầu quá trình Đắp Giá và Up lên Shopee...")
         import os
-        thu_muc_luu = shop.get('thu_muc_luu', '').strip()
-        file_path_tu_web = os.path.join(thu_muc_luu, "discount_nominate_2026-03-28.xlsx")
+        import tkinter as tk
+        from tkinter import filedialog
+        import pandas as pd
+        import requests
         
-        if not os.path.exists(file_path_tu_web):
-            self.log(f"❌ Lỗi: Không tìm thấy file {file_path_tu_web} để test tải lên!")
+        # --- CẤU HÌNH CỘT EXCEL (Sửa tại đây nếu file Shopee thay đổi tên cột) ---
+        COT_SKU = "SKU phân loại"       # Cột chứa mã SKU trong file Shopee
+        COT_GIA_MOI = "Giá sau giảm"    # Cột chứa giá khuyến mãi trong file Shopee
+        # ------------------------------------------------------------------------
+
+        self.log("👉 Đang mở cửa sổ... Hãy chọn file Excel GỐC mà Bot vừa tải từ Shopee về!")
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        
+        thu_muc_luu = shop.get('thu_muc_luu', '').strip()
+        file_path_tu_web = filedialog.askopenfilename(
+            parent=root, title="Chọn file Excel Shopee Khuyến Mại",
+            initialdir=thu_muc_luu if os.path.exists(thu_muc_luu) else "/",
+            filetypes=[("Excel files", "*.xlsx *.xls")]
+        )
+        root.destroy()
+
+        if not file_path_tu_web:
+            self.log("⚠️ Đã hủy chọn file. Dừng quá trình Up Giá!")
             return
 
-        # --- GIAI ĐOẠN 2: PLAYWRIGHT UP FILE LÊN SÀN ---
+        self.log(f"✅ Đã chọn file: {os.path.basename(file_path_tu_web)}")
+        
+        # 2. Gọi API lấy giá mới từ Server
+        ten_shop = shop.get('ten_shop', '')
+        self.log(f"⏳ Đang tải Bảng Giá Khuyến Mại Mới của shop '{ten_shop}' từ Server...")
+        api_url = f"https://huyvan-worker-api.nghiemchihuy.workers.dev/api/products/promo-prices?platform=shopee&shop={ten_shop}"
+        
         try:
-            # 1. Bấm mở Pop-up Chỉnh sửa hàng loạt (Nếu nó chưa tự hiện)
+            res = requests.get(api_url)
+            data = res.json()
+            if not data.get('success'):
+                self.log("❌ Lỗi: Server trả về thất bại!")
+                return
+                
+            bang_gia = data.get('data', [])
+            self.log(f"✅ Đã lấy được {len(bang_gia)} mức giá KM mới từ Server.")
+            
+            # 3. Dùng Pandas đắp giá mới vào file Excel
+            if len(bang_gia) > 0:
+                self.log("⚙️ Đang đắp Giá Mới vào file Excel...")
+                
+                # Tạo map nhanh: { "SKU_01": 45000, "SKU_02": 50000 }
+                gia_dict = {str(item['platform_sku']).strip(): item['discount_price'] for item in bang_gia if item.get('platform_sku')}
+                
+                # Đọc file bằng Pandas (bỏ qua header thừa nếu Shopee có dòng giải thích trên cùng)
+                try:
+                    df = pd.read_excel(file_path_tu_web, dtype=str)
+                    
+                    if COT_SKU in df.columns and COT_GIA_MOI in df.columns:
+                        count_update = 0
+                        for index, row in df.iterrows():
+                            sku = str(row[COT_SKU]).strip()
+                            if sku in gia_dict:
+                                df.at[index, COT_GIA_MOI] = gia_dict[sku]
+                                count_update += 1
+                                
+                        # Lưu ghi đè lại file cũ
+                        df.to_excel(file_path_tu_web, index=False)
+                        self.log(f"✅ Đã thay đổi thành công {count_update} dòng giá mới vào file!")
+                    else:
+                        self.log(f"⚠️ CẢNH BÁO: Không tìm thấy cột '{COT_SKU}' hoặc '{COT_GIA_MOI}' trong file Excel. Bot sẽ up file gốc lên sàn.")
+                except Exception as e:
+                    self.log(f"❌ Lỗi khi xử lý file Excel: {str(e)}")
+            else:
+                self.log("⚠️ Không có giá KM nào trên Web. Sẽ up file nguyên bản.")
+
+        except Exception as e:
+            self.log(f"❌ Lỗi khi kết nối Server lấy Giá: {str(e)}")
+
+        # --- GIAI ĐOẠN 3: PLAYWRIGHT UP FILE LÊN SÀN ---
+        self.log("👉 Đang tiến hành đưa file lên Shopee...")
+        try:
             try:
                 btn_hang_loat = page.locator("button:has-text('Chỉnh sửa hàng loạt'), text='Chỉnh sửa hàng loạt'").first
                 if await btn_hang_loat.is_visible(timeout=3000):
                     await btn_hang_loat.click(force=True)
-                    self.log("👉 Đã bấm mở bảng 'Chỉnh sửa hàng loạt'.")
                     import asyncio
                     await asyncio.sleep(2)
-            except:
-                pass 
+            except: pass 
 
-            # 2. Bắt sự kiện chọn file của Windows và tải lên
-            self.log("👉 Đang tìm và bấm nút 'Chọn tập tin'...")
-            
-           # Cú pháp bắt buộc của Playwright để xử lý cửa sổ Upload File
             async with page.expect_file_chooser(timeout=10000) as fc_info:
-                # Sửa lại cú pháp tìm nút chuẩn để Playwright không bị lỗi CSS
                 btn_chon_file = page.locator("button:has-text('Chọn tập tin')").first
                 await btn_chon_file.click(force=True)
             
             file_chooser = await fc_info.value
             await file_chooser.set_files(file_path_tu_web)
             
-            self.log("✅ Đã đưa file vào hệ thống Shopee thành công!")
+            self.log("🎉 XUẤT SẮC: Đã đưa file chứa Giá Mới vào hệ thống Shopee thành công!")
             
-            # Giữ trình duyệt để Huy quan sát thanh tiến trình của Shopee
-            self.log("🛑 Đang giữ trình duyệt 30s. Bạn hãy xem Shopee có báo 'Thành công' hay không nhé...")
+            self.log("🛑 Đang giữ trình duyệt 30s. Bạn hãy xem Shopee báo 'Thành công' chưa nhé...")
             import asyncio
             await asyncio.sleep(30)
             
         except Exception as e:
-            self.log(f"❌ Lỗi khi Up file Khuyến Mại lên Shopee: {str(e)}")
+            self.log(f"❌ Lỗi Playwright khi Up file lên Shopee: {str(e)}")

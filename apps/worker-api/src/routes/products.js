@@ -2,11 +2,55 @@
 // PRODUCTS
 // ════════════════════════════════════════════════════════════════════
 async function handleProducts(request, env, cors) {
+  const url = new URL(request.url);
 
+  // ==========================================
+  // THÊM MỚI 1: API LẤY GIÁ KHUYẾN MÃI (/api/products/promo-prices)
+  // ==========================================
+  if (request.method === "GET" && url.pathname.endsWith('/promo-prices')) {
+    try {
+      const platform = url.searchParams.get('platform') || 'shopee';
+      const shop = url.searchParams.get('shop');
+      if (!shop) return Response.json({ success: false, error: "Missing shop parameter" }, { status: 400, headers: cors });
+      const query = `SELECT platform_sku, discount_price FROM product_variations WHERE platform = ? AND shop = ? AND discount_price > 0`;
+      const { results } = await env.DB.prepare(query).bind(platform, shop).all();
+      return Response.json({ success: true, data: results }, { headers: cors });
+    } catch (error) {
+      return Response.json({ success: false, error: error.message }, { status: 500, headers: cors });
+    }
+  }
+
+  // ==========================================
+  // THÊM MỚI 2: API NHẬN GIÁ KHUYẾN MÃI (/api/products/update-promo-prices)
+  // ==========================================
+  if (request.method === "POST" && url.pathname.endsWith('/update-promo-prices')) {
+    try {
+      const body = await request.json();
+      const { platform, shop, items } = body; 
+      if (!platform || !shop || !items || !Array.isArray(items)) {
+        return Response.json({ success: false, error: "Dữ liệu không hợp lệ" }, { status: 400, headers: cors });
+      }
+      const statements = [];
+      for (const item of items) {
+        if (item.sku && item.price !== undefined) {
+          statements.push(
+            env.DB.prepare(`UPDATE product_variations SET discount_price = ? WHERE platform = ? AND shop = ? AND platform_sku = ?`)
+            .bind(item.price, platform, shop, item.sku)
+          );
+        }
+      }
+      if (statements.length > 0) await env.DB.batch(statements);
+      return Response.json({ success: true, updated: statements.length }, { headers: cors });
+    } catch (error) {
+      return Response.json({ success: false, error: error.message }, { status: 500, headers: cors });
+    }
+  }
+
+  // ==========================================
+  // CÁC API CŨ CỦA PRODUCTS GỐC
+  // ==========================================
   if (request.method === "GET") {
-    const rows = await env.DB.prepare(`
-      SELECT * FROM products ORDER BY sku
-    `).all()
+    const rows = await env.DB.prepare(`SELECT * FROM products ORDER BY sku`).all()
     return Response.json(rows.results, { headers: cors })
   }
 
@@ -24,36 +68,21 @@ async function handleProducts(request, env, cors) {
         combo_qty = excluded.combo_qty,
         image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END
     `).bind(
-      b.sku, 
-      b.product_name || "", 
-      b.cost_invoice || 0, 
-      b.cost_real || 0,
-      b.is_combo || 0, 
-      b.combo_items || null, 
-      b.combo_qty || 1,
-      b.image_url || ""
+      b.sku, b.product_name || "", b.cost_invoice || 0, b.cost_real || 0,
+      b.is_combo || 0, b.combo_items || null, b.combo_qty || 1, b.image_url || ""
     ).run();
     return Response.json({ status: "ok" }, { headers: cors });
   }
 
   if (request.method === "DELETE") {
-    const url = new URL(request.url);
     const path = url.pathname;
-    
-    // Nếu là xóa hàng loạt
     if (path.endsWith('/bulk')) {
       const { skus } = await request.json();
-      if (!skus || !Array.isArray(skus) || skus.length === 0) {
-        return Response.json({ error: "No SKUs" }, { status: 400, headers: cors });
-      }
+      if (!skus || !Array.isArray(skus) || skus.length === 0) return Response.json({ error: "No SKUs" }, { status: 400, headers: cors });
       const placeholders = skus.map(() => '?').join(',');
-      await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`)
-        .bind(...skus)
-        .run();
+      await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...skus).run();
       return Response.json({ status: "ok", count: skus.length }, { headers: cors });
     }
-
-    // Nếu xóa 1 sản phẩm (lấy sku từ cuối url)
     const sku = path.split('/').pop();
     await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run();
     return Response.json({ status: "ok" }, { headers: cors });
@@ -289,31 +318,5 @@ async function handleVariations(request, env, cors) {
   }
 }
 
-// ==========================================
-// API: LẤY DANH SÁCH GIÁ KHUYẾN MÃI THEO SHOP
-// ==========================================
-router.get('/promo-prices', async (request, env) => {
-    try {
-        const { searchParams } = new URL(request.url);
-        const platform = searchParams.get('platform') || 'shopee';
-        const shop = searchParams.get('shop');
-
-        if (!shop) {
-            return Response.json({ success: false, error: "Missing shop parameter" }, { status: 400 });
-        }
-
-        // Truy vấn lấy platform_sku và discount_price từ DB
-        const query = `
-            SELECT platform_sku, discount_price 
-            FROM product_variations 
-            WHERE platform = ? AND shop = ? AND discount_price > 0
-        `;
-        const { results } = await env.DB.prepare(query).bind(platform, shop).all();
-
-        return Response.json({ success: true, data: results });
-    } catch (error) {
-        return Response.json({ success: false, error: error.message }, { status: 500 });
-    }
-});
 
 export { handleProducts, handleCostSettings, handleVariations }
