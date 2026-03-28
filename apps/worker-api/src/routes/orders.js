@@ -326,6 +326,7 @@ async function importOrdersV2(request, env, cors) {
       ON CONFLICT(order_id) DO UPDATE SET
         platform      = excluded.platform,
         shop          = excluded.shop,
+        order_date    = excluded.order_date,
         order_type    = excluded.order_type,
         revenue       = excluded.revenue,
         raw_revenue   = excluded.raw_revenue,
@@ -346,15 +347,13 @@ async function importOrdersV2(request, env, cors) {
         fee_operation = excluded.fee_operation,
         fee_labor     = excluded.fee_labor,
         cancel_reason = excluded.cancel_reason,
-        return_fee           = excluded.return_fee,
-        shipped              = excluded.shipped,
-        order_date           = excluded.order_date,
+        return_fee    = excluded.return_fee,
+        shipped       = excluded.shipped,
         discount_shop        = excluded.discount_shop,
         discount_shopee      = excluded.discount_shopee,
         discount_combo       = excluded.discount_combo,
         shipping_return_fee  = excluded.shipping_return_fee,
-        shipping_status      = excluded.shipping_status,
-        order_date           = excluded.order_date
+        shipping_status      = excluded.shipping_status
     `).bind(
       o.order_id          ?? null, 
       o.platform          ?? '', 

@@ -20,7 +20,8 @@ class TikTokDonHang:
         
         await self._apply_filter(page, THANG_TAI, NAM)
         await self._trigger_export(page)
-        await self._wait_and_download(page, shop, f"{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}")
+        # Tên file sẽ là: tiktok_ShopHuyVan_donhang_202602.xlsx
+        await self._wait_and_download(page, shop, f"tiktok_{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}")
 
     async def run_by_date(self, page, shop, from_date, to_date):
         self.log(f"📅 TikTok: tải đơn từ {from_date} đến {to_date}")
