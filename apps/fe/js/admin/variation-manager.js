@@ -61,6 +61,7 @@ function updateUnmappedBadge() {
 }
 
 // 2. RENDER BẢNG & BỘ LỌC
+// 2. RENDER BẢNG & BỘ LỌC (GIAO DIỆN RESPONSIVE CARDS MỚI)
 window.renderVariations = function() {
   try {
       const kw = (document.getElementById('var_search').value || '').toLowerCase();
@@ -90,97 +91,108 @@ window.renderVariations = function() {
         .join('');
 
       const statusBadge = s => ({
-        MAPPED:   '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">✅ Đã map</span>',
-        UNMAPPED: '<span style="background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">⚠️ Chưa map</span>',
-        IGNORED:  '<span style="background:#f3f4f6;color:#9ca3af;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">🚫 Bỏ qua</span>',
+        MAPPED:   '<span style="background:#dcfce7;color:#16a34a;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ Đã map</span>',
+        UNMAPPED: '<span style="background:#fef3c7;color:#b45309;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">⚠️ Chưa map</span>',
+        IGNORED:  '<span style="background:#f3f4f6;color:#9ca3af;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">🚫 Bỏ qua</span>',
       })[s] || s;
 
-      const rows = list.map(v => {
+      const cards = list.map(v => {
         let mappedHtml = '';
         if (v.map_status === 'MAPPED') {
           try {
             const items = JSON.parse(v.mapped_items || '[]');
             if (items.length > 0) {
-              mappedHtml = items.map(i => `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d">${i.qty} x ${escapeHtml(i.sku)}</code>`).join(' + ');
+              mappedHtml = items.map(i => `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:6px;color:#15803d;font-weight:600">${i.qty} x ${escapeHtml(i.sku)}</code>`).join(' + ');
             } else {
-              mappedHtml = `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d">${escapeHtml(v.internal_sku)}</code>`;
+              mappedHtml = `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:6px;color:#15803d;font-weight:600">${escapeHtml(v.internal_sku)}</code>`;
             }
           } catch(e) {
-            mappedHtml = `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:4px;color:#15803d">${escapeHtml(v.internal_sku)}</code>`;
+            mappedHtml = `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:6px;color:#15803d;font-weight:600">${escapeHtml(v.internal_sku)}</code>`;
           }
         }
         
-        // Format Giá ép kiểu Số (Number) để tránh lỗi toLocaleString
         const priceFormatted = v.price ? Number(v.price).toLocaleString('vi-VN') + 'đ' : '0đ';
         const discountFormatted = v.discount_price ? Number(v.discount_price).toLocaleString('vi-VN') + 'đ' : '0đ';
         const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
         
         return `
-        <tr id="var-row-${v.id}">
-          <td style="width:32px; text-align:center; padding:12px 8px; border-bottom:1px solid #e5e7eb">
-            <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()">
-          </td>
-          <td style="width:48px; border-bottom:1px solid #e5e7eb">
-            ${v.image_url
-              ? `<img src="${v.image_url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb">`
-              : `<div style="width:40px;height:40px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center">📦</div>`}
-          </td>
-          <td style="border-bottom:1px solid #e5e7eb; padding-right:10px">
-            <div style="font-weight:600;font-size:13px;color:#1e293b">${escapeHtml(v.product_name) || '—'}</div>
-            <div style="font-size:11px;color:#6b7280;margin-top:2px">${escapeHtml(v.variation_name) || '—'}</div>
-            <div style="font-size:10px;color:#9ca3af;margin-top:1px;font-weight:600">[${escapeHtml(v.platform).toUpperCase()}] ${escapeHtml(v.shop)}</div>
-          </td>
-          <td style="border-bottom:1px solid #e5e7eb">
-            <code style="font-size:11px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${escapeHtml(v.platform_sku) || '—'}</code>
-          </td>
-          
-          <td style="border-bottom:1px solid #e5e7eb; color:#64748b; font-size:12px;">${priceFormatted}</td>
-          <td style="border-bottom:1px solid #e5e7eb; color:#ef4444; font-weight:600; font-size:12px;">${discountFormatted}</td>
-          <td style="border-bottom:1px solid #e5e7eb; color:#2563eb; font-weight:600; font-size:12px; text-align:center;">${stockStr}</td>
-          
-          <td style="border-bottom:1px solid #e5e7eb">${statusBadge(v.map_status)}</td>
-          <td style="border-bottom:1px solid #e5e7eb">
-            ${v.map_status === 'MAPPED'
-              ? `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                   ${mappedHtml}
-                   <button onclick="resetVarMap(${v.id})" style="padding:3px 8px;background:#fee2e2;color:#dc2626;border:none;border-radius:5px;font-size:11px;cursor:pointer">✕</button>
-                   <button onclick="openEditVarModal(${v.id})" style="padding:3px 8px;background:#fef3c7;color:#d97706;border:none;border-radius:5px;font-size:11px;cursor:pointer;font-weight:bold" title="Sửa Giá & Tồn Kho">✏️ Sửa</button>
-                 </div>`
-              : `<div style="display:flex;flex-direction:column;gap:6px;background:#f8fafc;padding:8px;border-radius:8px;border:1px dashed #cbd5e1">
-                   <div id="map-container-${v.id}" style="display:flex;flex-direction:column;gap:6px">
-                     <div class="map-row" style="display:flex;gap:6px;align-items:center">
-                       <input type="text" list="sku-datalist" class="map-sku-select" placeholder="🔍 Gõ tìm mã hoặc tên SKU..." style="border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px;width:180px">
-                       <input type="number" class="map-qty-input" value="1" min="1" style="width:45px;border:1px solid #e5e7eb;border-radius:6px;padding:5px 8px;font-size:12px" title="Số lượng">
-                       <button onclick="window.addMapRow(${v.id})" style="padding:4px 8px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:bold" title="Thêm SKU thành phần">+</button>
-                     </div>
-                   </div>
-                   <div style="display:flex;gap:6px;margin-top:4px">
-                     <button onclick="saveVarMap(${v.id})" style="padding:5px 10px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Lưu Map</button>
-                     <button onclick="ignoreVar(${v.id})" style="padding:5px 10px;background:#f3f4f6;color:#6b7280;border:none;border-radius:6px;font-size:12px;cursor:pointer">🚫 Bỏ qua</button>
-                     <button onclick="openEditVarModal(${v.id})" style="padding:5px 10px;background:#f59e0b;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">✏️ Sửa</button>
-                   </div>
-                 </div>`}
-          </td>
-        </tr>`;
+        <div class="var-card" id="var-row-${v.id}">
+            <div class="var-card-header">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                    <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()" style="transform:scale(1.2)">
+                    ${v.image_url ? `<img src="${v.image_url}" class="var-img">` : `<div class="var-img" style="background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`}
+                </div>
+                <div class="var-info">
+                    <div class="var-title" title="${escapeHtml(v.product_name)}">${escapeHtml(v.product_name) || '—'}</div>
+                    <div class="var-subtitle">Phân loại: <strong style="color:#0f172a">${escapeHtml(v.variation_name) || '—'}</strong></div>
+                    <div class="var-badges">
+                        <span style="background:#f1f5f9;color:#475569;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">🛒 ${escapeHtml(v.platform).toUpperCase()} - ${escapeHtml(v.shop)}</span>
+                        <span style="background:#e0e7ff;color:#4338ca;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">SKU Sàn: ${escapeHtml(v.platform_sku) || '—'}</span>
+                        ${statusBadge(v.map_status)}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="var-price-stock">
+                <div>
+                    <div style="font-size:11px;color:#64748b;margin-bottom:4px">Giá bán (Gốc - KM)</div>
+                    <div style="font-size:14px;font-weight:700;color:#0f172a">
+                        ${discountFormatted !== '0đ' && discountFormatted !== priceFormatted ? `<span style="text-decoration:line-through;color:#94a3b8;font-weight:500;margin-right:6px">${priceFormatted}</span><span style="color:#ef4444">${discountFormatted}</span>` : priceFormatted}
+                    </div>
+                </div>
+                <div style="text-align:right">
+                    <div style="font-size:11px;color:#64748b;margin-bottom:4px">Tồn kho</div>
+                    <div style="font-size:15px;font-weight:800;color:#2563eb">${stockStr}</div>
+                </div>
+            </div>
+
+            <div class="var-actions">
+                ${v.map_status === 'MAPPED' ? `
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                        <div style="display:flex; gap:6px; flex-wrap:wrap; flex:1">${mappedHtml}</div>
+                        <div style="display:flex; gap:6px;">
+                            <button onclick="resetVarMap(${v.id})" style="padding:8px 12px; background:#fee2e2; color:#dc2626; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700">✕ Hủy Map</button>
+                            <button onclick="openEditVarModal(${v.id})" style="padding:8px 12px; background:#fef3c7; color:#d97706; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700">✏️ Sửa SP</button>
+                        </div>
+                    </div>
+                ` : `
+                    <div id="map-container-${v.id}" style="display:flex; flex-direction:column; gap:8px;">
+                        <div class="map-row" style="display:flex; gap:6px; align-items:center;">
+                            <input type="text" list="sku-datalist" class="map-sku-select" placeholder="🔍 Gõ tìm mã SKU nội bộ..." style="flex:1; min-width:120px; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:13px">
+                            <input type="number" class="map-qty-input" value="1" min="1" style="width:55px; border:1px solid #cbd5e1; border-radius:8px; padding:8px; font-size:13px; text-align:center" title="Số lượng">
+                            <button onclick="window.addMapRow(${v.id})" style="padding:8px 14px; background:#10b981; color:white; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:bold" title="Thêm SKU ghép">+</button>
+                        </div>
+                    </div>
+                    <div class="var-btn-group">
+                        <button onclick="saveVarMap(${v.id})" style="background:#2563eb; color:white; border:none; border-radius:8px; padding:9px; font-size:13px; cursor:pointer; font-weight:700">💾 Lưu Map</button>
+                        <button onclick="ignoreVar(${v.id})" style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:9px; font-size:13px; cursor:pointer; font-weight:700">🚫 Bỏ qua</button>
+                        <button onclick="openEditVarModal(${v.id})" style="background:#f59e0b; color:white; border:none; border-radius:8px; padding:9px; font-size:13px; cursor:pointer; font-weight:700">✏️ Sửa SP</button>
+                    </div>
+                `}
+            </div>
+        </div>`;
       }).join('');
 
       document.getElementById('variationsTable').innerHTML = `
+        <style>
+          .var-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 10px 0 20px 0; }
+          @media (min-width: 768px) { .var-grid { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); } }
+          @media (min-width: 1200px) { .var-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); } }
+          .var-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s; position: relative; }
+          .var-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
+          .var-card-header { display: flex; gap: 14px; align-items: flex-start; }
+          .var-img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0; }
+          .var-info { flex: 1; min-width: 0; }
+          .var-title { font-weight: 700; font-size: 14px; color: #1e293b; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
+          .var-subtitle { font-size: 13px; color: #64748b; margin-bottom: 6px; }
+          .var-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+          .var-price-stock { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 12px 14px; border-radius: 8px; border: 1px dashed #cbd5e1; }
+          .var-actions { border-top: 1px solid #e2e8f0; padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+          .var-btn-group { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; margin-top: 4px; }
+        </style>
         <datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>
-        <div style="overflow-x:auto">
-          <table style="width:100%; border-collapse:collapse; text-align:left;">
-            <thead><tr style="background:#f8fafc; border-bottom:2px solid #e5e7eb;">
-              <th style="width:32px; text-align:center; padding:12px 8px"><input type="checkbox" onchange="toggleAllVarCheck(this.checked)"></th>
-              <th style="padding:12px 8px; font-size:13px">Ảnh</th>
-              <th style="padding:12px 8px; font-size:13px">Tên SP / Phân loại</th>
-              <th style="padding:12px 8px; font-size:13px">SKU Sàn</th>
-              <th style="padding:12px 8px; font-size:13px">Giá Gốc</th>
-              <th style="padding:12px 8px; font-size:13px; color:#ef4444">Giá KM</th>
-              <th style="padding:12px 8px; font-size:13px; text-align:center;">Tồn Kho</th>
-              <th style="padding:12px 8px; font-size:13px">Trạng thái</th>
-              <th style="min-width:280px; padding:12px 8px; font-size:13px">Thao tác Map & Sửa</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
+        <div class="var-grid">
+            ${cards}
         </div>`;
         
       injectEditModalUI();

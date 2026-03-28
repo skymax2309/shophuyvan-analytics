@@ -137,6 +137,16 @@ def process_and_sync_files(shop_name, file_paths, log_func):
     basic_map = {row['et_title_product_id']: row.get('et_title_product_description', '') for _, row in df_basic.iterrows()}
     media_map = {row['et_title_product_id']: row.get('ps_item_cover_image', '') for _, row in df_media.iterrows()}
 
+    # Bóc tách ảnh phân loại từ file Media
+    var_media_map = {}
+    if df_media is not None:
+        for _, m_row in df_media.iterrows():
+            m_pid = str(m_row.get('et_title_product_id', '')).strip()
+            m_vname = str(m_row.get('et_title_variation_name', m_row.get('ps_variation_name', ''))).strip()
+            m_vimg = str(m_row.get('ps_variation_image', m_row.get('et_title_variation_image', ''))).strip()
+            if m_pid and m_vimg and m_vimg != 'nan':
+                var_media_map[f"{m_pid}_{m_vname}"] = m_vimg
+
     products_dict = {}
     for _, row in df_sales.iterrows():
         p_id = row['et_title_product_id']
@@ -152,13 +162,17 @@ def process_and_sync_files(shop_name, file_paths, log_func):
         var_sku = str(row.get('et_title_variation_sku', '')).strip()
         price = str(row.get('et_title_variation_price', '0')).replace(',', '')
         stock = str(row.get('et_title_variation_stock', '0')).replace(',', '')
+        vname = str(row.get('et_title_variation_name', '')).strip()
+        
+        # Lấy ảnh phân loại đã map ở trên
+        v_img = var_media_map.get(f"{p_id}_{vname}", "")
         
         products_dict[p_id]["variations"].append({
-            "variation_name": str(row.get('et_title_variation_name', '')).strip(),
+            "variation_name": vname,
             "sku": var_sku if var_sku != 'nan' else '',
             "price": float(price) if price.replace('.', '', 1).isdigit() else 0,
             "stock": int(stock) if float(stock).is_integer() else 0,
-            "variation_image": ""
+            "variation_image": v_img
         })
 
     payload = {"platform": "shopee", "shop": shop_name, "products": list(products_dict.values())}
