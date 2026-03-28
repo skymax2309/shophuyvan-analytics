@@ -7,21 +7,49 @@
 </head>
 <body>
 
-<div class="topbar">
-  <a href="profit-dashboard.html">← Dashboard</a>
-  <span>📦 Quản lý Sản phẩm & Đơn hàng</span>
-</div>
+<style>
+  /* Layout mới: Trái Sidebar - Phải Nội dung */
+  .app-wrapper { display: flex; min-height: 100vh; background: #f8fafc; }
+  
+  .side-nav { width: 260px; background: #ffffff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
+  .side-header { padding: 20px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; }
+  .side-header a { text-decoration: none; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; color: #475569; font-weight: 700; font-size: 13px; transition: 0.2s; }
+  .side-header a:hover { background: #e2e8f0; color: #0f172a; }
+  .side-header span { font-weight: 800; font-size: 15px; color: #0f172a; }
+  
+  .side-menu { padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+  .side-menu .tab-btn { text-align: left; padding: 12px 16px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 600; color: #64748b; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
+  .side-menu .tab-btn:hover { background: #f1f5f9; color: #0f172a; }
+  .side-menu .tab-btn.active { background: #eff6ff; color: #2563eb; border-right: 4px solid #2563eb; border-radius: 8px 4px 4px 8px; }
+  
+  /* Ghi đè Container cũ để nằm gọn bên phải Sidebar */
+  .container { flex: 1; padding: 24px 32px; max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
+  
+  /* Ẩn topbar cũ nếu css cũ còn sót */
+  .topbar, .tabs { display: none !important; }
+</style>
 
-<div class="container">
+<div class="app-wrapper">
+  
+  <aside class="side-nav">
+    <div class="side-header">
+      <a href="profit-dashboard.html">← Trở về</a>
+      <span>📦 Quản lý Hệ thống</span>
+    </div>
+    <div class="side-menu">
+      <button class="tab-btn active" onclick="switchTab('sku')"><span>📦 Sản phẩm / SKU</span></button>
+      <button class="tab-btn" onclick="switchTab('combo')"><span>🎁 Combo</span></button>
+      <button class="tab-btn" onclick="switchTab('variations')">
+        <span>🔗 Map SKU Đa Sàn</span>
+        <span id="badge-unmapped" style="background:#ef4444;color:white;border-radius:10px;padding:2px 8px;font-size:11px;display:none">0</span>
+      </button>
+      <button class="tab-btn" onclick="switchTab('orders')"><span>📋 Toàn bộ đơn hàng</span></button>
+      <button class="tab-btn" onclick="switchTab('invoice')"><span>🧾 Hóa Đơn Nhập</span></button>
+      <button class="tab-btn" onclick="switchTab('loss')"><span>🔴 Đơn âm tiền</span></button>
+    </div>
+  </aside>
 
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('sku')">📦 Sản phẩm / SKU</button>
-    <button class="tab-btn" onclick="switchTab('combo')">🎁 Combo</button>
-    <button class="tab-btn" onclick="switchTab('variations')">🔗 Map SKU Variation <span id="badge-unmapped" style="background:#ef4444;color:white;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">0</span></button>
-    <button class="tab-btn" onclick="switchTab('orders')">📋 Toàn bộ đơn hàng</button>
-    <button class="tab-btn" onclick="switchTab('invoice')">🧾 Hóa Đơn Nhập Hàng</button>
-    <button class="tab-btn" onclick="switchTab('loss')">🔴 Đơn âm tiền</button>
-  </div>
+  <div class="container">
 
   <div id="tab-variations" class="tab-pane">
     <div class="card">
@@ -468,9 +496,7 @@
     </div>
   </div>
 
-</div>
-
-<div class="toast" id="toast"></div>
+</div> </div> <div class="toast" id="toast"></div>
 
 <!-- ═══════════════════════════════════════════════════════
      SCRIPTS — thứ tự load rất quan trọng!
