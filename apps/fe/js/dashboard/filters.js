@@ -76,7 +76,7 @@ function onMonthSelectChange(select) {
   applyFilter(); // Kích hoạt tự động lọc dữ liệu
 }
 
-function setFilterYear() { {
+function setFilterYear() {
   const year = new Date().getFullYear()
   document.getElementById("filterFrom").value = `${year}-01-01`
   document.getElementById("filterTo").value   = `${year}-12-31`
