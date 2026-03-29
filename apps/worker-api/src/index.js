@@ -269,19 +269,22 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         }
       }
 
-      // [BỌC THÉP] API CHUẨN HÓA TRẠNG THÁI ĐƠN LỊCH SỬ
+      // [BỌC THÉP] API CHUẨN HÓA TRẠNG THÁI ĐƠN LỊCH SỬ (PHIÊN BẢN VÉT MÁNG THÔNG MINH)
       if (url.pathname === "/api/orders/archive-old" && request.method === "POST") {
-        // 1. Đơn Trả hàng -> Đẩy vào Tab Trả hàng
+        // 1. Xử lý các đơn Đã Hủy / Hoàn Trả (Dựa vào order_type)
         await env.DB.prepare(`UPDATE orders_v2 SET oms_status='RETURN_REFUND' WHERE order_type='return' AND oms_status='PENDING'`).run()
-        
-        // 2. Đơn Hủy -> Đẩy vào Tab Hủy vận chuyển
         await env.DB.prepare(`UPDATE orders_v2 SET oms_status='CANCELLED_TRANSIT' WHERE order_type='cancel' AND oms_status='PENDING'`).run()
         
-        // 3. Đơn Normal đã giao -> Đẩy vào Tab Hoàn thành
-        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED' WHERE order_type='normal' AND shipping_status='Đã giao' AND oms_status='PENDING'`).run()
+        // 2. Dùng LIKE để dò đúng từ khóa của Shopee/Lazada
+        // 2.1 Hoàn thành
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED' WHERE shipping_status LIKE '%Người mua xác nhận%' AND oms_status='PENDING'`).run()
+        // 2.2 Giao cho shipper
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='HANDED_OVER' WHERE shipping_status LIKE '%Đang giao%' AND oms_status='PENDING'`).run()
+        // 2.3 Đã đóng gói
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='PACKED' WHERE (shipping_status LIKE '%Chờ giao hàng%' OR shipping_status LIKE '%Chờ lấy hàng%') AND oms_status='PENDING'`).run()
         
-        // 4. Vét máng: Các đơn Normal từ xa xưa (> 7 ngày) mà sàn chưa cập nhật chữ "Đã giao" -> Đẩy vào Hoàn thành
-        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED' WHERE order_type='normal' AND oms_status='PENDING' AND date(order_date) < date('now', '-7 days')`).run()
+        // 3. LỆNH VÉT MÁNG: Quét sạch sành sanh các đơn từ hôm qua trở về trước (Dọn luôn đám TikTok rỗng) vào Hoàn thành
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED' WHERE oms_status='PENDING' AND date(order_date) <= date('now', '-1 day')`).run()
         
         return Response.json({ status: "ok" }, { headers: cors })
       }
