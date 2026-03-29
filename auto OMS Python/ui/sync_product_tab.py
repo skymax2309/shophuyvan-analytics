@@ -138,10 +138,89 @@ class SyncProductTab(ctk.CTkFrame):
                 )
                 try:
                     page = browser.pages[0] if browser.pages else await browser.new_page()
-                    if shop.get('platform') == 'tiktok':
+                    platform = shop.get('platform', '').lower()
+                    
+                    if platform == 'tiktok':
                         await self.app.tiktok_eng.tai_va_dong_bo_san_pham_excel(page, shop)
-                    else:
+                        
+                    elif platform == 'lazada':
+                        import sys
+                        import os
+                        current_dir = os.path.dirname(os.path.abspath(__file__))
+                        root_dir = os.path.dirname(current_dir)
+                        if root_dir not in sys.path:
+                            sys.path.append(root_dir)
+                            
+                        try:
+                            from lazada_products import LazadaProducts
+                        except ModuleNotFoundError:
+                            try:
+                                from engines.lazada.lazada_products import LazadaProducts
+                            except ModuleNotFoundError:
+                                self.sp_log_msg("❌ Lỗi: Không tìm thấy file lazada_products.py.")
+                                return
+                                
+                        # CƠ CHẾ TỰ ĐỘNG ĐĂNG NHẬP THÔNG MINH CHO LAZADA
+                        class LazadaAuth:
+                            def __init__(self, log_func):
+                                self.log = log_func
+
+                            async def check_and_login(self, page, shop_data):
+                                self.log("🔑 Kiểm tra phiên đăng nhập Lazada...")
+                                await page.goto("https://sellercenter.lazada.vn/apps/product/list?tab=online_product", wait_until="commit")
+                                await asyncio.sleep(4)
+                                
+                                if "login" in page.url or "register" in page.url:
+                                    self.log("⚠️ Cookie hết hạn! Bot sẽ TỰ ĐỘNG điền User/Pass...")
+                                    
+                                    # Chuyển sang trang Login chuẩn để gõ User/Pass
+                                    await page.goto("https://sellercenter.lazada.vn/apps/seller/login", wait_until="commit")
+                                    await asyncio.sleep(3)
+                                    
+                                    try:
+                                        self.log(f"👉 Tự động điền tài khoản: {shop_data.get('user_name', '')}")
+                                        await page.locator("input#account").fill(shop_data.get("user_name", ""))
+                                        await asyncio.sleep(1)
+                                        
+                                        self.log("👉 Tự động điền mật khẩu...")
+                                        await page.locator("input#password").fill(shop_data.get("mat_khau", ""))
+                                        await asyncio.sleep(1)
+                                        
+                                        self.log("👉 Bóp cò Đăng nhập...")
+                                        await page.locator('button[type="submit"], button:has-text("Đăng nhập")').first.click(force=True)
+                                        await asyncio.sleep(6) # Đợi Lazada tải hệ thống
+                                        
+                                        # Kiểm tra xem có qua được không hay bị kẹt Captcha/OTP
+                                        if "login" in page.url:
+                                            self.log("❌ Đăng nhập kẹt (Có thể sai Pass hoặc Lazada bắt kéo mã mảnh ghép/OTP).")
+                                            self.log("⏳ Xin mời xử lý nốt trên trình duyệt (Bot chờ tối đa 5 phút)...")
+                                            for i in range(100):
+                                                if "login" not in page.url and "register" not in page.url:
+                                                    self.log("✅ Đã vượt qua xác thực bảo mật!")
+                                                    return True
+                                                await asyncio.sleep(3)
+                                            return False
+                                        else:
+                                            self.log("✅ Tự động đăng nhập Lazada THÀNH CÔNG!")
+                                            return True
+                                            
+                                    except Exception as e:
+                                        self.log(f"❌ Lỗi lúc gõ tài khoản: {e}")
+                                        return False
+                                else:
+                                    self.log("✅ Trạng thái: Đã đăng nhập sẵn. Cookie còn sống!")
+                                    return True
+                                    
+                        auth_instance = LazadaAuth(self.sp_log_msg)
+                        lz_bot = LazadaProducts(self.sp_log_msg, auth_instance)
+                        await lz_bot.run(page, shop)
+                        
+                    elif platform == 'shopee':
                         await self.app.shopee_eng.tai_va_dong_bo_san_pham_excel(page, shop)
+                        
+                    else:
+                        self.sp_log_msg(f"❌ Lỗi: Nền tảng '{platform}' chưa được hỗ trợ!")
+                        
                 except Exception as e:
                     self.sp_log_msg(f"❌ Lỗi khi xử lý shop {shop['ten_shop']}: {str(e)}")
                 finally:

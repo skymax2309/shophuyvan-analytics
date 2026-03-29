@@ -1,0 +1,5 @@
+2026/03/29-13:36:54.501 4e70 Creating DB E:\shophuyvan-analytics\auto OMS Python\profiles\ShopHuyVan\Default\Local Storage\leveldb since it was missing.
+2026/03/29-13:36:55.146 4e70 Reusing MANIFEST E:\shophuyvan-analytics\auto OMS Python\profiles\ShopHuyVan\Default\Local Storage\leveldb/MANIFEST-000001
+2026/03/29-13:37:09.502 1cf4 Level-0 table #5: started
+2026/03/29-13:37:09.575 1cf4 Level-0 table #5: 136576 bytes OK
+2026/03/29-13:37:09.629 1cf4 Delete type=0 #3

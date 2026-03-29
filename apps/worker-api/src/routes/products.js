@@ -158,7 +158,7 @@ async function handleVariations(request, env, cors) {
   if (request.method === 'POST') {
     const body = await request.json()
     
-    // Tự động chuyển đổi định dạng từ Bot (products) sang định dạng của API (variations)
+// Tự động chuyển đổi định dạng từ Bot (products) sang định dạng của API (variations)
     const variations = body.variations || []
     if (body.products) {
       for (const p of body.products) {
@@ -174,6 +174,7 @@ async function handleVariations(request, env, cors) {
                image_url: v.variation_image || '',
                main_image: p_img || '',
                price: v.price,
+               discount_price: v.discount_price || 0, // BỔ SUNG LẤY GIÁ KM TỪ PYTHON
                stock: v.stock
             })
          }
@@ -223,13 +224,14 @@ async function handleVariations(request, env, cors) {
       stmts.push(env.DB.prepare(`
         INSERT INTO product_variations
           (platform, shop, platform_item_id, product_name, variation_name,
-           platform_sku, internal_sku, mapped_items, image_url, price, stock, map_status, updated_at)
-        VALUES (?,?,?,?,?,?,?,?, CASE WHEN ? != '' THEN ? ELSE ? END, ?, ?, ?, datetime('now'))
+           platform_sku, internal_sku, mapped_items, image_url, price, discount_price, stock, map_status, updated_at)
+        VALUES (?,?,?,?,?,?,?,?, CASE WHEN ? != '' THEN ? ELSE ? END, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(platform, shop, platform_sku) DO UPDATE SET
           product_name     = CASE WHEN excluded.product_name != '' THEN excluded.product_name ELSE product_variations.product_name END,
           variation_name   = excluded.variation_name,
           image_url        = CASE WHEN ? != '' THEN ? ELSE product_variations.image_url END,
           price            = excluded.price,
+          discount_price   = excluded.discount_price,
           stock            = excluded.stock,
           internal_sku     = CASE WHEN product_variations.map_status = 'MAPPED' THEN product_variations.internal_sku ELSE excluded.internal_sku END,
           mapped_items     = CASE WHEN product_variations.map_status = 'MAPPED' THEN product_variations.mapped_items ELSE excluded.mapped_items END,
@@ -240,7 +242,7 @@ async function handleVariations(request, env, cors) {
         v.product_name || '', v.variation_name || '',
         pSku, internalSku, internalSku ? JSON.stringify([{sku: internalSku, qty: 1}]) : '[]', 
         v.image_url, v.image_url, v.main_image,
-        v.price || 0, v.stock || 0, mapStatus,
+        v.price || 0, v.discount_price || 0, v.stock || 0, mapStatus,
         v.image_url, v.image_url
       ))
       synced++

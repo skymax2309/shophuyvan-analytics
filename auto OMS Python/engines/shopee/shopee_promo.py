@@ -168,9 +168,17 @@ class ShopeePromo:
                             items = []
                             for _, row in df.iterrows():
                                 sku = str(row[COT_SKU]).strip()
-                                gia_km_str = str(row[COT_GIA_KM]).replace(',', '').replace('.', '').strip()
-                                if sku and sku != 'nan' and gia_km_str.isdigit():
-                                    items.append({"sku": sku, "price": float(gia_km_str)})
+                                # Chỉ xóa dấu phẩy (phân cách hàng nghìn nếu có), giữ nguyên dấu chấm thập phân
+                                raw_price = str(row[COT_GIA_KM]).replace(',', '').strip()
+                                
+                                if sku and sku not in ['', 'nan', 'None'] and raw_price not in ['', 'nan', 'None']:
+                                    try:
+                                        # Bí quyết: Biến "39000.00" thành 39000.0 rồi ép về số nguyên 39000
+                                        gia_km = int(float(raw_price))
+                                        if gia_km > 0:
+                                            items.append({"sku": sku, "price": gia_km})
+                                    except ValueError:
+                                        pass
                                         
                             if not items:
                                 return False, "Đã đọc file nhưng không tìm thấy dữ liệu dòng nào có Giá Khuyến Mãi hợp lệ."
@@ -208,34 +216,28 @@ class ShopeePromo:
     async def _nhap_gia_km_tu_web(self, page, shop):
         self.log("👉 BƯỚC 2: Bắt đầu quá trình Đắp Giá và Up lên Shopee...")
         import os
-        import tkinter as tk
-        from tkinter import filedialog
+        import glob
         import pandas as pd
         import requests
-        
-        # --- CẤU HÌNH CỘT EXCEL (Sửa tại đây nếu file Shopee thay đổi tên cột) ---
-        COT_SKU = "SKU phân loại"       # Cột chứa mã SKU trong file Shopee
-        COT_GIA_MOI = "Giá sau giảm"    # Cột chứa giá khuyến mãi trong file Shopee
-        # ------------------------------------------------------------------------
 
-        self.log("👉 Đang mở cửa sổ... Hãy chọn file Excel GỐC mà Bot vừa tải từ Shopee về!")
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        
         thu_muc_luu = shop.get('thu_muc_luu', '').strip()
-        file_path_tu_web = filedialog.askopenfilename(
-            parent=root, title="Chọn file Excel Shopee Khuyến Mại",
-            initialdir=thu_muc_luu if os.path.exists(thu_muc_luu) else "/",
-            filetypes=[("Excel files", "*.xlsx *.xls")]
-        )
-        root.destroy()
-
-        if not file_path_tu_web:
-            self.log("⚠️ Đã hủy chọn file. Dừng quá trình Up Giá!")
+        if not thu_muc_luu or not os.path.exists(thu_muc_luu):
+            self.log("❌ Lỗi: Thư mục lưu của shop không tồn tại hoặc chưa được cài đặt!")
             return
 
-        self.log(f"✅ Đã chọn file: {os.path.basename(file_path_tu_web)}")
+        self.log("👉 Đang tự động quét tìm file Excel Khuyến Mãi mới nhất...")
+        
+        # Quét toàn bộ file .xlsx trong thư mục lưu của shop
+        search_pattern = os.path.join(thu_muc_luu, "*.xlsx")
+        list_files = glob.glob(search_pattern)
+        
+        if not list_files:
+            self.log("❌ Không tìm thấy file Excel nào. Bạn đã bấm nút 'Cào Giá' để tải file về chưa?")
+            return
+            
+        # Tự động tóm lấy file có thời gian tạo/sửa đổi gần nhất (chính là file Bot vừa tải về)
+        file_path_tu_web = max(list_files, key=os.path.getmtime)
+        self.log(f"✅ Đã tự động tóm được file mới nhất: {os.path.basename(file_path_tu_web)}")
         
         # 2. Gọi API lấy giá mới từ Server
         ten_shop = shop.get('ten_shop', '')

@@ -343,27 +343,20 @@ def process_tiktok_excel_and_sync(shop_name, filepath, log_func):
    # ==========================================
     # [DEBUG] XUẤT FILE LOG ĐỂ KHÁM NGHIỆM DỮ LIỆU
     # ==========================================
+    # ==========================================
+    # [DEBUG] XUẤT FILE LOG TIKTOK
+    # ==========================================
     try:
         import json
         import os
-        # Ép lưu file log nằm sát cạnh file utils.py
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        debug_file = os.path.join(current_dir, "debug_payload_shopee.json")
+        debug_file = os.path.join(current_dir, "debug_payload_tiktok.json")
         
         with open(debug_file, "w", encoding="utf-8") as f:
             json.dump(product_list, f, ensure_ascii=False, indent=4)
-        log_func(f"🛠️ ĐÃ LƯU LOG DỮ LIỆU VÀO FILE: {debug_file}")
-        
-        # In thử 5 link ảnh phân loại đầu tiên bắt được ra log để xem Tool có bị "mù" không
-        log_func("--- TEST THỬ DỮ LIỆU BẮT ĐƯỢC TỪ EXCEL ---")
-        count_img = 0
-        for k, v in var_media_map.items():
-            if count_img < 5:
-                log_func(f"🔍 Tên tìm kiếm: [{k}]  ====>  Link: {v}")
-                count_img += 1
-        log_func("------------------------------------------")
+        # Bỏ đi đoạn in link ảnh bị lỗi của Shopee
     except Exception as e:
-        log_func(f"⚠️ Lỗi tạo file debug: {e}")
+        log_func(f"⚠️ Lỗi tạo file debug TikTok: {e}")
 
     chunk_size = 40 # Chia nhỏ mỗi lần gửi 40 sản phẩm
     total_synced = 0
@@ -387,3 +380,159 @@ def process_tiktok_excel_and_sync(shop_name, filepath, log_func):
 
     log_func(f"🎉 HOÀN TẤT! Đã đồng bộ tổng cộng {total_synced} phân loại lên Web.")
     log_func(f"🤖 Hệ thống tự động Map được: {total_mapped} SKU.")
+
+# ==========================================
+# XỬ LÝ GHÉP NỐI EXCEL LAZADA (3 FILE)
+# ==========================================
+def process_lazada_excel_and_sync(shop_name, file_paths, log_func):
+    import pandas as pd
+    import requests
+    from config import SYNC_VARIATIONS_URL
+    import os
+    import json
+    
+    def read_lazada_file(filepath):
+        try:
+            # Dùng calamine để lách lỗi định dạng Excel
+            df = pd.read_excel(filepath, header=0, dtype=str, engine='calamine')
+            
+            # ĐẶC SẢN LAZADA: 2 dòng đầu tiên là mô tả cột (Không phải dữ liệu)
+            # Dòng dữ liệu thật luôn có Product ID là số. Dùng bọc thép để lọc:
+            if 'Product ID' in df.columns:
+                df['Product ID'] = pd.to_numeric(df['Product ID'], errors='coerce')
+                return df[df['Product ID'].notnull()]
+            return df
+        except Exception as e:
+            log_func(f"❌ Lỗi đọc file Lazada {os.path.basename(filepath)}: {e}")
+            return None
+
+    def parse_number(val):
+        """Hàm chuẩn hóa số liệu chống gãy float của Pandas"""
+        try:
+            v_str = str(val).strip()
+            if v_str in ['nan', 'None', '', 'NaT']: return 0
+            return float(v_str.replace(',', ''))
+        except:
+            return 0
+
+    log_func("⏳ Đang bóc tách và gom dữ liệu 3 file Lazada...")
+    df_basic = read_lazada_file(file_paths['basic'])
+    df_sales = read_lazada_file(file_paths['sales'])
+    df_media = read_lazada_file(file_paths['media'])
+    
+    if df_basic is None or df_sales is None or df_media is None:
+        log_func("❌ Lỗi: Không thể đọc đủ dữ liệu 3 file Excel Lazada.")
+        return
+
+    # 1. BÓC TÁCH FILE 1 (BASIC) - Lấy Tên, Mô tả, Ảnh bìa
+    basic_map = {}
+    for _, row in df_basic.iterrows():
+        pid = str(int(row['Product ID']))
+        name = str(row.get('Tên sản phẩm', ''))
+        desc = str(row.get('Mô tả chính', ''))
+        
+        # Gom các cột ảnh sản phẩm (Từ 1 đến 8)
+        images = []
+        for i in range(1, 9):
+            img_col = f'Ảnh sản phẩm{i}'
+            if img_col in df_basic.columns and pd.notna(row[img_col]) and str(row[img_col]).strip() != 'nan':
+                images.append(str(row[img_col]).strip())
+                
+        basic_map[pid] = {
+            "name": name,
+            "desc": desc,
+            "images": images
+        }
+
+    # 2. BÓC TÁCH FILE 3 (MEDIA) - Lấy Hình ảnh riêng của từng Phân loại (Variation)
+    var_media_map = {}
+    for _, row in df_media.iterrows():
+        lz_sku = str(row.get('Lazada SKU', '')).strip()
+        seller_sku = str(row.get('SellerSku', '')).strip()
+        img = str(row.get('Hình Ảnh1', '')).strip()
+        
+        if img and img != 'nan':
+            # Lưu vết bằng cả mã Lazada lẫn SKU của Shop để đối chiếu cho chắc ăn
+            if lz_sku and lz_sku != 'nan': var_media_map[lz_sku] = img
+            if seller_sku and seller_sku != 'nan': var_media_map[seller_sku] = img
+
+    # 3. LẮP RÁP TỪ FILE 2 (SALES) - Khung xương trung tâm
+    products_dict = {}
+    for _, row in df_sales.iterrows():
+        pid = str(int(row['Product ID']))
+        lz_sku = str(row.get('Lazada SKU', '')).strip()
+        seller_sku = str(row.get('SellerSku', '')).strip()
+        v_name = str(row.get('Variations Combo', '')).strip()
+        
+        # Bắt dính cả Giá Gốc lẫn Giá Đặc Biệt (Khuyến mãi)
+        price = parse_number(row.get('Giá', 0))
+        special_price = parse_number(row.get('SpecialPrice', 0))
+        stock = int(parse_number(row.get('Số lượng', 0)))
+        
+        if not v_name or v_name == 'nan': v_name = "Mặc định"
+            
+        # Lấy lại thông tin từ File Basic
+        b_info = basic_map.get(pid, {})
+        if pid not in products_dict:
+            products_dict[pid] = {
+                "item_id": pid,
+                "product_name": b_info.get("name", str(row.get('Tên sản phẩm', ''))),
+                "description": b_info.get("desc", ""),
+                "images": b_info.get("images", []),
+                "variations": []
+            }
+            
+        # Móc nối lấy Ảnh của Phân loại từ File Media
+        v_img = var_media_map.get(lz_sku, var_media_map.get(seller_sku, ""))
+        
+        # THUẬT TOÁN ĐẢO GIÁ HIỂN THỊ LÊN WEBSITE
+        # Nếu có giá Khuyến mãi (SpecialPrice > 0): Web sẽ lấy giá KM làm giá bán chính, Giá gốc sẽ bị đẩy xuống làm giá gạch chéo.
+        # Nếu không có KM: Giá bán chính là giá gốc, không có giá gạch chéo.
+        gia_ban_thuc_te = special_price if special_price > 0 else price
+        gia_goc_gach_cheo = price if special_price > 0 else 0
+
+        # TRUYỀN DỮ LIỆU CHUẨN 100% THEO DATABASE SCHEMA (BẢNG product_variations)
+        products_dict[pid]["variations"].append({
+            "variation_name": v_name,
+            "sku": seller_sku if seller_sku != 'nan' else '',
+            "price": price,                  # Bắn thẳng Giá gốc vào cột 'price'
+            "discount_price": special_price, # Bắn thẳng Giá KM vào cột 'discount_price'
+            "stock": stock,
+            "variation_image": v_img
+        })
+
+    product_list = list(products_dict.values())
+    total_products = len(product_list)
+    log_func(f"🚀 Xào nấu hoàn tất! Đã gom được {total_products} Sản phẩm Lazada. Chuẩn bị bắn lên Website...")
+    
+    # [DEBUG] XUẤT FILE LOG ĐỂ KIỂM TRA DỮ LIỆU JSON
+    try:
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        debug_file = os.path.join(current_dir, "debug_payload_lazada.json")
+        with open(debug_file, "w", encoding="utf-8") as f:
+            json.dump(product_list, f, ensure_ascii=False, indent=4)
+    except: pass
+
+    # 4. TIẾN HÀNH ĐỒNG BỘ API (Chunk 40 SP/lần y hệt Shopee)
+    chunk_size = 40
+    total_synced = 0
+    total_mapped = 0
+
+    for i in range(0, total_products, chunk_size):
+        chunk = product_list[i:i + chunk_size]
+        payload = {"platform": "lazada", "shop": shop_name, "products": chunk}
+        log_func(f"⏳ Đang gửi lô {i//chunk_size + 1} ({len(chunk)} SP)...")
+        
+        try:
+            res = requests.post(SYNC_VARIATIONS_URL, json=payload, timeout=60)
+            if res.status_code == 200:
+                data = res.json()
+                total_synced += data.get('synced', 0)
+                total_mapped += data.get('auto_mapped', 0)
+            else:
+                log_func(f"❌ Lỗi từ Server ở lô {i//chunk_size + 1}: {res.status_code} - {res.text}")
+        except Exception as e:
+            log_func(f"❌ Lỗi mạng ở lô {i//chunk_size + 1}: {str(e)[:50]}...")
+
+    log_func(f"🎉 HOÀN TẤT ĐỒNG BỘ LAZADA! Đã đẩy {total_synced} phân loại lên Web.")
+    log_func(f"🤖 OMS tự động Map được: {total_mapped} SKU.")
