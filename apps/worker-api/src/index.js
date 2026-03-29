@@ -289,6 +289,25 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return Response.json({ status: "ok" }, { headers: cors })
       }
 
+      // [BỌC THÉP] API ĐẾM TỔNG SỐ ĐƠN TUYỆT ĐỐI (KHÔNG NHẢY MÚA THEO TRANG)
+      if (url.pathname === "/api/orders/badges" && request.method === "GET") {
+        try {
+          const { results: sCount } = await env.DB.prepare(`SELECT oms_status, COUNT(*) as c FROM orders_v2 GROUP BY oms_status`).all()
+          const { results: tCount } = await env.DB.prepare(`SELECT order_type, COUNT(*) as c FROM orders_v2 GROUP BY order_type`).all()
+          const { results: pCount } = await env.DB.prepare(`SELECT platform, COUNT(*) as c FROM orders_v2 GROUP BY platform`).all()
+          const { results: allCount } = await env.DB.prepare(`SELECT COUNT(*) as c FROM orders_v2`).all()
+
+          const badges = { ALL: allCount[0]?.c || 0 }
+          sCount.forEach(r => badges[r.oms_status || 'PENDING'] = r.c)
+          tCount.forEach(r => badges[r.order_type || 'normal'] = r.c)
+          pCount.forEach(r => badges[r.platform || 'shopee'] = r.c)
+
+          return Response.json(badges, { headers: cors })
+        } catch (e) {
+          return Response.json({ error: e.message }, { headers: cors })
+        }
+      }
+
       if (url.pathname === "/api/export-orders")
         return exportOrders(request, env, cors)
 

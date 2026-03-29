@@ -245,28 +245,24 @@ function renderSummary() {
 
 // ── UPDATE BADGES ───────────────────────────────────────────────────
 async function updateBadges(res) {
-  // Lấy counts riêng cho badges — gọi thêm API không filter
   try {
-    const all = await fetch(API + '/api/orders?limit=1').then(r => r.json())
-    document.getElementById('cnt-ALL').textContent = all.total || 0
-  } catch {}
-
-  // Count từ cache hiện tại
-  const cnt = {
-    PENDING:0, CONFIRMED:0, PACKING:0, PACKED:0, HANDED_OVER:0, COMPLETED:0,
-    CANCELLED_TRANSIT:0, FAILED_DELIVERY:0, RETURN_REFUND:0,
-    normal:0, cancel:0, return:0, shopee:0, tiktok:0, lazada:0
+    // Gọi thẳng API đếm tổng chuyên dụng thay vì đếm theo số dòng hiển thị
+    const badges = await fetch(API + '/api/orders/badges').then(r => r.json());
+    
+    const keys = [
+      'ALL', 'PENDING', 'CONFIRMED', 'PACKING', 'PACKED', 'HANDED_OVER', 'COMPLETED',
+      'CANCELLED_TRANSIT', 'FAILED_DELIVERY', 'RETURN_REFUND',
+      'normal', 'cancel', 'return', 'shopee', 'tiktok', 'lazada'
+    ];
+    
+    keys.forEach(k => {
+      const el = document.getElementById('cnt-' + k);
+      // Hiển thị số, nếu không có thì mặc định là 0
+      if (el) el.textContent = badges[k] || 0;
+    });
+  } catch (e) {
+    console.error("Lỗi lấy dữ liệu đếm số tổng:", e);
   }
-  omsCache.forEach(o => {
-    const s = o.oms_status || 'PENDING'
-    if (cnt[s] !== undefined) cnt[s]++
-    if (cnt[o.order_type] !== undefined) cnt[o.order_type]++
-    if (cnt[o.platform] !== undefined) cnt[o.platform]++
-  })
-  Object.entries(cnt).forEach(([k,v]) => {
-    const el = document.getElementById('cnt-'+k)
-    if (el) el.textContent = v
-  })
 }
 
 // ── PAGINATION ──────────────────────────────────────────────────────
