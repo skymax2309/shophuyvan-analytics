@@ -185,8 +185,9 @@ function renderTable() {
           ${imgHtml}
           <div class="product-info">
             <div class="product-name" title="${firstItem.product_name||'—'}">${(firstItem.product_name||'—').substring(0,40)}</div>
-            <div class="product-sku">${firstItem.sku||'—'}</div>
-            <div class="product-qty">× ${totalQty} sp${moreItems?'':''}</div>
+            ${firstItem.variation_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Phân loại: ${firstItem.variation_name}</div>` : ''}
+            <div class="product-sku" style="margin-top:2px; color:var(--blue);">${firstItem.sku||'Chưa Map SKU'}</div>
+            <div class="product-qty" style="margin-top:2px;">× ${totalQty} sp${moreItems?'':''}</div>
             ${moreItems}
           </div>
         </div>

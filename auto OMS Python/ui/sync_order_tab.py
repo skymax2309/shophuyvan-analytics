@@ -169,7 +169,8 @@ class SyncOrderTab(ctk.CTkFrame):
                                     for item in order["items"]:
                                         payload["items"].append({
                                             "order_id": order["order_id"],
-                                            "sku": item.get("variation", item["name"]), # Tạm dùng phân loại làm SKU
+                                            "sku": "", # Để trống cho Server tự Map
+                                            "variation_name": item.get("variation", ""), # Giữ nguyên tên phân loại gốc
                                             "product_name": item["name"],
                                             "qty": int(item["quantity"])
                                         })

@@ -290,11 +290,12 @@ async function importOrdersV2(request, env, cors) {
 
   // 3. Cập nhật cost_real cho items + map internal_sku nếu có
   const processedItems = items.map(i => {
+    const rawVariation = (i.variation_name || '').toLowerCase()
     const rawSku  = (i.sku || '').toLowerCase()
     const rawName = (i.product_name || '').toLowerCase()
-    // Tìm trong varMap theo platform_sku rồi variation_name
-    const mapped  = varMap[rawSku] || varMap[rawName] || null
-    const finalSku = mapped?.internal_sku || i.sku || ''
+    // Tìm map ưu tiên: Variation Name -> Platform SKU -> Tên SP
+    const mapped  = varMap[rawVariation] || varMap[rawSku] || varMap[rawName] || null
+    const finalSku = mapped?.internal_sku || ''
     const imageUrl = mapped?.image_url    || ''
     const p = productMap[finalSku] || { cost_real: 0, cost_invoice: 0 }
     return {
@@ -409,10 +410,10 @@ async function importOrdersV2(request, env, cors) {
   for (let i = 0; i < processedItems.length; i += BATCH) {
     const chunk = processedItems.slice(i, i + BATCH)
     const stmts = chunk.map(item => env.DB.prepare(`
-      INSERT INTO order_items (order_id, sku, product_name, qty, revenue_line, cost_real, cost_invoice, image_url)
-      VALUES (?,?,?,?,?,?,?,?)
+      INSERT INTO order_items (order_id, sku, variation_name, product_name, qty, revenue_line, cost_real, cost_invoice, image_url)
+      VALUES (?,?,?,?,?,?,?,?,?)
     `).bind(
-      item.order_id, item.sku, item.product_name || "",
+      item.order_id, item.sku, item.variation_name || "", item.product_name || "",
       item.qty || 1, item.revenue_line || 0,
       item.cost_real || 0, item.cost_invoice || 0,
       item.image_url || ""
