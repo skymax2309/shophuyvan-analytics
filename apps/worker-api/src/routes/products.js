@@ -161,8 +161,8 @@ async function handleVariations(request, env, cors) {
     if (status) { conds.push('v.map_status = ?'); params.push(status) }
     if (shop)   { conds.push('v.shop = ?');       params.push(shop)   }
     
-    // Tối ưu: Liệt kê rõ các cột để tránh lỗi trùng lặp cột image_url khi dùng v.*
-    // Bổ sung thêm fallback lấy từ bảng products (SKU nội bộ) nếu cần
+    // Tối ưu chót: Ưu tiên lấy ảnh từ bảng products (SKU nội bộ chính) như yêu cầu. 
+    // Dùng TRIM() để loại bỏ các trường hợp chuỗi rỗng có dấu cách ẩn gây lỗi COALESCE.
     const query = `
       SELECT 
         v.id, v.platform, v.shop, v.platform_item_id, v.product_name, 
@@ -170,13 +170,9 @@ async function handleVariations(request, env, cors) {
         v.discount_price, v.stock, v.map_status, v.mapped_items, 
         v.created_at, v.updated_at,
         COALESCE(
-          NULLIF(v.image_url, ''),
-          CASE 
-            WHEN v.internal_sku != '' AND v.internal_sku IS NOT NULL 
-            THEN (SELECT image_url FROM product_variations v2 WHERE v2.internal_sku = v.internal_sku AND v2.image_url != '' AND v2.image_url IS NOT NULL LIMIT 1)
-            ELSE NULL
-          END,
-          (SELECT image_url FROM products p WHERE p.sku = v.internal_sku AND p.image_url != ''),
+          NULLIF(TRIM(v.image_url), ''),
+          (SELECT NULLIF(TRIM(image_url), '') FROM products p WHERE p.sku = v.internal_sku LIMIT 1),
+          (SELECT NULLIF(TRIM(image_url), '') FROM product_variations v2 WHERE v2.internal_sku = v.internal_sku AND NULLIF(TRIM(v2.image_url), '') IS NOT NULL LIMIT 1),
           ''
         ) as image_url
       FROM product_variations v 

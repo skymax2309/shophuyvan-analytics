@@ -1007,7 +1007,7 @@
                 "sku": "CUATREN7KGMEO",
                 "price": 120000.0,
                 "discount_price": 80000.0,
-                "stock": 4,
+                "stock": 3,
                 "variation_image": "https://vn-live.slatic.net/p/62b52aa13a862dae485955fae3969c6a.jpg"
             },
             {
@@ -1015,7 +1015,7 @@
                 "sku": "TREN65X65X105DAIDUONG",
                 "price": 150000.0,
                 "discount_price": 90000.0,
-                "stock": 40,
+                "stock": 39,
                 "variation_image": "https://vn-live.slatic.net/p/5dbfbfe56f2b7afb4f473492e172c0ac.jpg"
             },
             {
@@ -2536,7 +2536,7 @@
                 "sku": "bo_8_vit_k118",
                 "price": 49000.0,
                 "discount_price": 29000.0,
-                "stock": 90,
+                "stock": 88,
                 "variation_image": "https://vn-live.slatic.net/p/402cc9bddea100738b25bb91b085ccc7.jpg"
             }
         ]
@@ -7075,7 +7075,7 @@
                 "sku": "1_bo_nhong_dien_k269",
                 "price": 89000.0,
                 "discount_price": 49000.0,
-                "stock": 11,
+                "stock": 10,
                 "variation_image": "https://vn-live.slatic.net/p/6f353f31f578a61a500174949a701c84.jpg"
             }
         ]
