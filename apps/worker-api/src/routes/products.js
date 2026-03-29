@@ -157,11 +157,27 @@ async function handleVariations(request, env, cors) {
     const shop   = url.searchParams.get('shop')
     const conds  = ['1=1']
     const params = []
-    if (status) { conds.push('map_status = ?'); params.push(status) }
-    if (shop)   { conds.push('shop = ?');       params.push(shop)   }
-    const rows = await env.DB.prepare(
-      `SELECT * FROM product_variations WHERE ${conds.join(' AND ')} ORDER BY map_status, product_name`
-    ).bind(...params).all()
+    // Đã thêm alias 'v.' để query SQL hiểu rõ cột của bảng nào
+    if (status) { conds.push('v.map_status = ?'); params.push(status) }
+    if (shop)   { conds.push('v.shop = ?');       params.push(shop)   }
+    
+    // Tối ưu: Tự động lấy ảnh từ các sàn khác qua internal_sku nếu ảnh hiện tại rỗng
+    const query = `
+      SELECT v.*,
+        COALESCE(
+          NULLIF(v.image_url, ''),
+          CASE 
+            WHEN v.internal_sku != '' AND v.internal_sku IS NOT NULL 
+            THEN (SELECT image_url FROM product_variations v2 WHERE v2.internal_sku = v.internal_sku AND v2.image_url != '' AND v2.image_url IS NOT NULL LIMIT 1)
+            ELSE ''
+          END,
+          ''
+        ) as image_url
+      FROM product_variations v 
+      WHERE ${conds.join(' AND ')} 
+      ORDER BY v.map_status, v.product_name
+    `;
+    const rows = await env.DB.prepare(query).bind(...params).all()
     return Response.json(rows.results, { headers: cors })
   }
 
