@@ -276,6 +276,30 @@ class AIHelperTool(ctk.CTk):
                 # Tạo thư mục mới có thêm đuôi _AI_Recorder
                 profile_path = original_profile + "_AI_Recorder"
                 
+                # [BỌC THÉP] Hàm dọn dẹp rác & file khóa để trình duyệt luôn mở được
+                def clean_chrome_locks(target_dir):
+                    for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+                        lock_path = os.path.join(target_dir, lock_name)
+                        if os.path.exists(lock_path):
+                            try: os.remove(lock_path)
+                            except: pass
+
+                # Chỉ copy nếu thư mục Clone chưa tồn tại
+                if not os.path.exists(profile_path):
+                    if os.path.exists(original_profile):
+                        try:
+                            # Bỏ qua các file rác và file khóa khi copy
+                            shutil.copytree(original_profile, profile_path, ignore=shutil.ignore_patterns('SingletonLock', 'Cache', 'Code Cache', 'GPUCache', 'Network'))
+                            self.after(0, lambda: self.recorder_log.insert("end", f"[*] Đã tạo bản sao Profile an toàn.\n"))
+                        except Exception as e:
+                            self.after(0, lambda: self.recorder_log.insert("end", f"[*] Cảnh báo copy: {e}. Đang dùng profile mới...\n"))
+                            os.makedirs(profile_path, exist_ok=True)
+                    else:
+                        os.makedirs(profile_path, exist_ok=True)
+                
+                # QUAN TRỌNG NHẤT: Luôn bẻ khóa trước khi mở trình duyệt
+                clean_chrome_locks(profile_path)
+                
                 # Nếu thư mục Clone chưa có, copy từ thư mục gốc sang để giữ Cookie
                 if not os.path.exists(profile_path) and os.path.exists(original_profile):
                     try:
@@ -287,6 +311,7 @@ class AIHelperTool(ctk.CTk):
 
                 context = await p.chromium.launch_persistent_context(
                     user_data_dir=profile_path,
+                    channel="chrome", # BỌC THÉP: Ép dùng Chrome thật để không bị Crash Profile
                     headless=False,
                     viewport={"width": 1280, "height": 720},
                     args=["--disable-blink-features=AutomationControlled"]

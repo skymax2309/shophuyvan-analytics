@@ -71,6 +71,7 @@ function renderSkuTables() {
           data-name="${encodedName}"
           data-cinv="${p.cost_invoice || 0}"
           data-creal="${p.cost_real || 0}"
+          data-img="${imgUrl}"
           onclick="editSkuFromBtn(this)">✏️</button>
         <button onclick="moveToCombo('${p.sku}')"
           style="margin-left:4px;padding:4px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px"
@@ -93,21 +94,49 @@ async function saveSku() {
   const name = document.getElementById("s_name").value.trim()
   const cinv = parseFloat(document.getElementById("s_cost_inv").value) || 0
   const creal = parseFloat(document.getElementById("s_cost_real").value) || 0
+  
+  const fileInput = document.getElementById("s_img_file")
+  let finalImg = document.getElementById("s_old_img").value
 
   if (!sku || !name) { showToast("⚠️ Nhập SKU và Tên sản phẩm!", true); return }
 
-  await fetch(API + "/api/products", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal })
-  })
+  const btn = document.getElementById("btnSaveSku");
+  btn.innerHTML = "⏳ Đang lưu...";
+  btn.disabled = true;
 
-  showToast("✅ Đã lưu SKU: " + sku)
-  document.getElementById("s_sku").value = ""
-  document.getElementById("s_name").value = ""
-  document.getElementById("s_cost_inv").value = ""
-  document.getElementById("s_cost_real").value = ""
-  loadSkus()
+  try {
+      // Nếu có chọn ảnh mới thì Upload trước
+      if (fileInput.files.length > 0) {
+          const file = fileInput.files[0];
+          const fileName = 'products/sku_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
+          const uploadUrl = `${API}/api/upload?file=${encodeURIComponent(fileName)}&token=huyvan_secret_2026`;
+          const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: file });
+          if (!uploadRes.ok) throw new Error("Lỗi upload ảnh lên server!");
+          finalImg = `https://huyvan-worker-api.nghiemchihuy.workers.dev/api/file/${fileName}`;
+      }
+
+      await fetch(API + "/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg })
+      })
+
+      showToast("✅ Đã lưu SKU: " + sku)
+      document.getElementById("s_sku").value = ""
+      document.getElementById("s_name").value = ""
+      document.getElementById("s_cost_inv").value = ""
+      document.getElementById("s_cost_real").value = ""
+      document.getElementById("s_img_file").value = ""
+      document.getElementById("s_img_preview").src = "https://placehold.co/60x60?text=IMG"
+      document.getElementById("s_old_img").value = ""
+      
+      loadSkus()
+  } catch (e) {
+      showToast("❌ Lỗi: " + e.message, true)
+  } finally {
+      btn.innerHTML = "💾 Lưu SKU";
+      btn.disabled = false;
+  }
 }
 
 function editSkuFromBtn(btn) {
@@ -115,14 +144,23 @@ function editSkuFromBtn(btn) {
   const name  = decodeURIComponent(btn.dataset.name)
   const cinv  = btn.dataset.cinv
   const creal = btn.dataset.creal
-  editSku(sku, name, cinv, creal)
+  const img   = btn.dataset.img
+  editSku(sku, name, cinv, creal, img)
 }
 
-function editSku(sku, name, cinv, creal) {
+function editSku(sku, name, cinv, creal, img) {
   document.getElementById("s_sku").value      = sku
   document.getElementById("s_name").value     = name
   document.getElementById("s_cost_inv").value = cinv
   document.getElementById("s_cost_real").value = creal
+  
+  // Gắn ảnh lên Preview
+  const defaultImg = "https://placehold.co/60x60?text=IMG";
+  const isValidImg = img && !img.includes('placehold');
+  document.getElementById("s_old_img").value = isValidImg ? img : "";
+  document.getElementById("s_img_preview").src = isValidImg ? img : defaultImg;
+  document.getElementById("s_img_file").value = "";
+  
   window.scrollTo({ top: 0, behavior: "smooth" })
   showToast("✏️ Đang chỉnh sửa SKU: " + sku)
 }

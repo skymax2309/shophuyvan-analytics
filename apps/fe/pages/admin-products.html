@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quản lý Sản phẩm & SKU</title>
 <link rel="stylesheet" href="../css/admin.css">
 </head>
@@ -27,6 +28,19 @@
   
   /* Ẩn topbar cũ nếu css cũ còn sót */
   .topbar, .tabs { display: none !important; }
+
+  /* --- GIAO DIỆN MOBILE RESPONSIVE --- */
+  @media (max-width: 768px) {
+    .app-wrapper { flex-direction: column; }
+    .side-nav { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid #e2e8f0; }
+    .side-menu { flex-direction: row; overflow-x: auto; padding: 8px; white-space: nowrap; gap: 8px; }
+    .side-menu .tab-btn { padding: 8px 12px; font-size: 13px; border-radius: 8px; border-right: none !important; border-bottom: 3px solid transparent; }
+    .side-menu .tab-btn.active { border-bottom: 3px solid #2563eb; border-radius: 8px; }
+    .container { padding: 12px; }
+    .card { padding: 12px; }
+    table { display: block; overflow-x: auto; white-space: nowrap; width: 100%; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
 </style>
 
 <div class="app-wrapper">
@@ -103,12 +117,24 @@
 
     <div class="card">
       <div class="card-title">➕ Thêm / Cập nhật SKU thủ công</div>
+      
+      <input type="hidden" id="s_old_img" value="">
+      <div style="display:flex; gap:16px; margin-bottom:16px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+          <img id="s_img_preview" src="https://placehold.co/60x60?text=IMG" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #cbd5e1; background:white;">
+          <div style="flex:1; min-width:200px;">
+              <label style="font-size:13px; color:#475569; font-weight:700; display:block; margin-bottom:6px;">Hình ảnh đại diện SKU</label>
+              <input type="file" id="s_img_file" accept="image/*" onchange="document.getElementById('s_img_preview').src = window.URL.createObjectURL(this.files[0])" style="font-size:13px; width:100%; cursor:pointer;">
+          </div>
+      </div>
+
       <div class="form-grid">
         <div class="field"><label>SKU *</label><input id="s_sku" placeholder="VD: SP001"></div>
         <div class="field"><label>Tên sản phẩm *</label><input id="s_name" placeholder="Tên sản phẩm"></div>
         <div class="field"><label>Vốn hóa đơn (đ)</label><input type="number" id="s_cost_inv" placeholder="0" step="100"></div>
         <div class="field"><label>Vốn thực tế (đ)</label><input type="number" id="s_cost_real" placeholder="0" step="100"></div>
-        <button class="btn btn-primary" onclick="saveSku()">💾 Lưu SKU</button>
+      </div>
+      <div style="margin-top:16px; text-align:right;">
+        <button class="btn btn-primary" id="btnSaveSku" onclick="saveSku()">💾 Lưu SKU</button>
       </div>
     </div>
 
