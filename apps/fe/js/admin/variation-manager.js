@@ -111,17 +111,32 @@ window.renderVariations = function() {
           }
         }
         
-        const priceFormatted = v.price ? Number(v.price).toLocaleString('vi-VN') + 'đ' : '0đ';
-        const discountFormatted = v.discount_price ? Number(v.discount_price).toLocaleString('vi-VN') + 'đ' : '0đ';
-        const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
-        
-        return `
-        <div class="var-card" id="var-row-${v.id}">
-            <div class="var-card-header">
-                <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                    <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()" style="transform:scale(1.2)">
-                    ${v.image_url ? `<img src="${v.image_url}" class="var-img">` : `<div class="var-img" style="background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`}
-                </div>
+          const priceFormatted = v.price ? Number(v.price).toLocaleString('vi-VN') + 'đ' : '0đ';
+          const discountFormatted = v.discount_price ? Number(v.discount_price).toLocaleString('vi-VN') + 'đ' : '0đ';
+          const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
+          
+          // XỬ LÝ FALLBACK ẢNH TẠI FRONTEND:
+          let displayImg = (v.image_url || '').trim();
+          if (!displayImg && v.internal_sku) {
+             // 1. Tìm ảnh từ danh sách SKU nội bộ (ưu tiên 1)
+             const matchedSku = (window.allSkus || []).find(s => s.sku === v.internal_sku);
+             if (matchedSku && matchedSku.image_url) {
+                 displayImg = matchedSku.image_url;
+             }
+             // 2. Nếu nội bộ không có, mượn tạm ảnh của các sàn khác (Shopee/Lazada) có cùng mã map (ưu tiên 2)
+             if (!displayImg) {
+                 const sibling = allVariations.find(other => other.internal_sku === v.internal_sku && (other.image_url || '').trim() !== '');
+                 if (sibling) displayImg = sibling.image_url;
+             }
+          }
+          
+          return `
+          <div class="var-card" id="var-row-${v.id}">
+              <div class="var-card-header">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+                      <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()" style="transform:scale(1.2)">
+                      ${displayImg ? `<img src="${displayImg}" class="var-img">` : `<div class="var-img" style="background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`}
+                  </div>
                 <div class="var-info">
                     <div class="var-title" title="${escapeHtml(v.product_name)}">${escapeHtml(v.product_name) || '—'}</div>
                     <div class="var-subtitle">Phân loại: <strong style="color:#0f172a">${escapeHtml(v.variation_name) || '—'}</strong></div>
