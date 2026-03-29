@@ -15,13 +15,26 @@
     <a href="profit-dashboard.html">← Dashboard</a>
     <a href="admin-products.html">📦 Sản phẩm</a>
   </div>
-  <div class="topbar-right">
-    <span id="lastSync" style="font-size:11px;color:var(--muted)">Chưa đồng bộ</span>
+  <div class="topbar-right" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+    <span id="lastSync" style="font-size:11px;color:var(--muted); display: none;">Chưa đồng bộ</span>
+    
+    <button class="btn-sync" onclick="triggerBotScrape()" style="background-color: #3b82f6; border-color: #2563eb;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      <span class="hide-on-mobile">Kéo Đơn Mới</span>
+    </button>
+
     <button class="btn-sync" onclick="syncOrders()">
       <svg id="syncIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-      Đồng bộ
+      <span class="hide-on-mobile">Làm mới</span>
     </button>
   </div>
+
+  <style>
+    @media (max-width: 600px) {
+      .hide-on-mobile { display: none; }
+      .topbar-right button { padding: 6px 10px; }
+    }
+  </style>
 </div>
 
 <!-- LAYOUT -->
@@ -213,14 +226,14 @@
   import { loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
            markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
            markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-           debounceLoad, toggleAllCheck, closeModal, copyText, onCheck } from '../js/oms-main.js';
+           debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape } from '../js/oms-main.js';
 
   // Expose to global scope (vì HTML dùng onclick="...")
   Object.assign(window, {
     loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
     markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
     markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-    debounceLoad, toggleAllCheck, closeModal, copyText, onCheck
+    debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape
   });
 
   loadShopList();

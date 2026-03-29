@@ -56,8 +56,9 @@ class HuyVanApp(ctk.CTk):
         tab_quanly = self.tabview.add("👤 Quản Lý Tài Khoản")
         tab_chay   = self.tabview.add("🚀 Chạy Tự Động (Auto)")
         tab_sp     = self.tabview.add("🛍️ Đồng bộ Sản phẩm")
+        tab_donhang = self.tabview.add("📦 Quản lý Đơn hàng") # <-- BỔ SUNG TAB MỚI
 
-        # ── NHÚNG 3 TAB TỪ MODULE BÊN NGOÀI VÀO ──
+        # ── NHÚNG CÁC TAB TỪ MODULE BÊN NGOÀI VÀO ──
         from ui.login_tab import LoginTab
         self.login_tab = LoginTab(tab_quanly, self)
 
@@ -66,6 +67,10 @@ class HuyVanApp(ctk.CTk):
 
         from ui.sync_product_tab import SyncProductTab
         self.sync_product_tab = SyncProductTab(tab_sp, self)
+
+        # <-- GỌI FILE GIAO DIỆN BOT ĐƠN HÀNG -->
+        from ui.sync_order_tab import SyncOrderTab
+        self.sync_order_tab = SyncOrderTab(tab_donhang, self)
 
     # ── CÁC HÀM CẦU NỐI (DELEGATORS) ──
     def log(self, message):

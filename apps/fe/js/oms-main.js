@@ -546,5 +546,32 @@ export async function loadShopList() {
   } catch {}
 }
 
+// ── TRIGGER BOT CÀO ĐƠN TỪ XA (HỖ TRỢ MOBILE/WEB) ─────────────────────
+export async function triggerBotScrape() {
+  const btn = document.querySelector('button[onclick="triggerBotScrape()"]');
+  if(btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
+  showToast('🔄 Đang gửi tín hiệu đánh thức Bot...');
+
+  try {
+    // Bắn một lệnh (Job) vào Server. Bot Python ở nhà sẽ lấy lệnh này để chạy.
+    await fetch(API + '/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_type: 'scrape_orders',
+        payload: JSON.stringify({ command: "start_scraping" }),
+        shop_name: 'ALL',
+        platform: 'ALL',
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+      })
+    });
+    showToast('✅ Đã phát lệnh! Bot Python ở nhà sẽ bắt đầu cào đơn mới.', 4000);
+  } catch (e) {
+    showToast('❌ Lỗi gửi tín hiệu: ' + e.message);
+  } finally {
+    if(btn) { btn.style.opacity = '1'; btn.disabled = false; }
+  }
+}
 // ── INIT ─────────────────────────────────────────────────────────────
 loadShopList()
