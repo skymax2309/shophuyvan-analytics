@@ -68,7 +68,7 @@ export default {
       }
 
       // ── Products ──────────────────────────────────────────────────
-      if (url.pathname === "/api/products")
+      if (url.pathname === "/api/products" || url.pathname === "/api/products/promo-prices" || url.pathname === "/api/products/update-promo-prices")
         return handleProducts(request, env, cors)
 
       if (url.pathname === "/api/sync-variations/bulk" && request.method === "DELETE")

@@ -137,21 +137,43 @@ class ShopeePromo:
                         import pandas as pd
                         import requests
                         try:
-                            # Đọc file bỏ qua cảnh báo định dạng
-                            df = pd.read_excel(file_path, dtype=str)
-                            COT_SKU = "SKU phân loại"
-                            COT_GIA_KM = "Giá sau giảm"
+                            # Đọc file bằng engine calamine để lách lỗi định dạng
+                            try:
+                                df = pd.read_excel(file_path, dtype=str, engine='calamine')
+                            except:
+                                df = pd.read_excel(file_path, dtype=str)
+                                
+                            # Dò tìm dòng Header thực sự (Shopee hay chèn 3-4 dòng hướng dẫn ở đầu file KM)
+                            header_idx = 0
+                            for i in range(min(15, len(df))):
+                                row_str = " ".join([str(x).lower() for x in df.iloc[i].values])
+                                if "sku" in row_str and "giá" in row_str:
+                                    header_idx = i + 1
+                                    break
+                                    
+                            if header_idx > 0:
+                                try:
+                                    df = pd.read_excel(file_path, dtype=str, header=header_idx, engine='calamine')
+                                except:
+                                    df = pd.read_excel(file_path, dtype=str, header=header_idx)
+
+                            # Tự động quét tìm tên cột (bất chấp Shopee đổi tên)
+                            # Ưu tiên lấy SKU Phân Loại trước, nếu không có mới lấy SKU Sản Phẩm
+                            COT_SKU = next((c for c in df.columns if "sku phân loại" in str(c).lower()), None) or next((c for c in df.columns if "sku" in str(c).lower()), None)
+                            COT_GIA_KM = next((c for c in df.columns if "giá đã giảm" in str(c).lower() or "giá sau giảm" in str(c).lower() or "giá khuyến mãi" in str(c).lower()), None)
+                            
+                            if not COT_SKU or not COT_GIA_KM:
+                                return False, f"Không tìm thấy cột SKU hoặc Giá KM. Các cột đang có: {list(df.columns)}"
                             
                             items = []
-                            if COT_SKU in df.columns and COT_GIA_KM in df.columns:
-                                for _, row in df.iterrows():
-                                    sku = str(row[COT_SKU]).strip()
-                                    gia_km_str = str(row[COT_GIA_KM]).replace(',', '').replace('.', '').strip()
-                                    if sku and sku != 'nan' and gia_km_str.isdigit():
-                                        items.append({"sku": sku, "price": float(gia_km_str)})
+                            for _, row in df.iterrows():
+                                sku = str(row[COT_SKU]).strip()
+                                gia_km_str = str(row[COT_GIA_KM]).replace(',', '').replace('.', '').strip()
+                                if sku and sku != 'nan' and gia_km_str.isdigit():
+                                    items.append({"sku": sku, "price": float(gia_km_str)})
                                         
                             if not items:
-                                return False, "Không tìm thấy dữ liệu hợp lệ (Cột SKU hoặc Giá sau giảm trống)."
+                                return False, "Đã đọc file nhưng không tìm thấy dữ liệu dòng nào có Giá Khuyến Mãi hợp lệ."
                                 
                             api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/products/update-promo-prices"
                             payload = {"platform": "shopee", "shop": shop.get("ten_shop", ""), "items": items}
@@ -237,11 +259,31 @@ class ShopeePromo:
                 # Tạo map nhanh: { "SKU_01": 45000, "SKU_02": 50000 }
                 gia_dict = {str(item['platform_sku']).strip(): item['discount_price'] for item in bang_gia if item.get('platform_sku')}
                 
-                # Đọc file bằng Pandas (bỏ qua header thừa nếu Shopee có dòng giải thích trên cùng)
                 try:
-                    df = pd.read_excel(file_path_tu_web, dtype=str)
-                    
-                    if COT_SKU in df.columns and COT_GIA_MOI in df.columns:
+                    try:
+                        df = pd.read_excel(file_path_tu_web, dtype=str, engine='calamine')
+                    except:
+                        df = pd.read_excel(file_path_tu_web, dtype=str)
+                        
+                    # Dò dòng Header thực sự
+                    header_idx = 0
+                    for i in range(min(15, len(df))):
+                        row_str = " ".join([str(x).lower() for x in df.iloc[i].values])
+                        if "sku" in row_str and "giá" in row_str:
+                            header_idx = i + 1
+                            break
+                            
+                    if header_idx > 0:
+                        try:
+                            df = pd.read_excel(file_path_tu_web, dtype=str, header=header_idx, engine='calamine')
+                        except:
+                            df = pd.read_excel(file_path_tu_web, dtype=str, header=header_idx)
+
+                    # Tự động quét tìm tên cột
+                    COT_SKU = next((c for c in df.columns if "sku phân loại" in str(c).lower()), None) or next((c for c in df.columns if "sku" in str(c).lower()), None)
+                    COT_GIA_MOI = next((c for c in df.columns if "giá đã giảm" in str(c).lower() or "giá sau giảm" in str(c).lower() or "giá khuyến mãi" in str(c).lower()), None)
+
+                    if COT_SKU and COT_GIA_MOI:
                         count_update = 0
                         for index, row in df.iterrows():
                             sku = str(row[COT_SKU]).strip()
@@ -249,11 +291,11 @@ class ShopeePromo:
                                 df.at[index, COT_GIA_MOI] = gia_dict[sku]
                                 count_update += 1
                                 
-                        # Lưu ghi đè lại file cũ
+                        # Lưu ghi đè lại file cũ (Shopee chấp nhận file bị mất vài dòng hướng dẫn ở trên cùng)
                         df.to_excel(file_path_tu_web, index=False)
                         self.log(f"✅ Đã thay đổi thành công {count_update} dòng giá mới vào file!")
                     else:
-                        self.log(f"⚠️ CẢNH BÁO: Không tìm thấy cột '{COT_SKU}' hoặc '{COT_GIA_MOI}' trong file Excel. Bot sẽ up file gốc lên sàn.")
+                        self.log(f"⚠️ CẢNH BÁO: Không tìm thấy cột SKU hoặc Giá. Các cột hiện có: {list(df.columns)}")
                 except Exception as e:
                     self.log(f"❌ Lỗi khi xử lý file Excel: {str(e)}")
             else:

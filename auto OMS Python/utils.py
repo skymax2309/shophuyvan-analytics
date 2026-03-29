@@ -120,7 +120,26 @@ def process_and_sync_files(shop_name, file_paths, log_func):
             else:
                 # Dùng engine calamine để lách lỗi định dạng của Shopee
                 df = pd.read_excel(filepath, header=0, dtype=str, engine='calamine')
-            return df[pd.to_numeric(df['et_title_product_id'], errors='coerce').notnull()]
+            
+            # Quét tìm cột ID sản phẩm (Bọc thêm ps_product_id đề phòng Shopee đổi tên)
+            id_col = None
+            for col in ['et_title_product_id', 'ps_product_id', 'Product ID', 'Mã Sản Phẩm']:
+                if col in df.columns:
+                    id_col = col
+                    break
+                    
+            if id_col:
+                import numpy as np
+                # BẮT BUỘC: Biến các chuỗi rỗng "" thành NaN để lệnh ffill() có thể hoạt động
+                df[id_col] = df[id_col].replace(r'^\s*$', np.nan, regex=True).ffill()
+                
+                # Đổi tên cột về chuẩn để code ghép nối phía sau không bị gãy
+                if id_col != 'et_title_product_id':
+                    df.rename(columns={id_col: 'et_title_product_id'}, inplace=True)
+                
+                return df[pd.to_numeric(df['et_title_product_id'], errors='coerce').notnull()]
+            else:
+                return df
         except Exception as e:
             log_func(f"❌ Lỗi đọc file {filepath}: {e}")
             return None
@@ -135,37 +154,95 @@ def process_and_sync_files(shop_name, file_paths, log_func):
         return
 
     basic_map = {row['et_title_product_id']: row.get('et_title_product_description', '') for _, row in df_basic.iterrows()}
-    media_map = {row['et_title_product_id']: row.get('ps_item_cover_image', '') for _, row in df_media.iterrows()}
+    
+    # 1. BÓC TÁCH ẢNH ĐẠI DIỆN (Đề phòng Shopee đổi tên cột)
+    media_map = {}
+    if df_media is not None:
+        cover_cols = ['ps_item_cover_image', 'et_title_item_cover_image', 'Hình ảnh sản phẩm 1', 'Ảnh bìa', 'Hình ảnh sản phẩm']
+        for _, row in df_media.iterrows():
+            pid = str(row.get('et_title_product_id', '')).strip().replace('.0', '')
+            cover = ""
+            for col in cover_cols:
+                if col in df_media.columns and str(row[col]).strip() not in ['', 'nan', 'None']:
+                    cover = str(row[col]).strip()
+                    if not cover.startswith('http'): cover = f"https://cf.shopee.vn/file/{cover}"
+                    break
+            if pid and cover and pid not in media_map:
+                media_map[pid] = cover
 
-    # Bóc tách ảnh phân loại từ file Media
+    # 2. BÓC TÁCH ẢNH PHÂN LOẠI (Quét ngang 60 cột + Bắt mã ẩn Shopee + Tự vá Link)
     var_media_map = {}
     if df_media is not None:
         for _, m_row in df_media.iterrows():
-            m_pid = str(m_row.get('et_title_product_id', '')).strip()
-            m_vname = str(m_row.get('et_title_variation_name', m_row.get('ps_variation_name', ''))).strip()
-            m_vimg = str(m_row.get('ps_variation_image', m_row.get('et_title_variation_image', ''))).strip()
-            if m_pid and m_vimg and m_vimg != 'nan':
-                var_media_map[f"{m_pid}_{m_vname}"] = m_vimg
+            m_pid = str(m_row.get('et_title_product_id', '')).strip().replace('.0', '')
+            if not m_pid or m_pid == 'nan': continue
+            
+            # Quét mảng ngang (Bao gồm cả mã hệ thống et_title_option...)
+            for i in range(1, 61):
+                name_cols = [
+                    f"et_title_option_{i}_for_variation_1", 
+                    f"Tên phân loại {i}", f"Variation Name {i}", f"Tên phân loại hàng {i}"
+                ]
+                img_cols = [
+                    f"et_title_option_image_{i}_for_variation_1", 
+                    f"Hình ảnh phân loại {i}", f"Variation Image {i}", f"Hình ảnh Phân loại hàng {i}"
+                ]
+                
+                m_vname = ""
+                for col in name_cols:
+                    if col in df_media.columns and str(m_row[col]).strip() not in ['', 'nan', 'None']:
+                        m_vname = str(m_row[col]).strip()
+                        break
+                        
+                m_vimg = ""
+                for col in img_cols:
+                    if col in df_media.columns and str(m_row[col]).strip() not in ['', 'nan', 'None']:
+                        m_vimg = str(m_row[col]).strip()
+                        if not m_vimg.startswith('http'): m_vimg = f"https://cf.shopee.vn/file/{m_vimg}"
+                        break
+                        
+                if m_vname and m_vimg:
+                    key = f"{m_pid}_{m_vname.lower().replace(' ', '')}"
+                    var_media_map[key] = m_vimg
+            
+            # Quét cột dọc (Shopee Form Cũ)
+            old_name = str(m_row.get('ps_variation_name', m_row.get('et_title_variation_name', ''))).strip()
+            old_img = str(m_row.get('ps_variation_image', m_row.get('et_title_variation_image', ''))).strip()
+            if old_name and old_name not in ['', 'nan', 'None'] and old_img and old_img not in ['', 'nan', 'None']:
+                if not old_img.startswith('http'): old_img = f"https://cf.shopee.vn/file/{old_img}"
+                key = f"{m_pid}_{old_name.lower().replace(' ', '')}"
+                var_media_map[key] = old_img
 
+    # 3. GHÉP NỐI VÀO SẢN PHẨM CHÍNH
     products_dict = {}
     for _, row in df_sales.iterrows():
-        p_id = row['et_title_product_id']
+        p_id = str(row['et_title_product_id']).strip().replace('.0', '')
         if p_id not in products_dict:
             products_dict[p_id] = {
-                "item_id": str(p_id),
+                "item_id": p_id,
                 "product_name": str(row.get('et_title_product_name', '')),
                 "description": str(basic_map.get(p_id, '')),
-                "images": [str(media_map.get(p_id, ''))] if media_map.get(p_id, '') else [],
+                "images": [media_map.get(p_id, '')] if media_map.get(p_id, '') else [],
                 "variations": []
             }
             
         var_sku = str(row.get('et_title_variation_sku', '')).strip()
         price = str(row.get('et_title_variation_price', '0')).replace(',', '')
         stock = str(row.get('et_title_variation_stock', '0')).replace(',', '')
-        vname = str(row.get('et_title_variation_name', '')).strip()
         
-        # Lấy ảnh phân loại đã map ở trên
-        v_img = var_media_map.get(f"{p_id}_{vname}", "")
+        # Lấy tên phân loại gốc trong Sales file (VD: "Túi 40CM x60CM, Màu Đỏ")
+        vname_cols_sales = ['et_title_variation_name', 'Tên Phân loại hàng', 'Variation Name']
+        vname = ""
+        for col in vname_cols_sales:
+            if col in df_sales.columns and str(row[col]).strip() not in ['', 'nan', 'None']:
+                vname = str(row[col]).strip()
+                break
+                
+        # BÍ QUYẾT: Cắt lấy Cấp 1 (Phía trước dấu phẩy) để ghép đúng 100% với file Hình Ảnh
+        vname_tier1 = vname.split(',')[0].strip() if ',' in vname else vname
+        
+        search_key = f"{p_id}_{vname_tier1.lower().replace(' ', '')}"
+        v_img = var_media_map.get(search_key, "")
         
         products_dict[p_id]["variations"].append({
             "variation_name": vname,
@@ -175,19 +252,33 @@ def process_and_sync_files(shop_name, file_paths, log_func):
             "variation_image": v_img
         })
 
-    payload = {"platform": "shopee", "shop": shop_name, "products": list(products_dict.values())}
+    product_list = list(products_dict.values())
+    total_products = len(product_list)
+    log_func(f"🚀 Chuẩn bị bắn {total_products} Sản phẩm lên Website...")
     
-    log_func(f"🚀 Đang bắn {len(payload['products'])} Sản phẩm lên Website...")
-    try:
-        res = requests.post(SYNC_VARIATIONS_URL, json=payload)
-        if res.status_code == 200:
-            data = res.json()
-            log_func(f"🎉 HOÀN TẤT! Đã đồng bộ {data.get('synced', 0)} phân loại lên Web.")
-            log_func(f"🤖 Hệ thống tự động Map được: {data.get('auto_mapped', 0)} SKU.")
-        else:
-            log_func(f"❌ Lỗi từ Server: {res.status_code} - {res.text}")
-    except Exception as e:
-        log_func(f"❌ Lỗi mạng: {e}")
+    chunk_size = 40 # Chia nhỏ mỗi lần gửi 40 sản phẩm
+    total_synced = 0
+    total_mapped = 0
+
+    for i in range(0, total_products, chunk_size):
+        chunk = product_list[i:i + chunk_size]
+        payload = {"platform": "shopee", "shop": shop_name, "products": chunk}
+        log_func(f"⏳ Đang gửi lô {i//chunk_size + 1} ({len(chunk)} SP)...")
+        
+        try:
+            # Thêm timeout để tránh kẹt mạng
+            res = requests.post(SYNC_VARIATIONS_URL, json=payload, timeout=60)
+            if res.status_code == 200:
+                data = res.json()
+                total_synced += data.get('synced', 0)
+                total_mapped += data.get('auto_mapped', 0)
+            else:
+                log_func(f"❌ Lỗi từ Server ở lô {i//chunk_size + 1}: {res.status_code} - {res.text}")
+        except Exception as e:
+            log_func(f"❌ Lỗi mạng ở lô {i//chunk_size + 1}: {str(e)[:50]}...")
+
+    log_func(f"🎉 HOÀN TẤT! Đã đồng bộ tổng cộng {total_synced} phân loại lên Web.")
+    log_func(f"🤖 Hệ thống tự động Map được: {total_mapped} SKU.")
 
 # ==========================================
 # XỬ LÝ GHÉP NỐI EXCEL TIKTOK
@@ -245,16 +336,54 @@ def process_tiktok_excel_and_sync(shop_name, filepath, log_func):
             "variation_image": var_image if var_image != 'nan' else ""
         })
 
-    payload = {"platform": "tiktok", "shop": shop_name, "products": list(products_dict.values())}
+    product_list = list(products_dict.values())
+    total_products = len(product_list)
+    log_func(f"🚀 Chuẩn bị bắn {total_products} Sản phẩm lên Website...")
     
-    log_func(f"🚀 Đang bắn {len(payload['products'])} Sản phẩm TikTok lên Website...")
+   # ==========================================
+    # [DEBUG] XUẤT FILE LOG ĐỂ KHÁM NGHIỆM DỮ LIỆU
+    # ==========================================
     try:
-        res = requests.post(SYNC_VARIATIONS_URL, json=payload)
-        if res.status_code == 200:
-            data = res.json()
-            log_func(f"🎉 HOÀN TẤT! Đã đồng bộ {data.get('synced', 0)} phân loại lên Web.")
-            log_func(f"🤖 Hệ thống tự động Map được: {data.get('auto_mapped', 0)} SKU.")
-        else:
-            log_func(f"❌ Lỗi từ Server: {res.status_code} - {res.text}")
+        import json
+        import os
+        # Ép lưu file log nằm sát cạnh file utils.py
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        debug_file = os.path.join(current_dir, "debug_payload_shopee.json")
+        
+        with open(debug_file, "w", encoding="utf-8") as f:
+            json.dump(product_list, f, ensure_ascii=False, indent=4)
+        log_func(f"🛠️ ĐÃ LƯU LOG DỮ LIỆU VÀO FILE: {debug_file}")
+        
+        # In thử 5 link ảnh phân loại đầu tiên bắt được ra log để xem Tool có bị "mù" không
+        log_func("--- TEST THỬ DỮ LIỆU BẮT ĐƯỢC TỪ EXCEL ---")
+        count_img = 0
+        for k, v in var_media_map.items():
+            if count_img < 5:
+                log_func(f"🔍 Tên tìm kiếm: [{k}]  ====>  Link: {v}")
+                count_img += 1
+        log_func("------------------------------------------")
     except Exception as e:
-        log_func(f"❌ Lỗi mạng: {e}")
+        log_func(f"⚠️ Lỗi tạo file debug: {e}")
+
+    chunk_size = 40 # Chia nhỏ mỗi lần gửi 40 sản phẩm
+    total_synced = 0
+    total_mapped = 0
+
+    for i in range(0, total_products, chunk_size):
+        chunk = product_list[i:i + chunk_size]
+        payload = {"platform": "tiktok", "shop": shop_name, "products": chunk}
+        log_func(f"⏳ Đang gửi lô {i//chunk_size + 1} ({len(chunk)} SP)...")
+        
+        try:
+            res = requests.post(SYNC_VARIATIONS_URL, json=payload, timeout=60)
+            if res.status_code == 200:
+                data = res.json()
+                total_synced += data.get('synced', 0)
+                total_mapped += data.get('auto_mapped', 0)
+            else:
+                log_func(f"❌ Lỗi từ Server ở lô {i//chunk_size + 1}: {res.status_code} - {res.text}")
+        except Exception as e:
+            log_func(f"❌ Lỗi mạng ở lô {i//chunk_size + 1}: {str(e)[:50]}...")
+
+    log_func(f"🎉 HOÀN TẤT! Đã đồng bộ tổng cộng {total_synced} phân loại lên Web.")
+    log_func(f"🤖 Hệ thống tự động Map được: {total_mapped} SKU.")
