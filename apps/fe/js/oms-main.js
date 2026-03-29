@@ -204,6 +204,7 @@ function renderTable() {
         <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>
       </td>
       <td>
+        <div style="font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 5px;">${o.shipping_carrier || 'Chưa rõ ĐVVC'}</div>
         ${renderShippingStatus(o.shipping_status)}
       </td>
       <td>

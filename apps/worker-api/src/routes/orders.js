@@ -485,7 +485,7 @@ async function getOrders(request, env, cors) {
   if (orderIds.length > 0) {
     const placeholders = orderIds.map(() => "?").join(",")
     const { results } = await env.DB.prepare(`
-      SELECT oi.*, p.image_url
+      SELECT oi.*, COALESCE(oi.image_url, p.image_url) AS image_url
       FROM order_items oi
       LEFT JOIN products p ON p.sku = oi.sku
       WHERE oi.order_id IN (${placeholders})

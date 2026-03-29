@@ -142,6 +142,7 @@ class SyncOrderTab(ctk.CTkFrame):
                                 # 4. Gửi dữ liệu thẳng lên Cloudflare Worker API
                                 import requests
                                 import re
+                                from datetime import datetime
                                 
                                 api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
                                 
@@ -154,6 +155,7 @@ class SyncOrderTab(ctk.CTkFrame):
                                     
                                     payload["orders"].append({
                                         "order_id": order["order_id"],
+                                        "order_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                         "platform": "shopee",
                                         "shop": shop['ten_shop'],
                                         "customer_name": order["buyer_name"],
@@ -185,9 +187,19 @@ class SyncOrderTab(ctk.CTkFrame):
                         
                     elif action == "process":
                         self.so_log_msg("👉 Kịch bản: TỰ ĐỘNG CHUẨN BỊ HÀNG (PACKING)")
-                        # (Code điều hướng click xác nhận đơn sẽ cắm vào đây)
-                        await asyncio.sleep(2)
-                        self.so_log_msg("✅ Đang chờ phát triển kịch bản xử lý đơn...")
+                        
+                        if platform == 'shopee':
+                            from engines.shopee.shopee_auth import ShopeeAuth
+                            auth = ShopeeAuth(self.so_log_msg)
+                            is_logged = await auth.check_and_login(page, shop)
+                            
+                            if not is_logged:
+                                self.so_log_msg("❌ Lỗi: Không thể đăng nhập vào Shopee!")
+                                return
+                            
+                            from engines.shopee.shopee_process import ShopeeOrderProcessor
+                            processor = ShopeeOrderProcessor(self.so_log_msg)
+                            await processor.process_confirmed_orders(page, shop['ten_shop'])
                         
                 except Exception as e:
                     self.so_log_msg(f"❌ Lỗi khi xử lý shop {shop['ten_shop']}: {str(e)}")
