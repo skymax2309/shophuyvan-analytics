@@ -55,33 +55,39 @@ function renderSkuTables() {
   document.getElementById("skuHasPriceCount").textContent = hasPrice.length
 
   const rowHtml = p => {
-  const encodedName = encodeURIComponent(p.product_name || "")
-  const imgUrl = p.image_url || "https://placehold.co/40x40?text=No+Image"
-  return `
-    <tr id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
-      <td><input type="checkbox" class="sku-chk product-checkbox" data-sku="${p.sku}" onchange="updateGroupHint(); if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()"></td>
-      <td><img src="${imgUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb" onerror="this.src='https://placehold.co/40x40?text=Loi'"></td>
-      <td><code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">${p.sku}</code></td>
-      <td style="font-size:13px">${p.product_name || "—"}</td>
-      <td style="color:#6d28d9;font-weight:600">${fmt(p.cost_invoice)}</td>
-      <td style="color:#0369a1;font-weight:600">${fmt(p.cost_real)}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-edit"
-          data-sku="${p.sku}"
-          data-name="${encodedName}"
-          data-cinv="${p.cost_invoice || 0}"
-          data-creal="${p.cost_real || 0}"
-          data-img="${imgUrl}"
-          onclick="editSkuFromBtn(this)">✏️</button>
-        <button onclick="moveToCombo('${p.sku}')"
-          style="margin-left:4px;padding:4px 8px;background:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px"
-          title="Chuyển sang Combo">📦→</button>
-        <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="margin-left:4px">🗑️</button>
-      </td>
-    </tr>`
-  }
+  const encodedName = encodeURIComponent(p.product_name || "");
+  const imgUrl = p.image_url || "https://placehold.co/60x60?text=No+Image";
+  return `
+    <div class="sku-card" id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
+      <div class="sku-card-header">
+        <input type="checkbox" class="sku-chk product-checkbox" data-sku="${p.sku}" onchange="updateGroupHint(); if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.3); margin-top:4px;">
+        <img src="${imgUrl}" class="sku-img" onerror="this.src='https://placehold.co/60x60?text=Loi'">
+        <div class="sku-info">
+          <div class="sku-title" title="${p.product_name || ""}">${p.product_name || "—"}</div>
+          <span class="sku-code">${p.sku}</span>
+        </div>
+      </div>
+      <div class="sku-prices">
+        <div class="sku-price-item">
+          <span class="sku-price-label">Vốn Hóa Đơn</span>
+          <span class="sku-price-val" style="color:#6d28d9">${fmt(p.cost_invoice)}</span>
+        </div>
+        <div class="sku-price-item" style="text-align:right">
+          <span class="sku-price-label">Vốn Thực Tế</span>
+          <span class="sku-price-val" style="color:#0369a1">${fmt(p.cost_real)}</span>
+        </div>
+      </div>
+      <div class="sku-actions">
+        <div>
+          <button class="btn btn-edit" data-sku="${p.sku}" data-name="${encodedName}" data-cinv="${p.cost_invoice || 0}" data-creal="${p.cost_real || 0}" data-img="${imgUrl}" onclick="editSkuFromBtn(this)" style="padding:7px 12px; font-size:13px; font-weight:600; border-radius:6px; margin-right:6px;">✏️ Sửa</button>
+          <button onclick="moveToCombo('${p.sku}')" style="padding:7px 12px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;" title="Chuyển sang Combo">📦 Combo</button>
+        </div>
+        <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="padding:7px 12px; font-size:13px; border-radius:6px;">🗑️ Xóa</button>
+      </div>
+    </div>`
+  }
 
-  const empty = msg => `<tr><td colspan="7" class="empty">${msg}</td></tr>`
+  const empty = msg => `<div style="grid-column: 1 / -1; text-align:center; padding:40px; color:#888; background:white; border-radius:12px; border:1px dashed #cbd5e1;">${msg}</div>`
 
   document.getElementById("skuNoPriceTable").innerHTML  = noPrice.length  ? noPrice.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!")
   document.getElementById("skuPartialTable").innerHTML  = partial.length  ? partial.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "✅ Không có SKU nào thiếu giá!")

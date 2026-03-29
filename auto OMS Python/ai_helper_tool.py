@@ -38,8 +38,9 @@ class AIHelperTool(ctk.CTk):
         self._build_excel_agg_tab()
         self._build_recorder_tab()
 
+  
     # ==========================================
-    # TAB 1: WEB ELEMENT SCANNER
+    # TAB 1: WEB ELEMENT SCANNER (ĐÃ NÂNG CẤP AUTO-LOGIN)
     # ==========================================
     def _build_web_tab(self):
         ctk.CTkLabel(self.tab_web, text="Trích xuất cấu trúc Website tĩnh cho AI", font=("Segoe UI", 16, "bold"), text_color="#00FF88").pack(pady=10)
@@ -47,8 +48,14 @@ class AIHelperTool(ctk.CTk):
         frame_input = ctk.CTkFrame(self.tab_web, fg_color="transparent")
         frame_input.pack(fill="x", padx=20, pady=5)
         
+        # BỔ SUNG COMBOBOX ĐỂ CHỌN SHOP CẤP QUYỀN ĐĂNG NHẬP
+        self.shop_list = self._load_shops_from_json()
+        ctk.CTkLabel(frame_input, text="Chọn Shop:").pack(side="left", padx=5)
+        self.combo_shop_web = ctk.CTkComboBox(frame_input, values=self.shop_list if self.shop_list else ["-- Không tìm thấy data --"], width=180)
+        self.combo_shop_web.pack(side="left", padx=5)
+        
         ctk.CTkLabel(frame_input, text="URL:").pack(side="left", padx=5)
-        self.url_entry = ctk.CTkEntry(frame_input, width=500, placeholder_text="https://shopee.vn/...")
+        self.url_entry = ctk.CTkEntry(frame_input, width=350, placeholder_text="https://shopee.vn/...")
         self.url_entry.pack(side="left", padx=5)
         
         self.btn_scan = ctk.CTkButton(frame_input, text="🚀 Quét Nhanh", command=self.run_web_scanner, fg_color="#ea580c")
@@ -59,35 +66,143 @@ class AIHelperTool(ctk.CTk):
 
     def run_web_scanner(self):
         url = self.url_entry.get().strip()
+        shop_str = self.combo_shop_web.get()
+
         if not url: return messagebox.showwarning("Cảnh báo", "Nhập URL!")
+        
+        selected_shop = None
+        for shop in getattr(self, 'shops_data', []):
+            if self._format_shop_name(shop) == shop_str:
+                selected_shop = shop
+                break
+
+        if not selected_shop:
+            return messagebox.showwarning("Cảnh báo", "Vui lòng chọn 1 shop để cấp quyền Đăng nhập!")
+
         self.btn_scan.configure(state="disabled", text="⏳ Đang quét...")
         self.web_log.delete("1.0", "end")
+        self.web_log.insert("end", f"[*] Khởi động bộ quét Web với tài khoản: {selected_shop.get('ten_shop', 'Shop')}\n")
         
-        def _scan_thread():
-            try:
-                from playwright.sync_api import sync_playwright
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(headless=True)
-                    page = browser.new_page()
-                    page.goto(url, timeout=60000, wait_until="domcontentloaded")
-                    page.wait_for_timeout(3000)
-                    elements = page.evaluate("""() => {
-                        let results = [];
-                        document.querySelectorAll('button, a').forEach(el => {
-                            if(el.innerText || el.className) results.push({tag: el.tagName, text: el.innerText.trim(), class: el.className, id: el.id});
-                        });
-                        document.querySelectorAll('input').forEach(el => {
-                            results.push({tag: 'INPUT', type: el.type, placeholder: el.placeholder, class: el.className, id: el.id});
-                        });
-                        return results;
-                    }""")
-                    browser.close()
-                    log_text = f"🎯 TÌM THẤY {len(elements)} PHẦN TỬ:\n" + "="*40 + "\n"
-                    for el in elements: log_text += f"[{el.get('tag')}] Text: '{el.get('text', '')[:30]}' | Class: '{el.get('class', '')}' | ID: '{el.get('id', '')}'\n"
-                    self.web_log.insert("end", log_text)
-            except Exception as e: self.web_log.insert("end", f"❌ Lỗi: {e}")
-            finally: self.btn_scan.configure(state="normal", text="🚀 Quét Nhanh")
-        threading.Thread(target=_scan_thread, daemon=True).start()
+        threading.Thread(target=self._run_async_web_scanner, args=(url, selected_shop), daemon=True).start()
+
+    def _run_async_web_scanner(self, url, shop_data):
+        import asyncio
+        asyncio.run(self._async_web_scanner_thread(url, shop_data))
+
+    async def _async_web_scanner_thread(self, url, shop_data):
+        from playwright.async_api import async_playwright
+        import os
+        import sys
+        import shutil
+
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if base_dir not in sys.path:
+            sys.path.append(base_dir)
+
+        try:
+            async with async_playwright() as p:
+                # 1. Thuật toán Clone Profile an toàn (y hệt Recorder)
+                original_profile = ""
+                if 'profile_dir' in shop_data and shop_data['profile_dir']:
+                    original_profile = shop_data['profile_dir']
+                elif 'thu_muc_profile' in shop_data and shop_data['thu_muc_profile']:
+                    original_profile = shop_data['thu_muc_profile']
+                else:
+                    original_profile = os.path.join(base_dir, 'profiles', shop_data.get('ten_shop', 'default').replace('/', '_'))
+
+                profile_path = original_profile + "_AI_Scanner"
+
+                def clean_chrome_locks(target_dir):
+                    for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket"]:
+                        lock_path = os.path.join(target_dir, lock_name)
+                        if os.path.exists(lock_path):
+                            try: os.remove(lock_path)
+                            except: pass
+
+                if not os.path.exists(profile_path):
+                    if os.path.exists(original_profile):
+                        try:
+                            shutil.copytree(original_profile, profile_path, ignore=shutil.ignore_patterns('SingletonLock', 'Cache', 'Code Cache', 'GPUCache', 'Network'))
+                        except:
+                            os.makedirs(profile_path, exist_ok=True)
+                    else:
+                        os.makedirs(profile_path, exist_ok=True)
+
+                clean_chrome_locks(profile_path)
+
+                # 2. Mở trình duyệt (Cho phép hiển thị để bạn có thể tự vượt Captcha nếu xui)
+                context = await p.chromium.launch_persistent_context(
+                    user_data_dir=profile_path,
+                    channel="chrome",
+                    headless=False, # Mở lên cho trực quan
+                    viewport={"width": 1280, "height": 720},
+                    args=["--disable-blink-features=AutomationControlled"]
+                )
+
+                page = context.pages[0] if context.pages else await context.new_page()
+
+                def log_to_web(msg):
+                    self.after(0, lambda: self.web_log.insert("end", f"{msg}\n"))
+                    self.after(0, lambda: self.web_log.see("end"))
+
+                # 3. KÍCH HOẠT AUTO-LOGIN THẦN THÁNH
+                platform = shop_data.get('platform', shop_data.get('nen_tang', '')).lower()
+                try:
+                    if platform == 'shopee':
+                        from engines.shopee.shopee_auth import ShopeeAuth
+                        auth = ShopeeAuth(log_to_web)
+                        await auth.check_and_login(page, shop_data)
+                    elif platform == 'tiktok':
+                        from engines.tiktok.tiktok_auth import TikTokAuth
+                        auth = TikTokAuth(log_to_web)
+                        await auth.check_and_login(page, shop_data)
+                    elif platform == 'lazada':
+                        from engines.lazada.lazada_auth import LazadaAuth
+                        auth = LazadaAuth(log_to_web)
+                        await auth.check_and_login(page, shop_data)
+                except Exception as auth_err:
+                    log_to_web(f"⚠️ Cảnh báo Auto-Login: {auth_err}")
+
+                # 4. Vào trang đích và bắt đầu cào mã HTML
+                log_to_web(f"\n[*] Đang truy cập trang đích: {url}...")
+                await page.goto(url, timeout=60000, wait_until="domcontentloaded")
+                log_to_web(f"[*] Đang chờ 5s để Shopee load xong bảng Đơn hàng...")
+                await asyncio.sleep(5) 
+
+                elements = await page.evaluate("""() => {
+                    let results = [];
+                    // Quét các thẻ HTML chứa text bên trong danh sách đơn hàng
+                    document.querySelectorAll('button, a, div, span').forEach(el => {
+                        let text = el.innerText ? el.innerText.trim() : '';
+                        // Chỉ lấy các thẻ có chữ, độ dài < 150 ký tự và có chứa Class
+                        if(text.length > 0 && text.length < 150 && el.className) {
+                             results.push({tag: el.tagName, text: text, class: el.className, id: el.id});
+                        }
+                    });
+                    return results;
+                }""")
+
+                # Lọc bỏ các thẻ trùng lặp class và text để bảng log nhìn dễ đọc hơn
+                unique_elements = []
+                seen = set()
+                for el in elements:
+                    key = f"{el.get('tag')}_{el.get('text')}_{el.get('class')}"
+                    if key not in seen:
+                        seen.add(key)
+                        unique_elements.append(el)
+
+                log_text = f"🎯 TÌM THẤY {len(unique_elements)} PHẦN TỬ HỮU ÍCH TRONG ĐƠN HÀNG:\n" + "="*60 + "\n"
+                for el in unique_elements:
+                    text_preview = str(el.get('text', '')).replace('\n', ' | ')[:60]
+                    log_text += f"[{el.get('tag')}] '{text_preview}'\n   📍 Class: '{el.get('class', '')}'\n"
+
+                self.after(0, lambda: self.web_log.insert("end", log_text))
+                await context.close()
+
+        except Exception as e:
+            self.after(0, lambda: self.web_log.insert("end", f"❌ Lỗi: {e}\n"))
+        finally:
+            self.after(0, lambda: self.btn_scan.configure(state="normal", text="🚀 Quét Nhanh"))
 
     # ==========================================
     # TAB 2 & 3: EXCEL (Giữ nguyên thuật toán bóc thép)
@@ -163,9 +278,7 @@ class AIHelperTool(ctk.CTk):
                 self.agg_log.insert("end", res + "\n")
         except Exception as e: self.agg_log.insert("end", f"❌ Lỗi: {str(e)}")
 
-   # ==========================================
-    # TAB 4: ACTION RECORDER (GHI LẠI THAO TÁC) - NÂNG CẤP LOGIN
-    # ==========================================
+   
     # ==========================================
     # TAB 4: ACTION RECORDER (GHI LẠI THAO TÁC) - NÂNG CẤP LOGIN
     # ==========================================

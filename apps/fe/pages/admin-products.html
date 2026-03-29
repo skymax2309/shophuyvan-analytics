@@ -29,21 +29,50 @@
   /* Ẩn topbar cũ nếu css cũ còn sót */
   .topbar, .tabs { display: none !important; }
 
-  /* --- GIAO DIỆN MOBILE RESPONSIVE --- */
+  /* --- GIAO DIỆN MOBILE RESPONSIVE (MỚI) --- */
+  .mobile-header, .sidebar-overlay { display: none; }
+  
+  /* Layout Card cho SKU (Dùng chung cho cả Mobile và Desktop để tối ưu UX) */
+  .sku-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 12px; }
+  .sku-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: 0.2s; }
+  .sku-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
+  .sku-card-header { display: flex; gap: 12px; align-items: flex-start; }
+  .sku-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; }
+  .sku-info { flex: 1; min-width: 0; }
+  .sku-title { font-size: 14px; font-weight: 700; color: #1e293b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 6px; line-height: 1.4; }
+  .sku-code { font-family: monospace; font-size: 12px; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; color: #475569; font-weight: 700; }
+  .sku-prices { display: flex; justify-content: space-between; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; }
+  .sku-price-item { display: flex; flex-direction: column; }
+  .sku-price-label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+  .sku-price-val { font-size: 15px; font-weight: 800; }
+  .sku-actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 14px; margin-top: auto; }
+
   @media (max-width: 768px) {
     .app-wrapper { flex-direction: column; }
-    .side-nav { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid #e2e8f0; }
-    .side-menu { flex-direction: row; overflow-x: auto; padding: 8px; white-space: nowrap; gap: 8px; }
-    .side-menu .tab-btn { padding: 8px 12px; font-size: 13px; border-radius: 8px; border-right: none !important; border-bottom: 3px solid transparent; }
-    .side-menu .tab-btn.active { border-bottom: 3px solid #2563eb; border-radius: 8px; }
+    /* Mobile Header có nút Hamburger */
+    .mobile-header { display: flex; padding: 12px 16px; background: white; border-bottom: 1px solid #e2e8f0; align-items: center; position: sticky; top: 0; z-index: 900; }
+    .mobile-menu-btn { background: none; border: none; font-size: 24px; cursor: pointer; margin-right: 12px; color: #0f172a; display: block; padding: 0;}
+    
+    /* Sidebar ẩn thành Off-canvas */
+    .side-nav { position: fixed; top: 0; left: -280px; width: 260px; height: 100vh; z-index: 1000; transition: left 0.3s ease; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
+    .side-nav.open { left: 0; }
+    .sidebar-overlay.show { display: block; }
+    .sidebar-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
+    
     .container { padding: 12px; }
     .card { padding: 12px; }
-    table { display: block; overflow-x: auto; white-space: nowrap; width: 100%; }
     .form-grid { grid-template-columns: 1fr; }
+    .sku-grid { grid-template-columns: 1fr; }
   }
 </style>
 
 <div class="app-wrapper">
+
+  <div class="mobile-header">
+    <button class="mobile-menu-btn" onclick="document.querySelector('.side-nav').classList.add('open'); document.querySelector('.sidebar-overlay').classList.add('show');">☰</button>
+    <span style="font-weight: 800; font-size: 16px; color: #0f172a;">Shop Huy Vân</span>
+  </div>
+  <div class="sidebar-overlay" onclick="document.querySelector('.side-nav').classList.remove('open'); document.querySelector('.sidebar-overlay').classList.remove('show');"></div>
   
   <aside class="side-nav">
     <div class="side-header">
@@ -224,32 +253,17 @@
       </div>
 
       <div id="sku-tab-no-price">
-        <table>
-          <thead><tr style="background:#fef3c7">
-            <th style="width:32px"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)"></th>
-            <th>Ảnh</th><th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-          </tr></thead>
-          <tbody id="skuNoPriceTable"></tbody>
-        </table>
-      </div>
-      <div id="sku-tab-partial" style="display:none">
-        <table>
-          <thead><tr style="background:#ffedd5">
-            <th style="width:32px"><input type="checkbox" id="chk-all-partial" onchange="toggleAllCheck('partial',this.checked)"></th>
-            <th>Ảnh</th><th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-          </tr></thead>
-          <tbody id="skuPartialTable"></tbody>
-        </table>
-      </div>
-      <div id="sku-tab-has-price" style="display:none">
-        <table>
-          <thead><tr style="background:#dcfce7">
-            <th style="width:32px"><input type="checkbox" id="chk-all-has" onchange="toggleAllCheck('has',this.checked)"></th>
-            <th>Ảnh</th><th>SKU</th><th>Tên sản phẩm</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-          </tr></thead>
-          <tbody id="skuHasPriceTable"></tbody>
-        </table>
-      </div>
+        <div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div>
+        <div class="sku-grid" id="skuNoPriceTable"></div>
+      </div>
+      <div id="sku-tab-partial" style="display:none">
+        <div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-partial" onchange="toggleAllCheck('partial',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div>
+        <div class="sku-grid" id="skuPartialTable"></div>
+      </div>
+      <div id="sku-tab-has-price" style="display:none">
+        <div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-has" onchange="toggleAllCheck('has',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div>
+        <div class="sku-grid" id="skuHasPriceTable"></div>
+      </div>
       <div id="sku-tab-has-price" style="display:none">
         <table>
           <thead><tr style="background:#dcfce7">
