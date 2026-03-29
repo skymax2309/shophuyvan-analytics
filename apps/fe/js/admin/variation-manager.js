@@ -115,19 +115,26 @@ window.renderVariations = function() {
           const discountFormatted = v.discount_price ? Number(v.discount_price).toLocaleString('vi-VN') + 'đ' : '0đ';
           const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
           
-          // XỬ LÝ FALLBACK ẢNH TẠI FRONTEND:
-          let displayImg = (v.image_url || '').trim();
-          if (!displayImg && v.internal_sku) {
-             // 1. Tìm ảnh từ danh sách SKU nội bộ (ưu tiên 1)
+          // XỬ LÝ FALLBACK ẢNH TẠI FRONTEND (ĐẢO NGƯỢC ƯU TIÊN):
+          let displayImg = '';
+          
+          // 1. LUÔN ƯU TIÊN tìm ảnh từ danh sách SKU nội bộ trước (Bỏ qua ảnh chung của TikTok)
+          if (v.internal_sku) {
              const matchedSku = (window.allSkus || []).find(s => s.sku === v.internal_sku);
-             if (matchedSku && matchedSku.image_url) {
-                 displayImg = matchedSku.image_url;
+             if (matchedSku && (matchedSku.image_url || '').trim() !== '') {
+                 displayImg = matchedSku.image_url.trim();
              }
-             // 2. Nếu nội bộ không có, mượn tạm ảnh của các sàn khác (Shopee/Lazada) có cùng mã map (ưu tiên 2)
-             if (!displayImg) {
-                 const sibling = allVariations.find(other => other.internal_sku === v.internal_sku && (other.image_url || '').trim() !== '');
-                 if (sibling) displayImg = sibling.image_url;
-             }
+          }
+          
+          // 2. Nếu SKU nội bộ không có ảnh, mới dùng ảnh gốc của sàn
+          if (!displayImg) {
+             displayImg = (v.image_url || '').trim();
+          }
+          
+          // 3. Nếu vẫn không có, mượn tạm ảnh của các sàn khác có cùng mã map
+          if (!displayImg && v.internal_sku) {
+             const sibling = allVariations.find(other => other.internal_sku === v.internal_sku && (other.image_url || '').trim() !== '');
+             if (sibling) displayImg = sibling.image_url.trim();
           }
           
           return `

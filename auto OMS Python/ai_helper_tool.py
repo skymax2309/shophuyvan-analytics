@@ -243,34 +243,59 @@ class AIHelperTool(ctk.CTk):
         self.recorder_log.insert("end", f"[*] Đang móc nối vào Profile của shop: {selected_shop.get('ten_shop') or selected_shop.get('name')}\n")
         self.recorder_log.insert("end", "[*] Hệ thống đang lắng nghe cú click và gõ phím của bạn...\n" + "="*60 + "\n")
 
-        threading.Thread(target=self._recording_thread, args=(url, selected_shop), daemon=True).start()
+        # Chuyển hướng sang động cơ Async (Để dùng chung Auto-Login với Tool chính)
+        threading.Thread(target=self._run_async_recording, args=(url, selected_shop), daemon=True).start()
 
-    def _recording_thread(self, start_url, shop_data):
-        from playwright.sync_api import sync_playwright
+    def _run_async_recording(self, start_url, shop_data):
+        import asyncio
+        asyncio.run(self._async_recording_thread(start_url, shop_data))
+
+    async def _async_recording_thread(self, start_url, shop_data):
+        from playwright.async_api import async_playwright
         import os
+        import sys
+        
+        # Thêm thư mục gốc vào đường dẫn hệ thống để gọi được các file Auth
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        if base_dir not in sys.path:
+            sys.path.append(base_dir)
+            
         try:
-            with sync_playwright() as p:
-                # Cấu hình đường dẫn tới Profile của hệ thống chính
-                base_dir = os.path.dirname(os.path.abspath(__file__))
+            async with async_playwright() as p:
+                # Tự động tạo một thư mục Profile Riêng (Clone) dành riêng cho AI Helper để chống xung đột với Tool chính
+                import shutil
+                original_profile = ""
                 
-                # Ưu tiên lấy đường dẫn profile trong file json, nếu không có thì mặc định dùng thư mục profiles/ten_shop
-                if 'thu_muc_profile' in shop_data and shop_data['thu_muc_profile']:
-                    profile_path = shop_data['thu_muc_profile']
+                if 'profile_dir' in shop_data and shop_data['profile_dir']:
+                    original_profile = shop_data['profile_dir']
+                elif 'thu_muc_profile' in shop_data and shop_data['thu_muc_profile']:
+                    original_profile = shop_data['thu_muc_profile']
                 else:
-                    profile_path = os.path.join(base_dir, 'profiles', shop_data.get('ten_shop', 'default').replace('/', '_'))
+                    original_profile = os.path.join(base_dir, 'profiles', shop_data.get('ten_shop', 'default').replace('/', '_'))
+                    
+                # Tạo thư mục mới có thêm đuôi _AI_Recorder
+                profile_path = original_profile + "_AI_Recorder"
+                
+                # Nếu thư mục Clone chưa có, copy từ thư mục gốc sang để giữ Cookie
+                if not os.path.exists(profile_path) and os.path.exists(original_profile):
+                    try:
+                        shutil.copytree(original_profile, profile_path)
+                        self.after(0, lambda: self.recorder_log.insert("end", f"[*] Đã tạo bản sao Profile thành công để tránh xung đột.\n"))
+                    except Exception as e:
+                        self.after(0, lambda: self.recorder_log.insert("end", f"[*] Lưu ý: Không thể clone Profile ({e}). Đang dùng profile gốc...\n"))
+                        profile_path = original_profile # Fallback dùng gốc nếu copy lỗi
 
-                # Dùng launch_persistent_context để TÁI SỬ DỤNG phiên đăng nhập
-                context = p.chromium.launch_persistent_context(
+                context = await p.chromium.launch_persistent_context(
                     user_data_dir=profile_path,
                     headless=False,
                     viewport={"width": 1280, "height": 720},
                     args=["--disable-blink-features=AutomationControlled"]
                 )
                 
-                # Persistent context luôn tự động tạo 1 trang đầu tiên
-                page = context.pages[0] if context.pages else context.new_page()
+                page = context.pages[0] if context.pages else await context.new_page()
 
                 def handle_action(action_type, css_selector, xpath, text_val, current_url):
+                    import datetime
                     time_str = datetime.datetime.now().strftime("%H:%M:%S")
                     text_display = text_val.replace('\n', ' ')[:50]
                     log_line = f"[{time_str}] {action_type} | Text/Value: '{text_display}'\n   📍 CSS: {css_selector}\n   📍 XPath: {xpath}\n   🌐 URL: {current_url}\n{'-'*60}\n"
@@ -278,7 +303,7 @@ class AIHelperTool(ctk.CTk):
                     self.after(0, lambda: self.recorder_log.insert("end", log_line))
                     self.after(0, lambda: self.recorder_log.see("end"))
 
-                context.expose_function("py_log_action", handle_action)
+                await context.expose_function("py_log_action", handle_action)
 
                 js_tracker = """
                     window.generateXPath = function(el) {
@@ -313,14 +338,43 @@ class AIHelperTool(ctk.CTk):
                         window.py_log_action("⌨️ NHẬP LIỆU", css, xpath, el.value, window.location.href);
                     }, true);
                 """
-                context.add_init_script(js_tracker)
+                await context.add_init_script(js_tracker)
 
-                page.goto(start_url)
+                # ==========================================
+                # TÍCH HỢP TỰ ĐỘNG ĐĂNG NHẬP (AUTO LOGIN)
+                # ==========================================
+                def log_for_auth(msg):
+                    self.after(0, lambda: self.recorder_log.insert("end", f"[*] {msg}\n"))
+                    self.after(0, lambda: self.recorder_log.see("end"))
 
+                platform = shop_data.get('platform', shop_data.get('nen_tang', '')).lower()
+                
+                try:
+                    # Gọi lại chính các class thông minh của Tool tổng
+                    if platform == 'shopee':
+                        from engines.shopee.shopee_auth import ShopeeAuth
+                        auth = ShopeeAuth(log_for_auth)
+                        await auth.check_and_login(page, shop_data)
+                    elif platform == 'tiktok':
+                        from engines.tiktok.tiktok_auth import TikTokAuth
+                        auth = TikTokAuth(log_for_auth)
+                        await auth.check_and_login(page, shop_data)
+                    elif platform == 'lazada':
+                        from engines.lazada.lazada_auth import LazadaAuth
+                        auth = LazadaAuth(log_for_auth)
+                        await auth.check_and_login(page, shop_data)
+                except Exception as auth_err:
+                    log_for_auth(f"⚠️ Cảnh báo lúc Auto-Login: {auth_err}")
+
+                # Sau khi đã chắc chắn đăng nhập xong, mới điều hướng tới link bạn yêu cầu
+                await page.goto(start_url)
+                log_for_auth(f"✅ Đã vào trang đích: {start_url}. Mời bạn thao tác!")
+
+                import asyncio
                 while self.is_recording:
-                    page.wait_for_timeout(1000)
+                    await asyncio.sleep(1)
 
-                context.close()
+                await context.close()
         except Exception as e:
             self.after(0, lambda: self.recorder_log.insert("end", f"\n❌ Lỗi Trình duyệt: {e}\n(Nếu lỗi 'Target closed', bạn cứ bấm Dừng & Lưu nhé)\n"))
 
