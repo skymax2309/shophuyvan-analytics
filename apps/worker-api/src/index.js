@@ -255,6 +255,20 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return Response.json({ status: "ok", updated: order_ids.length }, { headers: cors })
       }
 
+      // [API DÒ MÌN] Lấy danh sách trạng thái thực tế trong Database để chuẩn hóa
+      if (url.pathname === "/api/orders/debug-status" && request.method === "GET") {
+        try {
+          const { results } = await env.DB.prepare(`
+            SELECT DISTINCT platform, order_type, shipping_status 
+            FROM orders_v2 
+            WHERE oms_status = 'PENDING'
+          `).all()
+          return Response.json({ total_distinct: results.length, data: results }, { headers: cors })
+        } catch (e) {
+          return Response.json({ error: e.message }, { headers: cors })
+        }
+      }
+
       // [BỌC THÉP] API CHUẨN HÓA TRẠNG THÁI ĐƠN LỊCH SỬ
       if (url.pathname === "/api/orders/archive-old" && request.method === "POST") {
         // 1. Đơn Trả hàng -> Đẩy vào Tab Trả hàng
