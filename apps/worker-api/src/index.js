@@ -255,6 +255,23 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return Response.json({ status: "ok", updated: order_ids.length }, { headers: cors })
       }
 
+      // [BỌC THÉP] API CHUẨN HÓA TRẠNG THÁI ĐƠN LỊCH SỬ
+      if (url.pathname === "/api/orders/archive-old" && request.method === "POST") {
+        // 1. Đơn Trả hàng -> Đẩy vào Tab Trả hàng
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='RETURN_REFUND' WHERE order_type='return' AND oms_status='PENDING'`).run()
+        
+        // 2. Đơn Hủy -> Đẩy vào Tab Hủy vận chuyển
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='CANCELLED_TRANSIT' WHERE order_type='cancel' AND oms_status='PENDING'`).run()
+        
+        // 3. Đơn Normal đã giao -> Đẩy vào Tab Hoàn thành
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED' WHERE order_type='normal' AND shipping_status='Đã giao' AND oms_status='PENDING'`).run()
+        
+        // 4. Vét máng: Các đơn Normal từ xa xưa (> 7 ngày) mà sàn chưa cập nhật chữ "Đã giao" -> Đẩy vào Hoàn thành
+        await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED' WHERE order_type='normal' AND oms_status='PENDING' AND date(order_date) < date('now', '-7 days')`).run()
+        
+        return Response.json({ status: "ok" }, { headers: cors })
+      }
+
       if (url.pathname === "/api/export-orders")
         return exportOrders(request, env, cors)
 

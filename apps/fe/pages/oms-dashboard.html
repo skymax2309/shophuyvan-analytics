@@ -5,6 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OMS — Quản lý Đơn Hàng</title>
 <link rel="stylesheet" href="../css/oms-dashboard.css">
+<style>
+/* BỌC THÉP GIAO DIỆN MOBILE */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; height: auto; }
+  /* Biến Sidebar thành thanh cuộn ngang trên cùng */
+  .sidebar { width: 100%; display: flex; flex-direction: row; overflow-x: auto; white-space: nowrap; padding: 10px; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar-label { display: none; } /* Ẩn chữ label cho gọn màn hình */
+  .status-tab { margin-right: 8px; margin-bottom: 0; padding: 8px 12px; flex-shrink: 0; }
+  /* Xử lý thanh công cụ nằm ngang cuộn được */
+  .toolbar { overflow-x: auto; white-space: nowrap; padding-bottom: 10px; }
+  .toolbar-actions { display: inline-flex; }
+  /* Bẻ khung bộ lọc */
+  .filterbar { flex-wrap: wrap; }
+  .filter-input, .filter-select { flex: 1 1 40%; margin-bottom: 5px; }
+  /* Cho phép vuốt ngang bảng đơn hàng thay vì bị bóp méo */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 900px; } 
+}
+</style>
 </head>
 <body>
 
@@ -134,6 +153,7 @@
         <button class="btn btn-ghost" style="color:var(--red)" id="btnCancelTransit" onclick="markCancelledTransit()" disabled>✗ Hủy vận chuyển</button>
         <button class="btn btn-ghost" style="color:var(--orange)" id="btnFailed" onclick="markFailedDelivery()" disabled>⚠️ Giao thất bại</button>
         <button class="btn btn-ghost" style="color:var(--yellow)" id="btnReturn" onclick="markReturnRefund()" disabled>↩ Trả hàng</button>
+        <button class="btn btn-ghost" style="color:var(--muted); margin-left:auto; border: 1px dashed var(--border);" onclick="archiveOldOrders()">✨ Chuẩn hóa dữ liệu cũ</button>
       </div>
     </div>
 
@@ -226,14 +246,14 @@
   import { loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
            markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
            markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-           debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape } from '../js/oms-main.js';
+           debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders } from '../js/oms-main.js';
 
   // Expose to global scope (vì HTML dùng onclick="...")
   Object.assign(window, {
     loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
     markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
     markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-    debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape
+    debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders
   });
 
   loadShopList();

@@ -382,6 +382,19 @@ export async function markHandedOver() {
   loadOrders(currentPage)
 }
 
+// ── CHUẨN HÓA ĐƠN LỊCH SỬ ─────────────────────────────────────────
+export async function archiveOldOrders() {
+  if (!confirm("Hệ thống sẽ dựa vào 'Loại đơn' và 'Trạng thái vận chuyển' cũ để tự động phân loại hàng ngàn đơn hàng lịch sử về đúng các Tab: Hoàn thành, Hủy, Trả hàng.\n\nBạn có chắc chắn muốn chuẩn hóa?")) return;
+  showToast('🔄 Đang chạy thuật toán phân loại dữ liệu...');
+  try {
+    await fetch(API + '/api/orders/archive-old', { method: 'POST' });
+    showToast('✅ Đã chuẩn hóa dữ liệu thành công!');
+    loadOrders(1);
+  } catch (e) {
+    showToast('❌ Lỗi: ' + e.message);
+  }
+}
+
 // ── QUY TRÌNH: HOÀN THÀNH ──────────────────────────────────────────
 async function markCompleted() {
   const ids = getChecked()

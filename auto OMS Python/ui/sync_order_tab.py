@@ -115,9 +115,73 @@ class SyncOrderTab(ctk.CTkFrame):
                     
                     if action == "scrape":
                         self.so_log_msg("👉 Kịch bản: CÀO ĐƠN HÀNG MỚI")
-                        # (Code điều hướng cào đơn sẽ được cắm vào đây)
-                        await asyncio.sleep(2)
-                        self.so_log_msg("✅ Đang chờ phát triển kịch bản cào đơn...")
+                        
+                        if platform == 'shopee':
+                            # 1. Đăng nhập / Kiểm tra Cookie (Dùng chung não bộ Login)
+                            from engines.shopee.shopee_auth import ShopeeAuth
+                            auth = ShopeeAuth(self.so_log_msg)
+                            is_logged = await auth.check_and_login(page, shop)
+                            
+                            if not is_logged:
+                                self.so_log_msg("❌ Lỗi: Không thể đăng nhập vào Shopee!")
+                                return
+                            
+                            # 2. Triệu hồi Não bộ (Parser) và Tay sai (Scraper)
+                            from parsers.shopee_order_parser import ShopeeOrderParser
+                            from engines.shopee.shopee_orders import ShopeeOrderScraper
+                            
+                            parser = ShopeeOrderParser(self.so_log_msg)
+                            scraper = ShopeeOrderScraper(self.so_log_msg, parser)
+                            
+                            # 3. Kích hoạt cào đơn
+                            orders_data = await scraper.scrape_new_orders(page)
+                            
+                            if orders_data:
+                                self.so_log_msg(f"📦 Đã đóng gói thành công {len(orders_data)} đơn. Đang truyền tải lên Server...")
+                                
+                                # 4. Gửi dữ liệu thẳng lên Cloudflare Worker API
+                                import requests
+                                import re
+                                
+                                api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
+                                
+                                payload = {"orders": [], "items": []}
+                                
+                                for order in orders_data:
+                                    # Lọc bỏ chữ để lấy số tiền chuẩn (VD: '₫45.000' -> 45000)
+                                    raw_price = re.sub(r'[^\d]', '', order.get("total_price", "0"))
+                                    revenue = float(raw_price) if raw_price else 0
+                                    
+                                    payload["orders"].append({
+                                        "order_id": order["order_id"],
+                                        "platform": "shopee",
+                                        "shop": shop['ten_shop'],
+                                        "customer_name": order["buyer_name"],
+                                        "revenue": revenue,
+                                        "oms_status": "PENDING", # Mặc định đơn mới là Chờ xác nhận
+                                        "shipping_status": "Chờ lấy hàng",
+                                        "tracking_number": order["tracking_number"],
+                                        "shipping_carrier": order["carrier"]
+                                    })
+                                    
+                                    for item in order["items"]:
+                                        payload["items"].append({
+                                            "order_id": order["order_id"],
+                                            "sku": item.get("variation", item["name"]), # Tạm dùng phân loại làm SKU
+                                            "product_name": item["name"],
+                                            "qty": int(item["quantity"])
+                                        })
+                                
+                                try:
+                                    res = requests.post(api_url, json=payload)
+                                    if res.status_code == 200:
+                                        self.so_log_msg("✅ ĐỒNG BỘ THÀNH CÔNG! Hãy mở App Web trên điện thoại để xem đơn ngay.")
+                                    else:
+                                        self.so_log_msg(f"❌ Lỗi từ Server API: {res.text}")
+                                except Exception as api_err:
+                                    self.so_log_msg(f"❌ Lỗi đường truyền mạng: {api_err}")
+                            else:
+                                self.so_log_msg("⚠️ Không tìm thấy đơn hàng mới nào để cào.")
                         
                     elif action == "process":
                         self.so_log_msg("👉 Kịch bản: TỰ ĐỘNG CHUẨN BỊ HÀNG (PACKING)")

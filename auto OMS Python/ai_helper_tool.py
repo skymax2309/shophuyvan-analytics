@@ -94,6 +94,7 @@ class AIHelperTool(ctk.CTk):
         import os
         import sys
         import shutil
+        import asyncio # <-- BỌC THÉP: THÊM DÒNG NÀY VÀO ĐÂY
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if base_dir not in sys.path:
@@ -200,7 +201,8 @@ class AIHelperTool(ctk.CTk):
                 await context.close()
 
         except Exception as e:
-            self.after(0, lambda: self.web_log.insert("end", f"❌ Lỗi: {e}\n"))
+            err_msg = str(e)
+            self.after(0, lambda msg=err_msg: self.web_log.insert("end", f"❌ Lỗi: {msg}\n"))
         finally:
             self.after(0, lambda: self.btn_scan.configure(state="normal", text="🚀 Quét Nhanh"))
 
@@ -514,7 +516,8 @@ class AIHelperTool(ctk.CTk):
 
                 await context.close()
         except Exception as e:
-            self.after(0, lambda: self.recorder_log.insert("end", f"\n❌ Lỗi Trình duyệt: {e}\n(Nếu lỗi 'Target closed', bạn cứ bấm Dừng & Lưu nhé)\n"))
+            err_msg = str(e)
+            self.after(0, lambda msg=err_msg: self.recorder_log.insert("end", f"\n❌ Lỗi Trình duyệt: {msg}\n(Nếu lỗi 'Target closed', bạn cứ bấm Dừng & Lưu nhé)\n"))
 
     def stop_recording(self):
         self.is_recording = False
