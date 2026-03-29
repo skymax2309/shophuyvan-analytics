@@ -50,8 +50,19 @@ async function handleProducts(request, env, cors) {
   // CÁC API CŨ CỦA PRODUCTS GỐC
   // ==========================================
   if (request.method === "GET") {
-    const rows = await env.DB.prepare(`SELECT * FROM products ORDER BY sku`).all()
-    return Response.json(rows.results, { headers: cors })
+    // Tối ưu: Dùng SQL COALESCE để lấy ảnh dự phòng từ product_variations nếu products.image_url bị rỗng
+    const query = `
+      SELECT p.*, 
+        COALESCE(
+          NULLIF(p.image_url, ''), 
+          (SELECT image_url FROM product_variations v WHERE v.internal_sku = p.sku AND v.image_url != '' AND v.image_url IS NOT NULL LIMIT 1), 
+          ''
+        ) as image_url
+      FROM products p 
+      ORDER BY p.sku
+    `;
+    const rows = await env.DB.prepare(query).all();
+    return Response.json(rows.results, { headers: cors });
   }
 
   if (request.method === "POST") {
