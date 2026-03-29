@@ -6,11 +6,11 @@ export async function createJob(req, env, cors) {
     INSERT INTO jobs (user_id, shop_name, platform, month, year, status, scheduled_at, task_type, from_date, to_date)
     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
   `).bind(
-    body.user_id,
-    body.shop_name,
-    body.platform,
-    body.month,
-    body.year,
+    body.user_id || 'admin',
+    body.shop_name || 'ALL',
+    body.platform || 'ALL',
+    body.month || new Date().getMonth() + 1,
+    body.year || new Date().getFullYear(),
     body.scheduled_at || null,
     body.task_type || 'all',
     body.from_date || null,
