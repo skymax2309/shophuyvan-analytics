@@ -64,6 +64,11 @@ class SyncOrderTab(ctk.CTkFrame):
                                          command=lambda: self.run_order_bot("process"))
         self.btn_process_orders.pack(side="left", padx=5)
 
+        # Nút Quét Trạng Thái (Phương án B)
+        self.btn_check_status = ctk.CTkButton(manual_frame, text="🔍 Quét Trạng thái", width=120, fg_color="#8b5cf6", hover_color="#7c3aed",
+                                         command=lambda: self.run_order_bot("status"))
+        self.btn_check_status.pack(side="left", padx=5)
+
         # --- KHU VỰC LOG ---
         self.so_log = ctk.CTkTextbox(self, height=350, fg_color="#0A0A0A", text_color="#00CED1", font=("Consolas", 12))
         self.so_log.pack(fill="both", expand=True, padx=20, pady=(5, 20))
@@ -284,6 +289,7 @@ class SyncOrderTab(ctk.CTkFrame):
                             oms_st = "PENDING"
                             ship_st = "Chờ lấy hàng"
                             
+                            order_type = "normal"
                             if tab_src == "Đang giao":
                                 oms_st = "HANDED_OVER"
                                 ship_st = "Đang giao"
@@ -293,10 +299,12 @@ class SyncOrderTab(ctk.CTkFrame):
                             elif tab_src == "Đã hủy":
                                 oms_st = "CANCELLED_TRANSIT"
                                 ship_st = "Đã hủy"
+                                order_type = "cancel"
 
                             payload["orders"].append({
                                 "order_id": order["order_id"],
                                 "order_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "order_type": order_type,
                                 "platform": "shopee",
                                 "shop": shop['ten_shop'],
                                 "customer_name": order["buyer_name"],
@@ -313,10 +321,11 @@ class SyncOrderTab(ctk.CTkFrame):
                                     "sku": "", 
                                     "variation_name": item.get("variation", ""), 
                                     "product_name": item["name"],
-                                    "qty": int(item["quantity"]),
+                                    "qty": int(item.get("quantity", 1) if str(item.get("quantity", "1")).isdigit() else 1),
                                     "image_url": item.get("image", "")
                                 })
                         try:
+                            self.so_log_msg(f"🔎 [RADAR] Bot chuẩn bị gửi: {len(payload['orders'])} Đơn và {len(payload['items'])} Sản phẩm!")
                             res = requests.post(api_url, json=payload)
                             if res.status_code == 200:
                                 self.so_log_msg("✅ Đồng bộ dữ liệu Cào đơn thành công!")
@@ -333,6 +342,13 @@ class SyncOrderTab(ctk.CTkFrame):
                     from engines.shopee.shopee_process import ShopeeOrderProcessor
                     processor = ShopeeOrderProcessor(self.so_log_msg)
                     await processor.process_confirmed_orders(page, shop['ten_shop'])
+
+                # --- NHIỆM VỤ 3: QUÉT TRẠNG THÁI (PHƯƠNG ÁN B) ---
+                if action == "status":
+                    self.so_log_msg("👉 Thực thi: QUÉT TRẠNG THÁI BẰNG API")
+                    from engines.shopee.shopee_status_core import ShopeeStatusCore
+                    status_bot = ShopeeStatusCore(self.so_log_msg)
+                    await status_bot.scan_and_update(page, shop['ten_shop'])
 
             finally:
                 await browser.close()

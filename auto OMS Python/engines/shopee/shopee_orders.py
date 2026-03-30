@@ -63,16 +63,18 @@ class ShopeeOrderScraper:
                         if await tab_don_huy.is_visible(): await tab_don_huy.click()
                         await asyncio.sleep(2)
                         
-                        # Click sub-tab Tất cả (của phần Đơn Hủy)
-                        tab_tat_ca = page.locator("div.eds-tabs__nav-tab").filter(has_text="Tất cả")
+                        # Click sub-tab Tất cả (của phần Đơn Hủy) - Khắc phục Strict Mode
+                        tab_tat_ca = page.locator("div.eds-tabs__nav-tab").filter(has_text="Tất cả").last
                         if await tab_tat_ca.is_visible(): await tab_tat_ca.click()
                         await asyncio.sleep(3)
                     except Exception as e:
                         self.log(f"⚠️ Lưu ý khi click bộ lọc Đã hủy: {e}")
 
-                # 3. Cuộn trang & Lấy HTML
-                self.log(f"[*] Đang cuộn trang {tab['name']}...")
-                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                # 3. Cuộn trang 4 lần & Lấy HTML
+                self.log(f"[*] Đang cuộn trang {tab['name']} nhiều lần để tải toàn bộ đơn...")
+                for _ in range(4):
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                    await asyncio.sleep(2)
                 await asyncio.sleep(3)
 
                 html_content = await page.evaluate("document.body.innerHTML")

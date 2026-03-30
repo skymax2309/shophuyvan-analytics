@@ -208,6 +208,37 @@ class AutoRunTab(ctk.CTkFrame):
             self.log(f"❌ Lỗi kết nối API Server: {str(e)}")
             return
 
+        # TIỀN XỬ LÝ LỆNH TỪ SERVER (Giải quyết triệt để lỗi từ khóa ALL và lệch tên Shop)
+        expanded_jobs = []
+        for job in jobs_data:
+            plat = str(job.get('platform', 'shopee')).lower()
+            s_name = str(job.get('shop_name', ''))
+            
+            matched = False
+            for s in self.app.DANH_SACH_SHOP:
+                s_plat = str(s.get("platform", "shopee")).lower()
+                
+                # 1. Kiểm tra khớp sàn (hoặc nếu server gửi lệnh chạy tất cả sàn 'ALL')
+                if plat != "all" and plat != s_plat:
+                    continue
+                    
+                # 2. Kiểm tra khớp tên shop hoặc user_name (hoặc nếu server gửi lệnh 'ALL')
+                if s_name.upper() != "ALL" and s_name != s.get("ten_shop") and s_name != s.get("user_name"):
+                    continue
+                
+                # 3. Tạo bản sao của lệnh, nhưng gán ĐÍCH DANH user_name để làm ID chuẩn
+                new_job = job.copy()
+                new_job['shop_name'] = s.get("user_name") 
+                new_job['platform'] = s_plat
+                expanded_jobs.append(new_job)
+                matched = True
+                
+            if not matched:
+                 self.log(f"⚠️ Bỏ qua lệnh ID {job.get('id')}: Không tìm thấy User Name '{s_name}' sàn '{plat}' trong máy.")
+        
+        # Đưa danh sách lệnh đã được chuẩn hóa vào luồng xử lý chính
+        jobs_data = expanded_jobs
+
         if self.mode_var.get() == "day":
             from_date = self.entry_from_date.get().strip()
             to_date   = self.entry_to_date.get().strip()
@@ -218,7 +249,7 @@ class AutoRunTab(ctk.CTkFrame):
             d = datetime.datetime.strptime(from_date, "%Y-%m-%d")
             jobs_data = [{
                 "id": "manual",
-                "shop_name": s["ten_shop"],
+                "shop_name": s.get("user_name", s["ten_shop"]),
                 "month": d.month,
                 "year": str(d.year),
                 "platform": s["platform"],
@@ -236,11 +267,13 @@ class AutoRunTab(ctk.CTkFrame):
                 THANG_TAI = int(job['month'])
                 NAM = str(job['year'])
                 job_id = job['id']
-                task_type = job.get('task_type', 'all')
-                platform_job = job.get('platform', 'shopee')
+                
+                # CHUẨN HÓA DỮ LIỆU TỪ SERVER: Ép về chữ thường để tránh bị lướt qua lệnh
+                task_type = str(job.get('task_type') or 'all').strip().lower()
+                platform_job = str(job.get('platform') or 'shopee').strip().lower()
 
-                # TÌM CHÍNH XÁC: Khớp cả Tên Shop LẪN Tên Sàn
-                shop_goc = next((s for s in self.app.DANH_SACH_SHOP if s["ten_shop"] == shop_name and s.get("platform", "shopee") == platform_job), None)
+                # TÌM CHÍNH XÁC: Luôn khớp theo User Name (Tài khoản) LẪN Tên Sàn để tuyệt đối không bị lệch
+                shop_goc = next((s for s in self.app.DANH_SACH_SHOP if s.get("user_name") == shop_name and s.get("platform", "shopee") == platform_job), None)
                 if not shop_goc:
                     self.log(f"⚠️ Bỏ qua lệnh ID {job_id}: Không tìm thấy shop '{shop_name}' sàn '{platform_job}' trong máy.")
                     continue

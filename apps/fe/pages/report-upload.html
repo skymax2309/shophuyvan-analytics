@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Upload Báo Cáo Sàn</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -182,9 +183,12 @@
   </div>
 
 <div class="card">
-    <div class="card-title" style="display:flex; justify-content:space-between;">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
       <span>📊 Trạng Thái Bot (Live)</span>
-      <button onclick="loadJobProgress()" style="font-size:12px; cursor:pointer;">🔄 Làm mới</button>
+      <div style="display:flex; gap:8px;">
+        <button onclick="loadJobProgress()" style="font-size:12px; padding:4px 10px; cursor:pointer; border-radius:6px; border:1px solid #ccc; background:white;">🔄 Làm mới</button>
+        <button onclick="deleteAllJobs()" style="font-size:12px; padding:4px 10px; cursor:pointer; border-radius:6px; border:1px solid #f44336; background:#ffebee; color:#d32f2f; font-weight:bold;">🗑️ Xóa tất cả</button>
+      </div>
     </div>
     <div id="jobProgressList">
       <div style="text-align:center; padding:20px; color:#aaa;">Đang tải trạng thái bot...</div>
@@ -197,6 +201,33 @@
 <script src="../js/report-history.js"></script>
 <script src="../js/report-upload.js"></script>
 
+<script>
+// Hack thông minh: Tự động quét và click toàn bộ nút "Xóa" trên UI
+async function deleteAllJobs() {
+    const deleteBtns = Array.from(document.querySelectorAll('#jobProgressList button')).filter(b => b.innerText.includes('Xóa') || b.innerHTML.includes('🗑️'));
+    
+    if(deleteBtns.length === 0) {
+        alert("Không có lệnh nào để xóa!");
+        return;
+    }
+    
+    if(!confirm(`Bạn có chắc muốn dọn dẹp toàn bộ ${deleteBtns.length} lệnh này không?`)) return;
+    
+    // Tạm thời "bịt miệng" hàm confirm của hệ thống để nó click 1 loạt không bị văng cửa sổ liên tục
+    const originalConfirm = window.confirm;
+    window.confirm = () => true; 
+    
+    for(let btn of deleteBtns) {
+        btn.click();
+    }
+    
+    // Trả lại quyền confirm gốc
+    window.confirm = originalConfirm;
+    
+    alert("Đã gửi yêu cầu xóa hàng loạt! Vui lòng đợi 2 giây để giao diện cập nhật.");
+    setTimeout(() => loadJobProgress(), 2000);
+}
+</script>
 
 </body>
 </html>

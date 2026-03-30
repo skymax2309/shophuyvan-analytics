@@ -53,13 +53,16 @@ class ShopeeDonHang:
                 folder = os.path.join(shop["thu_muc_luu"], f"Tháng {str(THANG_TAI).zfill(2)} {NAM}")
                 if not os.path.exists(folder):
                     os.makedirs(folder)
-                file_name = f"shopee_{shop['ten_shop']}_donhang_{NAM}{str(THANG_TAI).zfill(2)}.xlsx"
+                
+                # Đổi sang dùng user_name làm định danh cho cả tên file và dữ liệu API
+                user_name_chuan = shop.get('user_name', shop['ten_shop'])
+                file_name = f"shopee_{user_name_chuan}_donhang_{NAM}{str(THANG_TAI).zfill(2)}.xlsx"
                 full_path = os.path.join(folder, file_name)
                 await dl.save_as(full_path)
                 self.log("🏆 Xong Đơn hàng")
 
                 if upload_to_r2(full_path, file_name):
-                    v2_data = self.psr.parse_shopee_excel(full_path, shop['ten_shop'])
+                    v2_data = self.psr.parse_shopee_excel(full_path, user_name_chuan)
                     if v2_data:
                         try:
                             import json, urllib.request
@@ -72,7 +75,7 @@ class ShopeeDonHang:
                                 self.log(f"✅ Import đơn hàng: {result.get('imported_orders', 0)} đơn, {result.get('imported_items', 0)} items")
                         except Exception as e:
                             self.log(f"⚠️ Lỗi import đơn hàng V2: {str(e)}")
-                    trigger_server_import(file_name, shop['ten_shop'], 'shopee', 'orders')
+                    trigger_server_import(file_name, user_name_chuan, 'shopee', 'orders')
 
                 await asyncio.sleep(5)
                 break
@@ -124,12 +127,15 @@ class ShopeeDonHang:
                 folder = os.path.join(shop["thu_muc_luu"], thang_nam)
                 if not os.path.exists(folder):
                     os.makedirs(folder)
-                file_name = f"shopee_{shop['ten_shop']}_donhang_{from_date}_{to_date}.xlsx"
+                    
+                # Đổi sang dùng user_name làm định danh cho cả tên file và dữ liệu API
+                user_name_chuan = shop.get('user_name', shop['ten_shop'])
+                file_name = f"shopee_{user_name_chuan}_donhang_{from_date}_{to_date}.xlsx"
                 full_path = os.path.join(folder, file_name)
                 await dl.save_as(full_path)
                 self.log(f"🏆 Xong đơn hàng Shopee {from_date} → {to_date}")
 
-                v2_data = self.psr.parse_shopee_excel(full_path, shop['ten_shop'])
+                v2_data = self.psr.parse_shopee_excel(full_path, user_name_chuan)
                 if v2_data:
                     try:
                         import json, urllib.request

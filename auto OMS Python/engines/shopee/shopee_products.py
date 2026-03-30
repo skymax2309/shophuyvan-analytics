@@ -3,73 +3,102 @@ import os
 import json
 import urllib.request
 import random
+import traceback
+from playwright.async_api import async_playwright
 from utils import upload_to_r2, process_and_sync_files
 
 class ShopeeProducts:
     def __init__(self, log_func, auth):
         self.log = log_func
         self.auth = auth
+        # Endpoint hứng log trên Cloudflare Worker (Quy tắc 14)
+        self.api_log_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/logs" 
+
+    def log_and_send(self, message, is_error=False, shop_name="System"):
+        """Gắn log chi tiết trên UI và tự động gửi lên server nếu là lỗi (Quy tắc 14 & 15)"""
+        prefix = "❌ [LỖI SHOPEE PRODUCT]" if is_error else "ℹ️ [INFO]"
+        full_msg = f"{prefix} {message}"
+        self.log(full_msg)
+        
+        if is_error:
+            try:
+                data = json.dumps({
+                    "shop": shop_name,
+                    "platform": "shopee",
+                    "module": "ShopeeProducts",
+                    "error_message": full_msg,
+                    "traceback": traceback.format_exc()
+                }).encode('utf-8')
+                req = urllib.request.Request(self.api_log_url, data=data,
+                    headers={'Content-Type': 'application/json'}, method='POST')
+                urllib.request.urlopen(req, timeout=10)
+            except Exception as e:
+                self.log(f"⚠️ Không thể gửi log lên server: {str(e)}")
 
     async def tai_va_dong_bo_san_pham_excel(self, page, shop):
-        self.log(f"🤖 Bắt đầu tự động tải file Excel cho shop: {shop['ten_shop']}")
-        await page.goto("https://banhang.shopee.vn/portal/product-mass/mass-update/download", wait_until="commit")
-        await asyncio.sleep(5)
+        try:
+            self.log(f"🤖 Bắt đầu tự động tải file Excel cho shop: {shop['ten_shop']}")
+            await page.goto("https://banhang.shopee.vn/portal/product-mass/mass-update/download", wait_until="commit")
+            await asyncio.sleep(5)
 
-        # Định nghĩa 3 loại file cần tải dựa trên hướng dẫn của Huy
-        file_types = {
-            "basic": "Thông tin cơ bản",
-            "sales": "Thông tin bán hàng",
-            "media": "Hình ảnh"
-        }
+            # Định nghĩa 3 loại file cần tải dựa trên hướng dẫn của Huy
+            file_types = {
+                "basic": "Thông tin cơ bản",
+                "sales": "Thông tin bán hàng",
+                "media": "Hình ảnh"
+            }
 
-        import os
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        downloaded_paths = {}
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            downloaded_paths = {}
 
-        for key, tab_name in file_types.items():
-            self.log(f"👉 Đang xử lý mục: {tab_name}...")
+            for key, tab_name in file_types.items():
+                self.log(f"👉 Đang xử lý mục: {tab_name}...")
+                
+                # 1. Tích chọn mục tương ứng (Tìm theo class của Shopee, không phân biệt hoa thường và ép click xuyên thông báo)
+                await page.locator(f".eds-radio__label:has-text('{tab_name}')").first.click(force=True)
+                await asyncio.sleep(1.5)
+
+                # 2. Bấm nút Tải về (để xuất file). Chọn nút đầu tiên trên cùng.
+                await page.locator("button:has-text('Tải về')").first.click()
+                self.log(f"⏳ Đã yêu cầu xuất file {tab_name}, đang chờ Shopee xử lý...")
+
+                # 3. Chờ nút 'Đang đợi' chuyển sang 'Tải về' ở dòng ĐẦU TIÊN của bảng lịch sử
+                file_ready = False
+                for _ in range(40): # Lặp 40 lần, mỗi lần 3s => Chờ tối đa 2 phút
+                    await asyncio.sleep(3)
+                    btn_download = page.locator("tbody tr").first.locator("button:has-text('Tải về')")
+                    if await btn_download.count() > 0 and await btn_download.is_visible() and not await btn_download.is_disabled():
+                        file_ready = True
+                        break
+
+                if not file_ready:
+                    self.log_and_send(f"Quá thời gian chờ Shopee xuất file {tab_name}.", is_error=True, shop_name=shop['ten_shop'])
+                    return False
+
+                # 4. Bấm Tải Về và lưu file
+                self.log(f"📥 File {tab_name} đã sẵn sàng, tiến hành tải về máy...")
+                async with page.expect_download() as download_info:
+                    await page.locator("tbody tr").first.locator("button:has-text('Tải về')").click()
+
+                download = await download_info.value
+                ext = ".xlsx" if "xlsx" in download.suggested_filename else ".csv"
+                safe_shop_name = shop['ten_shop'].replace("/", "_").replace("\\", "_")
+                save_path = os.path.join(current_dir, f"{key}_{safe_shop_name}{ext}")
+                
+                await download.save_as(save_path)
+                downloaded_paths[key] = save_path
+                self.log(f"✅ Đã lưu thành công: {os.path.basename(save_path)}")
+                await asyncio.sleep(2)
+
+            self.log("🎉 Đã cào thành công 3 file từ Shopee. Bắt đầu ghép nối dữ liệu...")
             
-            # 1. Tích chọn mục tương ứng (Tìm theo class của Shopee, không phân biệt hoa thường và ép click xuyên thông báo)
-            await page.locator(f".eds-radio__label:has-text('{tab_name}')").first.click(force=True)
-            await asyncio.sleep(1.5)
-
-            # 2. Bấm nút Tải về (để xuất file). Chọn nút đầu tiên trên cùng.
-            await page.locator("button:has-text('Tải về')").first.click()
-            self.log(f"⏳ Đã yêu cầu xuất file {tab_name}, đang chờ Shopee xử lý...")
-
-            # 3. Chờ nút 'Đang đợi' chuyển sang 'Tải về' ở dòng ĐẦU TIÊN của bảng lịch sử
-            file_ready = False
-            for _ in range(40): # Lặp 40 lần, mỗi lần 3s => Chờ tối đa 2 phút
-                await asyncio.sleep(3)
-                btn_download = page.locator("tbody tr").first.locator("button:has-text('Tải về')")
-                if await btn_download.count() > 0 and await btn_download.is_visible() and not await btn_download.is_disabled():
-                    file_ready = True
-                    break
-
-            if not file_ready:
-                self.log(f"❌ LỖI: Quá thời gian chờ Shopee xuất file {tab_name}.")
-                return False
-
-            # 4. Bấm Tải Về và lưu file
-            self.log(f"📥 File {tab_name} đã sẵn sàng, tiến hành tải về máy...")
-            async with page.expect_download() as download_info:
-                await page.locator("tbody tr").first.locator("button:has-text('Tải về')").click()
-
-            download = await download_info.value
-            ext = ".xlsx" if "xlsx" in download.suggested_filename else ".csv"
-            safe_shop_name = shop['ten_shop'].replace("/", "_").replace("\\", "_")
-            save_path = os.path.join(current_dir, f"{key}_{safe_shop_name}{ext}")
+            # Gọi hàm xử lý và bắn lên Web từ file utils
+            from utils import process_and_sync_files
+            process_and_sync_files(shop['ten_shop'], downloaded_paths, self.log)
             
-            await download.save_as(save_path)
-            downloaded_paths[key] = save_path
-            self.log(f"✅ Đã lưu thành công: {os.path.basename(save_path)}")
-            await asyncio.sleep(2)
-
-        self.log("🎉 Đã cào thành công 3 file từ Shopee. Bắt đầu ghép nối dữ liệu...")
-        
-        # Gọi hàm xử lý và bắn lên Web từ file utils
-        from utils import process_and_sync_files
-        process_and_sync_files(shop['ten_shop'], downloaded_paths, self.log)
+        except Exception as e:
+            self.log_and_send(f"Lỗi khi tải file Excel sản phẩm", is_error=True, shop_name=shop['ten_shop'])
 
     async def sync_shopee_products(self, danh_sach_shop, chosen_shop_name):
         """
@@ -418,7 +447,7 @@ class ShopeeProducts:
                             all_products.append(product_data)
 
                         except Exception as e:
-                            self.log(f"    ❌ Lỗi SP {item_id}: {str(e)[:80]}")
+                            self.log_and_send(f"Lỗi lấy thông tin SP {item_id}: {str(e)[:80]}", is_error=True, shop_name=shop['ten_shop'])
                             continue
 
                     # ── BƯỚC 3: Gửi dữ liệu TỪNG TRANG lên API (Lưu cuốn chiếu) ──

@@ -239,21 +239,35 @@ class LoginTab(ctk.CTkFrame):
                     
                 # 2. SAU KHI ĐĂNG NHẬP, TỰ QUÉT TÊN SHOP & LƯU LẠI
                 if is_logged:
-                    self.app.log(f"✅ Đăng nhập {platform.upper()} thành công. Đang tự động quét tên Shop...")
+                    self.app.log(f"✅ Đăng nhập {platform.upper()} thành công. Chờ trang tải hoàn tất để quét tên Shop...")
                     try:
-                        # Đoạn JS cướp tên shop trên giao diện Seller Center
-                        shop_name_js = '''() => {
-                            let el = document.querySelector('.shop-name, .account-name, .brand-name, .seller-name');
-                            return el ? el.innerText.trim() : '';
-                        }'''
-                        scraped_name = await page.evaluate(shop_name_js)
+                        scraped_name = ""
+                        # Vòng lặp chờ tối đa 15 giây để giao diện render xong thẻ HTML chứa tên shop
+                        for _ in range(15):
+                            await asyncio.sleep(1)
+                            shop_name_js = '''() => {
+                                // Bổ sung bộ nhận diện class CSS đặc thù của Shopee, TikTok, Lazada
+                                let selectors = [
+                                    '.shop-name', '.account-name', '.brand-name', '.seller-name', 
+                                    '[data-testid="shop-name"]', '.name-text', '.index__name--P3O1N',
+                                    '.shop-name-text', '.user-name'
+                                ];
+                                for (let sel of selectors) {
+                                    let el = document.querySelector(sel);
+                                    if (el && el.innerText.trim()) return el.innerText.trim();
+                                }
+                                return '';
+                            }'''
+                            scraped_name = await page.evaluate(shop_name_js)
+                            if scraped_name:
+                                break # Thoát vòng lặp ngay khi tìm thấy tên
                         
                         if scraped_name:
                             shop['ten_shop'] = scraped_name
                             self.app.log(f"🎯 Đã cập nhật tên shop thực tế: {scraped_name}")
                         else:
                             shop['ten_shop'] = shop['user_name']
-                            self.app.log("⚠️ Không quét được tên shop, tạm lưu thành User Name.")
+                            self.app.log("⚠️ Không quét được tên shop do web load chậm hoặc đổi cấu trúc, tạm lưu thành User Name.")
                             
                         # Ghi thẳng vào file JSON
                         self._save_shops_to_json()
