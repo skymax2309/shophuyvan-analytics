@@ -49,7 +49,8 @@ function clearAllShops() {
 }
 
 function getSelectedShops() {
-  return [...document.querySelectorAll(".bot-shop-cb:checked")].map(cb => cb.value)
+  // Quét toàn bộ checkbox nằm trong khu vực chọn shop (không cần quan tâm class là gì)
+  return [...document.querySelectorAll("#botShopCheckboxes input[type='checkbox']:checked")].map(cb => cb.value)
 }
 
 

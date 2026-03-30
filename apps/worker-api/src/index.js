@@ -222,10 +222,15 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
       if (url.pathname === "/api/top-product")
         return topProduct(request, env, cors)
 
-      // ── Danh sách Shop (Động 100% từ Bảng Chuẩn) ─────────────────
+// ── Danh sách Shop (Tự động cập nhật 100%) ─────────────────
       if (url.pathname === "/api/shops" && request.method === "GET") {
         try {
-          const { results } = await env.DB.prepare("SELECT shop_name, platform FROM shops ORDER BY platform, shop_name").all()
+          // Lệnh UNION: Vừa lấy từ danh sách khai báo sẵn, VỪA tự động vét các shop mới phát sinh trong dữ liệu đơn hàng
+          const { results } = await env.DB.prepare(`
+            SELECT shop_name, platform FROM shops
+            UNION
+            SELECT DISTINCT shop as shop_name, platform FROM orders_v2 WHERE shop IS NOT NULL AND shop != ''
+          `).all()
           return Response.json(results, { headers: cors })
         } catch (e) {
           return Response.json({ error: e.message }, { status: 500, headers: cors })
