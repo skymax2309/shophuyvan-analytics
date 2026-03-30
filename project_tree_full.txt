@@ -84,13 +84,23 @@
                     └── db.js
                     └── filters.js
     ├── auto OMS Python/
+        └── ai_helper_tool.py
         └── cau truc thu muc OMS python.txt
         └── config.py
+        └── debug_payload_lazada.json
+        └── debug_payload_tiktok.json
+        └── debug_shopee.py
+        └── kinhdoanhonlinegiasoc@gmail.com_lazada_1.xlsx
+        └── kinhdoanhonlinegiasoc@gmail.com_lazada_2.xlsx
+        └── kinhdoanhonlinegiasoc@gmail.com_lazada_3.xlsx
         └── main.py
+        └── test_promo_web.py
+        └── test_shopee_excel.py
         └── utils.py
         ├── data/
             └── shops.json
         ├── engines/
+            └── base_auth.py
             └── lazada_engine.py
             └── scraper_engine.py
             └── shopee_engine.py
@@ -100,11 +110,14 @@
                 └── lazada_doanh_thu.py
                 └── lazada_don_hang.py
                 └── lazada_hoa_don.py
+                └── lazada_products.py
             ├── shopee/
                 └── shopee_auth.py
                 └── shopee_doanh_thu.py
                 └── shopee_don_hang.py
                 └── shopee_hoa_don.py
+                └── shopee_orders.py
+                └── shopee_process.py
                 └── shopee_products.py
                 └── shopee_promo.py
             ├── tiktok/
@@ -115,12 +128,899 @@
                 └── tiktok_products.py
         ├── parsers/
             └── lazada_parser.py
+            └── shopee_order_parser.py
             └── shopee_parser.py
             └── tiktok_parser.py
+        ├── profiles/
+            ├── Huy Vân Store Q.Bình Tân/
+                └── first_party_sets.db
+                └── first_party_sets.db-journal
+                └── Last Browser
+                └── Last Version
+                └── Local State
+                └── Variations
+                ├── BrowserMetrics/
+                    └── BrowserMetrics-69C90FD2-54B0.pma
+                ├── component_crx_cache/
+                    └── metadata.json
+                ├── Crashpad/
+                    └── settings.dat
+                    ├── attachments/
+                    ├── reports/
+                ├── Default/
+                    └── Account Web Data
+                    └── Account Web Data-journal
+                    └── Affiliation Database
+                    └── Affiliation Database-journal
+                    └── BookmarkMergedSurfaceOrdering
+                    └── DIPS
+                    └── Favicons
+                    └── Favicons-journal
+                    └── heavy_ad_intervention_opt_out.db
+                    └── heavy_ad_intervention_opt_out.db-journal
+                    └── History
+                    └── History-journal
+                    └── LOCK
+                    └── LOG
+                    └── Login Data
+                    └── Login Data For Account
+                    └── Login Data For Account-journal
+                    └── Login Data-journal
+                    └── MediaDeviceSalts
+                    └── MediaDeviceSalts-journal
+                    └── Network Action Predictor
+                    └── Network Action Predictor-journal
+                    └── Preferences
+                    └── PreferredApps
+                    └── README
+                    └── Secure Preferences
+                    └── ServerCertificate
+                    └── ServerCertificate-journal
+                    └── SharedStorage
+                    └── Shortcuts
+                    └── Shortcuts-journal
+                    └── Top Sites
+                    └── Top Sites-journal
+                    └── trusted_vault.pb
+                    └── Web Data
+                    └── Web Data-journal
+                    ├── AutofillAiModelCache/
+                        └── LOCK
+                        └── LOG
+                    ├── AutofillStrikeDatabase/
+                        └── LOCK
+                        └── LOG
+                    ├── blob_storage/
+                        ├── 35834b9b-00cb-49c4-9516-7b962642742e/
+                    ├── BudgetDatabase/
+                        └── LOCK
+                        └── LOG
+                    ├── Cache/
+                        ├── Cache_Data/
+                            └── data_0
+                            └── data_1
+                            └── data_2
+                            └── data_3
+                            └── f_000001
+                            └── f_000002
+                            └── f_000003
+                            └── f_000004
+                            └── f_000005
+                            └── f_000006
+                            └── f_000007
+                            └── f_000008
+                            └── f_000009
+                            └── f_00000a
+                            └── f_00000b
+                            └── f_00000c
+                            └── f_00000d
+                            └── f_00000e
+                            └── f_00000f
+                            └── f_000010
+                            └── f_000011
+                            └── f_000012
+                            └── f_000013
+                            └── f_000014
+                            └── index
+                        ├── No_Vary_Search/
+                            └── journal.baj
+                            └── snapshot.baf
+                    ├── chrome_cart_db/
+                        └── LOCK
+                        └── LOG
+                    ├── ClientCertificates/
+                        └── LOCK
+                        └── LOG
+                    ├── Code Cache/
+                        ├── js/
+                            └── 049c458fc094712d_0
+                            └── 0b69c1eff74f80e6_0
+                            └── 0d6f3f5f8ddf8661_0
+                            └── 108c65286016fdf8_0
+                            └── 1ea62aa1d21904e0_0
+                            └── 220c3bbfe3607a7b_0
+                            └── 2c9cb39e3d1812d5_0
+                            └── 3936a2bd46589eba_0
+                            └── 467c7b68e6bb41d5_0
+                            └── 4b3e29f2c3fa1baf_0
+                            └── 5180bda9d2475dc0_0
+                            └── 568a232fa3ce68ef_0
+                            └── 5a0c54fa7d0884fe_0
+                            └── 5f8fdd87f43dc161_0
+                            └── 6be09f2e2f844a81_0
+                            └── 728a88ba0ff955fb_0
+                            └── 7523ea0951842692_0
+                            └── 8087f6710ed2a6eb_0
+                            └── 96d93110b8761315_0
+                            └── a34024069e84f822_0
+                            └── adebb5d2fca39c3e_0
+                            └── b350b08b881017df_0
+                            └── b4b929d300708549_0
+                            └── b8772ce08cce25b9_0
+                            └── bd464b239ffe6452_0
+                            └── c01c5d664c59f5be_0
+                            └── c08e865438e43585_0
+                            └── c1fd407db4df1f1b_0
+                            └── c30d351b0a3fa212_0
+                            └── c41bd183a663bf1b_0
+                            └── c47381e773f8d647_0
+                            └── c50109cc04337496_0
+                            └── cc3acd045dc6b722_0
+                            └── ccda97fe9c2d0710_0
+                            └── d2793093d97c4e62_0
+                            └── edd88b3b583c8e44_0
+                            └── f992135ff95bb81d_0
+                            └── fb4fe629c2d29a9b_0
+                            └── ff260710cd0400a7_0
+                            └── index
+                            ├── index-dir/
+                                └── the-real-index
+                        ├── wasm/
+                            └── index
+                            ├── index-dir/
+                                └── the-real-index
+                    ├── commerce_subscription_db/
+                        └── LOCK
+                        └── LOG
+                    ├── DawnGraphiteCache/
+                        └── data_0
+                        └── data_1
+                        └── data_2
+                        └── data_3
+                        └── index
+                    ├── DawnWebGPUCache/
+                        └── data_0
+                        └── data_1
+                        └── data_2
+                        └── data_3
+                        └── index
+                    ├── discounts_db/
+                        └── LOCK
+                        └── LOG
+                    ├── discount_infos_db/
+                        └── LOCK
+                        └── LOG
+                    ├── Extension Rules/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Extension Scripts/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Extension State/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Feature Engagement Tracker/
+                        ├── AvailabilityDB/
+                            └── LOCK
+                            └── LOG
+                        ├── EventDB/
+                            └── LOCK
+                            └── LOG
+                    ├── GCM Store/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── GPUCache/
+                        └── data_0
+                        └── data_1
+                        └── data_2
+                        └── data_3
+                        └── index
+                    ├── IndexedDB/
+                        ├── https_accounts.shopee.vn_0.indexeddb.leveldb/
+                            └── 000003.log
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── Local Storage/
+                        ├── leveldb/
+                            └── 000004.log
+                            └── 000005.ldb
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── Network/
+                        └── Cookies
+                        └── Cookies-journal
+                        └── Network Persistent State
+                        └── NetworkDataMigrated
+                        └── Reporting and NEL
+                        └── Reporting and NEL-journal
+                        └── SCT Auditing Pending Reports
+                        └── TransportSecurity
+                        └── Trust Tokens
+                        └── Trust Tokens-journal
+                    ├── parcel_tracking_db/
+                        └── LOCK
+                        └── LOG
+                    ├── PersistentOriginTrials/
+                        └── LOCK
+                        └── LOG
+                    ├── Safe Browsing Network/
+                        └── NetworkDataMigrated
+                        └── Safe Browsing Cookies
+                        └── Safe Browsing Cookies-journal
+                    ├── Segmentation Platform/
+                        ├── SegmentInfoDB/
+                            └── LOCK
+                            └── LOG
+                        ├── SignalDB/
+                            └── LOCK
+                            └── LOG
+                        ├── SignalStorageConfigDB/
+                            └── LOCK
+                            └── LOG
+                    ├── Service Worker/
+                        ├── CacheStorage/
+                            ├── 9c430c7349d7c2823ab85f439536b5204d6e3b96/
+                                └── index.txt
+                                ├── 7ba31111-f1be-4e20-9dd1-d4fd7d656f9f/
+                                    └── a121268f9d8b9355_0
+                                    └── index
+                                    ├── index-dir/
+                                        └── the-real-index
+                            ├── b40d81576465f7694e6950846096eaef98496f4a/
+                                └── index.txt
+                                ├── 3d02756c-5502-4822-b0d3-9761ee2d37c4/
+                                    └── index
+                                    ├── index-dir/
+                                        └── the-real-index
+                        ├── Database/
+                            └── 000003.log
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                        ├── ScriptCache/
+                            └── 2cc80dabc69f58b6_0
+                            └── 2cc80dabc69f58b6_1
+                            └── 4cb013792b196a35_0
+                            └── 4cb013792b196a35_1
+                            └── index
+                            ├── index-dir/
+                                └── the-real-index
+                    ├── Session Storage/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Sessions/
+                        └── Session_13419258069391060
+                        └── Tabs_13419258093799568
+                    ├── Shared Dictionary/
+                        └── db
+                        └── db-journal
+                        ├── cache/
+                            └── index
+                            ├── index-dir/
+                                └── the-real-index
+                    ├── shared_proto_db/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                        ├── metadata/
+                            └── 000003.log
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── Site Characteristics Database/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Sync Data/
+                        ├── LevelDB/
+                            └── 000003.log
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── WebStorage/
+                        └── QuotaManager
+                        └── QuotaManager-journal
+                ├── extensions_crx_cache/
+                    └── metadata.json
+                ├── GraphiteDawnCache/
+                    └── data_0
+                    └── data_1
+                    └── data_2
+                    └── data_3
+                    └── index
+                ├── GrShaderCache/
+                    └── data_0
+                    └── data_1
+                    └── data_2
+                    └── data_3
+                    └── f_000001
+                    └── f_000002
+                    └── f_000003
+                    └── f_000004
+                    └── f_000005
+                    └── f_000006
+                    └── index
+                ├── Safe Browsing/
+                ├── segmentation_platform/
+                    └── ukm_db
+                    └── ukm_db-wal
+                ├── ShaderCache/
+                    └── data_0
+                    └── data_1
+                    └── data_2
+                    └── data_3
+                    └── index
+            ├── ShopHuyVan/
+                └── BrowserMetrics-spare.pma
+                └── first_party_sets.db
+                └── first_party_sets.db-journal
+                └── Last Browser
+                └── Last Version
+                └── Local State
+                └── Variations
+                ├── BrowserMetrics/
+                    └── BrowserMetrics-69C8C885-4510.pma
+                ├── component_crx_cache/
+                    └── metadata.json
+                ├── Crashpad/
+                    └── settings.dat
+                    ├── attachments/
+                    ├── reports/
+                ├── Default/
+                    └── Account Web Data
+                    └── Account Web Data-journal
+                    └── Affiliation Database
+                    └── Affiliation Database-journal
+                    └── BookmarkMergedSurfaceOrdering
+                    └── DIPS
+                    └── Favicons
+                    └── Favicons-journal
+                    └── heavy_ad_intervention_opt_out.db
+                    └── heavy_ad_intervention_opt_out.db-journal
+                    └── History
+                    └── History-journal
+                    └── LOCK
+                    └── LOG
+                    └── Login Data
+                    └── Login Data For Account
+                    └── Login Data For Account-journal
+                    └── Login Data-journal
+                    └── MediaDeviceSalts
+                    └── MediaDeviceSalts-journal
+                    └── Network Action Predictor
+                    └── Network Action Predictor-journal
+                    └── Preferences
+                    └── PreferredApps
+                    └── README
+                    └── Secure Preferences
+                    └── ServerCertificate
+                    └── ServerCertificate-journal
+                    └── SharedStorage
+                    └── Shortcuts
+                    └── Shortcuts-journal
+                    └── Top Sites
+                    └── Top Sites-journal
+                    └── trusted_vault.pb
+                    └── Web Data
+                    └── Web Data-journal
+                    ├── AutofillAiModelCache/
+                        └── LOCK
+                        └── LOG
+                    ├── AutofillStrikeDatabase/
+                        └── LOCK
+                        └── LOG
+                    ├── blob_storage/
+                        ├── 69830c0d-9c07-40a3-919d-e54dc0cc8abd/
+                    ├── BudgetDatabase/
+                        └── LOCK
+                        └── LOG
+                    ├── Cache/
+                        ├── Cache_Data/
+                            └── data_0
+                            └── data_1
+                            └── data_2
+                            └── data_3
+                            └── f_000001
+                            └── f_000002
+                            └── f_000003
+                            └── f_000004
+                            └── f_000005
+                            └── f_000006
+                            └── f_000007
+                            └── f_000008
+                            └── f_000009
+                            └── f_00000a
+                            └── f_00000b
+                            └── f_00000c
+                            └── f_00000d
+                            └── f_00000e
+                            └── f_00000f
+                            └── f_000010
+                            └── f_000011
+                            └── f_000012
+                            └── f_000013
+                            └── f_000014
+                            └── f_000015
+                            └── f_000016
+                            └── f_000017
+                            └── f_000018
+                            └── f_000019
+                            └── f_00001a
+                            └── f_00001b
+                            └── f_00001c
+                            └── f_00001d
+                            └── f_00001e
+                            └── f_00001f
+                            └── f_000020
+                            └── f_000021
+                            └── f_000022
+                            └── f_000023
+                            └── f_000024
+                            └── f_000025
+                            └── f_000026
+                            └── f_000027
+                            └── f_000028
+                            └── f_000029
+                            └── f_00002a
+                            └── f_00002b
+                            └── f_00002c
+                            └── f_00002d
+                            └── f_00002e
+                            └── f_00002f
+                            └── f_000030
+                            └── f_000031
+                            └── f_000032
+                            └── f_000033
+                            └── f_000034
+                            └── f_000035
+                            └── f_000036
+                            └── f_000037
+                            └── f_000038
+                            └── f_000039
+                            └── f_00003a
+                            └── f_00003b
+                            └── f_00003c
+                            └── f_00003d
+                            └── f_00003e
+                            └── f_00003f
+                            └── f_000040
+                            └── f_000041
+                            └── f_000042
+                            └── f_000043
+                            └── f_000044
+                            └── f_000045
+                            └── f_000046
+                            └── f_000047
+                            └── f_000048
+                            └── f_000049
+                            └── f_00004a
+                            └── f_00004b
+                            └── f_00004c
+                            └── f_00004d
+                            └── f_00004e
+                            └── f_00004f
+                            └── f_000050
+                            └── f_000051
+                            └── f_000052
+                            └── f_000053
+                            └── f_000054
+                            └── f_000055
+                            └── f_000056
+                            └── f_000057
+                            └── f_000058
+                            └── f_000059
+                            └── f_00005a
+                            └── f_00005b
+                            └── f_00005c
+                            └── f_00005d
+                            └── f_00005e
+                            └── f_00005f
+                            └── f_000060
+                            └── f_000061
+                            └── f_000062
+                            └── f_000063
+                            └── f_000064
+                            └── f_000065
+                            └── f_000066
+                            └── f_000067
+                            └── f_000068
+                            └── f_000069
+                            └── f_00006a
+                            └── f_00006b
+                            └── index
+                        ├── No_Vary_Search/
+                            └── journal.baj
+                            └── snapshot.baf
+                    ├── chrome_cart_db/
+                        └── LOCK
+                        └── LOG
+                    ├── ClientCertificates/
+                        └── LOCK
+                        └── LOG
+                    ├── Code Cache/
+                        ├── js/
+                            └── 025af0fc3476a11b_0
+                            └── 0297fce7539fd249_0
+                            └── 0df2ce8a9af94350_0
+                            └── 0edd55b7736a6b7d_0
+                            └── 11452cadf521cccf_0
+                            └── 131ec28eebbd8865_0
+                            └── 18954d23f454f697_0
+                            └── 1af3e114da0c78ad_0
+                            └── 1bbeac783e4c8730_0
+                            └── 1d579a140b673215_0
+                            └── 1d6d96de1483faab_0
+                            └── 1dd6da0457e59121_0
+                            └── 1e57d68965c8a730_0
+                            └── 1f0ce17bac559267_0
+                            └── 1f5f583474355930_0
+                            └── 1f6471380d8eb612_0
+                            └── 22ec77c2f1a3395a_0
+                            └── 24768ea9a0e2b9c1_0
+                            └── 24b159cac999ed5c_0
+                            └── 24dc935486ba8084_0
+                            └── 252e63826caabc8a_0
+                            └── 26e6efdfd2f19309_0
+                            └── 275b7ad465bac070_0
+                            └── 2e4979d30b401040_0
+                            └── 2f99c373c7ebf26f_0
+                            └── 3509b36aaf656123_0
+                            └── 37f3db413833acf2_0
+                            └── 434dfb5dea1d8bdb_0
+                            └── 45a3eb528b7d19f9_0
+                            └── 503d6ffa124385be_0
+                            └── 51bcf96812bfeb7f_0
+                            └── 51c6127dca5e2532_0
+                            └── 5480c5a84b0454d7_0
+                            └── 548104e5e765c135_0
+                            └── 54c298b2fdf916e8_0
+                            └── 5714fb7608a9b6bf_0
+                            └── 5c25439e0992a9b3_0
+                            └── 5c98c39e08ba2e3f_0
+                            └── 60f39e27a3ee1adb_0
+                            └── 614d5622eff9096b_0
+                            └── 6180ce22b85779e6_0
+                            └── 618c50b58b3e0c62_0
+                            └── 66a9d148aeabf350_0
+                            └── 6814a88e98f73d62_0
+                            └── 69064b0d6eb7b1cb_0
+                            └── 697b9c1a786b2ed4_0
+                            └── 6e37001fd743b51b_0
+                            └── 6f045fd6f65a88e0_0
+                            └── 6f64c177c35d40e4_0
+                            └── 707feb3f46b68d41_0
+                            └── 7080eda642dff321_0
+                            └── 709635f13645f264_0
+                            └── 7123ea2c8a58e6c8_0
+                            └── 71e5057bd6714e4c_0
+                            └── 76891f5972e4b909_0
+                            └── 7a50072ef8dc8cca_0
+                            └── 7b854f78c9fff940_0
+                            └── 7f74240034f376a1_0
+                            └── 80ee387d6dfc78a2_0
+                            └── 83d1b1922a0c9a79_0
+                            └── 841e16ca25d40e52_0
+                            └── 85d5992f8886b043_0
+                            └── 8a362c37f06e299b_0
+                            └── 971db11920857024_0
+                            └── 975ec9812028aed4_0
+                            └── 99cf5aad2a25c086_0
+                            └── 99d217e70c8c0edb_0
+                            └── 9b508529dbbacfff_0
+                            └── 9b8889823a85cf67_0
+                            └── 9b966b1c5dffa6c8_0
+                            └── 9f5c4fa52ba54c26_0
+                            └── a01e79bf4208478a_0
+                            └── a151134b97cdfa3a_0
+                            └── a4d6b66aa644e5f9_0
+                            └── a55839cbc353153c_0
+                            └── a59acc3f6e0f7587_0
+                            └── a7088198f68da6c0_0
+                            └── ab01091bcee4c326_0
+                            └── abc695aae35dc88f_0
+                            └── af2f3ec48555c553_0
+                            └── af7e7eb7319b6315_0
+                            └── b061cc549f094301_0
+                            └── c223ebb9e29a23b0_0
+                            └── c44c54d8e0fd2b5c_0
+                            └── d1f942f66b61a216_0
+                            └── d597e36c2afdce22_0
+                            └── d66e9eaf45a8795d_0
+                            └── d7abf1716f4d1436_0
+                            └── da83d2e859b05499_0
+                            └── db07c21db30e9558_0
+                            └── dda23b73f472ec82_0
+                            └── df8b05410a563b9a_0
+                            └── e2bd0179681d29aa_0
+                            └── e3b1fe3b5f87a575_0
+                            └── e4a118650df464e9_0
+                            └── e500f4f3ea7606cb_0
+                            └── e53b55b24d526e95_0
+                            └── ebc91edd53899a89_0
+                            └── ef6b64780c625306_0
+                            └── f0ec1b9db3e53455_0
+                            └── f1f481b3195e2f50_0
+                            └── f30ce9453c4db126_0
+                            └── f3b564cc139f9dc8_0
+                            └── f740e50ad9d4a4e4_0
+                            └── fa35bed507f7df7a_0
+                            └── fc70c45b3b4ff010_0
+                            └── index
+                            ├── index-dir/
+                                └── the-real-index
+                        ├── wasm/
+                            └── index
+                            ├── index-dir/
+                                └── the-real-index
+                    ├── commerce_subscription_db/
+                        └── LOCK
+                        └── LOG
+                    ├── DawnGraphiteCache/
+                        └── data_0
+                        └── data_1
+                        └── data_2
+                        └── data_3
+                        └── index
+                    ├── DawnWebGPUCache/
+                        └── data_0
+                        └── data_1
+                        └── data_2
+                        └── data_3
+                        └── index
+                    ├── discounts_db/
+                        └── LOCK
+                        └── LOG
+                    ├── discount_infos_db/
+                        └── LOCK
+                        └── LOG
+                    ├── Extension Rules/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Extension Scripts/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Extension State/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Feature Engagement Tracker/
+                        ├── AvailabilityDB/
+                            └── LOCK
+                            └── LOG
+                        ├── EventDB/
+                            └── LOCK
+                            └── LOG
+                    ├── GCM Store/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── GPUCache/
+                        └── data_0
+                        └── data_1
+                        └── data_2
+                        └── data_3
+                        └── index
+                    ├── IndexedDB/
+                        ├── https_sellercenter.lazada.vn_0.indexeddb.leveldb/
+                            └── 000003.log
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── Local Storage/
+                        ├── leveldb/
+                            └── 000004.log
+                            └── 000005.ldb
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── Network/
+                        └── Cookies
+                        └── Cookies-journal
+                        └── Network Persistent State
+                        └── NetworkDataMigrated
+                        └── Reporting and NEL
+                        └── Reporting and NEL-journal
+                        └── SCT Auditing Pending Reports
+                        └── TransportSecurity
+                        └── Trust Tokens
+                        └── Trust Tokens-journal
+                    ├── parcel_tracking_db/
+                        └── LOCK
+                        └── LOG
+                    ├── PersistentOriginTrials/
+                        └── LOCK
+                        └── LOG
+                    ├── Safe Browsing Network/
+                        └── NetworkDataMigrated
+                        └── Safe Browsing Cookies
+                        └── Safe Browsing Cookies-journal
+                    ├── Segmentation Platform/
+                        ├── SegmentInfoDB/
+                            └── LOCK
+                            └── LOG
+                        ├── SignalDB/
+                            └── LOCK
+                            └── LOG
+                        ├── SignalStorageConfigDB/
+                            └── LOCK
+                            └── LOG
+                    ├── Session Storage/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Sessions/
+                        └── Session_13419239815932220
+                        └── Tabs_13419240025119210
+                    ├── Shared Dictionary/
+                        └── db
+                        └── db-journal
+                        ├── cache/
+                            └── index
+                            ├── index-dir/
+                                └── the-real-index
+                    ├── shared_proto_db/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                        ├── metadata/
+                            └── 000003.log
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── Site Characteristics Database/
+                        └── 000003.log
+                        └── CURRENT
+                        └── LOCK
+                        └── LOG
+                        └── MANIFEST-000001
+                    ├── Sync Data/
+                        ├── LevelDB/
+                            └── 000003.log
+                            └── CURRENT
+                            └── LOCK
+                            └── LOG
+                            └── MANIFEST-000001
+                    ├── WebStorage/
+                        └── QuotaManager
+                        └── QuotaManager-journal
+                ├── extensions_crx_cache/
+                    └── metadata.json
+                ├── GraphiteDawnCache/
+                    └── data_0
+                    └── data_1
+                    └── data_2
+                    └── data_3
+                    └── index
+                ├── GrShaderCache/
+                    └── data_0
+                    └── data_1
+                    └── data_2
+                    └── data_3
+                    └── f_000001
+                    └── f_000002
+                    └── f_000003
+                    └── f_000004
+                    └── f_000005
+                    └── f_000006
+                    └── f_000007
+                    └── f_000008
+                    └── f_000009
+                    └── f_00000a
+                    └── f_00000b
+                    └── f_00000c
+                    └── f_00000d
+                    └── f_00000e
+                    └── f_00000f
+                    └── f_000010
+                    └── f_000011
+                    └── f_000012
+                    └── f_000013
+                    └── f_000014
+                    └── f_000015
+                    └── f_000016
+                    └── f_000017
+                    └── f_000018
+                    └── f_000019
+                    └── f_00001a
+                    └── f_00001b
+                    └── f_00001c
+                    └── f_00001d
+                    └── f_00001e
+                    └── f_00001f
+                    └── f_000020
+                    └── f_000021
+                    └── f_000022
+                    └── f_000023
+                    └── f_000024
+                    └── f_000025
+                    └── f_000026
+                    └── f_000027
+                    └── f_000028
+                    └── f_000029
+                    └── f_00002a
+                    └── f_00002b
+                    └── f_00002c
+                    └── f_00002d
+                    └── f_00002e
+                    └── f_00002f
+                    └── f_000030
+                    └── f_000031
+                    └── f_000032
+                    └── f_000033
+                    └── f_000034
+                    └── f_000035
+                    └── f_000036
+                    └── f_000037
+                    └── f_000038
+                    └── index
+                ├── Safe Browsing/
+                ├── segmentation_platform/
+                    └── ukm_db
+                    └── ukm_db-wal
+                ├── ShaderCache/
+                    └── data_0
+                    └── data_1
+                    └── data_2
+                    └── data_3
+                    └── index
         ├── ui/
             └── auto_run_tab.py
             └── login_tab.py
             └── main_window.py
+            └── sync_order_tab.py
             └── sync_product_tab.py
     ├── backup/
         └── backup.sql

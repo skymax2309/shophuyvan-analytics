@@ -202,7 +202,17 @@ async function recalcCost(request, env, cors) {
 // IMPORT ORDERS V2 — lưu vào orders_v2 + order_items
 // ════════════════════════════════════════════════════════════════════
 async function importOrdersV2(request, env, cors) {
-  const { orders, items } = await request.json()
+  const payload = await request.json()
+  const { orders, items } = payload
+  
+  // --- [QUY TẮC 14] LOG SERVER ĐỂ BẮT BỆNH ---
+  console.log(`[IMPORT_V2] 📥 Nhận payload: ${orders?.length || 0} đơn hàng, ${items?.length || 0} sản phẩm`);
+  if (items && items.length > 0) {
+      console.log(`[IMPORT_V2] 📦 Dữ liệu SP mẫu đầu tiên:`, JSON.stringify(items[0]));
+  } else {
+      console.log(`[IMPORT_V2] ⚠️ CẢNH BÁO: Không nhận được mảng items nào từ Bot gửi lên!`);
+  }
+
   const cfg = await getCostSettings(env)
 
   const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real FROM products`).all()
@@ -274,7 +284,12 @@ async function importOrdersV2(request, env, cors) {
     `).bind(
       item.order_id, item.sku, item.variation_name || "", item.product_name || "", item.qty || 1, item.revenue_line || 0, item.cost_real || 0, item.cost_invoice || 0, item.image_url || ""
     ))
-    try { await env.DB.batch(stmts); importedItems += chunk.length } catch(e) {}
+    try { 
+        await env.DB.batch(stmts); 
+        importedItems += chunk.length 
+    } catch(e) { 
+        console.error(`[IMPORT_V2] ❌ LỖI INSERT SẢN PHẨM VÀO DB:`, e.message);
+    }
   }
 
   return Response.json({ status: "ok", imported_orders: importedOrders, imported_items: importedItems, skipped }, { headers: cors })

@@ -279,6 +279,21 @@ class SyncOrderTab(ctk.CTkFrame):
                             raw_price = re.sub(r'[^\d]', '', order.get("total_price", "0"))
                             revenue = float(raw_price) if raw_price else 0
                             
+                            # Phân loại trạng thái dựa vào Tab cào được
+                            tab_src = order.get("tab_source", "Chờ lấy hàng")
+                            oms_st = "PENDING"
+                            ship_st = "Chờ lấy hàng"
+                            
+                            if tab_src == "Đang giao":
+                                oms_st = "HANDED_OVER"
+                                ship_st = "Đang giao"
+                            elif tab_src == "Đã giao":
+                                oms_st = "COMPLETED"
+                                ship_st = "Hoàn thành"
+                            elif tab_src == "Đã hủy":
+                                oms_st = "CANCELLED_TRANSIT"
+                                ship_st = "Đã hủy"
+
                             payload["orders"].append({
                                 "order_id": order["order_id"],
                                 "order_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -286,8 +301,8 @@ class SyncOrderTab(ctk.CTkFrame):
                                 "shop": shop['ten_shop'],
                                 "customer_name": order["buyer_name"],
                                 "revenue": revenue,
-                                "oms_status": "PENDING",
-                                "shipping_status": "Chờ lấy hàng",
+                                "oms_status": oms_st,
+                                "shipping_status": ship_st,
                                 "tracking_number": order["tracking_number"],
                                 "shipping_carrier": order["carrier"]
                             })
@@ -298,7 +313,8 @@ class SyncOrderTab(ctk.CTkFrame):
                                     "sku": "", 
                                     "variation_name": item.get("variation", ""), 
                                     "product_name": item["name"],
-                                    "qty": int(item["quantity"])
+                                    "qty": int(item["quantity"]),
+                                    "image_url": item.get("image", "")
                                 })
                         try:
                             res = requests.post(api_url, json=payload)

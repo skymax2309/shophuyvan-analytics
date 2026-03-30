@@ -23,36 +23,59 @@ class ShopeeOrderParser:
                 buyer_el = order_container.find('div', class_='buyer-username')
                 buyer_name = buyer_el.text.strip() if buyer_el else ""
 
-                # 2. Sản phẩm (Bọc thép bằng Thuật toán Đọc luồng Text)
+                # 2. Sản phẩm (Bọc thép bằng CSS Selector)
                 items = []
-                texts = list(order_container.stripped_strings)
                 import re
                 
-                for i, text in enumerate(texts):
-                    # Tìm mốc là thẻ số lượng (VD: 'x 1', 'x 2', 'x 15')
-                    if re.match(r'^x\s*\d+$', text, re.IGNORECASE):
-                        qty = re.sub(r'[^\d]', '', text)
-                        variation = ""
-                        name = ""
+                # Lấy tất cả tên sản phẩm làm điểm neo
+                name_elements = order_container.find_all('div', class_='item-name')
+                
+                for name_el in name_elements:
+                    name = name_el.text.strip()
+                    if not name or len(name) < 3: continue
                         
-                        if i > 0:
-                            prev_text = texts[i-1]
-                            # Nếu có thẻ Phân loại
-                            if "Variation:" in prev_text or "Phân loại" in prev_text:
-                                variation = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:)', '', prev_text).strip()
-                                if i > 1:
-                                    name = texts[i-2] # Tên SP nằm trên Phân loại
-                            else:
-                                # Nếu không có Phân loại, Tên SP nằm ngay trên Số lượng
-                                name = prev_text
-                                
-                        # Lọc bỏ rác
-                        if name and len(name) > 3 and "Mã đơn" not in name and "Người mua" not in name:
-                            items.append({
-                                "name": name,
-                                "variation": variation,
-                                "quantity": qty
-                            })
+                    # Lùi lên lớp cha để lấy toàn bộ thông tin của 1 sản phẩm cụ thể
+                    prod_container = name_el.find_parent('div', class_=['item-inner', 'item', 'item-info']) or name_el.parent.parent
+                    
+                    var_el = prod_container.find('div', class_='item-description')
+                    variation = var_el.text.replace('Variation:', '').replace('Phân loại hàng:', '').replace('Phân loại:', '').strip() if var_el else ""
+                    
+                    # Nếu Shopee ẩn số lượng (thường là khi số lượng = 1), mặc định cho bằng 1
+                    qty_el = prod_container.find('div', class_='item-amount')
+                    qty = qty_el.text.replace('x', '').strip() if qty_el else "1"
+                    
+                    # Tìm ảnh: Shopee có thể dùng thẻ img hoặc style background-image
+                    img_url = ""
+                    larger_container = name_el.find_parent('div', class_=['item-list', 'item']) or prod_container.parent.parent
+                    img_el = larger_container.find('img')
+                    
+                    if img_el:
+                        img_url = img_el.get('src') or img_el.get('data-src') or ""
+                    else:
+                        bg_div = larger_container.find(style=re.compile(r'background-image', re.IGNORECASE))
+                        if bg_div:
+                            match = re.search(r'url\([\'"]?([^\'"\)]+)[\'"]?\)', bg_div.get('style', ''))
+                            if match: img_url = match.group(1)
+
+                    items.append({
+                        "name": name,
+                        "variation": variation,
+                        "quantity": qty,
+                        "image": img_url
+                    })
+
+                # --- [QUY TẮC 10] AUTO UI LOGGER ---
+                if len(items) == 0:
+                    self.log(f"⚠️ [DÒ MÌN] Đơn {order_sn} bị tàng hình sản phẩm!")
+                    self.log(f"🔎 [TEXT]: {list(order_container.stripped_strings)}")
+                    
+                    # Tự động xuất cấu trúc HTML Class để debug nhanh (Ý tưởng của bác)
+                    html_structure = []
+                    for tag in order_container.find_all(True):
+                        classes = tag.get('class')
+                        if classes:
+                            html_structure.append(f"[{tag.name.upper()}] class='{' '.join(classes)}'")
+                    self.log(f"🧬 [CẤU TRÚC HTML]: {' -> '.join(html_structure[:15])} ...")
 
                 # 3. Giá tiền
                 price_el = order_container.find('div', class_='total-price')

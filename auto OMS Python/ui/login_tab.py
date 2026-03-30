@@ -184,13 +184,21 @@ class LoginTab(ctk.CTkFrame):
             return
         shop = selected[0]
         def task():
-            self.btn_login_shop.configure(state="disabled", text="⏳ Đang xử lý...")
+            # Dùng self.after để an toàn cho giao diện, tránh đơ app
+            self.after(0, lambda: self.btn_login_shop.configure(state="disabled", text="⏳ Đang xử lý..."))
             try:
-                asyncio.run(self.playwright_manual_login(shop))
+                # Sửa lỗi treo asyncio khi chạy luồng phụ trên Windows
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(self.playwright_manual_login(shop))
+                loop.close()
             except Exception as e:
+                import traceback
+                print(traceback.format_exc()) # In thẳng ra terminal để dễ dò mìn
                 self.app.log(f"❌ Lỗi hệ thống: {str(e)}")
             finally:
-                self.btn_login_shop.configure(state="normal", text="🔑 Đăng Nhập / Quét Tên Shop")
+                self.after(0, lambda: self.btn_login_shop.configure(state="normal", text="🔑 Đăng Nhập / Quét Tên Shop"))
+                
         threading.Thread(target=task, daemon=True).start()
 
     async def playwright_manual_login(self, shop):
