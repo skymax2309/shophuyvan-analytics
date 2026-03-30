@@ -2,25 +2,35 @@ const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 let allShopNames = []
 
 // ── Quản lý danh sách Shop ────────────────────────────────────────────
+// Biến toàn cục để lưu API Shops
+let apiShopsData = [];
+
 async function loadShops() {
   try {
-    const shops = await fetch(API + "/api/top-shop").then(r => r.json())
-    // Gộp shop từ DB + shop cố định trong config
-    const dbShops = shops.map(s => s.shop)
-    const allConfigShops = Object.values(SHOP_BY_PLATFORM).flat()
-    allShopNames = [...new Set([...dbShops, ...allConfigShops])]
-
-    // Dropdown upload thủ công
-    const options = '<option value="">-- Chọn shop --</option>' +
-                    allShopNames.map(s => `<option value="${s}">${s}</option>`).join("")
-    document.getElementById("inpShop").innerHTML = options
-
+    // Gọi API lấy full danh sách Shop + Platform từ Database
+    const res = await fetch(API + "/api/shops?t=" + new Date().getTime());
+    if (res.ok) {
+        apiShopsData = await res.json();
+        
+        // Lọc bỏ sạch sẽ các tên cũ rác (nếu còn vướng trong DB)
+        const oldNames = ["Huy Vân Store Q.Bình Tân", "shophuyvan.vn", "KHOGIADUNGHUYVAN", "ShopHuyVan"];
+        apiShopsData = apiShopsData.filter(s => !oldNames.includes(s.shop_name));
+        
+        // Nạp vào Dropdown Upload
+        const options = '<option value="">-- Chọn shop --</option>' +
+                        apiShopsData.map(s => `<option value="${s.shop_name}">${s.shop_name}</option>`).join("");
+        document.getElementById("inpShop").innerHTML = options;
+        
+        // Nạp vào Dropdown Lọc Lịch sử (nếu có)
+        const filterShop = document.getElementById('filterShop');
+        if (filterShop) {
+            filterShop.innerHTML = '<option value="">Tất cả shop</option>' + options;
+        }
+    }
     // Render checkbox bot theo sàn hiện tại
     onBotPlatformChange()
   } catch(e) {
     console.error("Không load được danh sách shop:", e)
-    // Fallback: dùng config cố định
-    onBotPlatformChange()
   }
 }
 
@@ -47,20 +57,8 @@ function getSelectedShops() {
 }
 
 // ── Đổi loại báo cáo theo sàn ────────────────────────────────────────
-// Cấu hình shop cố định theo từng sàn
-const SHOP_BY_PLATFORM = {
-  shopee: [
-    "Huy Vân Store Q.Bình Tân",
-    "shophuyvan.vn",
-    "KHOGIADUNGHUYVAN",
-  ],
-  lazada: [
-    "ShopHuyVan",
-  ],
-  tiktok: [
-    "ShopHuyVan",
-  ],
-}
+
+function onBotTimeModeChange() {
 
 function onBotTimeModeChange() {
   const mode = document.querySelector('input[name="botTimeMode"]:checked').value
@@ -78,20 +76,22 @@ function onBotTimeModeChange() {
 }
 
 function onBotPlatformChange() {
-  const platform = document.getElementById("botPlatform").value
-  const taskSel  = document.getElementById("botTaskType")
+  const platform = document.getElementById("botPlatform").value;
+  const taskSel  = document.getElementById("botTaskType");
 
-  // Cập nhật danh sách shop theo sàn
-  const shops = SHOP_BY_PLATFORM[platform] || []
-  const el = document.getElementById("botShopCheckboxes")
-  if (!shops.length) {
-    el.innerHTML = '<span style="color:#aaa;font-size:13px">Không có shop nào</span>'
+  // Cập nhật danh sách Checkbox ĐỘNG theo sàn (lấy từ biến API đã tải)
+  const el = document.getElementById("botShopCheckboxes");
+  const matchingShops = apiShopsData.filter(s => s.platform === platform || platform === 'all');
+  
+  if (!matchingShops.length) {
+    el.innerHTML = '<span style="color:#aaa;font-size:13px">Không có shop nào thuộc sàn này</span>';
   } else {
-    el.innerHTML = shops.map(s => `
+    el.innerHTML = matchingShops.map(s => `
       <label style="display:flex;align-items:center;gap:5px;padding:5px 10px;background:white;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px">
-        <input type="checkbox" value="${s}" class="bot-shop-cb" style="cursor:pointer" checked> ${s}
+        <input type="checkbox" value="${s.shop_name}" class="bot-shop-cb" style="cursor:pointer" checked> 
+        [${(s.platform || 'shopee').toUpperCase()}] ${s.shop_name}
       </label>
-    `).join("")
+    `).join("");
   }
 
   const options = {
