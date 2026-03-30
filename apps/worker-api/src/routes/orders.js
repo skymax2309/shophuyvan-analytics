@@ -239,7 +239,7 @@ async function importOrdersV2(request, env, cors) {
     const mapped = varMap[rawVariation] || varMap[rawSku] || varMap[rawName] || null
     const finalSku = mapped?.internal_sku || i.sku || ''
     const p = productMap[finalSku] || { cost_real: 0, cost_invoice: 0 }
-    return { ...i, sku: finalSku, image_url: mapped?.image_url || '', cost_real: p.cost_real * (i.qty || 1), cost_invoice: p.cost_invoice * (i.qty || 1) }
+    return { ...i, sku: finalSku, image_url: mapped?.image_url || i.image_url || '', cost_real: p.cost_real * (i.qty || 1), cost_invoice: p.cost_invoice * (i.qty || 1) }
   })
 
   const BATCH = 50
@@ -332,7 +332,7 @@ async function getOrders(request, env, cors) {
   if (orderIds.length > 0) {
     const placeholders = orderIds.map(() => "?").join(",")
     const { results } = await env.DB.prepare(`
-      SELECT oi.*, COALESCE(oi.image_url, p.image_url) AS image_url
+      SELECT oi.*, COALESCE(NULLIF(oi.image_url, ''), p.image_url) AS image_url
       FROM order_items oi
       LEFT JOIN products p ON p.sku = oi.sku
       WHERE oi.order_id IN (${placeholders})

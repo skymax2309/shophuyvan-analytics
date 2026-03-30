@@ -23,21 +23,36 @@ class ShopeeOrderParser:
                 buyer_el = order_container.find('div', class_='buyer-username')
                 buyer_name = buyer_el.text.strip() if buyer_el else ""
 
-                # 2. Sản phẩm (Xử lý mảng vì 1 đơn có thể có nhiều SP)
+                # 2. Sản phẩm (Bọc thép bằng Thuật toán Đọc luồng Text)
                 items = []
-                item_elements = order_container.find_all('div', class_='item-inner')
-                for item_el in item_elements:
-                    name_el = item_el.find('div', class_='item-name')
-                    name = name_el.text.strip() if name_el else ""
-
-                    var_el = item_el.find('div', class_='item-description')
-                    variation = var_el.text.replace('Variation:', '').strip() if var_el else ""
-
-                    qty_el = item_el.find('div', class_='item-amount')
-                    qty = qty_el.text.replace('x', '').strip() if qty_el else "1"
-
-                    if name:
-                        items.append({"name": name, "variation": variation, "quantity": qty})
+                texts = list(order_container.stripped_strings)
+                import re
+                
+                for i, text in enumerate(texts):
+                    # Tìm mốc là thẻ số lượng (VD: 'x 1', 'x 2', 'x 15')
+                    if re.match(r'^x\s*\d+$', text, re.IGNORECASE):
+                        qty = re.sub(r'[^\d]', '', text)
+                        variation = ""
+                        name = ""
+                        
+                        if i > 0:
+                            prev_text = texts[i-1]
+                            # Nếu có thẻ Phân loại
+                            if "Variation:" in prev_text or "Phân loại" in prev_text:
+                                variation = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:)', '', prev_text).strip()
+                                if i > 1:
+                                    name = texts[i-2] # Tên SP nằm trên Phân loại
+                            else:
+                                # Nếu không có Phân loại, Tên SP nằm ngay trên Số lượng
+                                name = prev_text
+                                
+                        # Lọc bỏ rác
+                        if name and len(name) > 3 and "Mã đơn" not in name and "Người mua" not in name:
+                            items.append({
+                                "name": name,
+                                "variation": variation,
+                                "quantity": qty
+                            })
 
                 # 3. Giá tiền
                 price_el = order_container.find('div', class_='total-price')
