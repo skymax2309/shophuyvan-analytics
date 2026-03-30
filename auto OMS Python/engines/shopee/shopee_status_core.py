@@ -17,9 +17,10 @@ class ShopeeStatusCore:
         self.log(f"🔍 [STATUS CORE] Đang kéo danh sách đơn 'Đang giao' của {shop_name} từ Server...")
         
         try:
-            # 1. Gọi API xin Server danh sách các đơn đang treo (Chờ lấy hàng & Đang giao)
+            # 1. Gọi API xin Server danh sách TẤT CẢ các đơn đang trong luồng xử lý
             orders = []
-            statuses_to_check = ["PENDING", "HANDED_OVER"] 
+            # Bao gồm: Chờ xác nhận, Đã xác nhận, Đang đóng gói, Đã đóng gói, Đã giao shipper
+            statuses_to_check = ["PENDING", "CONFIRMED", "PACKING", "PACKED", "HANDED_OVER"] 
             for st in statuses_to_check:
                 res = requests.get(f"{self.api_get}?oms_status={st}&shop={shop_name}&limit=50")
                 if res.status_code == 200:
@@ -94,7 +95,7 @@ class ShopeeStatusCore:
                             new_oms = "RETURN_REFUND"
                             order_type = "return"
                         # Nhóm 4: Giao khách thành công (Chốt sổ)
-                        elif "giao hàng thành công" in st_lower or ("đã giao" in st_lower and "đơn vị vận chuyển" not in st_lower and "đvvc" not in st_lower):
+                        elif "giao hàng thành công" in st_lower or "đã nhận được hàng" in st_lower or ("đã giao" in st_lower and "đơn vị vận chuyển" not in st_lower and "đvvc" not in st_lower):
                             new_oms = "COMPLETED"
                             order_type = "normal"
                         # Nhóm 5: Đang giao / Đã đưa Shipper
