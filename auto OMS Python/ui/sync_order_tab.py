@@ -80,8 +80,11 @@ class SyncOrderTab(ctk.CTkFrame):
         self.so_log.see("end")
         self.so_log.configure(state="disabled")
 
-    def update_so_shop_list(self, selected_platform):
-        shops = ["Tất cả shop"] + [s["ten_shop"] for s in self.app.DANH_SACH_SHOP if s.get("platform") == selected_platform]
+    def update_so_shop_list(self, selected_platform=None):
+        if selected_platform:
+            shops = ["Tất cả shop"] + [s["ten_shop"] for s in self.app.DANH_SACH_SHOP if s.get("platform") == selected_platform]
+        else:
+            shops = ["Tất cả shop"] + [s["ten_shop"] for s in self.app.DANH_SACH_SHOP if s.get("platform") in ["shopee", "tiktok", "lazada"]]
         self.so_shop_combo.configure(values=shops)
         self.so_shop_var.set("Tất cả shop")
 
@@ -171,16 +174,16 @@ class SyncOrderTab(ctk.CTkFrame):
                 continue 
 
             # --- VÒNG LẶP CÀO ĐƠN MỚI ---
-            shopee_shops = [s for s in self.app.DANH_SACH_SHOP if s.get("platform") == "shopee"]
-            if not shopee_shops:
-                self.so_log_msg("⚠️ Không có shop Shopee nào để chạy auto!")
+            target_shops = [s for s in self.app.DANH_SACH_SHOP if s.get("platform") in ["shopee", "tiktok", "lazada"]]
+            if not target_shops:
+                self.so_log_msg("⚠️ Không có shop Shopee/TikTok/Lazada nào để chạy auto!")
                 self.toggle_auto()
                 break
 
             self.so_log_msg("-------------------------------------------------")
-            self.so_log_msg(f"🔄 BẮT ĐẦU CHU KỲ CÀO ĐƠN {len(shopee_shops)} SHOP")
+            self.so_log_msg(f"🔄 BẮT ĐẦU CHU KỲ CÀO ĐƠN {len(target_shops)} SHOP (SHOPEE + TIKTOK + LAZADA)")
             
-            for shop in shopee_shops:
+            for shop in target_shops:
                 if not self.is_auto_running: break
                 
                 self.so_log_msg(f"[*] Khóa an toàn: Đang Cào đơn Shop {shop['ten_shop']}...")
@@ -253,66 +256,112 @@ class SyncOrderTab(ctk.CTkFrame):
             try:
                 page = browser.pages[0] if browser.pages else await browser.new_page()
                 platform = shop.get('platform', '').lower()
-                
-                if platform != 'shopee': return
+                if platform not in ['shopee', 'tiktok', 'lazada']: return
 
-                from engines.shopee.shopee_auth import ShopeeAuth
-                auth = ShopeeAuth(self.so_log_msg)
+                # Đăng nhập linh hoạt theo sàn
+                if platform == 'shopee':
+                    from engines.shopee.shopee_auth import ShopeeAuth
+                    auth = ShopeeAuth(self.so_log_msg)
+                elif platform == 'tiktok':
+                    from engines.tiktok.tiktok_auth import TiktokAuth
+                    auth = TiktokAuth(self.so_log_msg)
+                elif platform == 'lazada':
+                    from engines.lazada.lazada_auth import LazadaAuth
+                    auth = LazadaAuth(self.so_log_msg)
+                    
                 is_logged = await auth.check_and_login(page, shop)
                 if not is_logged:
-                    self.so_log_msg("❌ Không thể đăng nhập vào Shopee!")
+                    self.so_log_msg(f"❌ Không thể đăng nhập vào {platform.upper()}!")
                     return
 
                 # --- NHIỆM VỤ 1: CÀO ĐƠN ---
                 if action in ["scrape", "auto_all"]:
-                    self.so_log_msg("👉 Thực thi: CÀO ĐƠN HÀNG MỚI")
-                    from parsers.shopee_order_parser import ShopeeOrderParser
-                    from engines.shopee.shopee_orders import ShopeeOrderScraper
+                    self.so_log_msg(f"👉 Thực thi: CÀO ĐƠN HÀNG MỚI ({platform.upper()})")
+                    orders_data = []
                     
-                    parser = ShopeeOrderParser(self.so_log_msg)
-                    scraper = ShopeeOrderScraper(self.so_log_msg, parser)
-                    orders_data = await scraper.scrape_new_orders(page)
+                    if platform == 'shopee':
+                        from parsers.shopee_order_parser import ShopeeOrderParser
+                        from engines.shopee.shopee_orders import ShopeeOrderScraper
+                        parser = ShopeeOrderParser(self.so_log_msg)
+                        scraper = ShopeeOrderScraper(self.so_log_msg, parser)
+                        orders_data = await scraper.scrape_new_orders(page)
+                    elif platform == 'tiktok':
+                        from parsers.tiktok_order_parser import TiktokOrderParser
+                        from engines.tiktok.tiktok_orders import TiktokOrderScraper
+                        parser = TiktokOrderParser(self.so_log_msg)
+                        scraper = TiktokOrderScraper(self.so_log_msg, parser)
+                        orders_data = await scraper.scrape_new_orders(page)
+                    elif platform == 'lazada':
+                        from parsers.lazada_order_parser import LazadaOrderParser
+                        from engines.lazada.lazada_orders import LazadaOrderScraper
+                        parser = LazadaOrderParser(self.so_log_msg)
+                        scraper = LazadaOrderScraper(self.so_log_msg, parser)
+                        orders_data = await scraper.scrape_new_orders(page)
                     
                     if orders_data:
                         self.so_log_msg(f"📦 Thu thập được {len(orders_data)} đơn. Đang tải lên Server...")
                         import requests, re
+                        from datetime import datetime
+                        
                         api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
                         payload = {"orders": [], "items": []}
                         
-                        from datetime import datetime
                         for order in orders_data:
                             raw_price = re.sub(r'[^\d]', '', order.get("total_price", "0"))
                             revenue = float(raw_price) if raw_price else 0
                             
-                            # Phân loại trạng thái dựa vào Tab cào được
                             tab_src = order.get("tab_source", "Chờ lấy hàng")
                             oms_st = "PENDING"
-                            ship_st = "Chờ lấy hàng"
-                            
+                            ship_st = tab_src
                             order_type = "normal"
-                            if tab_src == "Đang giao":
-                                oms_st = "HANDED_OVER"
-                                ship_st = "Đang giao"
-                            elif tab_src == "Đã giao":
-                                oms_st = "COMPLETED"
-                                ship_st = "Hoàn thành"
-                            elif tab_src == "Đã hủy":
-                                oms_st = "CANCELLED_TRANSIT"
-                                ship_st = "Đã hủy"
-                                order_type = "cancel"
+                            
+                            # Phân loại trạng thái theo sàn
+                            if platform == 'shopee':
+                                if tab_src == "Đang giao":
+                                    oms_st = "HANDED_OVER"
+                                elif tab_src == "Đã giao":
+                                    oms_st = "COMPLETED"
+                                elif tab_src == "Đã hủy":
+                                    oms_st = "CANCELLED_TRANSIT"
+                                    order_type = "cancel"
+                            elif platform == 'tiktok':
+                                if tab_src == "Đã gửi":
+                                    oms_st = "HANDED_OVER"
+                                elif tab_src == "Đã hoàn tất":
+                                    oms_st = "COMPLETED"
+                                elif tab_src == "Đã hủy":
+                                    oms_st = "CANCELLED_TRANSIT"
+                                    order_type = "cancel"
+                                elif tab_src == "Giao không thành công":
+                                    oms_st = "FAILED_DELIVERY"
+                                    order_type = "cancel"
+                            elif platform == 'lazada':
+                                if tab_src in ["Đang giao", "Chờ bàn giao"]:
+                                    oms_st = "HANDED_OVER"
+                                elif tab_src == "Đã giao":
+                                    oms_st = "COMPLETED"
+                                elif tab_src == "Đã hủy":
+                                    oms_st = "CANCELLED_TRANSIT"
+                                    order_type = "cancel"
+                                elif tab_src == "Giao thất bại":
+                                    oms_st = "FAILED_DELIVERY"
+                                    order_type = "cancel"
+                                elif tab_src == "Trả hàng":
+                                    oms_st = "RETURN_REFUND"
+                                    order_type = "return"
 
                             payload["orders"].append({
                                 "order_id": order["order_id"],
                                 "order_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 "order_type": order_type,
-                                "platform": "shopee",
+                                "platform": platform,
                                 "shop": shop['ten_shop'],
-                                "customer_name": order["buyer_name"],
+                                "customer_name": order.get("buyer_name", "Khách hàng"),
                                 "revenue": revenue,
                                 "oms_status": oms_st,
                                 "shipping_status": ship_st,
-                                "tracking_number": order["tracking_number"],
-                                "shipping_carrier": order["carrier"]
+                                "tracking_number": order.get("tracking_number", ""),
+                                "shipping_carrier": order.get("carrier", "")
                             })
                             
                             for item in order["items"]:
@@ -334,21 +383,27 @@ class SyncOrderTab(ctk.CTkFrame):
                         except Exception as e:
                             self.so_log_msg(f"❌ Lỗi đường truyền mạng: {e}")
                     else:
-                        self.so_log_msg("✅ Không có đơn mới nào ở tab Chờ lấy hàng.")
+                        self.so_log_msg(f"✅ Không có đơn mới nào trên {platform.upper()}.")
 
                 # --- NHIỆM VỤ 2: XỬ LÝ ĐƠN ---
                 if action in ["process", "auto_all"]:
-                    self.so_log_msg("👉 Thực thi: TỰ ĐỘNG CHUẨN BỊ HÀNG")
-                    from engines.shopee.shopee_process import ShopeeOrderProcessor
-                    processor = ShopeeOrderProcessor(self.so_log_msg)
-                    await processor.process_confirmed_orders(page, shop['ten_shop'])
+                    if platform == 'shopee':
+                        self.so_log_msg("👉 Thực thi: TỰ ĐỘNG CHUẨN BỊ HÀNG SHOPEE")
+                        from engines.shopee.shopee_process import ShopeeOrderProcessor
+                        processor = ShopeeOrderProcessor(self.so_log_msg)
+                        await processor.process_confirmed_orders(page, shop['ten_shop'])
+                    else:
+                        self.so_log_msg(f"⚠️ Chức năng Chuẩn bị hàng chưa hỗ trợ tự động cho {platform.upper()}")
 
                 # --- NHIỆM VỤ 3: QUÉT TRẠNG THÁI (PHƯƠNG ÁN B) ---
                 if action == "status":
-                    self.so_log_msg("👉 Thực thi: QUÉT TRẠNG THÁI BẰNG API")
-                    from engines.shopee.shopee_status_core import ShopeeStatusCore
-                    status_bot = ShopeeStatusCore(self.so_log_msg)
-                    await status_bot.scan_and_update(page, shop['ten_shop'])
+                    if platform == 'shopee':
+                        self.so_log_msg("👉 Thực thi: QUÉT TRẠNG THÁI BẰNG API SHOPEE")
+                        from engines.shopee.shopee_status_core import ShopeeStatusCore
+                        status_bot = ShopeeStatusCore(self.so_log_msg)
+                        await status_bot.scan_and_update(page, shop['ten_shop'])
+                    else:
+                        self.so_log_msg(f"⚠️ Chức năng Quét Trạng Thái bằng API chưa hỗ trợ cho {platform.upper()}")
 
             finally:
                 await browser.close()

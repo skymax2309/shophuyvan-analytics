@@ -231,21 +231,29 @@ function smartRename(pdfText, filename, platform, shop, type) {
   return `${platform.toUpperCase()}_${cleanShop}_${month}_${feeType}.${ext}`
 }
 
-// Detect tháng từ tên file
+// Detect tháng từ tên file (Đã bọc thép chống nhầm số điện thoại)
 function detectMonthFromName(filename) {
-  const m1 = filename.match(/(\d{4})-(\d{2})/)
+  // 1. Chỉ bắt các năm bắt đầu bằng 20 (như 2024, 2025, 2026)
+  const m1 = filename.match(/(20\d{2})-(\d{2})/)
   if (m1) return `${m1[1]}-${m1[2]}`
-  const m2 = filename.match(/(\d{4})(\d{2})\d{2}/)
-  if (m2) return `${m2[1]}-${m2[2]}`
-  const m3 = filename.match(/(\d{4})_(\d{2})/)
+  
+  const m3 = filename.match(/(20\d{2})_(\d{2})/)
   if (m3) return `${m3[1]}-${m3[2]}`
-  // TikTok: income_20260308... → 2026-02 (tháng của kỳ báo cáo, lùi 1 tháng)
-  const m4 = filename.match(/(\d{4})(\d{2})(\d{2})/)
+
+  // 2. Bắt định dạng YYYYMMDD (ví dụ: _20260308) nằm sau dấu gạch dưới
+  // (TikTok xuất file ngày mùng 8 tháng 3, thì dữ liệu là của tháng 2)
+  const m4 = filename.match(/_(20\d{2})(\d{2})(\d{2})(?:_|\.|$)/)
   if (m4) {
     let y = parseInt(m4[1]), mo = parseInt(m4[2]) - 1
     if (mo < 1) { mo = 12; y-- }
     return `${y}-${String(mo).padStart(2,"0")}`
   }
+
+  // 3. Bắt định dạng YYYYMM (ví dụ: _202602) nằm sau dấu gạch dưới
+  const m2 = filename.match(/_(20\d{2})(\d{2})(?:_|\.|$)/)
+  if (m2) return `${m2[1]}-${m2[2]}`
+
+  // Mặc định lấy tháng hiện tại nếu không tìm thấy
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`
 }

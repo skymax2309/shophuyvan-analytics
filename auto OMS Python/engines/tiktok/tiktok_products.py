@@ -15,7 +15,10 @@ class TikTokProducts:
         self.auth = auth
 
     async def run(self, page, shop):
-        self.log(f"🤖 Bắt đầu tự động tải file Excel Tiktok cho shop: {shop['ten_shop']}")
+        # BỌC THÉP: Ưu tiên dùng user_name làm định danh chuẩn, fallback về ten_shop
+        shop_id = shop.get('user_name', shop.get('ten_shop', 'Unknown'))
+        safe_shop_name = shop_id.replace('/', '_')
+        self.log(f"🤖 Bắt đầu tải Excel Tiktok cho shop: {shop_id}")
         if not await self.auth.check_and_login(page, shop): return
         await page.goto("https://seller-vn.tiktok.com/product/batch/edit-prods?entry-from=manage&shop_region=VN", wait_until="commit")
         await asyncio.sleep(8)
@@ -111,11 +114,11 @@ class TikTokProducts:
             
             # ÉP LƯU RA THƯ MỤC GỐC (auto OMS Python)
             base_dir = os.getcwd() 
-            zip_path = os.path.join(base_dir, f"{shop['ten_shop'].replace('/', '_')}_tiktok.zip")
+            zip_path = os.path.join(base_dir, f"{safe_shop_name}_tiktok.zip")
             await dl.save_as(zip_path)
-            self.log(f"✅ Đã lưu file ZIP chính xác tại: {zip_path}")
+            self.log(f"✅ Đã lưu file ZIP tại: {zip_path}")
 
-            extract_dir = os.path.join(base_dir, f"{shop['ten_shop'].replace('/', '_')}_extracted")
+            extract_dir = os.path.join(base_dir, f"{safe_shop_name}_extracted")
             if os.path.exists(extract_dir): shutil.rmtree(extract_dir)
             os.makedirs(extract_dir)
 
@@ -124,12 +127,19 @@ class TikTokProducts:
 
             for file in os.listdir(extract_dir):
                 old_path = os.path.join(extract_dir, file)
-                new_name = f"{shop['ten_shop'].replace('/', '_')}_{file}"
+                new_name = f"{safe_shop_name}_{file}"
                 new_path = os.path.join(extract_dir, new_name)
                 os.rename(old_path, new_path)
-                upload_to_r2(new_path, new_name)
+                
+                # Bọc try-except khi đẩy file lên R2 dự phòng, tránh lỗi mạng làm chết quy trình Sync
+                try: upload_to_r2(new_path, new_name)
+                except: pass
+                
                 if "template" in new_name.lower() and new_name.endswith('.xlsx'):
-                    try: process_tiktok_excel_and_sync(shop['ten_shop'], new_path, self.log)
+                    try: 
+                        self.log(f"👉 Bắt đầu đọc dữ liệu sản phẩm TikTok cho: {shop_id}")
+                        # ÉP DÙNG shop_id CHUẨN XỊN THAY VÌ ten_shop
+                        process_tiktok_excel_and_sync(shop_id, new_path, self.log)
                     except Exception as e: self.log(f"Lỗi sync: {e}")
 
             os.remove(zip_path)

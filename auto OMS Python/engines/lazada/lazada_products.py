@@ -8,7 +8,10 @@ class LazadaProducts:
         self.auth = auth
 
     async def run(self, page, shop):
-        self.log(f"🤖 Bắt đầu tự động tải 3 file Excel LAZADA cho shop: {shop.get('ten_shop', 'Unnamed')}")
+        # BỌC THÉP: Lấy định danh chuẩn
+        shop_id = shop.get('user_name', shop.get('ten_shop', 'Unnamed'))
+        safe_shop_name = shop_id.replace('/', '_')
+        self.log(f"🤖 Bắt đầu tự động tải 3 file Excel LAZADA cho shop: {shop_id}")
         
         # 1. Kiểm tra đăng nhập
         if not await self.auth.check_and_login(page, shop): 
@@ -97,8 +100,8 @@ class LazadaProducts:
                         await btn_dl.evaluate("el => el.click()")
                     dl = await dl_info.value
 
-                # Lưu file
-                file_name = f"{shop.get('ten_shop', 'Shop').replace('/', '_')}_lazada_{i+1}.xlsx"
+                # Lưu file (Ép tên chuẩn)
+                file_name = f"{safe_shop_name}_lazada_{i+1}.xlsx"
                 file_path = os.path.join(base_dir, file_name)
                 await dl.save_as(file_path)
                 self.log(f"🎉 Đã lưu thành công: {file_name}")
@@ -124,7 +127,6 @@ class LazadaProducts:
         # BƯỚC 2: XÀO NẤU VÀ ĐỒNG BỘ LÊN WEBSITE OMS
         try:
             from utils import process_lazada_excel_and_sync
-            safe_shop_name = shop.get('ten_shop', 'Shop').replace('/', '_')
             
             # Chỉ định đúng tên 3 file vừa lưu để đẩy vào bếp
             file_paths = {
@@ -135,8 +137,9 @@ class LazadaProducts:
             
             # Kiểm tra xem đủ 3 file trên ổ cứng chưa rồi mới chạy
             if all(os.path.exists(p) for p in file_paths.values()):
-                self.log("👉 Chuẩn bị đưa 3 file Lazada vào hệ thống bóc tách...")
-                process_lazada_excel_and_sync(shop.get('ten_shop', 'Unnamed'), file_paths, self.log)
+                self.log(f"👉 Chuẩn bị đưa 3 file Lazada của {shop_id} vào hệ thống bóc tách...")
+                # ÉP truyền shop_id (user_name) vào hàm Sync
+                process_lazada_excel_and_sync(shop_id, file_paths, self.log)
             else:
                 self.log("⚠️ Cảnh báo: File bị mất tích! Không đủ 3 file Excel trong thư mục để tiến hành xào nấu.")
         except Exception as e:
