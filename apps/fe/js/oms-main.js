@@ -252,6 +252,9 @@ function renderTable() {
       </td>
       <td data-label="Lãi thực">
         <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>
+        <div style="font-size:10px;color:${o.cost_real > 0 ? 'var(--muted)' : 'var(--red)'};margin-top:2px;font-weight:600;">
+           Vốn: ${fmt(o.cost_real || 0)}
+        </div>
       </td>
       <td data-label="Sàn vận chuyển">
         <div style="font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 5px;">${o.shipping_carrier || 'Chưa rõ ĐVVC'}</div>
