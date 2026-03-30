@@ -72,49 +72,56 @@ function onBotTimeModeChange() {
 }
 
 function onBotPlatformChange() {
-  const platform = document.getElementById("botPlatform").value;
+  // 1. Lấy và chuẩn hóa định dạng Sàn đang chọn trên Dropdown
+  const platform = document.getElementById("botPlatform").value.toLowerCase().trim();
   const taskSel  = document.getElementById("botTaskType");
-
-  // Cập nhật danh sách Checkbox ĐỘNG theo sàn (lấy từ biến API đã tải)
   const el = document.getElementById("botShopCheckboxes");
-  const matchingShops = apiShopsData.filter(s => s.platform === platform || platform === 'all');
-  
+
+  // 2. BỘ LỌC CHUẨN MỰC: Chỉ lấy đúng những shop có platform khớp tuyệt đối
+  const matchingShops = apiShopsData.filter(s => {
+     const sPlat = (s.platform || "").toLowerCase().trim();
+     return sPlat === platform || platform === 'all';
+  });
+
+  // 3. Đổ dữ liệu đã lọc sạch sẽ ra giao diện
   if (!matchingShops.length) {
     el.innerHTML = '<span style="color:#aaa;font-size:13px">Không có shop nào thuộc sàn này</span>';
   } else {
-    el.innerHTML = matchingShops.map(s => `
+    el.innerHTML = matchingShops.map(s => {
+      const pLabel = (s.platform || 'shopee').toUpperCase();
+      return `
       <label style="display:flex;align-items:center;gap:5px;padding:5px 10px;background:white;border:1px solid #e0e0e0;border-radius:6px;cursor:pointer;font-size:13px">
         <input type="checkbox" value="${s.shop_name}" class="bot-shop-cb" style="cursor:pointer" checked> 
-        [${(s.platform || 'shopee').toUpperCase()}] ${s.shop_name}
-      </label>
-    `).join("");
+        [${pLabel}] ${s.shop_name}
+      </label>`;
+    }).join("");
   }
 
+  // 4. Cập nhật menu Loại báo cáo tương ứng theo sàn
   const options = {
     shopee: [
       { value: "all",       label: "-- Tất cả --" },
       { value: "doanh_thu", label: "Doanh Thu" },
-      { value: "hoa_don",   label: "Hóa Đơn & Phí (ADS...)" },
-      { value: "don_hang",  label: "Đơn Hàng (XLSX)" },
+      { value: "hoa_don",   label: "Quảng Cáo & Phí" },
+      { value: "don_hang",  label: "Đơn Hàng" }
     ],
     lazada: [
       { value: "all",       label: "-- Tất cả --" },
       { value: "doanh_thu", label: "Doanh Thu (PDF)" },
       { value: "hoa_don",   label: "Hóa Đơn" },
-      { value: "don_hang",  label: "Đơn Hàng (CSV)" },
+      { value: "don_hang",  label: "Đơn Hàng (CSV)" }
     ],
     tiktok: [
       { value: "all",       label: "-- Tất cả --" },
       { value: "doanh_thu", label: "Doanh Thu (Excel)" },
       { value: "hoa_don",   label: "Hóa Đơn Phí Sàn" },
-      { value: "don_hang",  label: "Đơn Hàng" },
-    ],
-  }
+      { value: "don_hang",  label: "Đơn Hàng" }
+    ]
+  };
 
-  const opts = options[platform] || options.shopee
-  taskSel.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("")
+  const opts = options[platform] || options.shopee;
+  taskSel.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
 }
-
 // ── Hàm ra lệnh cho Bot ───────────────────────────────────────────────
 async function createAutomationJob() {
   const selectedShops = getSelectedShops()
