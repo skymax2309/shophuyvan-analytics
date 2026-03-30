@@ -222,7 +222,7 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
       if (url.pathname === "/api/top-product")
         return topProduct(request, env, cors)
 
-      // ── Danh sách Shop (Động 100% từ Database D1) ─────────────────
+      // ── Danh sách Shop (Động 100% từ Bảng Chuẩn) ─────────────────
       if (url.pathname === "/api/shops" && request.method === "GET") {
         try {
           const { results } = await env.DB.prepare("SELECT shop_name, platform FROM shops ORDER BY platform, shop_name").all()
