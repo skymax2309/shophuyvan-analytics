@@ -56,9 +56,8 @@ function getSelectedShops() {
   return [...document.querySelectorAll(".bot-shop-cb:checked")].map(cb => cb.value)
 }
 
-// ── Đổi loại báo cáo theo sàn ────────────────────────────────────────
 
-function onBotTimeModeChange() {
+// ── Đổi loại báo cáo theo sàn ────────────────────────────────────────
 
 function onBotTimeModeChange() {
   const mode = document.querySelector('input[name="botTimeMode"]:checked').value
@@ -271,7 +270,4 @@ async function deleteJob(id) {
 
 setInterval(loadJobProgress, 30000)
 loadJobProgress()
-
-loadShops()
-
 loadShops()
