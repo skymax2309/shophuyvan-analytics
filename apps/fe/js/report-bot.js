@@ -2,35 +2,31 @@ const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
 let allShopNames = []
 
 // ── Quản lý danh sách Shop ────────────────────────────────────────────
-// Biến toàn cục để lưu API Shops
 let apiShopsData = [];
 
 async function loadShops() {
   try {
-    // Gọi API lấy full danh sách Shop + Platform từ Database
+    // 1. Gọi API mới tinh vừa tạo để lấy data trực tiếp từ Database
     const res = await fetch(API + "/api/shops?t=" + new Date().getTime());
     if (res.ok) {
         apiShopsData = await res.json();
         
-        // Lọc bỏ sạch sẽ các tên cũ rác (nếu còn vướng trong DB)
+        // 2. Lọc rác (đề phòng Database cũ còn sót)
         const oldNames = ["Huy Vân Store Q.Bình Tân", "shophuyvan.vn", "KHOGIADUNGHUYVAN", "ShopHuyVan"];
         apiShopsData = apiShopsData.filter(s => !oldNames.includes(s.shop_name));
         
-        // Nạp vào Dropdown Upload
+        // 3. Nạp Dropdown Upload & Filter
         const options = '<option value="">-- Chọn shop --</option>' +
                         apiShopsData.map(s => `<option value="${s.shop_name}">${s.shop_name}</option>`).join("");
         document.getElementById("inpShop").innerHTML = options;
         
-        // Nạp vào Dropdown Lọc Lịch sử (nếu có)
         const filterShop = document.getElementById('filterShop');
-        if (filterShop) {
-            filterShop.innerHTML = '<option value="">Tất cả shop</option>' + options;
-        }
+        if (filterShop) filterShop.innerHTML = '<option value="">Tất cả shop</option>' + options;
     }
-    // Render checkbox bot theo sàn hiện tại
-    onBotPlatformChange()
+    // 4. Render lại Checkbox
+    onBotPlatformChange();
   } catch(e) {
-    console.error("Không load được danh sách shop:", e)
+    console.error("Lỗi tải danh sách shop từ API mới:", e);
   }
 }
 
