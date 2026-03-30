@@ -445,6 +445,20 @@ export async function archiveOldOrders() {
   }
 }
 
+// ── TÍNH LẠI GIÁ VỐN TOÀN HỆ THỐNG ─────────────────────────────────
+export async function recalcAllCosts() {
+  if (!confirm("Hệ thống sẽ tính toán lại toàn bộ Lãi/Lỗ của TẤT CẢ đơn hàng trong lịch sử dựa trên Giá vốn mới nhất mà bạn vừa nhập.\n\nBạn có chắc chắn muốn thực hiện?")) return;
+  showToast('🔄 Đang quét Server và tính toán lại toàn bộ (có thể mất vài giây)...');
+  try {
+    // Gọi thẳng vào hàm recalcCost() bí mật trên file orders.js của Server
+    const res = await fetch(API + '/api/orders/recalc-cost', { method: 'POST' }).then(r => r.json());
+    showToast(`✅ Quá dữ! Đã cập nhật xong Lãi/Lỗ cho ${res.updated_v2 || 0} đơn hàng.`);
+    loadOrders(currentPage);
+  } catch (e) {
+    showToast('❌ Lỗi: ' + e.message);
+  }
+}
+
 // ── QUY TRÌNH: HOÀN THÀNH ──────────────────────────────────────────
 async function markCompleted() {
   const ids = getChecked()

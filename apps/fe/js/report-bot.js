@@ -231,24 +231,29 @@ async function loadJobProgress() {
     }
     const getStatusStyle = (s) => {
       if (s === 'completed') return 'color:#16a34a; font-weight:bold;'
-      if (s === 'pending') return 'color:#ea580c;'
-      return 'color:#888;'
+      if (s === 'pending') return 'color:#ea580c; font-weight:bold;'
+      return 'color:#888; font-weight:bold;'
     }
+    
+    // NÂNG CẤP GIAO DIỆN: Đổi từ Table sang Card co giãn 100% trên Mobile
     el.innerHTML = `
-      <table style="width:100%; border-collapse:collapse; font-size:13px;">
-        <tr style="border-bottom:1px solid #eee; text-align:left; color:#888;">
-          <th style="padding:8px 0;">Shop</th><th>Kỳ báo cáo</th>
-          <th>Hẹn giờ</th><th>Trạng thái</th><th></th>
-        </tr>
+      <div style="display:flex; flex-direction:column; gap:10px;">
         ${jobs.map(j => `
-          <tr style="border-bottom:1px solid #f9f9f9;">
-            <td style="padding:10px 0;"><b>${j.shop_name}</b></td>
-            <td>T${j.month}/${j.year}</td>
-            <td>${j.scheduled_at ? j.scheduled_at.replace('T', ' ') : 'Chạy ngay'}</td>
-            <td style="${getStatusStyle(j.status)}">${j.status.toUpperCase()}</td>
-            <td>${j.status === 'pending' ? `<button onclick="deleteJob(${j.id})" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:12px">🗑️ Xóa</button>` : ''}</td>
-          </tr>`).join('')}
-      </table>`
+          <div style="background:#f9f9f9; padding:14px; border-radius:10px; border:1px solid #e0e0e0; display:flex; flex-direction:column; gap:8px; font-size:13px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <b style="font-size:14px; color:#333;">${j.shop_name}</b>
+              <span style="${getStatusStyle(j.status)}">${j.status.toUpperCase()}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; color:#666; font-size:12px; flex-wrap:wrap; gap:5px;">
+              <span>🗓️ T${j.month}/${j.year}</span>
+              <span>⏰ ${j.scheduled_at ? j.scheduled_at.replace('T', ' ') : 'Chạy ngay'}</span>
+            </div>
+            <div style="text-align:right; margin-top:4px; border-top:1px dashed #ddd; padding-top:10px;">
+              <button onclick="deleteJob(${j.id})" style="color:#ef4444; background:#ffebee; border:none; cursor:pointer; font-size:12px; padding:6px 14px; border-radius:6px; font-weight:bold;">🗑️ Xóa lệnh</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>`
   } catch (e) {
     el.innerHTML = "❌ Không thể tải trạng thái bot."
   }
