@@ -124,6 +124,32 @@ export async function loadOrders(page = 1) {
 
 // ── RENDER TABLE ────────────────────────────────────────────────────
 function renderTable() {
+  // 1. TIÊM CSS RESPONSIVE CHO MOBILE (Biến Bảng thành Thẻ Card)
+  if (!document.getElementById('mobile-card-style')) {
+    const style = document.createElement('style');
+    style.id = 'mobile-card-style';
+    style.innerHTML = `
+      @media (max-width: 768px) {
+        .table-wrap table { min-width: unset !important; width: 100%; display: block; }
+        .table-wrap thead { display: none; }
+        .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; width: 100%; }
+        .table-wrap tr { background: var(--surface2); margin-bottom: 16px; border-radius: 12px; padding: 12px 16px; border: 1px solid var(--border); position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .table-wrap td { padding: 8px 0 !important; border-bottom: 1px dashed var(--border); display: flex; justify-content: space-between; align-items: center; text-align: right; }
+        .table-wrap td:last-child { border-bottom: none; }
+        .table-wrap td::before { content: attr(data-label); font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-right: auto; padding-right: 15px; text-align: left; }
+        
+        /* Chỉnh riêng Cột Checkbox và Sản phẩm */
+        .table-wrap td:nth-child(1) { border-bottom: none; position: absolute; top: 12px; left: 12px; width: auto; padding: 0 !important; }
+        .table-wrap td:nth-child(1)::before { display: none; }
+        .table-wrap td:nth-child(2) { flex-direction: column; align-items: flex-start; margin-top: 25px; text-align: left; }
+        .table-wrap td:nth-child(2)::before { display: none; }
+        .product-cell { width: 100%; margin-bottom: 8px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; }
+        .shop-cell { display: flex; flex-direction: column; align-items: flex-end; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   if (!omsCache.length) {
     document.getElementById('omsTable').innerHTML =
       `<tr><td colspan="10"><div class="empty-state"><div class="icon">🔍</div><p>Không có đơn hàng nào</p></div></td></tr>`
@@ -161,64 +187,62 @@ function renderTable() {
       return: `<span class="type-return">↩ Hoàn</span>`,
     }[o.order_type] || `<span>${o.order_type}</span>`
 
-     // Items data
-    const items     = o.items || []
-    const firstItem = items[0] || {}
-    const uid       = o.order_id
-    const totalQty  = items.reduce((s, i) => s + (i.qty || 1), 0)
-
-    // Image
-    const imgSrc = firstItem.image_url
-    const imgHtml = imgSrc
-      ? `<img class="product-img" src="${imgSrc}" alt="">`
-      : `<div class="product-img-placeholder">📦</div>`
-
-    // Multi-item indicator
-    const moreItems = items.length > 1
-      ? `<div style="font-size:10px;color:var(--accent);margin-top:2px">+${items.length-1} SP khác</div>`
-      : ''
-
-    return `<tr class="${o.order_type==='cancel'?'':''}${o.order_type==='return'?'':''}" id="row-${uid}">
-      <td><input type="checkbox" class="oms-chk" data-id="${o.order_id}" onchange="onCheck()"></td>
-      <td>
+    // 2. VÒNG LẶP SẢN PHẨM: Xử lý hiển thị toàn bộ item trong đơn
+    const items = o.items || []
+    const totalQty = items.reduce((s, i) => s + (i.qty || 1), 0)
+    
+    const itemsHtml = items.map(item => {
+      const imgSrc = item.image_url
+      const imgHtml = imgSrc
+        ? `<img class="product-img" src="${imgSrc}" alt="">`
+        : `<div class="product-img-placeholder">📦</div>`
+        
+      return `
         <div class="product-cell">
           ${imgHtml}
           <div class="product-info">
-            <div class="product-name" title="${firstItem.product_name||'—'}">${(firstItem.product_name||'—').substring(0,40)}</div>
-            ${firstItem.variation_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Phân loại: ${firstItem.variation_name}</div>` : ''}
-            <div class="product-sku" style="margin-top:2px; color:var(--blue);">${firstItem.sku||'Chưa Map SKU'}</div>
-            <div class="product-qty" style="margin-top:2px;">× ${totalQty} sp${moreItems?'':''}</div>
-            ${moreItems}
+            <div class="product-name" title="${item.product_name||'—'}">${(item.product_name||'—').substring(0,40)}</div>
+            ${item.variation_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Phân loại: ${item.variation_name}</div>` : ''}
+            <div class="product-sku" style="margin-top:2px; color:var(--blue);">${item.sku||'Chưa Map SKU'}</div>
+            <div class="product-qty" style="margin-top:2px; font-weight: bold;">× ${item.qty || 1}</div>
           </div>
-        </div>
+        </div>`
+    }).join('')
+
+    // 3. RENDER DÒNG (Đã bổ sung data-label để Mobile tự nhận diện cột)
+    return `<tr class="${o.order_type==='cancel'?'':''}${o.order_type==='return'?'':''}" id="row-${o.order_id}">
+      <td data-label="Chọn"><input type="checkbox" class="oms-chk" data-id="${o.order_id}" onchange="onCheck()"></td>
+      <td data-label="Mặt hàng">
+        ${itemsHtml}
+        ${items.length > 1 ? `<div style="font-size:11px; color:var(--accent); font-weight: 600; margin-top: 6px; padding-left: 4px;">Tổng cộng: ${totalQty} sản phẩm</div>` : ''}
       </td>
-      <td>
+      <td data-label="Mã đơn hàng">
         <div class="order-id">${o.order_id}<span class="order-id-copy" onclick="copyText('${o.order_id}')">⎘</span></div>
         ${o.tracking_number ? `<div style="font-size:10px;color:var(--teal);margin-top:3px;font-family:'IBM Plex Mono',monospace">${o.tracking_number}</div>` : ''}
       </td>
-      <td>${pltHtml}</td>
-      <td>
+      <td data-label="Sàn">${pltHtml}</td>
+      <td data-label="Doanh thu">
         <div class="revenue rev-positive">${fmt(revenue)}</div>
         ${o.fee ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">Phí: ${fmt(o.fee)}</div>` : ''}
       </td>
-      <td>
+      <td data-label="Lãi thực">
         <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>
       </td>
-      <td>
+      <td data-label="Sàn vận chuyển">
         <div style="font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 5px;">${o.shipping_carrier || 'Chưa rõ ĐVVC'}</div>
         ${renderShippingStatus(o.shipping_status)}
       </td>
-      <td>
+      <td data-label="Kho (OMS)">
         <span class="oms-tag oms-${o.oms_status||'PENDING'}">
           <span class="dot"></span>${omsInfo.label}
         </span>
       </td>
-      <td>${typeHtml}</td>
-      <td>
+      <td data-label="Loại">${typeHtml}</td>
+      <td data-label="Thời gian">
         <div class="time-main">${fmtDate(o.order_date)}</div>
         <div class="time-cell" style="margin-top:2px">${o.order_date||'—'}</div>
       </td>
-      <td>
+      <td data-label="Shop / KH">
         <div class="shop-cell">
           <div class="shop-name" title="${o.shop||'—'}">${o.shop||'—'}</div>
           ${o.customer_name ? `<div class="shop-customer">👤 ${o.customer_name}</div>` : ''}

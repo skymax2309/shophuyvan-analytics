@@ -107,14 +107,22 @@ class ShopeeStatusCore:
                             new_oms = "PENDING"
                             order_type = "normal"
                             
-                        # 3.4 Báo cáo Server: CHỈ GỬI khi trạng thái có sự thay đổi!
+                        # 3.4 Báo cáo Server: GỬI khi đổi trạng thái HOẶC có thêm mã vận đơn mới!
+                        new_tracking = shopee_data.get("tracking_number", "")
+                        new_carrier = shopee_data.get("carrier", "")
+                        
                         if new_oms:
-                            if new_oms != order.get("oms_status") or shopee_status != order.get("shipping_status"):
-                                self.log(f"   -> Đã bắt được thay đổi mới: {shopee_status} (Chuyển thành: {new_oms})")
+                            is_status_changed = (new_oms != order.get("oms_status")) or (shopee_status != order.get("shipping_status"))
+                            is_tracking_added = (new_tracking and new_tracking != order.get("tracking_number"))
+                            
+                            if is_status_changed or is_tracking_added:
+                                self.log(f"   -> Đã bắt được cập nhật: {shopee_status} | Vận đơn: {new_tracking or 'Chưa rõ'}")
                                 
                                 order["oms_status"] = new_oms
                                 order["shipping_status"] = shopee_status
                                 order["order_type"] = order_type
+                                if new_tracking: order["tracking_number"] = new_tracking
+                                if new_carrier: order["shipping_carrier"] = new_carrier
                                 
                                 payload = {"orders": [order], "items": order.get("items", [])}
                                 up_res = requests.post(self.api_update, json=payload)
