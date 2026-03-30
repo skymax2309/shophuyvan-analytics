@@ -10,8 +10,9 @@ async function handleProducts(request, env, cors) {
   if (request.method === "GET" && url.pathname.endsWith('/promo-prices')) {
     try {
       const platform = url.searchParams.get('platform') || 'shopee';
-      const shop = url.searchParams.get('shop');
-      if (!shop) return Response.json({ success: false, error: "Missing shop parameter" }, { status: 400, headers: cors });
+      // Mở rộng bắt thêm user_name
+      const shop = url.searchParams.get('user_name') || url.searchParams.get('shop');
+      if (!shop) return Response.json({ success: false, error: "Missing shop/user_name parameter" }, { status: 400, headers: cors });
       const query = `SELECT platform_sku, discount_price FROM product_variations WHERE platform = ? AND shop = ? AND discount_price > 0`;
       const { results } = await env.DB.prepare(query).bind(platform, shop).all();
       return Response.json({ success: true, data: results }, { headers: cors });
@@ -26,7 +27,10 @@ async function handleProducts(request, env, cors) {
   if (request.method === "POST" && url.pathname.endsWith('/update-promo-prices')) {
     try {
       const body = await request.json();
-      const { platform, shop, items } = body; 
+      const platform = body.platform;
+      // Bắt chuẩn định danh mới
+      const shop = body.user_name || body.shop; 
+      const items = body.items;
       if (!platform || !shop || !items || !Array.isArray(items)) {
         return Response.json({ success: false, error: "Dữ liệu không hợp lệ" }, { status: 400, headers: cors });
       }
@@ -187,7 +191,10 @@ async function handleVariations(request, env, cors) {
   if (request.method === 'POST') {
     const body = await request.json()
     
-// Tự động chuyển đổi định dạng từ Bot (products) sang định dạng của API (variations)
+    // BỌC THÉP: Ưu tiên bắt user_name từ Bot đẩy lên (fallback về shop để tool cũ không chết)
+    const rootShop = body.user_name || body.shop || '';
+    
+    // Tự động chuyển đổi định dạng từ Bot (products) sang định dạng của API (variations)
     const variations = body.variations || []
     if (body.products) {
       for (const p of body.products) {
@@ -195,7 +202,7 @@ async function handleVariations(request, env, cors) {
          for (const v of (p.variations || [])) {
             variations.push({
                platform: body.platform || 'shopee',
-               shop: body.shop || '',
+               shop: rootShop, // Ép chuẩn định danh 100%
                platform_item_id: p.item_id,
                product_name: p.product_name,
                variation_name: v.variation_name,
@@ -228,6 +235,8 @@ async function handleVariations(request, env, cors) {
     for (const v of variations) {
       const pSku = (v.platform_sku || '').trim()
       if (!pSku) continue
+
+      const finalShop = v.user_name || v.shop || rootShop; // Chốt chặn cuối cùng cho từng biến thể
 
       // Thử auto-map: 1) exact alias, 2) exact sku, 3) fuzzy (K159 ~ H159)
       let internalSku = aliasMap[pSku.toLowerCase()] || ''
@@ -267,7 +276,7 @@ async function handleVariations(request, env, cors) {
           map_status       = CASE WHEN product_variations.map_status = 'MAPPED' THEN 'MAPPED' ELSE excluded.map_status END,
           updated_at       = datetime('now')
       `).bind(
-        v.platform || 'shopee', v.shop || '', v.platform_item_id || '',
+        v.platform || 'shopee', finalShop, v.platform_item_id || '',
         v.product_name || '', v.variation_name || '',
         pSku, internalSku, internalSku ? JSON.stringify([{sku: internalSku, qty: 1}]) : '[]', 
         v.image_url, v.image_url, v.main_image,
