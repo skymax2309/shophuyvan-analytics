@@ -219,22 +219,7 @@ async function importOrdersV2(request, env, cors) {
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
-  const processedOrders = orders.map(o => {
-    const orderItems = items.filter(i => i.order_id === o.order_id)
-    const totalCostReal = orderItems.reduce((s, i) => s + ((productMap[i.sku]?.cost_real || 0) * (i.qty || 1)), 0)
-    const totalCostInvoice = orderItems.reduce((s, i) => s + ((productMap[i.sku]?.cost_invoice || 0) * (i.qty || 1)), 0)
-
-    let return_fee = o.return_fee || 0
-    if (o.order_type === "return") {
-      return_fee = o.platform === "tiktok" ? (cfg["tiktok_return_fee"]?.value ?? 4620) : (cfg["shopee_return_fee"]?.value ?? 1620)
-    } else if (o.order_type === "cancel" && /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")) {
-      return_fee = o.platform === "tiktok" ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620) : (cfg["shopee_failed_delivery_fee"]?.value ?? 1620)
-    }
-
-    const p = calcProfit({ ...o, cost_invoice: totalCostInvoice, cost_real: totalCostReal, is_first_sku: 1, return_fee }, cfg)
-    return { ...o, cost_invoice: p.cost_invoice, cost_real: p.cost_real, fee: p.total_fee, profit_invoice: p.profit_invoice, profit_real: p.profit_real, tax_flat: p.tax_flat, tax_income: p.tax_income, fee_platform: p.fee_platform || 0, fee_payment: p.fee_payment || 0, fee_affiliate: p.fee_affiliate || 0, fee_ads: p.fee_ads || 0, fee_piship: p.fee_piship || 0, fee_service: p.fee_service || 0, fee_packaging: p.fee_packaging || 0, fee_operation: p.fee_operation || 0, fee_labor: p.fee_labor || 0, return_fee }
-  })
-
+  // 1. DỊCH SẢN PHẨM & MAP SKU TRƯỚC ĐỂ TÌM GIÁ VỐN
   const varRows = await env.DB.prepare(`SELECT platform_sku, internal_sku, image_url, variation_name FROM product_variations WHERE map_status='MAPPED'`).all()
   const varMap = {}
   for (const v of varRows.results) {
@@ -250,6 +235,23 @@ async function importOrdersV2(request, env, cors) {
     const finalSku = mapped?.internal_sku || i.sku || ''
     const p = productMap[finalSku] || { cost_real: 0, cost_invoice: 0 }
     return { ...i, sku: finalSku, image_url: mapped?.image_url || i.image_url || '', cost_real: p.cost_real * (i.qty || 1), cost_invoice: p.cost_invoice * (i.qty || 1) }
+  })
+
+  // 2. TÍNH LỢI NHUẬN DỰA TRÊN SẢN PHẨM ĐÃ CÓ GIÁ VỐN
+  const processedOrders = orders.map(o => {
+    const orderItems = processedItems.filter(i => i.order_id === o.order_id)
+    const totalCostReal = orderItems.reduce((s, i) => s + i.cost_real, 0)
+    const totalCostInvoice = orderItems.reduce((s, i) => s + i.cost_invoice, 0)
+
+    let return_fee = o.return_fee || 0
+    if (o.order_type === "return") {
+      return_fee = o.platform === "tiktok" ? (cfg["tiktok_return_fee"]?.value ?? 4620) : (cfg["shopee_return_fee"]?.value ?? 1620)
+    } else if (o.order_type === "cancel" && /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")) {
+      return_fee = o.platform === "tiktok" ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620) : (cfg["shopee_failed_delivery_fee"]?.value ?? 1620)
+    }
+
+    const p = calcProfit({ ...o, cost_invoice: totalCostInvoice, cost_real: totalCostReal, is_first_sku: 1, return_fee }, cfg)
+    return { ...o, cost_invoice: p.cost_invoice, cost_real: p.cost_real, fee: p.total_fee, profit_invoice: p.profit_invoice, profit_real: p.profit_real, tax_flat: p.tax_flat, tax_income: p.tax_income, fee_platform: p.fee_platform || 0, fee_payment: p.fee_payment || 0, fee_affiliate: p.fee_affiliate || 0, fee_ads: p.fee_ads || 0, fee_piship: p.fee_piship || 0, fee_service: p.fee_service || 0, fee_packaging: p.fee_packaging || 0, fee_operation: p.fee_operation || 0, fee_labor: p.fee_labor || 0, return_fee }
   })
 
   const BATCH = 50

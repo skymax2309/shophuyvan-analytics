@@ -209,6 +209,31 @@ function renderTable() {
         </div>`
     }).join('')
 
+// 2.5 LÔI CHI TIẾT CÁC LOẠI PHÍ TỪ SERVER RA
+    let feeBreakdown = '';
+    if (o.fee_platform) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí cố định:</span> <b>${fmt(o.fee_platform)}</b></div>`;
+    if (o.fee_payment) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí thanh toán:</span> <b>${fmt(o.fee_payment)}</b></div>`;
+    if (o.fee_affiliate) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Affiliate/Freeship:</span> <b>${fmt(o.fee_affiliate)}</b></div>`;
+    if (o.fee_ads) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Quảng cáo:</span> <b>${fmt(o.fee_ads)}</b></div>`;
+    if (o.fee_piship) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí PiShip:</span> <b>${fmt(o.fee_piship)}</b></div>`;
+    if (o.fee_packaging) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Đóng gói:</span> <b>${fmt(o.fee_packaging)}</b></div>`;
+    if (o.fee_labor) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Nhân công:</span> <b>${fmt(o.fee_labor)}</b></div>`;
+    if (o.return_fee) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px;color:var(--red)"><span>Phí Hoàn/Phạt:</span> <b>${fmt(o.return_fee)}</b></div>`;
+
+    const feeHtml = o.fee ? `
+      <div style="position: relative; margin-top: 6px; display: inline-block; cursor: pointer; text-align: left;" 
+           onmouseleave="this.querySelector('.fee-dropdown-box').style.display = 'none'"
+           onclick="const box = this.querySelector('.fee-dropdown-box'); box.style.display = box.style.display === 'block' ? 'none' : 'block'">
+        <div style="font-size:11px; color:var(--orange); display:inline-flex; align-items:center; gap:4px; background: rgba(249,115,22,0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(249,115,22,0.2); font-weight: 600;">
+           Tổng Phí: ${fmt(o.fee)} <span style="font-size:9px">▼</span>
+        </div>
+        <div class="fee-dropdown-box" style="display: none; position: absolute; top: 100%; right: 0; background: var(--surface2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; z-index: 50; width: max-content; box-shadow: 0 8px 24px rgba(0,0,0,0.6); font-size: 12px; color: var(--text); margin-top: 5px;">
+           <div style="font-weight:bold; color:var(--muted); margin-bottom: 8px; border-bottom: 1px dashed var(--border); padding-bottom: 6px;">BẢNG KÊ CHI TIẾT PHÍ SÀN</div>
+           ${feeBreakdown || '<div style="color:var(--muted)">Chưa có dữ liệu chi tiết</div>'}
+        </div>
+      </div>
+    ` : '';
+
     // 3. RENDER DÒNG (Đã bổ sung data-label để Mobile tự nhận diện cột)
     return `<tr class="${o.order_type==='cancel'?'':''}${o.order_type==='return'?'':''}" id="row-${o.order_id}">
       <td data-label="Chọn"><input type="checkbox" class="oms-chk" data-id="${o.order_id}" onchange="onCheck()"></td>
@@ -223,7 +248,7 @@ function renderTable() {
       <td data-label="Sàn">${pltHtml}</td>
       <td data-label="Doanh thu">
         <div class="revenue rev-positive">${fmt(revenue)}</div>
-        ${o.fee ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">Phí: ${fmt(o.fee)}</div>` : ''}
+        ${feeHtml}
       </td>
       <td data-label="Lãi thực">
         <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>

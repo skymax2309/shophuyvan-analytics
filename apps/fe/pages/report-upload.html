@@ -202,9 +202,12 @@
 <script src="../js/report-upload.js"></script>
 
 <script>
-// Hack thông minh: Tự động quét và click toàn bộ nút "Xóa" trên UI
+// 1. Hack thông minh: Tự động quét và click Xóa với độ trễ (Chống lỗi chặn Spam của Server)
 async function deleteAllJobs() {
-    const deleteBtns = Array.from(document.querySelectorAll('#jobProgressList button')).filter(b => b.innerText.includes('Xóa') || b.innerHTML.includes('🗑️'));
+    // Quét tất cả các thẻ có chữ Xóa (bất kể là button, thẻ a, hay div) và có chứa lệnh onclick
+    const deleteBtns = Array.from(document.querySelectorAll('#jobProgressList *')).filter(el => 
+        (el.innerText && el.innerText.includes('Xóa')) && el.hasAttribute('onclick')
+    );
     
     if(deleteBtns.length === 0) {
         alert("Không có lệnh nào để xóa!");
@@ -213,20 +216,53 @@ async function deleteAllJobs() {
     
     if(!confirm(`Bạn có chắc muốn dọn dẹp toàn bộ ${deleteBtns.length} lệnh này không?`)) return;
     
-    // Tạm thời "bịt miệng" hàm confirm của hệ thống để nó click 1 loạt không bị văng cửa sổ liên tục
+    // Bịt miệng confirm
     const originalConfirm = window.confirm;
     window.confirm = () => true; 
     
     for(let btn of deleteBtns) {
         btn.click();
+        // CHÌA KHÓA: Phải nghỉ 200ms (0.2 giây) giữa mỗi lần bấm để Server lách luật chống Spam
+        await new Promise(r => setTimeout(r, 200)); 
     }
     
-    // Trả lại quyền confirm gốc
     window.confirm = originalConfirm;
-    
-    alert("Đã gửi yêu cầu xóa hàng loạt! Vui lòng đợi 2 giây để giao diện cập nhật.");
-    setTimeout(() => loadJobProgress(), 2000);
+    alert("Đã xóa xong! Giao diện sẽ tự động làm mới.");
+    setTimeout(() => loadJobProgress(), 1500);
 }
+
+// 2. ÉP TẢI LẠI DANH SÁCH SHOP MỚI NHẤT (Vượt rào Cache của Cloudflare)
+setTimeout(async () => {
+    try {
+        // Thêm tham số t=... để ép Server trả về data mới nhất trong Database, không dùng Cache cũ
+        const res = await fetch("https://huyvan-worker-api.nghiemchihuy.workers.dev/api/shops?t=" + new Date().getTime());
+        if (!res.ok) return;
+        const shops = await res.json();
+        
+        // Cập nhật Dropdown
+        let options = '<option value="">-- Chọn shop --</option>';
+        shops.forEach(s => options += `<option value="${s.shop_name}">${s.shop_name}</option>`);
+        document.getElementById('inpShop').innerHTML = options;
+        
+        let filterOptions = '<option value="">Tất cả shop</option>' + options;
+        const filterShop = document.getElementById('filterShop');
+        if(filterShop) filterShop.innerHTML = filterOptions;
+
+        // Cập nhật Checkbox Automation
+        let htmlCb = '';
+        shops.forEach(s => {
+            htmlCb += `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;background:white;padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px">
+                         <input type="checkbox" value="${s.shop_name}" data-platform="${s.platform}">
+                         [${(s.platform || 'shopee').toUpperCase()}] ${s.shop_name}
+                       </label>`;
+        });
+        const botShopCheckboxes = document.getElementById('botShopCheckboxes');
+        if(botShopCheckboxes) botShopCheckboxes.innerHTML = htmlCb;
+        
+    } catch(e) {
+        console.error("Lỗi vượt cache:", e);
+    }
+}, 800); // Tự động chạy sau 0.8 giây khi trang vừa load xong
 </script>
 
 </body>
