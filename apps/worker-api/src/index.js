@@ -175,7 +175,7 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
       // ── Dashboard (tổng quan) ─────────────────────────────────────
       if (url.pathname === "/api/dashboard")
         return dashboard(request, env, cors)
-      if (url.pathname === "/api/orders/recalc-cost" && request.method === "POST")
+      if ((url.pathname === "/api/orders/recalc-cost" || url.pathname === "/api/recalc-cost") && request.method === "POST")
         return recalcCost(request, env, cors)
 	if (url.pathname === "/api/update-cost-prices" && request.method === "POST")
         return updateCostPrices(request, env, cors)
