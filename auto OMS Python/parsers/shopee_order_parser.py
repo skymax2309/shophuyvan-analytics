@@ -51,8 +51,19 @@ class ShopeeOrderParser:
                 tracking_el = order_container.find('div', class_='tracking-number')
                 tracking_number = tracking_el.text.strip() if tracking_el else ""
 
-                carrier_el = order_container.find('div', class_='fulfilment-channel-name') or order_container.find('div', class_='maksed-channel-name')
-                carrier = carrier_el.text.strip() if carrier_el else ""
+                carrier = ""
+                carrier_info = order_container.find('div', class_='order-fulfilment-info')
+                if carrier_info:
+                    texts = list(carrier_info.stripped_strings)
+                    # Shopee gộp: ['Nhanh', 'SPX Express', 'Drop off'] -> Lấy phần tử số 2
+                    if len(texts) >= 2:
+                        carrier = texts[1]
+                    elif len(texts) == 1:
+                        carrier = texts[0]
+                
+                if not carrier: # Phương án dự phòng
+                    carrier_el = order_container.find('div', class_='fulfilment-channel-name') or order_container.find('div', class_='maksed-channel-name')
+                    carrier = carrier_el.text.strip() if carrier_el else ""
 
                 # Đóng gói thành JSON
                 if order_sn:

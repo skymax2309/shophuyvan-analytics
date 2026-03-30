@@ -203,111 +203,45 @@ async function recalcCost(request, env, cors) {
 // ════════════════════════════════════════════════════════════════════
 async function importOrdersV2(request, env, cors) {
   const { orders, items } = await request.json()
-  const cfg         = await getCostSettings(env)
+  const cfg = await getCostSettings(env)
 
-// 1. Lấy toàn bộ products 1 lần
   const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real FROM products`).all()
-  const productMap  = {}
+  const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
-  // Lấy phí thực TikTok 1 lần
-  const tiktokFeeRows = await env.DB.prepare(`SELECT * FROM tiktok_order_fees`).all()
-  const tiktokFeeMap  = {}
-  for (const f of tiktokFeeRows.results) tiktokFeeMap[f.order_id] = f
-
-  // 2. Tính profit cho từng ORDER (không phải từng SKU line)
-  //    Dùng tổng revenue + vốn tổng hợp từ items
   const processedOrders = orders.map(o => {
-    // Tính vốn tổng = sum(cost_real * qty) của tất cả items trong đơn
     const orderItems = items.filter(i => i.order_id === o.order_id)
-    const totalCostReal    = orderItems.reduce((s, i) => {
-      const p = productMap[i.sku] || { cost_real: 0, cost_invoice: 0 }
-      return s + (p.cost_real * (i.qty || 1))
-    }, 0)
-    const totalCostInvoice = orderItems.reduce((s, i) => {
-      const p = productMap[i.sku] || { cost_real: 0, cost_invoice: 0 }
-      return s + (p.cost_invoice * (i.qty || 1))
-    }, 0)
+    const totalCostReal = orderItems.reduce((s, i) => s + ((productMap[i.sku]?.cost_real || 0) * (i.qty || 1)), 0)
+    const totalCostInvoice = orderItems.reduce((s, i) => s + ((productMap[i.sku]?.cost_invoice || 0) * (i.qty || 1)), 0)
 
-    // Tính profit dựa trên order tổng
-    // is_first_sku = true vì đây là đơn tổng (phí per-đơn tính 1 lần)
-    // Tính return_fee TRƯỚC calcProfit
     let return_fee = o.return_fee || 0
     if (o.order_type === "return") {
-      return_fee = o.platform === "tiktok"
-        ? (cfg["tiktok_return_fee"]?.value    ?? 4620)
-        : (cfg["shopee_return_fee"]?.value     ?? 1620)
-    } else if (o.order_type === "cancel") {
-      const isFailed = /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")
-      if (isFailed) {
-        return_fee = o.platform === "tiktok"
-          ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620)
-          : (cfg["shopee_failed_delivery_fee"]?.value  ?? 1620)
-      }
+      return_fee = o.platform === "tiktok" ? (cfg["tiktok_return_fee"]?.value ?? 4620) : (cfg["shopee_return_fee"]?.value ?? 1620)
+    } else if (o.order_type === "cancel" && /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")) {
+      return_fee = o.platform === "tiktok" ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620) : (cfg["shopee_failed_delivery_fee"]?.value ?? 1620)
     }
 
-    const orderForCalc = {
-      ...o,
-      cost_invoice: totalCostInvoice,
-      cost_real:    totalCostReal,
-      is_first_sku: 1,
-      return_fee,
-    }
-    const p = calcProfit(orderForCalc, cfg)
-
-    return {
-      ...o,
-      cost_invoice:   p.cost_invoice,
-      cost_real:      p.cost_real,
-      fee:            p.total_fee,
-      profit_invoice: p.profit_invoice,
-      profit_real:    p.profit_real,
-      tax_flat:       p.tax_flat,
-      tax_income:     p.tax_income,
-      fee_platform:   p.fee_platform  || 0,
-      fee_payment:    p.fee_payment   || 0,
-      fee_affiliate:  p.fee_affiliate || 0,
-      fee_ads:        p.fee_ads       || 0,
-      fee_piship:     p.fee_piship    || 0,
-      fee_service:    p.fee_service   || 0,
-      fee_packaging:  p.fee_packaging || 0,
-      fee_operation:  p.fee_operation || 0,
-      fee_labor:      p.fee_labor     || 0,
-      return_fee,
-    }
+    const p = calcProfit({ ...o, cost_invoice: totalCostInvoice, cost_real: totalCostReal, is_first_sku: 1, return_fee }, cfg)
+    return { ...o, cost_invoice: p.cost_invoice, cost_real: p.cost_real, fee: p.total_fee, profit_invoice: p.profit_invoice, profit_real: p.profit_real, tax_flat: p.tax_flat, tax_income: p.tax_income, fee_platform: p.fee_platform || 0, fee_payment: p.fee_payment || 0, fee_affiliate: p.fee_affiliate || 0, fee_ads: p.fee_ads || 0, fee_piship: p.fee_piship || 0, fee_service: p.fee_service || 0, fee_packaging: p.fee_packaging || 0, fee_operation: p.fee_operation || 0, fee_labor: p.fee_labor || 0, return_fee }
   })
 
-  // 3a. Lấy bảng product_variations để map platform_sku → internal_sku + image_url
-  const varRows = await env.DB.prepare(
-    `SELECT platform_sku, internal_sku, image_url, variation_name FROM product_variations WHERE map_status='MAPPED'`
-  ).all()
+  const varRows = await env.DB.prepare(`SELECT platform_sku, internal_sku, image_url, variation_name FROM product_variations WHERE map_status='MAPPED'`).all()
   const varMap = {}
   for (const v of varRows.results) {
     varMap[v.platform_sku.toLowerCase()] = v
-    // Map thêm theo variation_name để khớp khi bot gửi tên phân loại thay vì SKU
     if (v.variation_name) varMap[v.variation_name.toLowerCase()] = v
   }
 
-  // 3. Cập nhật cost_real cho items + map internal_sku nếu có
   const processedItems = items.map(i => {
     const rawVariation = (i.variation_name || '').toLowerCase()
-    const rawSku  = (i.sku || '').toLowerCase()
+    const rawSku = (i.sku || '').toLowerCase()
     const rawName = (i.product_name || '').toLowerCase()
-    // Tìm map ưu tiên: Variation Name -> Platform SKU -> Tên SP
-    const mapped  = varMap[rawVariation] || varMap[rawSku] || varMap[rawName] || null
-    const finalSku = mapped?.internal_sku || ''
-    const imageUrl = mapped?.image_url    || ''
+    const mapped = varMap[rawVariation] || varMap[rawSku] || varMap[rawName] || null
+    const finalSku = mapped?.internal_sku || i.sku || ''
     const p = productMap[finalSku] || { cost_real: 0, cost_invoice: 0 }
-    return {
-      ...i,
-      sku:          finalSku,
-      image_url:    imageUrl,
-      cost_real:    p.cost_real    * (i.qty || 1),
-      cost_invoice: p.cost_invoice * (i.qty || 1),
-    }
+    return { ...i, sku: finalSku, image_url: mapped?.image_url || '', cost_real: p.cost_real * (i.qty || 1), cost_invoice: p.cost_invoice * (i.qty || 1) }
   })
 
-  // 4. Batch insert orders_v2
   const BATCH = 50
   let importedOrders = 0, importedItems = 0, skipped = 0
 
@@ -315,96 +249,21 @@ async function importOrdersV2(request, env, cors) {
     const chunk = processedOrders.slice(i, i + BATCH)
     const stmts = chunk.map(o => env.DB.prepare(`
       INSERT INTO orders_v2
-        (order_id, platform, shop, order_date, order_type,
-         revenue, raw_revenue, cost_invoice, cost_real,
-         fee, profit_invoice, profit_real, tax_flat, tax_income,
-         fee_platform, fee_payment, fee_affiliate, fee_ads,
-         fee_piship, fee_service, fee_packaging, fee_operation, fee_labor,
-         cancel_reason, return_fee, shipped,
-         discount_shop, discount_shopee, discount_combo, shipping_return_fee,
-         shipping_status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        (order_id, platform, shop, order_date, order_type, revenue, raw_revenue, cost_invoice, cost_real, fee, profit_invoice, profit_real, tax_flat, tax_income, fee_platform, fee_payment, fee_affiliate, fee_ads, fee_piship, fee_service, fee_packaging, fee_operation, fee_labor, cancel_reason, return_fee, shipped, discount_shop, discount_shopee, discount_combo, shipping_return_fee, shipping_status, shipping_carrier, tracking_number, customer_name, oms_status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(order_id) DO UPDATE SET
-        platform      = excluded.platform,
-        shop          = excluded.shop,
-        order_date    = excluded.order_date,
-        order_type    = excluded.order_type,
-        revenue       = excluded.revenue,
-        raw_revenue   = excluded.raw_revenue,
-        cost_invoice  = excluded.cost_invoice,
-        cost_real     = excluded.cost_real,
-        fee           = excluded.fee,
-        profit_invoice= excluded.profit_invoice,
-        profit_real   = excluded.profit_real,
-        tax_flat      = excluded.tax_flat,
-        tax_income    = excluded.tax_income,
-        fee_platform  = excluded.fee_platform,
-        fee_payment   = excluded.fee_payment,
-        fee_affiliate = excluded.fee_affiliate,
-        fee_ads       = excluded.fee_ads,
-        fee_piship    = excluded.fee_piship,
-        fee_service   = excluded.fee_service,
-        fee_packaging = excluded.fee_packaging,
-        fee_operation = excluded.fee_operation,
-        fee_labor     = excluded.fee_labor,
-        cancel_reason = excluded.cancel_reason,
-        return_fee    = excluded.return_fee,
-        shipped       = excluded.shipped,
-        discount_shop        = excluded.discount_shop,
-        discount_shopee      = excluded.discount_shopee,
-        discount_combo       = excluded.discount_combo,
-        shipping_return_fee  = excluded.shipping_return_fee,
-        shipping_status      = excluded.shipping_status
+        platform=excluded.platform, shop=excluded.shop, order_type=excluded.order_type, revenue=excluded.revenue, raw_revenue=excluded.raw_revenue, cost_invoice=excluded.cost_invoice, cost_real=excluded.cost_real, fee=excluded.fee, profit_invoice=excluded.profit_invoice, profit_real=excluded.profit_real, tax_flat=excluded.tax_flat, tax_income=excluded.tax_income, fee_platform=excluded.fee_platform, fee_payment=excluded.fee_payment, fee_affiliate=excluded.fee_affiliate, fee_ads=excluded.fee_ads, fee_piship=excluded.fee_piship, fee_service=excluded.fee_service, fee_packaging=excluded.fee_packaging, fee_operation=excluded.fee_operation, fee_labor=excluded.fee_labor, cancel_reason=excluded.cancel_reason, return_fee=excluded.return_fee, shipped=excluded.shipped, discount_shop=excluded.discount_shop, discount_shopee=excluded.discount_shopee, discount_combo=excluded.discount_combo, shipping_return_fee=excluded.shipping_return_fee, shipping_status=excluded.shipping_status, shipping_carrier=excluded.shipping_carrier, tracking_number=excluded.tracking_number, customer_name=excluded.customer_name
     `).bind(
-      o.order_id          ?? null, 
-      o.platform          ?? '', 
-      o.shop              ?? '', 
-      o.order_date        ?? null, 
-      o.order_type        ?? 'normal',
-      o.revenue           ?? 0, 
-      o.raw_revenue       ?? 0, 
-      o.cost_invoice      ?? 0, 
-      o.cost_real         ?? 0,
-      o.fee               ?? 0, 
-      o.profit_invoice    ?? 0, 
-      o.profit_real       ?? 0, 
-      o.tax_flat          ?? 0, 
-      o.tax_income        ?? 0,
-      o.fee_platform      ?? 0, 
-      o.fee_payment       ?? 0, 
-      o.fee_affiliate     ?? 0, 
-      o.fee_ads           ?? 0,
-      o.fee_piship        ?? 0, 
-      o.fee_service       ?? 0, 
-      o.fee_packaging     ?? 0, 
-      o.fee_operation     ?? 0, 
-      o.fee_labor         ?? 0,
-      o.cancel_reason     ?? null, 
-      o.return_fee        ?? 0, 
-      o.shipped           ?? 0,
-      o.discount_shop     ?? 0, 
-      o.discount_shopee   ?? 0, 
-      o.discount_combo    ?? 0, 
-      o.shipping_return_fee ?? 0,
-      o.shipping_status   ?? ''
+      o.order_id ?? null, o.platform ?? '', o.shop ?? '', o.order_date ?? null, o.order_type ?? 'normal', o.revenue ?? 0, o.raw_revenue ?? 0, o.cost_invoice ?? 0, o.cost_real ?? 0, o.fee ?? 0, o.profit_invoice ?? 0, o.profit_real ?? 0, o.tax_flat ?? 0, o.tax_income ?? 0, o.fee_platform ?? 0, o.fee_payment ?? 0, o.fee_affiliate ?? 0, o.fee_ads ?? 0, o.fee_piship ?? 0, o.fee_service ?? 0, o.fee_packaging ?? 0, o.fee_operation ?? 0, o.fee_labor ?? 0, o.cancel_reason ?? null, o.return_fee ?? 0, o.shipped ?? 0, o.discount_shop ?? 0, o.discount_shopee ?? 0, o.discount_combo ?? 0, o.shipping_return_fee ?? 0, o.shipping_status ?? '', o.shipping_carrier ?? '', o.tracking_number ?? '', o.customer_name ?? '', o.oms_status ?? 'PENDING'
     ))
-    try {
-      await env.DB.batch(stmts)
-      importedOrders += chunk.length
-    } catch(e) {
-      skipped += chunk.length
-      console.log("Batch orders_v2 error:", e.message)
-    }
+    try { await env.DB.batch(stmts); importedOrders += chunk.length } catch(e) { skipped += chunk.length }
   }
 
-  // 5. Batch insert order_items
-  // Xóa items cũ của các order này trước
   const orderIds = [...new Set(processedItems.map(i => i.order_id))]
   for (let i = 0; i < orderIds.length; i += BATCH) {
     const chunk = orderIds.slice(i, i + BATCH)
     const placeholders = chunk.map(() => "?").join(",")
-    await env.DB.prepare(`DELETE FROM order_items WHERE order_id IN (${placeholders})`)
-      .bind(...chunk).run()
+    await env.DB.prepare(`DELETE FROM order_items WHERE order_id IN (${placeholders})`).bind(...chunk).run()
   }
 
   for (let i = 0; i < processedItems.length; i += BATCH) {
@@ -413,25 +272,12 @@ async function importOrdersV2(request, env, cors) {
       INSERT INTO order_items (order_id, sku, variation_name, product_name, qty, revenue_line, cost_real, cost_invoice, image_url)
       VALUES (?,?,?,?,?,?,?,?,?)
     `).bind(
-      item.order_id, item.sku, item.variation_name || "", item.product_name || "",
-      item.qty || 1, item.revenue_line || 0,
-      item.cost_real || 0, item.cost_invoice || 0,
-      item.image_url || ""
+      item.order_id, item.sku, item.variation_name || "", item.product_name || "", item.qty || 1, item.revenue_line || 0, item.cost_real || 0, item.cost_invoice || 0, item.image_url || ""
     ))
-    try {
-      await env.DB.batch(stmts)
-      importedItems += chunk.length
-    } catch(e) {
-      console.log("Batch order_items error:", e.message)
-    }
+    try { await env.DB.batch(stmts); importedItems += chunk.length } catch(e) {}
   }
 
-  return Response.json({
-    status: "ok",
-    imported_orders: importedOrders,
-    imported_items:  importedItems,
-    skipped
-  }, { headers: cors })
+  return Response.json({ status: "ok", imported_orders: importedOrders, imported_items: importedItems, skipped }, { headers: cors })
 }
 
 async function getOrders(request, env, cors) {

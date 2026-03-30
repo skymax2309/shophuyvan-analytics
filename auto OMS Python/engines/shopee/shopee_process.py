@@ -62,15 +62,34 @@ class ShopeeOrderProcessor:
                     await prep_btn.click()
                     self.log(f"[+] Đã click 'Chuẩn bị hàng' cho đơn {order_id}!")
                     
-                    # --- ĐIỂM DỪNG BẪY LỖI & DÒ MÌN ---
-                    self.log("⚠️ BƯỚC DÒ MÌN: Popup xác nhận của Shopee chắc chắn đã hiện lên.")
-                    self.log("👉 Bot sẽ TẠM DỪNG 60 GIÂY.")
-                    self.log("👉 HÀNH ĐỘNG CỦA BẠN: Hãy chuyển sang Tab 'Web Scanner' trên Tool, dán link Shopee hiện tại vào và bấm Quét để gửi HTML của cái Popup đó lên đây cho mình phân tích!")
+                    self.log("[+] Đang chờ Popup Xác nhận tải lên...")
+                    await asyncio.sleep(2)
                     
-                    await asyncio.sleep(60)
-                    
-                    self.log("🛑 Kết thúc phiên Dò mìn. Sẽ không xử lý tiếp cho đến khi có code mới.")
-                    break # Dừng luôn vòng lặp, chỉ test 1 đơn
+                    # Bơm thao tác click "Thời gian lấy hàng" nếu Shopee bắt chọn
+                    try:
+                        time_slot = page.locator("div.hovered")
+                        if await time_slot.is_visible():
+                            await time_slot.click()
+                            await asyncio.sleep(1)
+                    except: pass
+
+                    # Bấm nút Xác nhận chuẩn bị hàng
+                    confirm_btn = page.locator("button.eds-button--primary:has-text('Xác nhận')")
+                    if await confirm_btn.is_visible():
+                        await confirm_btn.click()
+                        self.log(f"✅ Đã xác nhận chuẩn bị hàng thành công cho đơn {order_id}!")
+                        
+                        # Bắn API cập nhật Web OMS sang Đang đóng gói (PACKING)
+                        try:
+                            res = requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "PACKING"})
+                            if res.status_code == 200:
+                                self.log(f"🔄 Đã đồng bộ trạng thái về Web OMS thành 'Đang đóng gói'.")
+                        except Exception as e:
+                            self.log(f"⚠️ Lỗi cập nhật API OMS: {e}")
+                            
+                        await asyncio.sleep(2) # Nghỉ nhịp trước khi sang đơn tiếp theo
+                    else:
+                        self.log(f"⚠️ Không tìm thấy nút Xác nhận cho đơn {order_id}.")
 
                 else:
                     self.log(f"⚠️ Không tìm thấy nút 'Chuẩn bị hàng'. Đơn này có thể đã bị hủy hoặc đã xử lý.")
