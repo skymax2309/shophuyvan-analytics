@@ -209,16 +209,17 @@ function renderTable() {
         </div>`
     }).join('')
 
-// 2.5 LÔI CHI TIẾT CÁC LOẠI PHÍ TỪ SERVER RA
+// 2.5 LÔI CHI TIẾT CÁC LOẠI PHÍ TỪ SERVER RA (Luôn hiện kể cả 0đ)
     let feeBreakdown = '';
-    if (o.fee_platform) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí cố định:</span> <b>${fmt(o.fee_platform)}</b></div>`;
-    if (o.fee_payment) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí thanh toán:</span> <b>${fmt(o.fee_payment)}</b></div>`;
-    if (o.fee_affiliate) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Affiliate/Freeship:</span> <b>${fmt(o.fee_affiliate)}</b></div>`;
-    if (o.fee_ads) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Quảng cáo:</span> <b>${fmt(o.fee_ads)}</b></div>`;
-    if (o.fee_piship) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí PiShip:</span> <b>${fmt(o.fee_piship)}</b></div>`;
-    if (o.fee_packaging) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Đóng gói:</span> <b>${fmt(o.fee_packaging)}</b></div>`;
-    if (o.fee_labor) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Nhân công:</span> <b>${fmt(o.fee_labor)}</b></div>`;
-    if (o.return_fee) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px;color:var(--red)"><span>Phí Hoàn/Phạt:</span> <b>${fmt(o.return_fee)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí cố định:</span> <b>${fmt(o.fee_platform)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí thanh toán:</span> <b>${fmt(o.fee_payment)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Affiliate/Freeship:</span> <b>${fmt(o.fee_affiliate)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Quảng cáo:</span> <b>${fmt(o.fee_ads)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Dịch vụ:</span> <b>${fmt(o.fee_service)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí PiShip:</span> <b>${fmt(o.fee_piship)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Đóng gói:</span> <b>${fmt(o.fee_packaging)}</b></div>`;
+    feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px"><span>Phí Nhân công:</span> <b>${fmt(o.fee_labor)}</b></div>`;
+    if (o.return_fee > 0) feeBreakdown += `<div style="display:flex;justify-content:space-between;gap:15px;color:var(--red)"><span>Phí Hoàn/Phạt:</span> <b>${fmt(o.return_fee)}</b></div>`;
 
     const feeHtml = o.fee ? `
       <div style="position: relative; margin-top: 6px; display: inline-block; cursor: pointer; text-align: left;" 
