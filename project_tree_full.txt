@@ -90,9 +90,6 @@
         └── debug_payload_lazada.json
         └── debug_payload_tiktok.json
         └── debug_shopee.py
-        └── kinhdoanhonlinegiasoc@gmail.com_lazada_1.xlsx
-        └── kinhdoanhonlinegiasoc@gmail.com_lazada_2.xlsx
-        └── kinhdoanhonlinegiasoc@gmail.com_lazada_3.xlsx
         └── main.py
         └── test_promo_web.py
         └── test_shopee_excel.py
@@ -110,6 +107,7 @@
                 └── lazada_doanh_thu.py
                 └── lazada_don_hang.py
                 └── lazada_hoa_don.py
+                └── lazada_orders.py
                 └── lazada_products.py
             ├── shopee/
                 └── shopee_auth.py
@@ -126,11 +124,14 @@
                 └── tiktok_doanh_thu.py
                 └── tiktok_don_hang.py
                 └── tiktok_hoa_don.py
+                └── tiktok_orders.py
                 └── tiktok_products.py
         ├── parsers/
+            └── lazada_order_parser.py
             └── lazada_parser.py
             └── shopee_order_parser.py
             └── shopee_parser.py
+            └── tiktok_order_parser.py
             └── tiktok_parser.py
         ├── profiles/
             ├── Huy Vân Store Q.Bình Tân/

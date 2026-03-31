@@ -237,6 +237,37 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         }
       }
 
+      // [API ĐỒNG BỘ] Cập nhật danh sách Shop từ Tool Python (Source of Truth)
+      if (url.pathname === "/api/shops/sync" && request.method === "POST") {
+        try {
+          const shops = await request.json()
+          console.log(`[API SHOPS SYNC] Bắt đầu đồng bộ ${shops.length} shop từ Tool Python lên Server...`)
+          
+          let inserted = 0, updated = 0
+          for (const s of shops) {
+            // Lấy đúng trường user_name từ file Python lên
+            const userName = s.user_name || s.ten_shop 
+            const shopName = s.ten_shop || userName
+            const platform = s.platform || "unknown"
+
+            // Kiểm tra xem user_name đã tồn tại chưa
+            const existing = await env.DB.prepare("SELECT id FROM shops WHERE user_name = ?").bind(userName).first()
+            if (existing) {
+              await env.DB.prepare("UPDATE shops SET shop_name = ?, platform = ? WHERE user_name = ?").bind(shopName, platform, userName).run()
+              updated++
+            } else {
+              await env.DB.prepare("INSERT INTO shops (shop_name, platform, user_name) VALUES (?, ?, ?)").bind(shopName, platform, userName).run()
+              inserted++
+            }
+          }
+          console.log(`[API SHOPS SYNC] Hoàn tất: Thêm mới ${inserted}, Cập nhật ${updated} shop.`)
+          return Response.json({ status: "ok", inserted, updated, message: "Đồng bộ Server thành công!" }, { headers: cors })
+        } catch (e) {
+          console.error(`[API SHOPS SYNC] Lỗi: ${e.message}`)
+          return Response.json({ error: e.message }, { status: 500, headers: cors })
+        }
+      }
+
       // ── Top shop ──────────────────────────────────────────────────
       if (url.pathname === "/api/top-shop")
         return topShop(request, env, cors)
@@ -303,18 +334,25 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         
         return Response.json({ status: "ok" }, { headers: cors })
       }
-	  // [API BẢO TRÌ] ĐỒNG BỘ TÊN SHOP CŨ THÀNH USERNAME MỚI
+	  // [API BẢO TRÌ] ĐỒNG BỘ TÊN SHOP CŨ THÀNH USERNAME MỚI (BẢN VÉT MÁNG)
       if (url.pathname === "/api/fix-shop-names" && request.method === "GET") {
         try {
-          const { results: shops } = await env.DB.prepare("SELECT * FROM shops").all()
-          let updated = 0
-          for (const s of shops) {
-            const username = s.user_name || s.tai_khoan || s.shop_name
-            if (username !== s.shop_name) {
-              const res = await env.DB.prepare(`UPDATE orders_v2 SET shop = ? WHERE shop = ?`).bind(username, s.shop_name).run()
-              updated += res.meta.changes || 0
+          // Bác điền các cặp Tên Cũ -> Username Mới vào đây
+          const shopMapping = {
+            "KHOGIADUNGHUYVAN": "chihuy1984", // Ví dụ, bác sửa lại cho đúng username của shop này nhé
+            "shophuyvan.vn": "chihuy2309",             // Ví dụ
+            "Huy Vân Store Q.Bình Tân": "phambich2312",        // Ví dụ
+            "khogiadungcona": "khogiadungcona"         // Ví dụ
+          };
+
+          let updated = 0;
+          for (const [oldName, newName] of Object.entries(shopMapping)) {
+            if (oldName !== newName) {
+                const res = await env.DB.prepare(`UPDATE orders_v2 SET shop = ? WHERE shop = ?`).bind(newName, oldName).run();
+                updated += res.meta.changes || 0;
             }
           }
+          
           return Response.json({ status: "ok", message: `Quá đã! Đã gộp thành công ${updated} đơn hàng lịch sử về Username!` }, { headers: cors })
         } catch (e) {
           return Response.json({ error: e.message }, { status: 500, headers: cors })

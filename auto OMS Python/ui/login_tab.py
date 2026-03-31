@@ -111,9 +111,30 @@ class LoginTab(ctk.CTkFrame):
             os.makedirs(os.path.dirname(self.data_file), exist_ok=True)
             with open(self.data_file, "w", encoding="utf-8") as f:
                 json.dump(self.app.DANH_SACH_SHOP, f, ensure_ascii=False, indent=4)
-            self.app.log("💾 Đã lưu tự động cập nhật vào file shops.json.")
+            self.app.log("💾 Đã lưu cục bộ vào file shops.json.")
+            
+            # GỌI HÀM ĐỒNG BỘ LÊN SERVER BẰNG LUỒNG ẨN
+            threading.Thread(target=self._sync_shops_to_server, daemon=True).start()
         except Exception as e:
             self.app.log(f"❌ Lỗi ghi file shops.json: {e}")
+
+    def _sync_shops_to_server(self):
+        import requests
+        self.app.log("⏳ [DÒ MÌN] Đang đẩy danh sách Shop mới nhất lên Server Cloudflare...")
+        try:
+            # Lọc bỏ các shop rỗng (None) nếu có trong mảng
+            valid_shops = [s for s in self.app.DANH_SACH_SHOP if s is not None]
+            
+            api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/shops/sync"
+            res = requests.post(api_url, json=valid_shops, timeout=15)
+            
+            if res.status_code == 200:
+                data = res.json()
+                self.app.log(f"✅ [SERVER] Đồng bộ danh sách Shop hoàn tất! (Thêm mới: {data.get('inserted',0)}, Cập nhật: {data.get('updated',0)})")
+            else:
+                self.app.log(f"❌ [SERVER] Lỗi đồng bộ DB (Code: {res.status_code}): {res.text}")
+        except Exception as e:
+            self.app.log(f"❌ [MẠNG] Lỗi đường truyền khi đẩy danh sách Shop lên Server: {e}")
 
     def _add_shop_to_list(self):
         platform = self.combo_san_new.get().strip().lower()
