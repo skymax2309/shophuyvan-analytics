@@ -303,6 +303,23 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         
         return Response.json({ status: "ok" }, { headers: cors })
       }
+	  // [API BẢO TRÌ] ĐỒNG BỘ TÊN SHOP CŨ THÀNH USERNAME MỚI
+      if (url.pathname === "/api/fix-shop-names" && request.method === "GET") {
+        try {
+          const { results: shops } = await env.DB.prepare("SELECT * FROM shops").all()
+          let updated = 0
+          for (const s of shops) {
+            const username = s.user_name || s.tai_khoan || s.shop_name
+            if (username !== s.shop_name) {
+              const res = await env.DB.prepare(`UPDATE orders_v2 SET shop = ? WHERE shop = ?`).bind(username, s.shop_name).run()
+              updated += res.meta.changes || 0
+            }
+          }
+          return Response.json({ status: "ok", message: `Quá đã! Đã gộp thành công ${updated} đơn hàng lịch sử về Username!` }, { headers: cors })
+        } catch (e) {
+          return Response.json({ error: e.message }, { status: 500, headers: cors })
+        }
+      }
 
       // [BỌC THÉP] API ĐẾM TỔNG SỐ ĐƠN TUYỆT ĐỐI (KHÔNG NHẢY MÚA THEO TRANG)
       if (url.pathname === "/api/orders/badges" && request.method === "GET") {

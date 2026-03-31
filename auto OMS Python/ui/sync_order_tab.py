@@ -54,7 +54,7 @@ class SyncOrderTab(ctk.CTkFrame):
         self.so_shop_var = ctk.StringVar(value="Tất cả shop")
         self.so_shop_combo = ctk.CTkComboBox(manual_frame, values=["Tất cả shop"], variable=self.so_shop_var, width=180)
         self.so_shop_combo.pack(side="left", padx=5)
-        self.update_so_shop_list("shopee")
+        self.update_so_shop_list()
 
         self.btn_scrape_orders = ctk.CTkButton(manual_frame, text="⬇️ Cào đơn mới", width=120, fg_color="#3b82f6", hover_color="#2563eb",
                                          command=lambda: self.run_order_bot("scrape"))
@@ -263,8 +263,8 @@ class SyncOrderTab(ctk.CTkFrame):
                     from engines.shopee.shopee_auth import ShopeeAuth
                     auth = ShopeeAuth(self.so_log_msg)
                 elif platform == 'tiktok':
-                    from engines.tiktok.tiktok_auth import TiktokAuth
-                    auth = TiktokAuth(self.so_log_msg)
+                    from engines.tiktok.tiktok_auth import TikTokAuth
+                    auth = TikTokAuth(self.so_log_msg)
                 elif platform == 'lazada':
                     from engines.lazada.lazada_auth import LazadaAuth
                     auth = LazadaAuth(self.so_log_msg)
