@@ -273,6 +273,23 @@ async function handleVariations(request, env, cors) {
         }
       }
 
+      // 🌟 TÍNH NĂNG MỚI: NẾU VẪN KHÔNG TÌM THẤY -> TỰ ĐỘNG KHAI SINH SKU GỐC
+      if (!internalSku && pSku.length >= 2 && !pSku.toLowerCase().includes('chưa map') && !pSku.toLowerCase().includes('null')) {
+        internalSku = pSku.toUpperCase();
+        mapStatus = 'MAPPED';
+        
+        // Bơm thẳng mã mới vào bảng Danh mục Sản phẩm (products)
+        await env.DB.prepare(`
+          INSERT INTO products (sku, product_name, cost_invoice, cost_real, image_url)
+          VALUES (?, ?, 0, 0, ?)
+          ON CONFLICT(sku) DO NOTHING
+        `).bind(internalSku, v.product_name || "Sản phẩm tự sinh", v.main_image || v.image_url || "").run();
+        
+        // Cập nhật bộ nhớ tạm để không bị tạo trùng ở các vòng lặp sau
+        allSkus.push(internalSku);
+        console.log(`[AUTO-CREATE] 🌟 Đã tự sinh SKU gốc mới: ${internalSku}`);
+      }
+
       if (internalSku) autoMapped++
 
       stmts.push(env.DB.prepare(`

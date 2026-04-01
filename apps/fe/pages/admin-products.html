@@ -81,12 +81,10 @@
     </div>
     <div class="side-menu">
       <button class="tab-btn active" onclick="switchTab('sku')"><span>📦 Sản phẩm / SKU</span></button>
-      <button class="tab-btn" onclick="switchTab('combo')"><span>🎁 Combo</span></button>
       <button class="tab-btn" onclick="switchTab('variations')">
         <span>🔗 Map SKU Đa Sàn</span>
         <span id="badge-unmapped" style="background:#ef4444;color:white;border-radius:10px;padding:2px 8px;font-size:11px;display:none">0</span>
       </button>
-      <button class="tab-btn" onclick="switchTab('orders')"><span>📋 Toàn bộ đơn hàng</span></button>
       <button class="tab-btn" onclick="switchTab('invoice')"><span>🧾 Hóa Đơn Nhập</span></button>
       <button class="tab-btn" onclick="switchTab('loss')"><span>🔴 Đơn âm tiền</span></button>
     </div>
@@ -279,36 +277,6 @@
     </div>
   </div>
 
-  <!-- ══════════ TAB: COMBO ══════════ -->
-  <div id="tab-combo" class="tab-pane">
-    <div class="card">
-      <div class="card-title">➕ Tạo Combo mới</div>
-      <div class="form-grid-3">
-        <div class="field"><label>Mã Combo (SKU combo) *</label><input id="c_sku" placeholder="VD: COMBO-001"></div>
-        <div class="field"><label>Tên Combo *</label><input id="c_name" placeholder="VD: Combo 10 SP A + 5 SP B"></div>
-        <div class="field"><label>Tổng số lượng combo</label><input type="number" id="c_qty" placeholder="VD: 1" value="1" min="1"></div>
-        <div></div>
-      </div>
-      <div style="margin-top:16px">
-        <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">🧩 Thành phần SKU trong combo:</div>
-        <div id="comboItemsBuilder"></div>
-        <button class="btn btn-primary" style="margin-top:6px;background:#10b981" onclick="addComboRow()">+ Thêm SKU thành phần</button>
-      </div>
-      <div style="margin-top:16px">
-        <button class="btn btn-primary" onclick="saveCombo()">💾 Lưu Combo</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">🎁 Danh sách Combo (<span id="comboCount">0</span>)</div>
-      <table>
-        <thead><tr>
-          <th>SKU Combo</th><th>Tên Combo</th><th>Số lượng</th>
-          <th>Thành phần</th><th>Vốn HĐ</th><th>Vốn thực</th><th>Thao tác</th>
-        </tr></thead>
-        <tbody id="comboTable"><tr><td colspan="7" class="empty">Đang tải...</td></tr></tbody>
-      </table>
-    </div>
-  </div>
 
   <!-- ══════════ TAB: INVOICE ══════════ -->
   <div id="tab-invoice" class="tab-pane">
@@ -365,135 +333,7 @@
       <div id="inv-list">Đang tải...</div>
     </div>
   </div>
-
-  <!-- ══════════ TAB: ORDERS ══════════ -->
-  <div id="tab-orders" class="tab-pane">
-    <div class="card">
-      <div class="card-title">📋 Toàn bộ đơn hàng chi tiết</div>
-      <div class="order-filter">
-        <input type="date" id="o_from">
-        <input type="date" id="o_to">
-        <select id="o_platform" onchange="populateOrderShops()">
-          <option value="">Tất cả sàn</option>
-          <option value="shopee">Shopee</option>
-          <option value="tiktok">TikTok</option>
-          <option value="lazada">Lazada</option>
-        </select>
-        <select id="o_shop">
-          <option value="">Tất cả shop</option>
-        </select>
-        <select id="o_type">
-          <option value="">Tất cả loại</option>
-          <option value="normal">Thành công</option>
-          <option value="cancel">Đã hủy</option>
-          <option value="return">Hoàn hàng</option>
-        </select>
-        <input id="o_search" placeholder="🔍 Tìm mã đơn / SKU / tên SP" style="min-width:220px">
-        <button class="btn btn-primary" onclick="loadOrders(1)">🔍 Lọc</button>
-        <button class="btn" style="background:#f3f4f6;color:#555" onclick="resetOrderFilter()">✕ Reset</button>
-        <button class="btn" style="background:#10b981;color:white" onclick="exportOrders()">⬇️ Xuất CSV</button>
-        <button class="btn" style="background:#7c3aed;color:white" onclick="toggleTaxExport()">🧾 Xuất Quyết Toán Thuế</button>
-        <button class="btn" style="background:#f59e0b;color:white" onclick="toggleImportPanel()">📥 Import file</button>
-        <button class="btn" style="background:#6d28d9;color:white" onclick="recalcCostInline()">🔄 Cập nhật vốn</button>
-      </div>
-      <!-- Panel import file -->
-      <div id="importPanel" style="display:none;margin-top:12px;padding:14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px">
-        <div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:10px">📥 Import file đơn hàng</div>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <select id="inlineShopSelect"
-            style="border:1px solid #fcd34d;border-radius:6px;padding:7px 10px;font-size:13px;min-width:160px">
-            <option value="">-- Chọn shop (nếu Shopee) --</option>
-          </select>
-          <input type="file" id="inlineFileInput" accept=".xlsx"
-            style="border:1px solid #fcd34d;border-radius:6px;padding:6px 10px;font-size:13px;background:white">
-          <button onclick="importFileInline()"
-            style="background:#f59e0b;color:white;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
-            ⬆️ Import ngay
-          </button>
-        </div>
-        <div id="importLog" style="margin-top:8px;font-size:12px;color:#555;min-height:16px"></div>
-      </div>
-      <!-- Panel xuất quyết toán thuế -->
-      <div id="taxExportPanel" style="display:none;margin-top:12px;padding:14px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px">
-        <div style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:10px">🧾 Xuất báo cáo quyết toán thuế</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <div>
-            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Sàn</label>
-            <select id="tax_platform" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px">
-              <option value="">Tất cả sàn</option>
-              <option value="shopee">Shopee</option>
-              <option value="tiktok">TikTok</option>
-              <option value="lazada">Lazada</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Shop</label>
-            <select id="tax_shop" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px;min-width:140px">
-              <option value="">Tất cả shop</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Tháng</label>
-            <select id="tax_month" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px">
-              <option value="">Tất cả tháng</option>
-              <option value="01">Tháng 1</option><option value="02">Tháng 2</option>
-              <option value="03">Tháng 3</option><option value="04">Tháng 4</option>
-              <option value="05">Tháng 5</option><option value="06">Tháng 6</option>
-              <option value="07">Tháng 7</option><option value="08">Tháng 8</option>
-              <option value="09">Tháng 9</option><option value="10">Tháng 10</option>
-              <option value="11">Tháng 11</option><option value="12">Tháng 12</option>
-            </select>
-          </div>
-          <div>
-            <label style="font-size:12px;color:#555;display:block;margin-bottom:3px">Năm</label>
-            <select id="tax_year" style="border:1px solid #c4b5fd;border-radius:6px;padding:6px 10px;font-size:13px">
-              <option value="">Tất cả năm</option>
-              <option value="2024">2024</option>
-              <option value="2025">2025</option>
-              <option value="2026">2026</option>
-            </select>
-          </div>
-          <div style="align-self:flex-end;display:flex;gap:6px">
-            <button onclick="exportTaxReport('csv')"
-              style="background:#10b981;color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
-              ⬇️ CSV
-            </button>
-            <button onclick="exportTaxReport('excel')"
-              style="background:#2563eb;color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
-              📊 Excel
-            </button>
-            <button onclick="exportTaxReport('pdf')"
-              style="background:#dc2626;color:white;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">
-              📄 PDF
-            </button>
-          </div>
-        </div>
-        <div id="taxExportInfo" style="font-size:12px;color:#888;margin-top:8px"></div>
-      </div>
-      <div id="orderSummary" style="font-size:12px;color:#888;margin-bottom:8px"></div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr>
-            <th>Ngày</th><th>Sàn</th><th>Shop</th><th>Mã đơn</th>
-            <th>SKU</th><th>Tên SP</th><th>SL</th>
-            <th>Doanh thu</th><th>Vốn thực</th>
-            <th title="Hoa hồng sàn">Commission</th>
-            <th title="Phí thanh toán">TT</th>
-            <th title="Affiliate">Aff</th>
-            <th title="Quảng cáo">Ads</th>
-            <th title="PiShip/SFR">PiShip</th>
-            <th title="Phí dịch vụ">DV</th>
-            <th title="Tổng phí">Tổng phí</th>
-            <th title="Thuế khoán 1.5%">Thuế KH</th>
-            <th title="Thuế lợi nhuận 17%">Thuế LN</th>
-            <th>Lãi thực</th><th>Loại</th>
-          </tr></thead>
-          <tbody id="ordersTable"><tr><td colspan="13" class="empty">Nhấn Lọc để tải đơn hàng</td></tr></tbody>
-        </table>
-      </div>
-      <div class="pagination" id="orderPagination"></div>
-    </div>
-  </div>
+     
 
 <!-- ══════════ TAB: LOSS ORDERS ══════════ -->
   <div id="tab-loss" class="tab-pane">
@@ -550,8 +390,6 @@
 <script src="../js/utils/api.js"></script>
 <script src="../js/utils/format.js"></script>
 <script src="../js/admin/sku-manager.js"></script>
-<script src="../js/admin/combo-manager.js"></script>
-<script src="../js/admin/order-manager.js"></script>
 <script src="../js/admin/invoice-manager.js"></script>
 <script src="../js/admin/main.js"></script>
 <script src="../js/admin/variation-manager.js?v=2"></script>
