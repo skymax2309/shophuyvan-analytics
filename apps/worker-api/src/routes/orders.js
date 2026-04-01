@@ -259,6 +259,10 @@ async function importOrdersV2(request, env, cors) {
     // Quét ưu tiên: Có trong product_variations -> Có trong sku_alias -> Cuối cùng mới lấy SKU gốc
     const mapped = varMap[rawVariation] || varMap[rawSku] || varMap[rawName] || null
     const finalSku = mapped?.internal_sku || aliasMap[rawVariation] || aliasMap[rawSku] || aliasMap[rawName] || i.sku || ''
+    
+    // 🌟 Vá lỗi: Trả về Item đã dịch SKU và đóng ngoặc hàm map
+    return { ...i, sku: finalSku }
+  })
 
   // 2. TÍNH LỢI NHUẬN DỰA TRÊN SẢN PHẨM ĐÃ CÓ GIÁ VỐN
   const processedOrders = orders.map(o => {
