@@ -109,6 +109,9 @@ async function handleProducts(request, env, cors) {
 
   if (request.method === "DELETE") {
     const path = url.pathname;
+    
+    
+    
     if (path.endsWith('/bulk')) {
       const { skus } = await request.json();
       if (!skus || !Array.isArray(skus) || skus.length === 0) return Response.json({ error: "No SKUs" }, { status: 400, headers: cors });
@@ -276,7 +279,8 @@ async function handleVariations(request, env, cors) {
       }
 
       // 🌟 TÍNH NĂNG MỚI: NẾU VẪN KHÔNG TÌM THẤY -> TỰ ĐỘNG KHAI SINH SKU GỐC
-      if (!internalSku && pSku.length >= 2 && !pSku.toLowerCase().includes('chưa map') && !pSku.toLowerCase().includes('null')) {
+      // Bọc thép: Chỉ nhận SKU chuẩn (ngắn hơn 20 ký tự, không bị Shopee ghép dấu '-')
+      if (!internalSku && pSku.length >= 2 && pSku.length <= 20 && !pSku.includes('-') && !pSku.toLowerCase().includes('chưa map') && !pSku.toLowerCase().includes('null')) {
         internalSku = pSku.toUpperCase();
         mapStatus = 'MAPPED';
         

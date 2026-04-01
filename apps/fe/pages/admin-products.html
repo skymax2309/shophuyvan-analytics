@@ -228,9 +228,10 @@
         <input id="sku-search" type="text" placeholder="🔍 Tìm SKU hoặc tên sản phẩm..."
           oninput="renderSkuTables()"
           style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:280px;outline:none">
-		  <button id="btnBulkDeleteSku" style="display: none; padding: 7px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 8px;">
+		  <button id="btnBulkDeleteSku" onclick="bulkDeleteSkus()" style="display: none; padding: 7px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 8px;">
             🗑️ Xóa đã chọn (<span id="selectedSkuCount">0</span>)
           </button>
+         
       </div>
 
       <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0;flex-wrap:wrap;">

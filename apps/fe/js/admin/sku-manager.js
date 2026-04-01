@@ -671,3 +671,37 @@ async function uploadProductJson(file) {
     document.getElementById('json-file-input').value = "";
   }
 }
+
+// ── LOGIC XÓA HÀNG LOẠT VÀ XÓA SẠCH KHO ─────────────────────────────
+window.updateSkuBulkDeleteUI = function() {
+    const count = document.querySelectorAll('.sku-chk:checked').length;
+    const btnBulk = document.getElementById('btnBulkDeleteSku');
+    const countSpan = document.getElementById('selectedSkuCount');
+    if (btnBulk && countSpan) {
+        btnBulk.style.display = count > 0 ? 'inline-block' : 'none';
+        countSpan.textContent = count;
+    }
+}
+
+window.bulkDeleteSkus = async function() {
+    const checked = document.querySelectorAll('.sku-chk:checked');
+    const skus = Array.from(checked).map(cb => cb.dataset.sku);
+    
+    if (!skus.length) return;
+    if (!confirm(`Bạn có chắc chắn muốn XÓA VĨNH VIỄN ${skus.length} SKU này khỏi kho?`)) return;
+    
+    try {
+        const res = await fetch(API + '/api/products/bulk', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ skus })
+        });
+        if (res.ok) {
+            showToast(`✅ Đã xóa thành công ${skus.length} SKU!`);
+            loadSkus();
+        }
+    } catch (e) {
+        showToast('❌ Lỗi xóa: ' + e.message, true);
+    }
+}
+
