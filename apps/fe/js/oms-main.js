@@ -748,8 +748,12 @@ window.saveMapSku = async function(internalSku) {
         throw new Error(resData.error || "Server từ chối lưu Map");
     }
     
-    // Đỉnh cao: Gọi API tính lại giá vốn cho đơn này ngay lập tức
-    await fetch(`${API}/api/orders/recalc-cost`, { method: 'POST' });
+    // Đỉnh cao: Truyền đúng SKU vừa map để Server CHỈ tính lại các đơn liên quan (Tránh sụp CPU)
+    await fetch(`${API}/api/orders/recalc-cost`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku: internalSku })
+    });
     
     showToast(`✅ Đã Map thành công SKU: ${internalSku}`);
     closeModal('mapSkuModal');

@@ -81,12 +81,29 @@ async function recalcCost(request, env, cors) {
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
-  const BATCH = 50
+const BATCH = 50
   let updated = 0
 
-  // ── Recalc bảng mới (orders_v2) ──────────────────────────────────
-  const ordersV2   = await env.DB.prepare(`SELECT * FROM orders_v2`).all()
-  const itemsAll   = await env.DB.prepare(`SELECT * FROM order_items`).all()
+  // ── Nhận tín hiệu khoanh vùng từ Client ──────────────────────────
+  let targetSku = null;
+  try {
+    const body = await request.json();
+    if (body && body.sku) targetSku = body.sku;
+  } catch(e) {} // Bỏ qua nếu Client không gửi body
+
+  // ── Recalc bảng mới (orders_v2) TỐI ƯU HÓA ───────────────────────
+  let ordersV2;
+  let itemsAll;
+
+  if (targetSku) {
+    console.log(`[RECALC_COST] ⚡ Tối ưu: Chỉ tính lại các đơn chứa SKU [${targetSku}]`);
+    ordersV2 = await env.DB.prepare(`SELECT * FROM orders_v2 WHERE order_id IN (SELECT order_id FROM order_items WHERE sku = ?)`).bind(targetSku).all();
+    itemsAll = await env.DB.prepare(`SELECT * FROM order_items WHERE order_id IN (SELECT order_id FROM order_items WHERE sku = ?)`).bind(targetSku).all();
+  } else {
+    console.log(`[RECALC_COST] ⚠️ Chạy Full: Tính lại TOÀN BỘ đơn hàng trong hệ thống...`);
+    ordersV2 = await env.DB.prepare(`SELECT * FROM orders_v2`).all();
+    itemsAll = await env.DB.prepare(`SELECT * FROM order_items`).all();
+  }
 
   // Group items theo order_id
   const itemsByOrder = {}
