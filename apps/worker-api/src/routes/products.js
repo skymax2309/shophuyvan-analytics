@@ -278,25 +278,32 @@ async function handleVariations(request, env, cors) {
         }
       }
 
-      // 🌟 TÍNH NĂNG MỚI: NẾU VẪN KHÔNG TÌM THẤY -> TỰ ĐỘNG KHAI SINH SKU GỐC
+// 🌟 TÍNH NĂNG MỚI: NẾU VẪN KHÔNG TÌM THẤY -> TỰ ĐỘNG KHAI SINH SKU GỐC
       // Bọc thép: Chỉ nhận SKU chuẩn (ngắn hơn 20 ký tự, không bị Shopee ghép dấu '-')
       if (!internalSku && pSku.length >= 2 && pSku.length <= 20 && !pSku.includes('-') && !pSku.toLowerCase().includes('chưa map') && !pSku.toLowerCase().includes('null')) {
         internalSku = pSku.toUpperCase();
         mapStatus = 'MAPPED';
         
-        // Bơm thẳng mã mới vào bảng Danh mục Sản phẩm (products)
+        // 🌟 Bơm thẳng mã mới vào bảng Danh mục Sản phẩm (KÈM THEO TỒN KHO TỪ EXCEL)
         await env.DB.prepare(`
-          INSERT INTO products (sku, product_name, cost_invoice, cost_real, image_url)
-          VALUES (?, ?, 0, 0, ?)
+          INSERT INTO products (sku, product_name, cost_invoice, cost_real, image_url, stock)
+          VALUES (?, ?, 0, 0, ?, ?)
           ON CONFLICT(sku) DO NOTHING
-        `).bind(internalSku, v.product_name || "Sản phẩm tự sinh", v.main_image || v.image_url || "").run();
+        `).bind(internalSku, v.product_name || "Sản phẩm tự sinh", v.main_image || v.image_url || "", v.stock || 0).run();
         
         // Cập nhật bộ nhớ tạm để không bị tạo trùng ở các vòng lặp sau
         allSkus.push(internalSku);
-        console.log(`[AUTO-CREATE] 🌟 Đã tự sinh SKU gốc mới: ${internalSku}`);
+        console.log(`[AUTO-CREATE] 🌟 Đã tự sinh SKU gốc mới: ${internalSku} (Tồn: ${v.stock})`);
       }
 
-      if (internalSku) autoMapped++
+      if (internalSku) {
+          autoMapped++;
+          
+          // 🌟 TÍNH NĂNG ĐỒNG BỘ: Ép tồn kho từ Excel ghi đè sang SKU Nội Bộ (Kho Tổng)
+          stmts.push(env.DB.prepare(`
+            UPDATE products SET stock = ? WHERE sku = ?
+          `).bind(v.stock || 0, internalSku));
+      }
 
       stmts.push(env.DB.prepare(`
         INSERT INTO product_variations

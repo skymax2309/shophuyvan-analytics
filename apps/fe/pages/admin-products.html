@@ -147,7 +147,7 @@
       
       <input type="hidden" id="s_old_img" value="">
       <div style="display:flex; gap:16px; margin-bottom:16px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-          <img id="s_img_preview" src="https://placehold.co/60x60?text=IMG" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #cbd5e1; background:white;">
+          <img id="s_img_preview" src="https://placehold.co/60x60?text=IMG" onerror="this.src='https://placehold.co/60x60?text=Loi'" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #cbd5e1; background:white;">
           <div style="flex:1; min-width:200px;">
               <label style="font-size:13px; color:#475569; font-weight:700; display:block; margin-bottom:6px;">Hình ảnh đại diện SKU</label>
               <input type="file" id="s_img_file" accept="image/*" onchange="document.getElementById('s_img_preview').src = window.URL.createObjectURL(this.files[0])" style="font-size:13px; width:100%; cursor:pointer;">

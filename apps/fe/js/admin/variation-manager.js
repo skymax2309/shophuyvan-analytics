@@ -514,16 +514,16 @@ window.saveEditVar = async function() {
         const fileInput = document.getElementById('editVarImgFile');
         let finalImageUrl = document.getElementById('editVarOldImg').value;
 
-        if (fileInput.files.length > 0) {
+if (fileInput.files.length > 0) {
             const file = fileInput.files[0];
-            const fileName = 'products/img_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
+            const fileName = 'img_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
             
-            const uploadUrl = `${API}/api/upload?file=${encodeURIComponent(fileName)}&token=huyvan_secret_2026`;
+            const uploadUrl = `${API}/api/upload?file=${fileName}&token=huyvan_secret_2026`;
             const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: file });
             
             if (!uploadRes.ok) throw new Error("Tải ảnh lên hệ thống thất bại!");
             
-            finalImageUrl = `https://huyvan-worker-api.nghiemchihuy.workers.dev/api/file/${fileName}`;
+            finalImageUrl = `${API}/api/file/${fileName}`;
         }
 
         const payload = {

@@ -209,11 +209,12 @@ async function saveSku() {
       // Nếu có chọn ảnh mới thì Upload trước
       if (fileInput.files.length > 0) {
           const file = fileInput.files[0];
-          const fileName = 'products/sku_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
-          const uploadUrl = `${API}/api/upload?file=${encodeURIComponent(fileName)}&token=huyvan_secret_2026`;
+          // 🌟 Bỏ chữ "products/" để tránh làm Server hiểu lầm đường dẫn
+          const fileName = 'sku_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
+          const uploadUrl = `${API}/api/upload?file=${fileName}&token=huyvan_secret_2026`;
           const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: file });
           if (!uploadRes.ok) throw new Error("Lỗi upload ảnh lên server!");
-          finalImg = `https://huyvan-worker-api.nghiemchihuy.workers.dev/api/file/${fileName}`;
+          finalImg = `${API}/api/file/${fileName}`;
       }
 
       await fetch(API + "/api/products", {
@@ -259,9 +260,9 @@ function editSku(sku, name, cinv, creal, stock, minstock, img) {
   document.getElementById("s_stock").value    = stock || 0
   document.getElementById("s_min_stock").value = minstock || 5
   
-  // Gắn ảnh lên Preview
+// Gắn ảnh lên Preview
   const defaultImg = "https://placehold.co/60x60?text=IMG";
-  const isValidImg = img && !img.includes('placehold');
+  const isValidImg = img && img !== "undefined" && img !== "null" && img.trim() !== "" && !img.includes('placehold');
   document.getElementById("s_old_img").value = isValidImg ? img : "";
   document.getElementById("s_img_preview").src = isValidImg ? img : defaultImg;
   document.getElementById("s_img_file").value = "";
