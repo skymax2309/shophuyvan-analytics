@@ -395,10 +395,22 @@ function cancelGroupMode() {
 }
 
 function toggleAllCheck(type, checked) {
-  const map = { no: "skuNoPriceTable", partial: "skuPartialTable", has: "skuHasPriceTable" }
+  // Bổ sung cấu hình cho 2 Tab Kho Hàng
+  const map = { 
+      "no": "skuNoPriceTable", 
+      "partial": "skuPartialTable", 
+      "has": "skuHasPriceTable",
+      "low-stock": "skuLowStockTable",
+      "out-of-stock": "skuOutOfStockTable"
+  }
   const tbody = map[type] || "skuNoPriceTable"
+  
+  // Đánh dấu check tất cả
   document.querySelectorAll(`#${tbody} .sku-chk`).forEach(c => c.checked = checked)
+  
+  // Cập nhật giao diện
   updateGroupHint()
+  if (typeof updateSkuBulkDeleteUI === 'function') updateSkuBulkDeleteUI() // 🌟 GỌI LỆNH BẬT NÚT XÓA TẠI ĐÂY
 }
 
 function updateGroupHint() {
