@@ -74,7 +74,6 @@ async function handleProducts(request, env, cors) {
       FROM products p 
       ${cond}
       ORDER BY p.sku
-      LIMIT 50
     `;
     const rows = await env.DB.prepare(query).bind(...params).all();
     

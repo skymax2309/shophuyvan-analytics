@@ -36,7 +36,7 @@ function switchSkuTab(tab) {
 
 function renderSkuTables() {
   const kw   = (document.getElementById("sku-search")?.value || "").toLowerCase().trim()
-  const skus = allSkus.filter(p => !p.is_combo && !/combo/i.test(p.sku || ""))
+  const skus = allSkus; // 🌟 Đã tháo xích: Hiển thị 100% SKU, không giấu mã nào
 
   const filtered = kw
     ? skus.filter(p =>
@@ -79,8 +79,8 @@ function renderSkuTables() {
       </div>
       <div class="sku-actions">
         <div>
+          <div>
           <button class="btn btn-edit" data-sku="${p.sku}" data-name="${encodedName}" data-cinv="${p.cost_invoice || 0}" data-creal="${p.cost_real || 0}" data-img="${imgUrl}" onclick="editSkuFromBtn(this)" style="padding:7px 12px; font-size:13px; font-weight:600; border-radius:6px; margin-right:6px;">✏️ Sửa</button>
-          <button onclick="moveToCombo('${p.sku}')" style="padding:7px 12px; background:#f59e0b; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;" title="Chuyển sang Combo">📦 Combo</button>
         </div>
         <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="padding:7px 12px; font-size:13px; border-radius:6px;">🗑️ Xóa</button>
       </div>
@@ -485,7 +485,7 @@ async function deleteGroup(groupName) {
 
 
 function exportSkuExcel() {
-  const rows = allSkus.filter(p => !p.is_combo && !/combo/i.test(p.sku || ""))
+  const rows = allSkus; // 🌟 Xóa lệnh lọc để Excel tải đủ 100% SKU
   let csv = "SKU,Tên sản phẩm,Vốn hóa đơn (đ),Vốn thực tế (đ)\n"
   rows.forEach(p => {
     const safeSku  = `"${(p.sku          || "").replace(/"/g, '""')}"`
