@@ -325,7 +325,39 @@ async function handleVariations(request, env, cors) {
     }
 
     // Nhánh 2: Lưu map thủ công từ FE
-    const { id, internal_sku, mapped_items } = await request.json()
+    const body = await request.json()
+    const { id, internal_sku, mapped_items, platform_sku } = body;
+
+    // 🌟 LUỒNG QUICK MAP: Xử lý Map nóng trực tiếp từ màn hình Đơn hàng
+    if (platform_sku && !id) {
+        console.log(`[API QUICK MAP] Đang xử lý map: ${platform_sku} -> ${internal_sku}`);
+        
+        // 1. Gắn map vào Biến thể
+        await env.DB.prepare(`
+            UPDATE product_variations 
+            SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now')
+            WHERE platform_sku = ? OR variation_name = ?
+        `).bind(internal_sku, platform_sku, platform_sku).run();
+
+        // 2. Chữa cháy: Cập nhật ngược lại toàn bộ các Đơn hàng cũ đang bị trống SKU
+        await env.DB.prepare(`
+            UPDATE order_items SET sku = ? 
+            WHERE variation_name = ? OR sku = ? OR product_name = ?
+        `).bind(internal_sku, platform_sku, platform_sku, platform_sku).run();
+
+        // 3. Đưa vào sổ tay bí kíp (sku_alias) để lần sau auto-map
+        await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sku_alias (platform_sku TEXT PRIMARY KEY, internal_sku TEXT)`).run();
+        const existAlias = await env.DB.prepare(`SELECT platform_sku FROM sku_alias WHERE platform_sku = ?`).bind(platform_sku).first();
+        if (existAlias) {
+            await env.DB.prepare(`UPDATE sku_alias SET internal_sku = ? WHERE platform_sku = ?`).bind(internal_sku, platform_sku).run();
+        } else {
+            await env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)`).bind(platform_sku, internal_sku).run();
+        }
+        
+        return Response.json({ status: 'ok', message: "Quick Map Success" }, { headers: cors })
+    }
+
+    // Luồng Map cũ (Dành cho trang Quản lý Sản phẩm có ID)
     if (!id || !internal_sku)
       return Response.json({ error: 'Missing id or internal_sku' }, { status: 400, headers: cors })
 
