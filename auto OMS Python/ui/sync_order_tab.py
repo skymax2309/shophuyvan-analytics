@@ -330,7 +330,8 @@ class SyncOrderTab(ctk.CTkFrame):
                         from engines.tiktok.tiktok_orders import TiktokOrderScraper
                         parser = TiktokOrderParser(self.so_log_msg)
                         scraper = TiktokOrderScraper(self.so_log_msg, parser)
-                        orders_data = await scraper.scrape_new_orders(page)
+                        # 🌟 Đã móc dây điện: Truyền Limits và Tên Shop xuống cho Bot TikTok
+                        orders_data = await scraper.scrape_new_orders(page, limits=limits, shop_name=shop['ten_shop'])
                     elif platform == 'lazada':
                         from parsers.lazada_order_parser import LazadaOrderParser
                         from engines.lazada.lazada_orders import LazadaOrderScraper
@@ -401,10 +402,15 @@ class SyncOrderTab(ctk.CTkFrame):
                                     order_type = "return"
                                 # (Tab "Chờ đóng gói" sẽ tự động nhận mặc định là PENDING)
 
-                            # 🌟 Dùng Ngày Bot đọc được, nếu Bot mù thì mới xài Ngày Hiện Tại chữa cháy
+                            # 🌟 SỬA LỖI GHI ĐÈ NGÀY: 
                             real_order_date = order.get("order_date", "")
                             if not real_order_date:
-                                real_order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                # Chỉ tự động gán ngày hôm nay nếu đây là đơn MỚI TINH
+                                if oms_st in ["PENDING", "CONFIRMED"]:
+                                    real_order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                else:
+                                    # Đơn cũ (Đang giao, Xong, Hủy) tuyệt đối KHÔNG ĐƯỢC bịa ngày
+                                    real_order_date = ""
 
                             payload["orders"].append({
                                 "order_id": order["order_id"],
@@ -458,8 +464,13 @@ class SyncOrderTab(ctk.CTkFrame):
                         from engines.shopee.shopee_status_core import ShopeeStatusCore
                         status_bot = ShopeeStatusCore(self.so_log_msg)
                         await status_bot.scan_and_update(page, shop['ten_shop'])
+                    elif platform == 'tiktok':
+                        self.so_log_msg("👉 Thực thi: QUÉT TRẠNG THÁI UI TIKTOK (DẠNG THẺ)")
+                        from engines.tiktok.tiktok_status_core import TikTokStatusCore
+                        status_bot = TikTokStatusCore(self.so_log_msg)
+                        await status_bot.scan_and_update(page, shop['ten_shop'])
                     else:
-                        self.so_log_msg(f"⚠️ Chức năng Quét Trạng Thái bằng API chưa hỗ trợ cho {platform.upper()}")
+                        self.so_log_msg(f"⚠️ Chức năng Quét Trạng Thái chưa hỗ trợ cho {platform.upper()}")
 
             finally:
                 await browser.close()

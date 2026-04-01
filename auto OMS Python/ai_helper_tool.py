@@ -58,13 +58,21 @@ class AIHelperTool(ctk.CTk):
         self.url_entry = ctk.CTkEntry(frame_input, width=350, placeholder_text="https://shopee.vn/...")
         self.url_entry.pack(side="left", padx=5)
         
-        self.btn_scan = ctk.CTkButton(frame_input, text="🚀 Quét Nhanh", command=self.run_web_scanner, fg_color="#ea580c")
-        self.btn_scan.pack(side="left", padx=10)
+        # 🌟 Đã tách thành 2 nút: Mở Trình Duyệt và Quét
+        self.btn_open = ctk.CTkButton(frame_input, text="🌐 Mở Trình Duyệt", command=self.open_web_scanner, fg_color="#2563eb", width=140)
+        self.btn_open.pack(side="left", padx=5)
+
+        self.btn_scan = ctk.CTkButton(frame_input, text="🚀 Quét Ngay", command=self.trigger_web_scan, fg_color="#ea580c", state="disabled", width=120)
+        self.btn_scan.pack(side="left", padx=5)
 
         self.web_log = ctk.CTkTextbox(self.tab_web, font=("Consolas", 12), fg_color="#1A1A1A", text_color="#00CED1")
         self.web_log.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        # 🌟 Biến cờ hiệu để giao tiếp giữa Nút bấm và Bot
+        self.trigger_scan_event = threading.Event()
+        self.is_scanner_running = False
 
-    def run_web_scanner(self):
+    def open_web_scanner(self):
         url = self.url_entry.get().strip()
         shop_str = self.combo_shop_web.get()
 
@@ -79,11 +87,18 @@ class AIHelperTool(ctk.CTk):
         if not selected_shop:
             return messagebox.showwarning("Cảnh báo", "Vui lòng chọn 1 shop để cấp quyền Đăng nhập!")
 
-        self.btn_scan.configure(state="disabled", text="⏳ Đang quét...")
+        self.btn_open.configure(state="disabled", text="⏳ Đang mở...")
+        self.btn_scan.configure(state="disabled")
         self.web_log.delete("1.0", "end")
         self.web_log.insert("end", f"[*] Khởi động bộ quét Web với tài khoản: {selected_shop.get('ten_shop', 'Shop')}\n")
         
+        self.is_scanner_running = True
+        self.trigger_scan_event.clear()
         threading.Thread(target=self._run_async_web_scanner, args=(url, selected_shop), daemon=True).start()
+
+    def trigger_web_scan(self):
+        self.btn_scan.configure(state="disabled", text="⏳ Đang quét...")
+        self.trigger_scan_event.set()
 
     def _run_async_web_scanner(self, url, shop_data):
         import asyncio
@@ -164,47 +179,80 @@ class AIHelperTool(ctk.CTk):
                 except Exception as auth_err:
                     log_to_web(f"⚠️ Cảnh báo Auto-Login: {auth_err}")
 
-                # 4. Vào trang đích và bắt đầu cào mã HTML
+                # 4. Vào trang đích và Đứng Chờ Lệnh Quét
                 log_to_web(f"\n[*] Đang truy cập trang đích: {url}...")
                 await page.goto(url, timeout=60000, wait_until="domcontentloaded")
-                log_to_web(f"[*] Đang chờ 5s để Shopee load xong bảng Đơn hàng...")
-                await asyncio.sleep(5) 
+                
+                log_to_web(f"[*] ✅ Trình duyệt đã mở!")
+                log_to_web(f"[*] 👉 Vui lòng set up bộ lọc, bật chế độ xem thẻ... trên trình duyệt.")
+                log_to_web(f"[*] 👉 Khi nào sẵn sàng, hãy bấm nút [🚀 Quét Ngay] ở trên Tool!")
+                
+                # Bật nút Quét và đổi trạng thái nút Mở
+                self.after(0, lambda: self.btn_scan.configure(state="normal", text="🚀 Quét Ngay"))
+                self.after(0, lambda: self.btn_open.configure(text="🌐 Trình Duyệt Đang Mở"))
 
-                elements = await page.evaluate("""() => {
-                    let results = [];
-                    // Quét các thẻ HTML chứa text bên trong danh sách đơn hàng
-                    document.querySelectorAll('button, a, div, span').forEach(el => {
-                        let text = el.innerText ? el.innerText.trim() : '';
-                        // Chỉ lấy các thẻ có chữ, độ dài < 150 ký tự và có chứa Class
-                        if(text.length > 0 && text.length < 150 && el.className) {
-                             results.push({tag: el.tagName, text: text, class: el.className, id: el.id});
-                        }
-                    });
-                    return results;
-                }""")
+                # 5. Vòng lặp vô tận đứng chờ bạn bấm nút Quét
+                while self.is_scanner_running:
+                    # Kiểm tra nếu bạn đã tắt trình duyệt thủ công bằng tay chữ X
+                    if not context.pages or context.pages[0].is_closed():
+                        log_to_web("\n[*] Trình duyệt đã đóng. Kết thúc phiên quét.")
+                        break
+                        
+                    # Nếu Cờ hiệu Quét được bật (Do bạn bấm nút Quét Ngay)
+                    if self.trigger_scan_event.is_set():
+                        self.trigger_scan_event.clear() # Tắt cờ đi để chờ lần bấm tiếp theo
+                        log_to_web(f"\n[*] ⏳ Đang tiến hành chụp cấu trúc HTML của giao diện HIỆN TẠI...")
+                        
+                        try:
+                            elements = await page.evaluate("""() => {
+                                let results = [];
+                                // Quét các thẻ HTML chứa text bên trong danh sách đơn hàng
+                                document.querySelectorAll('button, a, div, span').forEach(el => {
+                                    let text = el.innerText ? el.innerText.trim() : '';
+                                    // Chỉ lấy các thẻ có chữ, độ dài < 150 ký tự và có chứa Class
+                                    if(text.length > 0 && text.length < 150 && el.className) {
+                                         results.push({tag: el.tagName, text: text, class: el.className, id: el.id});
+                                    }
+                                });
+                                return results;
+                            }""")
 
-                # Lọc bỏ các thẻ trùng lặp class và text để bảng log nhìn dễ đọc hơn
-                unique_elements = []
-                seen = set()
-                for el in elements:
-                    key = f"{el.get('tag')}_{el.get('text')}_{el.get('class')}"
-                    if key not in seen:
-                        seen.add(key)
-                        unique_elements.append(el)
+                            # Lọc bỏ các thẻ trùng lặp class và text để bảng log nhìn dễ đọc hơn
+                            unique_elements = []
+                            seen = set()
+                            for el in elements:
+                                key = f"{el.get('tag')}_{el.get('text')}_{el.get('class')}"
+                                if key not in seen:
+                                    seen.add(key)
+                                    unique_elements.append(el)
 
-                log_text = f"🎯 TÌM THẤY {len(unique_elements)} PHẦN TỬ HỮU ÍCH TRONG ĐƠN HÀNG:\n" + "="*60 + "\n"
-                for el in unique_elements:
-                    text_preview = str(el.get('text', '')).replace('\n', ' | ')[:60]
-                    log_text += f"[{el.get('tag')}] '{text_preview}'\n   📍 Class: '{el.get('class', '')}'\n"
+                            log_text = f"🎯 TÌM THẤY {len(unique_elements)} PHẦN TỬ HỮU ÍCH TẠI GIAO DIỆN HIỆN TẠI:\n" + "="*60 + "\n"
+                            for el in unique_elements:
+                                text_preview = str(el.get('text', '')).replace('\n', ' | ')[:60]
+                                log_text += f"[{el.get('tag')}] '{text_preview}'\n   📍 Class: '{el.get('class', '')}'\n"
 
-                self.after(0, lambda: self.web_log.insert("end", log_text))
-                await context.close()
+                            self.after(0, lambda txt=log_text: self.web_log.insert("end", txt))
+                            self.after(0, lambda: self.web_log.see("end"))
+                            log_to_web(f"[*] ✅ Đã quét xong! Bạn có thể chuyển trang và bấm [🚀 Quét Ngay] lần nữa nếu muốn.\n")
+                        except Exception as eval_err:
+                            log_to_web(f"❌ Lỗi khi quét: {eval_err}")
+                            
+                        # Bật lại nút Quét để cho phép quét nhiều lần liên tiếp
+                        self.after(0, lambda: self.btn_scan.configure(state="normal", text="🚀 Quét Ngay"))
+                    
+                    await asyncio.sleep(0.5)
 
         except Exception as e:
             err_msg = str(e)
             self.after(0, lambda msg=err_msg: self.web_log.insert("end", f"❌ Lỗi: {msg}\n"))
         finally:
-            self.after(0, lambda: self.btn_scan.configure(state="normal", text="🚀 Quét Nhanh"))
+            self.is_scanner_running = False
+            self.after(0, lambda: self.btn_open.configure(state="normal", text="🌐 Mở Trình Duyệt"))
+            self.after(0, lambda: self.btn_scan.configure(state="disabled", text="🚀 Quét Ngay"))
+            try:
+                await context.close()
+            except:
+                pass
 
     # ==========================================
     # TAB 2 & 3: EXCEL (Giữ nguyên thuật toán bóc thép)
