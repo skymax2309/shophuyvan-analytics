@@ -401,9 +401,14 @@ class SyncOrderTab(ctk.CTkFrame):
                                     order_type = "return"
                                 # (Tab "Chờ đóng gói" sẽ tự động nhận mặc định là PENDING)
 
+                            # 🌟 Dùng Ngày Bot đọc được, nếu Bot mù thì mới xài Ngày Hiện Tại chữa cháy
+                            real_order_date = order.get("order_date", "")
+                            if not real_order_date:
+                                real_order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
                             payload["orders"].append({
                                 "order_id": order["order_id"],
-                                "order_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "order_date": real_order_date, # Đã chốt ngày chuẩn
                                 "order_type": order_type,
                                 "platform": platform,
                                 "shop": shop['ten_shop'],

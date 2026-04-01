@@ -125,6 +125,17 @@ class ShopeeOrderParser:
                     c = order_container.find(string=re.compile('SPX|Giao Hàng Nhanh|J&T|Ninja|Viettel|BEST'))
                     if c: carrier = c.strip()
 
+                # 🌟 DÒ TÌM NGÀY KHÁCH ĐẶT HÀNG (Shopee thường để định dạng yyyy-mm-dd HH:MM)
+                order_date = ""
+                # Quét sạch toàn bộ text trong đơn xem chỗ nào giống ngày tháng
+                all_text = list(order_container.stripped_strings)
+                for txt in all_text:
+                    # Shopee Formats: "2024-11-04 15:30" hoặc "04-11-2024 15:30"
+                    date_match = re.search(r'(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2})|(\d{2}-\d{2}-\d{4}\s\d{2}:\d{2})', txt)
+                    if date_match:
+                        order_date = date_match.group(0)
+                        break
+
                 orders.append({
                     "order_id": order_sn,
                     "buyer_name": buyer_name,
@@ -132,7 +143,8 @@ class ShopeeOrderParser:
                     "total_price": total_price,
                     "status": status,
                     "tracking_number": tracking_number,
-                    "carrier": carrier
+                    "carrier": carrier,
+                    "order_date": order_date # Bơm ngày chuẩn vào Rổ dữ liệu
                 })
             except Exception as e:
                 self.log(f"⚠️ Lỗi bóc tách 1 đơn hàng nội bộ ({order_sn}): {e}")
