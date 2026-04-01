@@ -332,18 +332,20 @@ async function handleVariations(request, env, cors) {
     if (platform_sku && !id) {
         console.log(`[API QUICK MAP] Đang xử lý map: ${platform_sku} -> ${internal_sku}`);
         
-        // 1. Gắn map vào Biến thể
-        await env.DB.prepare(`
+// 1. Gắn map vào Biến thể
+        const resVar = await env.DB.prepare(`
             UPDATE product_variations 
             SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now')
             WHERE platform_sku = ? OR variation_name = ?
         `).bind(internal_sku, platform_sku, platform_sku).run();
+        console.log(`[API QUICK MAP] Đã update ${resVar.meta?.changes || 0} dòng trong bảng product_variations`);
 
         // 2. Chữa cháy: Cập nhật ngược lại toàn bộ các Đơn hàng cũ đang bị trống SKU
-        await env.DB.prepare(`
+        const resOrder = await env.DB.prepare(`
             UPDATE order_items SET sku = ? 
             WHERE variation_name = ? OR sku = ? OR product_name = ?
         `).bind(internal_sku, platform_sku, platform_sku, platform_sku).run();
+        console.log(`[API QUICK MAP] Đã update ${resOrder.meta?.changes || 0} dòng trong bảng order_items`);
 
         // 3. Đưa vào sổ tay bí kíp (sku_alias) để lần sau auto-map
         await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sku_alias (platform_sku TEXT PRIMARY KEY, internal_sku TEXT)`).run();

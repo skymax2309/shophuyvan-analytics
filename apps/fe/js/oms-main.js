@@ -731,12 +731,22 @@ window.saveMapSku = async function(internalSku) {
   const rawName = document.getElementById('mapTargetRawSku').value;
   document.getElementById('mapSkuResults').innerHTML = '<div style="padding:10px;text-align:center;color:var(--green);font-weight:bold;">🚀 Đang đẩy dữ liệu Map lên Server...</div>';
   try {
-    const payload = [{ platform_sku: rawName, internal_sku: internalSku, map_status: 'MAPPED' }];
-    await fetch(`${API}/api/sync-variations`, {
-      method: 'POST',
+    // 🌟 ĐÃ SỬA: Đổi sang phương thức PATCH và gửi Object chuẩn (Không dùng Mảng)
+    const payload = { platform_sku: rawName, internal_sku: internalSku };
+    const response = await fetch(`${API}/api/sync-variations`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    
+    // Đọc phản hồi và in Log ra F12 (Console)
+    const resData = await response.json();
+    console.log("[QUICK MAP] Phản hồi từ Server:", resData);
+
+    // Chặn đứng "Thành công ảo"
+    if (!response.ok || resData.error) {
+        throw new Error(resData.error || "Server từ chối lưu Map");
+    }
     
     // Đỉnh cao: Gọi API tính lại giá vốn cho đơn này ngay lập tức
     await fetch(`${API}/api/orders/recalc-cost`, { method: 'POST' });

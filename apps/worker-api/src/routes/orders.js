@@ -223,19 +223,25 @@ async function importOrdersV2(request, env, cors) {
   const varRows = await env.DB.prepare(`SELECT platform_sku, internal_sku, image_url, variation_name FROM product_variations WHERE map_status='MAPPED'`).all()
   const varMap = {}
   for (const v of varRows.results) {
-    varMap[v.platform_sku.toLowerCase()] = v
+    if (v.platform_sku) varMap[v.platform_sku.toLowerCase()] = v
     if (v.variation_name) varMap[v.variation_name.toLowerCase()] = v
+  }
+  
+  // 🌟 Đọc thêm "Sổ tay" bí kíp (sku_alias) do chức năng Map Nhanh vừa tạo ra
+  const aliasRows = await env.DB.prepare(`SELECT platform_sku, internal_sku FROM sku_alias`).all()
+  const aliasMap = {}
+  for (const a of aliasRows.results) {
+    if (a.platform_sku) aliasMap[a.platform_sku.toLowerCase()] = a.internal_sku
   }
 
   const processedItems = items.map(i => {
     const rawVariation = (i.variation_name || '').toLowerCase()
     const rawSku = (i.sku || '').toLowerCase()
     const rawName = (i.product_name || '').toLowerCase()
+    
+    // Quét ưu tiên: Có trong product_variations -> Có trong sku_alias -> Cuối cùng mới lấy SKU gốc
     const mapped = varMap[rawVariation] || varMap[rawSku] || varMap[rawName] || null
-    const finalSku = mapped?.internal_sku || i.sku || ''
-    const p = productMap[finalSku] || { cost_real: 0, cost_invoice: 0 }
-    return { ...i, sku: finalSku, image_url: mapped?.image_url || i.image_url || '', cost_real: p.cost_real * (i.qty || 1), cost_invoice: p.cost_invoice * (i.qty || 1) }
-  })
+    const finalSku = mapped?.internal_sku || aliasMap[rawVariation] || aliasMap[rawSku] || aliasMap[rawName] || i.sku || ''
 
   // 2. TÍNH LỢI NHUẬN DỰA TRÊN SẢN PHẨM ĐÃ CÓ GIÁ VỐN
   const processedOrders = orders.map(o => {
