@@ -1,5 +1,7 @@
 // ── VARIATION MANAGER (QUẢN LÝ MAP SKU ĐA SÀN) ──────────────────
 let allVariations = [];
+let currentVarPage = 1; // 🌟 Thêm biến phân trang
+const VARS_PER_PAGE = 48; // 🌟 Chỉ load 48 thẻ mỗi trang cho mượt
 
 // Hàm hỗ trợ chống lỗi ký tự đặc biệt làm gãy giao diện HTML
 function escapeHtml(unsafe) {
@@ -60,10 +62,10 @@ function updateUnmappedBadge() {
   }
 }
 
-// 2. RENDER BẢNG & BỘ LỌC
 // 2. RENDER BẢNG & BỘ LỌC (GIAO DIỆN RESPONSIVE CARDS MỚI)
-window.renderVariations = function() {
+window.renderVariations = function(page = 1) {
   try {
+      currentVarPage = page; // 🌟 Ghi nhớ trang hiện tại
       const kw = (document.getElementById('var_search').value || '').toLowerCase();
       const platformFilter = document.getElementById('var_filter_platform').value;
       const shopFilter = document.getElementById('var_filter_shop').value;
@@ -85,6 +87,12 @@ window.renderVariations = function() {
         return;
       }
 
+      // 🌟 LỌC LẤY ĐÚNG SỐ LƯỢNG THẺ CỦA TRANG HIỆN TẠI (Chống giật lag)
+      const totalItems = list.length;
+      const totalPages = Math.ceil(totalItems / VARS_PER_PAGE) || 1;
+      const startIndex = (currentVarPage - 1) * VARS_PER_PAGE;
+      const pagedList = list.slice(startIndex, startIndex + VARS_PER_PAGE);
+
       window.skuOptionsHtml = (window.allSkus || [])
         .filter(s => !s.is_combo)
         .map(s => `<option value="${escapeHtml(s.sku)}">${escapeHtml(s.sku)} — ${escapeHtml(s.product_name)}</option>`)
@@ -96,7 +104,8 @@ window.renderVariations = function() {
         IGNORED:  '<span style="background:#f3f4f6;color:#9ca3af;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">🚫 Bỏ qua</span>',
       })[s] || s;
 
-      const cards = list.map(v => {
+      // 🌟 Chỉ vẽ các thẻ thuộc trang hiện tại (pagedList thay vì list)
+      const cards = pagedList.map(v => {
         let mappedHtml = '';
         if (v.map_status === 'MAPPED') {
           try {
@@ -215,7 +224,24 @@ window.renderVariations = function() {
         <datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>
         <div class="var-grid">
             ${cards}
-        </div>`;
+        </div>
+        
+        <div style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:20px; margin-bottom:20px; width:100%;">
+            <button onclick="renderVariations(${currentVarPage - 1})" ${currentVarPage === 1 ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${currentVarPage === 1 ? '#f8fafc' : 'white'}; color:${currentVarPage === 1 ? '#cbd5e1' : '#333'}; cursor:${currentVarPage === 1 ? 'not-allowed' : 'pointer'}; font-weight:bold;">‹ Trang trước</button>
+            
+            <span style="padding:8px 16px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:14px; border:1px solid #bfdbfe;">
+                Trang ${currentVarPage} / ${totalPages} (Tổng ${totalItems} SP)
+            </span>
+            
+            <button onclick="renderVariations(${currentVarPage + 1})" ${currentVarPage === totalPages ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${currentVarPage === totalPages ? '#f8fafc' : 'white'}; color:${currentVarPage === totalPages ? '#cbd5e1' : '#333'}; cursor:${currentVarPage === totalPages ? 'not-allowed' : 'pointer'}; font-weight:bold;">Trang sau ›</button>
+        </div>
+        `;
+        
+      // 🌟 BƠM NÚT ĐỒNG BỘ TỰ ĐỘNG VÀO TIÊU ĐỀ NẾU CHƯA CÓ
+      const titleEl = document.querySelector('#tab-variations .card-title');
+      if (titleEl && !document.getElementById('btnAutoSyncOld')) {
+          titleEl.innerHTML += ` <button id="btnAutoSyncOld" onclick="autoSyncOldUnmapped()" style="margin-left:12px; background:linear-gradient(135deg, #10b981, #059669); color:white; border:none; border-radius:8px; padding:6px 14px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 3px 6px rgba(16,185,129,0.3); transition:0.2s;" title="Biến toàn bộ mã Chưa Map thành SKU Nội bộ">⚡ Đẩy mã Chưa Map sang SKU Nội Bộ</button>`;
+      }
         
       injectEditModalUI();
   } catch(err) {
@@ -328,6 +354,59 @@ window.ignoreVar = async function(id) {
   });
   showToast('🚫 Đã bỏ qua variation này');
   loadVariations();
+}
+
+// 🌟 TÍNH NĂNG MỚI: TỰ ĐỘNG BIẾN TOÀN BỘ MÃ CŨ THÀNH SKU NỘI BỘ
+window.autoSyncOldUnmapped = async function() {
+   // Lọc ra các mã Chưa Map hợp lệ (có mã sàn, không chứa chữ Chưa Map)
+   const unmapped = allVariations.filter(v => v.map_status === 'UNMAPPED' && v.platform_sku && v.platform_sku.length >= 2 && !v.platform_sku.toLowerCase().includes('chưa map') && !v.platform_sku.toLowerCase().includes('null'));
+   
+   if (unmapped.length === 0) {
+       return showToast("⚠️ Không có mã Chưa Map nào hợp lệ để đồng bộ!", true);
+   }
+   
+   if (!confirm(`Phát hiện ${unmapped.length} mã Chưa Map. Hệ thống sẽ tự động chuyển tất cả chúng thành SKU Nội bộ (Giống như khi Bot cào đơn mới). Bạn có chắc chắn?`)) return;
+
+   const btn = document.getElementById('btnAutoSyncOld');
+   if (btn) { btn.textContent = "⏳ Đang đồng bộ..."; btn.disabled = true; }
+   showToast("🚀 Đang đẩy dữ liệu lên Server, vui lòng đợi...");
+
+   // Đóng gói lại thành cấu trúc mảng variations y hệt như Bot Python gửi lên
+   const payloadVariations = unmapped.map(v => ({
+       platform: v.platform,
+       shop: v.shop,
+       platform_item_id: v.platform_item_id,
+       product_name: v.product_name,
+       variation_name: v.variation_name,
+       platform_sku: v.platform_sku,
+       image_url: v.image_url,
+       main_image: v.image_url, // Dùng tạm ảnh biến thể làm ảnh chính
+       price: v.price,
+       discount_price: v.discount_price,
+       stock: v.stock
+   }));
+
+   try {
+       // Tái sử dụng lại API POST /api/sync-variations (API này đã có trí tuệ nhân tạo Tự sinh mã)
+       const res = await fetch(API + '/api/sync-variations', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ variations: payloadVariations })
+       });
+       
+       if (!res.ok) throw new Error("Server từ chối yêu cầu");
+       
+       const result = await res.json();
+       showToast(`✅ Quá dữ! Đã đồng bộ thành công ${result.auto_mapped || unmapped.length} mã sang Kho SKU Nội bộ!`);
+       
+       // Load lại dữ liệu 2 bảng
+       loadVariations(); 
+       if (typeof loadSkus === 'function') loadSkus(); 
+   } catch(e) {
+       showToast("❌ Lỗi đồng bộ: " + e.message, true);
+   } finally {
+       if (btn) { btn.innerHTML = "⚡ Đẩy mã Chưa Map sang SKU Nội Bộ"; btn.disabled = false; }
+   }
 }
 
 // 5. HOOK CHUYỂN TAB 
