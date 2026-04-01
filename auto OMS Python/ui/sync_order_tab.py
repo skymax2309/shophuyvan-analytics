@@ -25,26 +25,56 @@ class SyncOrderTab(ctk.CTkFrame):
                      font=("Segoe UI", 11), text_color="#AAAAAA", wraplength=700).pack(pady=(0,10))
 
         # --- KHU VỰC CÀI ĐẶT AUTO ---
+        # --- KHU VỰC CÀI ĐẶT AUTO & LIMIT ---
         auto_frame = ctk.CTkFrame(self, fg_color="#1A1A1A", corner_radius=10)
         auto_frame.pack(padx=20, fill="x", pady=5)
 
-        ctk.CTkLabel(auto_frame, text="⏳ Thời gian nghỉ giữa các vòng (phút):", text_color="white", font=("Segoe UI", 12, "bold")).grid(row=0, column=0, padx=10, pady=12)
+        # Hàng 1: Thời gian nghỉ
+        ctk.CTkLabel(auto_frame, text="⏳ Thời gian nghỉ (phút):", text_color="white", font=("Segoe UI", 12, "bold")).grid(row=0, column=0, padx=10, pady=8, sticky="w")
         
-        self.delay_min = ctk.CTkEntry(auto_frame, width=50, justify="center")
+        delay_f = ctk.CTkFrame(auto_frame, fg_color="transparent")
+        delay_f.grid(row=0, column=1, pady=8, sticky="w")
+        self.delay_min = ctk.CTkEntry(delay_f, width=40, justify="center")
         self.delay_min.insert(0, "15")
-        self.delay_min.grid(row=0, column=1, padx=5, pady=12)
-        
-        ctk.CTkLabel(auto_frame, text="đến", text_color="white").grid(row=0, column=2)
-        
-        self.delay_max = ctk.CTkEntry(auto_frame, width=50, justify="center")
+        self.delay_min.pack(side="left")
+        ctk.CTkLabel(delay_f, text="đến", text_color="white").pack(side="left", padx=5)
+        self.delay_max = ctk.CTkEntry(delay_f, width=40, justify="center")
         self.delay_max.insert(0, "30")
-        self.delay_max.grid(row=0, column=3, padx=5, pady=12)
+        self.delay_max.pack(side="left")
 
+        # Nút Bật Auto (Gộp qua cột bên phải cho gọn)
         self.btn_auto = ctk.CTkButton(auto_frame, text="▶️ BẬT AUTO ALL SHOP",
                                          fg_color="#16a34a", text_color="white", hover_color="#15803d",
                                          font=("Segoe UI", 13, "bold"), height=35,
                                          command=self.toggle_auto)
-        self.btn_auto.grid(row=0, column=4, padx=20, pady=12)
+        self.btn_auto.grid(row=0, column=2, rowspan=2, padx=20, pady=10)
+
+        # Hàng 2: Bảng điều khiển Số lượng (Limit)
+        ctk.CTkLabel(auto_frame, text="⚙️ Giới hạn số đơn lấy:", text_color="white", font=("Segoe UI", 12, "bold")).grid(row=1, column=0, padx=10, pady=8, sticky="w")
+        
+        limit_f = ctk.CTkFrame(auto_frame, fg_color="transparent")
+        limit_f.grid(row=1, column=1, pady=8, sticky="w")
+        
+        ctk.CTkLabel(limit_f, text="Mới:", text_color="white").pack(side="left")
+        self.limit_new = ctk.CTkEntry(limit_f, width=40, justify="center")
+        self.limit_new.insert(0, "100")
+        self.limit_new.pack(side="left", padx=(2, 10))
+
+        ctk.CTkLabel(limit_f, text="Đang giao:", text_color="white").pack(side="left")
+        self.limit_ship = ctk.CTkEntry(limit_f, width=40, justify="center")
+        self.limit_ship.insert(0, "50")
+        self.limit_ship.pack(side="left", padx=(2, 10))
+
+        ctk.CTkLabel(limit_f, text="Xong/Hủy:", text_color="white").pack(side="left")
+        self.limit_done = ctk.CTkEntry(limit_f, width=40, justify="center")
+        self.limit_done.insert(0, "20")
+        self.limit_done.pack(side="left", padx=(2, 0))
+
+        # 👻 CHECKBOX TÍNH NĂNG ẨN TRÌNH DUYỆT
+        self.hide_browser_var = ctk.BooleanVar(value=True) # Mặc định True (Tự động ẩn cho mượt)
+        self.chk_hide_browser = ctk.CTkCheckBox(auto_frame, text="👻 Chạy ngầm (Ẩn trình duyệt)", 
+                                                variable=self.hide_browser_var, text_color="#fbbf24", font=("Segoe UI", 12, "bold"))
+        self.chk_hide_browser.grid(row=1, column=2, padx=20, pady=8, sticky="w")
 
         # --- KHU VỰC CHẠY TAY (MANUAL) ---
         manual_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -70,15 +100,11 @@ class SyncOrderTab(ctk.CTkFrame):
         self.btn_check_status.pack(side="left", padx=5)
 
         # --- KHU VỰC LOG ---
-        self.so_log = ctk.CTkTextbox(self, height=350, fg_color="#0A0A0A", text_color="#00CED1", font=("Consolas", 12))
-        self.so_log.pack(fill="both", expand=True, padx=20, pady=(5, 20))
+        # (Đã chuyển về Trạm Log Cố Định ở Main Window để giao diện thoáng hơn)
 
     def so_log_msg(self, msg):
-        self.so_log.configure(state="normal")
-        time_str = datetime.now().strftime("%H:%M:%S")
-        self.so_log.insert("end", f"[{time_str}] {msg}\n")
-        self.so_log.see("end")
-        self.so_log.configure(state="disabled")
+        # Chuyển hướng dòng chảy log ra thẳng cửa sổ chính
+        self.app.log(msg)
 
     def update_so_shop_list(self, selected_platform=None):
         if selected_platform:
@@ -244,12 +270,15 @@ class SyncOrderTab(ctk.CTkFrame):
         threading.Thread(target=task, daemon=True).start()
 
     async def playwright_order_job(self, shop, action):
+        # Đọc trạng thái từ Checkbox trên UI
+        is_hidden = self.hide_browser_var.get()
+        
         from playwright.async_api import async_playwright
         async with async_playwright() as p:
             browser = await p.chromium.launch_persistent_context(
                 user_data_dir=shop['profile_dir'],
                 channel="chrome",
-                headless=False,
+                headless=is_hidden, # 🌟 ĐÃ KẾT NỐI: Nhận lệnh từ UI
                 viewport={"width": 1280, "height": 720},
                 args=["--disable-blink-features=AutomationControlled"]
             )
@@ -279,12 +308,23 @@ class SyncOrderTab(ctk.CTkFrame):
                     self.so_log_msg(f"👉 Thực thi: CÀO ĐƠN HÀNG MỚI ({platform.upper()})")
                     orders_data = []
                     
+                    # 🚀 Lấy số lượng Limit từ Giao diện
+                    try:
+                        limits = {
+                            "new": int(self.limit_new.get()),
+                            "shipping": int(self.limit_ship.get()),
+                            "done": int(self.limit_done.get())
+                        }
+                    except:
+                        limits = {"new": 100, "shipping": 50, "done": 20}
+                    
                     if platform == 'shopee':
                         from parsers.shopee_order_parser import ShopeeOrderParser
                         from engines.shopee.shopee_orders import ShopeeOrderScraper
                         parser = ShopeeOrderParser(self.so_log_msg)
                         scraper = ShopeeOrderScraper(self.so_log_msg, parser)
-                        orders_data = await scraper.scrape_new_orders(page)
+                        # Đã bơm Limits và Shop name vào cho Bộ não Shopee
+                        orders_data = await scraper.scrape_new_orders(page, limits=limits, shop_name=shop['ten_shop'])
                     elif platform == 'tiktok':
                         from parsers.tiktok_order_parser import TiktokOrderParser
                         from engines.tiktok.tiktok_orders import TiktokOrderScraper
@@ -321,9 +361,17 @@ class SyncOrderTab(ctk.CTkFrame):
                                     oms_st = "HANDED_OVER"
                                 elif tab_src == "Đã giao":
                                     oms_st = "COMPLETED"
-                                elif tab_src == "Đã hủy":
+                                # Đã map thêm Đơn Hủy/Trả hàng của luồng mới
+                                elif tab_src in ["Đã hủy", "Đơn Hủy/Trả hàng"]: 
                                     oms_st = "CANCELLED_TRANSIT"
                                     order_type = "cancel"
+                                # Tách bạch đơn đã in/chuẩn bị hàng
+                                elif tab_src == "Chờ lấy hàng (Đã xử lý)":
+                                    oms_st = "CONFIRMED"
+                                # Đơn mới tinh chờ in
+                                elif tab_src == "Chờ lấy hàng (Chưa xử lý)":
+                                    oms_st = "PENDING"
+
                             elif platform == 'tiktok':
                                 if tab_src == "Đã gửi":
                                     oms_st = "HANDED_OVER"
@@ -335,6 +383,8 @@ class SyncOrderTab(ctk.CTkFrame):
                                 elif tab_src == "Giao không thành công":
                                     oms_st = "FAILED_DELIVERY"
                                     order_type = "cancel"
+                                # (Tab "Cần gửi" sẽ tự động nhận mặc định là PENDING)
+
                             elif platform == 'lazada':
                                 if tab_src in ["Đang giao", "Chờ bàn giao"]:
                                     oms_st = "HANDED_OVER"
@@ -349,6 +399,7 @@ class SyncOrderTab(ctk.CTkFrame):
                                 elif tab_src == "Trả hàng":
                                     oms_st = "RETURN_REFUND"
                                     order_type = "return"
+                                # (Tab "Chờ đóng gói" sẽ tự động nhận mặc định là PENDING)
 
                             payload["orders"].append({
                                 "order_id": order["order_id"],
@@ -367,9 +418,9 @@ class SyncOrderTab(ctk.CTkFrame):
                             for item in order["items"]:
                                 payload["items"].append({
                                     "order_id": order["order_id"],
-                                    "sku": "", 
+                                    "sku": item.get("sku", ""), # 🌟 ĐÃ MỞ KHÓA: Cho phép truyền SKU thật lên Server
                                     "variation_name": item.get("variation", ""), 
-                                    "product_name": item["name"],
+                                    "product_name": item.get("name", "Sản phẩm"), # Tránh lỗi key error
                                     "qty": int(item.get("quantity", 1) if str(item.get("quantity", "1")).isdigit() else 1),
                                     "image_url": item.get("image", "")
                                 })

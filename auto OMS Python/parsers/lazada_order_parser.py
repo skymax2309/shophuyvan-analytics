@@ -56,15 +56,33 @@ class LazadaOrderParser:
                 buyer_node = parent.select_one(".order-header-chat-box")
                 buyer_name = buyer_node.get_text(strip=True) if buyer_node else "Khách Lazada"
 
-                # 4. Sản phẩm đại diện
-                product_node = parent.select_one(".product-title-text")
+                # 4. Sản phẩm đại diện & Hình ảnh & SKU
+                img_node = parent.select_one("img")
+                img_url = img_node.get("src", "") if img_node else ""
+                if img_url and img_url.startswith("//"):
+                    img_url = "https:" + img_url
+
+                product_node = parent.select_one(".product-title-text, .product-name")
                 product_name = product_node.get_text(strip=True) if product_node else "Sản phẩm Lazada"
 
-                sku_node = parent.select_one(".order-field-sku-info .order-field-value")
-                variation = sku_node.get_text(strip=True) if sku_node else ""
-
-                qty_node = parent.select_one(".order-item-count")
+                qty_node = parent.select_one(".order-item-count, .item-count")
                 quantity = re.sub(r'[^\d]', '', qty_node.get_text()) if qty_node else "1"
+
+                variation = ""
+                sku = ""
+                
+                # Lazada thường giấu SKU trong các class sku-info, quét fallback
+                texts = list(parent.stripped_strings)
+                for i, txt in enumerate(texts):
+                    txt_lower = txt.lower()
+                    if "sku" in txt_lower:
+                        if ":" in txt:
+                            sku = txt.split(":", 1)[1].strip()
+                        elif i + 1 < len(texts):
+                            sku = texts[i+1]
+                    elif "phân loại" in txt_lower or "variation" in txt_lower or "màu" in txt_lower or "kích thước" in txt_lower:
+                        if ":" in txt:
+                            variation = txt.split(":", 1)[1].strip()
 
                 orders.append({
                     "order_id": order_id,
@@ -74,7 +92,13 @@ class LazadaOrderParser:
                     "status": current_tab,
                     "tab_source": current_tab,
                     "tracking_number": tracking_number,
-                    "items": [{"name": product_name, "variation": variation, "quantity": quantity, "image": ""}]
+                    "items": [{
+                        "name": product_name, 
+                        "variation": variation, 
+                        "sku": sku, 
+                        "quantity": quantity, 
+                        "image": img_url
+                    }]
                 })
             except Exception as e:
                 self.log(f"   ⚠️ Lỗi bóc 1 đơn Lazada: {e}")

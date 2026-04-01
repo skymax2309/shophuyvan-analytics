@@ -68,6 +68,9 @@ export function switchPlatform(p) {
   document.querySelectorAll('.status-tab').forEach(el => el.classList.remove('active'))
   if (currentPlatform) document.getElementById('tab-' + p)?.classList.add('active')
   else document.getElementById('tab-ALL')?.classList.add('active')
+  
+  // 🌟 Liên hoàn cước: Lọc lại Dropdown Shop theo Sàn vừa chọn
+  filterShopDropdown(currentPlatform)
   loadOrders(1)
 }
 
@@ -95,14 +98,16 @@ export async function loadOrders(page = 1) {
   const from   = document.getElementById('f_from').value
   const to     = document.getElementById('f_to').value
   const shop     = document.getElementById('f_shop').value
-  const shipping = document.getElementById('f_shipping').value
   const search   = document.getElementById('f_search').value.trim()
+  const carrier  = document.getElementById('f_carrier').value
+  const isExpress= document.getElementById('f_express').checked
 
   if (from)   params.set('from', from)
   if (to)     params.set('to', to)
-  if (shop)   params.set('shop', shop)
-  if (search)   params.set('search', search)
-  if (shipping) params.set('shipping_status', shipping)
+  if (shop)      params.set('shop', shop)
+  if (search)    params.set('search', search)
+  if (carrier)   params.set('carrier', carrier) // Truyền thẳng tham số carrier lên Server
+  if (isExpress) params.set('express', '1')
   if (currentStatus && currentStatus !== 'ALL') params.set('oms_status', currentStatus)
   if (currentType)     params.set('order_type', currentType)
   if (currentPlatform) params.set('platform', currentPlatform)
@@ -203,7 +208,10 @@ function renderTable() {
           <div class="product-info">
             <div class="product-name" title="${item.product_name||'—'}">${(item.product_name||'—').substring(0,40)}</div>
             ${item.variation_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Phân loại: ${item.variation_name}</div>` : ''}
-            <div class="product-sku" style="margin-top:2px; color:var(--blue);">${item.sku||'Chưa Map SKU'}</div>
+            <div class="product-sku" style="margin-top:2px; color:var(--blue); display:flex; align-items:center; gap:5px;">
+              ${item.sku || '<span style="color:var(--red)">Chưa Map SKU</span>'}
+              ${(!item.sku || item.sku.includes('Chưa Map')) ? `<span onclick="openMapModal('${item.variation_name || item.product_name}', '${o.order_id}')" style="background:var(--accent); color:white; padding:1px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold; box-shadow: 0 0 5px var(--accent); animation: pulse 1.5s infinite;">➕ Map</span>` : ''}
+            </div>
             <div class="product-qty" style="margin-top:2px; font-weight: bold;">× ${item.qty || 1}</div>
           </div>
         </div>`
@@ -613,16 +621,6 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open') })
 })
 
-// ── LOAD SHOPS for filter ────────────────────────────────────────────
-export async function loadShopList() {
-  try {
-    const data = await fetch(API + '/api/top-shop').then(r => r.json())
-    const sel  = document.getElementById('f_shop')
-    const shops = [...new Set(data.map(s => s.shop))].sort()
-    sel.innerHTML = '<option value="">Tất cả shop</option>' +
-      shops.map(s => `<option value="${s}">${s}</option>`).join('')
-  } catch {}
-}
 
 // ── TRIGGER BOT CÀO ĐƠN TỪ XA (HỖ TRỢ MOBILE/WEB) ─────────────────────
 export async function triggerBotScrape() {
@@ -651,5 +649,108 @@ export async function triggerBotScrape() {
     if(btn) { btn.style.opacity = '1'; btn.disabled = false; }
   }
 }
+
+// ── LIÊN HOÀN SÀN -> SHOP ───────────────────────────────────────────
+let globalShopList = [];
+export async function loadShopList() {
+  try {
+    const data = await fetch(API + '/api/shops').then(r => r.json());
+    globalShopList = data; // Lưu biến toàn cục
+    filterShopDropdown('');
+  } catch {}
+}
+
+export function filterShopDropdown(platform) {
+  const sel = document.getElementById('f_shop');
+  const currentVal = sel.value;
+  let filtered = globalShopList;
+  if (platform) {
+    filtered = globalShopList.filter(s => (s.platform||'').toLowerCase() === platform.toLowerCase());
+  }
+  const uniqueShops = [...new Set(filtered.map(s => s.shop_name))].sort();
+  sel.innerHTML = '<option value="">Tất cả shop</option>' + uniqueShops.map(s => `<option value="${s}">${s}</option>`).join('');
+  if (uniqueShops.includes(currentVal)) sel.value = currentVal;
+}
+
+// ── QUICK MAP SKU CORE ─────────────────────────────────────────────
+let mapSearchTimer = null;
+export function openMapModal(rawName, orderId) {
+  document.getElementById('mapTargetName').textContent = rawName || 'Sản phẩm lỗi tên';
+  document.getElementById('mapTargetRawSku').value = rawName;
+  document.getElementById('mapTargetOrderId').value = orderId;
+  document.getElementById('mapSearchInput').value = '';
+  document.getElementById('mapSkuResults').innerHTML = '<div style="padding:10px;color:var(--muted);text-align:center;">Gõ tên sản phẩm để tìm...</div>';
+  document.getElementById('mapSkuModal').classList.add('open');
+  document.getElementById('mapSearchInput').focus();
+}
+
+export function debounceSearchSku() {
+  clearTimeout(mapSearchTimer);
+  mapSearchTimer = setTimeout(searchDbSku, 400);
+}
+
+async function searchDbSku() {
+  const keyword = document.getElementById('mapSearchInput').value.trim();
+  const box = document.getElementById('mapSkuResults');
+  if (keyword.length < 2) {
+    box.innerHTML = '<div style="padding:10px;color:var(--muted);text-align:center;">Gõ thêm ký tự để tìm...</div>';
+    return;
+  }
+  box.innerHTML = '<div style="padding:10px;text-align:center;">⏳ Đang tìm...</div>';
+  try {
+    const res = await fetch(`${API}/api/products?search=${encodeURIComponent(keyword)}`).then(r => r.json());
+    if (!res.data || res.data.length === 0) {
+      box.innerHTML = '<div style="padding:10px;color:var(--red);text-align:center;">Không tìm thấy SKU nào!</div>';
+      return;
+    }
+    box.innerHTML = res.data.map(p => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding: 8px; border-bottom: 1px solid var(--border); cursor:pointer;" onclick="saveMapSku('${p.sku}')">
+        <div style="display:flex; gap: 10px; align-items:center;">
+          <img src="${p.image_url || ''}" style="width:30px; height:30px; border-radius:4px; background:var(--surface);">
+          <div>
+             <div style="color:var(--blue); font-weight:bold; font-size:12px;">${p.sku}</div>
+             <div style="font-size:11px; color:var(--text);">${(p.product_name||'').substring(0,35)}</div>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;">Chốt</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    box.innerHTML = '<div style="padding:10px;color:var(--red);text-align:center;">Lỗi mạng!</div>';
+  }
+}
+
+window.saveMapSku = async function(internalSku) {
+  const rawName = document.getElementById('mapTargetRawSku').value;
+  document.getElementById('mapSkuResults').innerHTML = '<div style="padding:10px;text-align:center;color:var(--green);font-weight:bold;">🚀 Đang đẩy dữ liệu Map lên Server...</div>';
+  try {
+    const payload = [{ platform_sku: rawName, internal_sku: internalSku, map_status: 'MAPPED' }];
+    await fetch(`${API}/api/sync-variations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    // Đỉnh cao: Gọi API tính lại giá vốn cho đơn này ngay lập tức
+    await fetch(`${API}/api/orders/recalc-cost`, { method: 'POST' });
+    
+    showToast(`✅ Đã Map thành công SKU: ${internalSku}`);
+    closeModal('mapSkuModal');
+    loadOrders(currentPage); // F5 lại bảng để hiện ảnh và giá vốn
+  } catch (e) {
+    showToast('❌ Lỗi lưu Map SKU: ' + e.message);
+  }
+}
+
+// Bộc thép style cho nhịp đập nút Map
+if(!document.getElementById('pulse-css')){
+  const style = document.createElement('style');
+  style.id = 'pulse-css';
+  style.innerHTML = `@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(0, 255, 136, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); } }`;
+  document.head.appendChild(style);
+}
+
+// Gắn các hàm mới vào window để HTML gọi được
+Object.assign(window, { openMapModal, debounceSearchSku, saveMapSku });
 // ── INIT ─────────────────────────────────────────────────────────────
 loadShopList()

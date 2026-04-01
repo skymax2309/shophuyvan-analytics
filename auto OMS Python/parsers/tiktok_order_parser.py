@@ -58,6 +58,61 @@ class TiktokOrderParser:
                 # 4. Trạng thái đơn & Loại đơn
                 status = current_tab
                 
+                # 5. Bóc tách Ảnh 
+                img_url = ""
+                for img in parent.find_all(['img', 'image']):
+                    src = img.get('src', '') or img.get('data-src', '')
+                    if src and 'http' in src and 'icon' not in src and 'avatar' not in src:
+                        img_url = src
+                        break
+
+                name = ""
+                variation = ""
+                sku = ""
+                qty = 1
+                
+                # 🚀 TUYỆT CHIÊU 3: Moi ruột dữ liệu đã được JS bơm vào từ Popup
+                injected_div = parent.find('div', class_='huyvan-injected-data')
+                if injected_div:
+                    # Tách các dòng trong Popup ra thành List chuẩn
+                    parts = list(injected_div.stripped_strings)
+                    
+                    if len(parts) > 0:
+                        # Dòng 1 luôn là: "Tên sản phẩm dài thoòng loòng... x 2"
+                        first_line = parts[0]
+                        match_qty = re.search(r'x\s*(\d+)$', first_line.lower())
+                        if match_qty:
+                            qty = int(match_qty.group(1))
+                            name = re.sub(r'x\s*\d+$', '', first_line, flags=re.IGNORECASE).strip()
+                        else:
+                            name = first_line
+                            
+                        # Các dòng bên dưới chứa Phân loại và SKU
+                        for p in parts[1:]:
+                            pl = p.lower()
+                            if "sku" in pl:
+                                sku = p.split(":", 1)[1].strip() if ":" in p else p.replace("SKU người bán", "").replace("SKU", "").strip()
+                                sku = sku.strip(' :-') # Dọn sạch rác
+                            elif "nhà sáng tạo" not in pl and len(p) > 1 and not variation:
+                                variation = p
+
+                # Nếu Tooltip bị lỗi mạng ko load được, dùng rổ ứng viên dự phòng
+                if not name:
+                    valid_name_candidates = []
+                    texts = list(parent.stripped_strings)
+                    for i, txt in enumerate(texts):
+                        t = txt.strip()
+                        tl = t.lower()
+                        if re.match(r'^[a-zA-Z0-9]\*+[a-zA-Z0-9]$', t) or t == order_id or t.isdigit(): continue
+                        if len(t) > 6 and "₫" not in t and not re.search(r'\d{2}:\d{2}', t):
+                            blacklisted = ["thanh toán", "đơn hàng", "tiktok", "bồi hoàn", "vận chuyển", "chiết khấu", "tài trợ", "phút trước", "hôm nay", "hôm qua", "giây trước", "giờ trước", "mặt hàng", "j&t", "trung chuyển", "spx", "ninja van", "best express", "viettel post", "đang giao", "chờ trả lời", "kho vận", "xem thông tin", "giao nhanh"]
+                            if not any(bad in tl for bad in blacklisted):
+                                valid_name_candidates.append(t)
+                    if valid_name_candidates:
+                        name = max(valid_name_candidates, key=len)
+
+                if not name: name = "Sản phẩm TikTok"
+
                 orders.append({
                     "order_id": order_id,
                     "buyer_name": buyer_name,
@@ -65,15 +120,14 @@ class TiktokOrderParser:
                     "carrier": carrier,
                     "status": status,
                     "tab_source": current_tab,
-                    "tracking_number": "", # Thường TikTok ẩn mã vận đơn ở màn hình ngoài
-                    "items": [
-                        {
-                            "name": "Sản phẩm TikTok", # Web ẩn tên SP chi tiết, tạm gán nhãn
-                            "variation": "",
-                            "quantity": 1,
-                            "image": ""
-                        }
-                    ]
+                    "tracking_number": "", 
+                    "items": [{
+                        "name": name,
+                        "variation": variation,
+                        "sku": sku,
+                        "quantity": qty,
+                        "image": img_url
+                    }]
                 })
             except Exception as e:
                 self.log(f"   ⚠️ Lỗi bóc tách 1 đơn TikTok: {e}")

@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import ttk, filedialog
+from tkinter import filedialog
 import threading
 import asyncio
 from playwright.async_api import async_playwright
@@ -17,76 +17,71 @@ class LoginTab(ctk.CTkFrame):
         self._build_ui()
 
     def _build_ui(self):
-        top_frame = ctk.CTkFrame(self, fg_color="transparent")
-        top_frame.pack(fill="x", padx=15, pady=(15,5))
-
-        # Form thêm shop
-        ctk.CTkLabel(top_frame, text="Thêm Shop Mới (Không cần nhập Tên, Bot tự quét):", font=("Segoe UI",14,"bold"), text_color="#FFD700").pack(anchor="w", pady=(0,6))
-        form_frame = ctk.CTkFrame(top_frame, fg_color="#222222", corner_radius=10, border_width=1, border_color="#333333")
-        form_frame.pack(fill="x", pady=(0, 10))
-
-        # --- HÀNG 1: SÀN + TÀI KHOẢN + MẬT KHẨU ---
-        ctk.CTkLabel(form_frame, text="Sàn:", font=("Segoe UI",11), text_color="#aaa").grid(row=0, column=0, padx=(10,3), pady=(12,6), sticky="e")
-        self.combo_san_new = ctk.CTkComboBox(form_frame, values=["shopee","lazada","tiktok"], width=100, font=("Segoe UI",11))
-        self.combo_san_new.set("shopee")
-        self.combo_san_new.grid(row=0, column=1, padx=3, pady=(12,6), sticky="w")
-
-        ctk.CTkLabel(form_frame, text="Tài khoản:", font=("Segoe UI",11), text_color="#aaa").grid(row=0, column=2, padx=(15,3), pady=(12,6), sticky="e")
-        self.entry_tk_new = ctk.CTkEntry(form_frame, width=180, placeholder_text="User Name / SĐT", font=("Segoe UI",11))
-        self.entry_tk_new.grid(row=0, column=3, padx=3, pady=(12,6), sticky="w")
-
-        ctk.CTkLabel(form_frame, text="Mật khẩu:", font=("Segoe UI",11), text_color="#aaa").grid(row=0, column=4, padx=(15,3), pady=(12,6), sticky="e")
-        self.entry_mk_new = ctk.CTkEntry(form_frame, width=150, placeholder_text="Mật khẩu", show="*", font=("Segoe UI",11))
-        self.entry_mk_new.grid(row=0, column=5, padx=3, pady=(12,6), sticky="w")
-
-        # --- HÀNG 2: THƯ MỤC LƯU + PROFILE DIR ---
-        ctk.CTkLabel(form_frame, text="Thư mục lưu:", font=("Segoe UI",11), text_color="#aaa").grid(row=1, column=0, padx=(10,3), pady=(0,12), sticky="e")
-        self.entry_dir_new = ctk.CTkEntry(form_frame, width=150, placeholder_text=r"E:\Doanh Thu\...", font=("Segoe UI",10))
-        self.entry_dir_new.grid(row=1, column=1, columnspan=2, padx=3, pady=(0,12), sticky="we")
-        ctk.CTkButton(form_frame, text="📁", width=40, command=self._browse_dir, fg_color="#444", hover_color="#555").grid(row=1, column=3, padx=(0,5), pady=(0,12), sticky="w")
-
-        ctk.CTkLabel(form_frame, text="Profile dir:", font=("Segoe UI",11), text_color="#aaa").grid(row=1, column=4, padx=(10,3), pady=(0,12), sticky="e")
-        self.entry_prof_new = ctk.CTkEntry(form_frame, width=150, placeholder_text=r"C:\Users\...\Bot_Data", font=("Segoe UI",10))
-        self.entry_prof_new.grid(row=1, column=5, padx=3, pady=(0,12), sticky="we")
-        ctk.CTkButton(form_frame, text="📁", width=40, command=self._browse_prof, fg_color="#444", hover_color="#555").grid(row=1, column=6, padx=(0,10), pady=(0,12), sticky="w")
-        # --- NÚT THÊM / XÓA / ĐĂNG NHẬP ---
-        btn_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(6,0))
-        ctk.CTkButton(btn_frame, text="✚ Thêm Shop", command=self._add_shop_to_list, font=("Segoe UI",12,"bold"), fg_color="#28A745", hover_color="#218838", height=32, corner_radius=8).pack(side="left", padx=(0,8))
-        ctk.CTkButton(btn_frame, text="🗑️ Xóa Shop", command=self._del_shop_from_list, font=("Segoe UI",12,"bold"), fg_color="#444", hover_color="#DC3545", height=32, corner_radius=8).pack(side="left", padx=(0,8))
-        
-        self.btn_login_shop = ctk.CTkButton(btn_frame, text="🔑 Đăng Nhập / Quét Tên Shop", command=self.run_manual_login, font=("Segoe UI",12,"bold"), fg_color="#f59e0b", hover_color="#d97706", height=32, corner_radius=8)
-        self.btn_login_shop.pack(side="right")
-
-        # Bảng danh sách
-        list_frame = ctk.CTkFrame(self, fg_color="transparent")
-        list_frame.pack(fill="both", expand=True, padx=15, pady=(8,15))
-        ctk.CTkLabel(list_frame, text="Danh Sách Cửa Hàng (Click [X] để bật/tắt):", font=("Segoe UI",13,"bold"), text_color="#FFD700").pack(anchor="w", pady=(0,6))
-
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure("Treeview", background="#222222", foreground="white", fieldbackground="#222222", rowheight=32, font=("Segoe UI",10))
-        style.map("Treeview", background=[("selected","#333333")], foreground=[("selected","#00CED1")])
-        style.configure("Treeview.Heading", background="#333333", foreground="#00CED1", relief="flat", font=("Segoe UI",11,"bold"))
-
-        cols = ("Chon","STT","NenTang","TenShop","Platform")
-        self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=6)
-        for col, w, anchor, head in [("Chon",50,"center","[X]"), ("STT",40,"center","STT"), ("NenTang",100,"center","Sàn"), ("TenShop",280,"w","Tên Shop"), ("Platform",100,"center","Platform")]:
-            self.tree.heading(col, text=head)
-            self.tree.column(col, width=w, anchor=anchor)
-
-        self.tree.bind("<ButtonRelease-1>", self._toggle_shop_check)
-        self.tree.pack(fill="x", pady=(0,8))
-        
-        self._update_treeview()
-
-        # ── KHU VỰC CẤU HÌNH CHUNG (GLOBAL SETTINGS) ──
+        # ── KHU VỰC CẤU HÌNH CHUNG ĐƯA LÊN TRÊN CÙNG CHO DỄ THẤY ──
         settings_frame = ctk.CTkFrame(self, fg_color="transparent")
-        settings_frame.pack(fill="x", padx=15, pady=(0, 10))
+        settings_frame.pack(fill="x", padx=15, pady=(10, 0))
         
         ctk.CTkSwitch(settings_frame, text="🚀 Tự khởi động cùng Windows", variable=self.app.var_autostart, command=self.app._toggle_autostart, font=("Segoe UI", 12, "bold"), text_color="white", progress_color="#28A745").pack(side="left", padx=(0, 30))
         ctk.CTkSwitch(settings_frame, text="🙈 Chạy ẩn trình duyệt (Headless)", variable=self.app.var_headless, font=("Segoe UI", 12, "bold"), text_color="white", progress_color="#00CED1").pack(side="left")
 
+        top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        top_frame.pack(fill="x", padx=15, pady=(10,0))
+
+        # ── FORM THÊM SHOP ĐƯỢC CHIA LẠI GRID CHO THOÁNG ──
+        ctk.CTkLabel(top_frame, text="Thêm Shop Mới (Không cần nhập Tên, Bot tự quét):", font=("Segoe UI",14,"bold"), text_color="#FFD700").pack(anchor="w", pady=(0,6))
+        form_frame = ctk.CTkFrame(top_frame, fg_color="#222222", corner_radius=10, border_width=1, border_color="#333333")
+        form_frame.pack(fill="x", pady=(0, 10))
+
+        form_frame.grid_columnconfigure((1, 3, 5), weight=1) # Giúp các ô nhập tự động giãn dài ra
+
+        # --- HÀNG 1: SÀN + TÀI KHOẢN + MẬT KHẨU ---
+        ctk.CTkLabel(form_frame, text="Sàn:", font=("Segoe UI",12,"bold"), text_color="#aaa").grid(row=0, column=0, padx=(15,5), pady=(12,5), sticky="e")
+        self.combo_san_new = ctk.CTkComboBox(form_frame, values=["shopee","lazada","tiktok"], width=120, font=("Segoe UI",12))
+        self.combo_san_new.set("shopee")
+        self.combo_san_new.grid(row=0, column=1, padx=5, pady=(12,5), sticky="w")
+
+        ctk.CTkLabel(form_frame, text="Tài khoản:", font=("Segoe UI",12,"bold"), text_color="#aaa").grid(row=0, column=2, padx=(10,5), pady=(12,5), sticky="e")
+        self.entry_tk_new = ctk.CTkEntry(form_frame, placeholder_text="User Name / SĐT", font=("Segoe UI",12))
+        self.entry_tk_new.grid(row=0, column=3, padx=5, pady=(12,5), sticky="we")
+
+        ctk.CTkLabel(form_frame, text="Mật khẩu:", font=("Segoe UI",12,"bold"), text_color="#aaa").grid(row=0, column=4, padx=(10,5), pady=(12,5), sticky="e")
+        self.entry_mk_new = ctk.CTkEntry(form_frame, placeholder_text="Mật khẩu", show="*", font=("Segoe UI",12))
+        self.entry_mk_new.grid(row=0, column=5, padx=(5,15), pady=(12,5), sticky="we")
+
+        # --- HÀNG 2: THƯ MỤC LƯU + PROFILE DIR ---
+        ctk.CTkLabel(form_frame, text="Thư mục lưu:", font=("Segoe UI",12,"bold"), text_color="#aaa").grid(row=1, column=0, padx=(15,5), pady=(5,12), sticky="e")
+        dir_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        dir_frame.grid(row=1, column=1, columnspan=3, padx=5, pady=(5,12), sticky="we")
+        self.entry_dir_new = ctk.CTkEntry(dir_frame, placeholder_text=r"E:\Doanh Thu\...", font=("Segoe UI",11))
+        self.entry_dir_new.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(dir_frame, text="📁", width=40, command=self._browse_dir, fg_color="#444", hover_color="#555").pack(side="right", padx=(5,0))
+
+        ctk.CTkLabel(form_frame, text="Profile dir:", font=("Segoe UI",12,"bold"), text_color="#aaa").grid(row=1, column=4, padx=(10,5), pady=(5,12), sticky="e")
+        prof_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+        prof_frame.grid(row=1, column=5, padx=(5,15), pady=(5,12), sticky="we")
+        self.entry_prof_new = ctk.CTkEntry(prof_frame, placeholder_text=r"C:\Users\...\Bot_Data", font=("Segoe UI",11))
+        self.entry_prof_new.pack(side="left", fill="x", expand=True)
+        ctk.CTkButton(prof_frame, text="📁", width=40, command=self._browse_prof, fg_color="#444", hover_color="#555").pack(side="right", padx=(5,0))
+
+        # ── NÚT ĐIỀU KHIỂN ĐƯỢC PHÂN LẬP 2 BÊN RÕ RÀNG ──
+        btn_frame = ctk.CTkFrame(top_frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(0,5))
+        ctk.CTkButton(btn_frame, text="✚ Thêm Shop Mới", command=self._add_shop_to_list, font=("Segoe UI",13,"bold"), fg_color="#28A745", hover_color="#218838", height=36, corner_radius=8).pack(side="left", padx=(0,10))
+        ctk.CTkButton(btn_frame, text="🗑️ Xóa Shop Đã Chọn", command=self._del_shop_from_list, font=("Segoe UI",13,"bold"), fg_color="#444", hover_color="#DC3545", height=36, corner_radius=8).pack(side="left")
+        
+        self.btn_login_shop = ctk.CTkButton(btn_frame, text="🔑 Đăng Nhập / Quét Tên Shop Đã Chọn", command=self.run_manual_login, font=("Segoe UI",13,"bold"), fg_color="#f59e0b", hover_color="#d97706", height=36, corner_radius=8)
+        self.btn_login_shop.pack(side="right")
+
+        # ── BẢNG DANH SÁCH ĐẸP MẮT (Dùng ScrollableFrame chống tràn) ──
+        list_frame = ctk.CTkFrame(self, fg_color="transparent")
+        list_frame.pack(fill="both", expand=True, padx=15, pady=(5,10))
+        ctk.CTkLabel(list_frame, text="Danh Sách Cửa Hàng Đang Quản Lý:", font=("Segoe UI",14,"bold"), text_color="#00CED1").pack(anchor="w", pady=(0,5))
+
+        self.shop_list_frame = ctk.CTkScrollableFrame(list_frame, fg_color="#222222", corner_radius=10, border_width=1, border_color="#333333")
+        self.shop_list_frame.pack(fill="both", expand=True) # expand=True giúp nó TỰ CO LẠI nhường chỗ cho Trạm Log
+        
+        self.shop_checkboxes = {}
+        self._update_shop_list()
     def _browse_dir(self):
         folder = filedialog.askdirectory(title="Chọn thư mục lưu Excel/PDF")
         if folder:
@@ -99,12 +94,37 @@ class LoginTab(ctk.CTkFrame):
             self.entry_prof_new.delete(0, "end")
             self.entry_prof_new.insert(0, folder)
 
-    def _update_treeview(self):
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        for i, shop in enumerate(self.app.DANH_SACH_SHOP, 1):
+    def _update_shop_list(self):
+        for widget in self.shop_list_frame.winfo_children():
+            widget.destroy()
+        self.shop_checkboxes.clear()
+
+        # Tạo thanh Tiêu đề (Header) giả
+        header = ctk.CTkFrame(self.shop_list_frame, fg_color="#333333", height=35, corner_radius=5)
+        header.pack(fill="x", pady=(0, 5))
+        ctk.CTkLabel(header, text="Chọn", width=50, font=("Segoe UI", 12, "bold"), text_color="#00CED1").pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Sàn", width=80, anchor="w", font=("Segoe UI", 12, "bold"), text_color="#00CED1").pack(side="left", padx=5)
+        ctk.CTkLabel(header, text="Tên Shop", anchor="w", font=("Segoe UI", 12, "bold"), text_color="#00CED1").pack(side="left", fill="x", expand=True, padx=5)
+        ctk.CTkLabel(header, text="Tài khoản (User)", width=180, anchor="w", font=("Segoe UI", 12, "bold"), text_color="#00CED1").pack(side="left", padx=5)
+
+        for i, shop in enumerate(self.app.DANH_SACH_SHOP):
+            row = ctk.CTkFrame(self.shop_list_frame, fg_color="transparent")
+            row.pack(fill="x", pady=3)
+            
+            # Tạo Checkbox XỊN SÒ của CustomTkinter
+            var = ctk.BooleanVar(value=False)
+            self.shop_checkboxes[i] = var
+            cb = ctk.CTkCheckBox(row, text="", variable=var, width=50, checkbox_width=22, checkbox_height=22, fg_color="#00CED1", hover_color="#00FFFF")
+            cb.pack(side="left", padx=5)
+            
+            plat = shop.get("platform", "shopee").upper()
+            ctk.CTkLabel(row, text=plat, width=80, anchor="w", font=("Segoe UI", 12, "bold"), text_color="#aaa").pack(side="left", padx=5)
+            
             ten = shop.get("ten_shop", "<Chưa có tên>")
-            self.tree.insert("", "end", values=("☑", i, shop["platform"].upper(), ten, shop["platform"]), tags=(i-1,))
+            ctk.CTkLabel(row, text=ten, anchor="w", font=("Segoe UI", 13, "bold"), text_color="white").pack(side="left", fill="x", expand=True, padx=5)
+            
+            user = shop.get("user_name", shop.get("tai_khoan", ""))
+            ctk.CTkLabel(row, text=user, width=180, anchor="w", font=("Segoe UI", 12), text_color="#888").pack(side="left", padx=5)
 
     def _save_shops_to_json(self):
         try:
@@ -167,36 +187,29 @@ class LoginTab(ctk.CTkFrame):
         self.app._refresh_auto_shop_list()
 
     def _del_shop_from_list(self):
-        selected = self.tree.selection()
-        if not selected: return
-        for item in selected:
-            idx = int(self.tree.item(item, "tags")[0])
-            self.app.DANH_SACH_SHOP[idx] = None
-            
-        self.app.DANH_SACH_SHOP = [s for s in self.app.DANH_SACH_SHOP if s is not None]
-        self._save_shops_to_json()
-        self._update_treeview()
-        self.app._refresh_auto_shop_list()
+        has_deleted = False
+        for idx, var in self.shop_checkboxes.items():
+            if var.get():
+                self.app.DANH_SACH_SHOP[idx] = None
+                has_deleted = True
+        
+        if has_deleted:
+            self.app.DANH_SACH_SHOP = [s for s in self.app.DANH_SACH_SHOP if s is not None]
+            self._save_shops_to_json()
+            self._update_shop_list()
+            self.app._refresh_auto_shop_list()
+        else:
+            self.app.log("⚠️ Vui lòng tích chọn shop cần xóa!")
 
-    def _toggle_shop_check(self, event):
-        region = self.tree.identify("region", event.x, event.y)
-        if region == "cell" and self.tree.identify_column(event.x) == "#1":
-            item = self.tree.focus()
-            vals = list(self.tree.item(item, "values"))
-            vals[0] = "☐" if vals[0] == "☑" else "☑"
-            self.tree.item(item, values=vals)
-
-    def get_selected_shops_from_tree(self):
+    def get_selected_shops_from_list(self):
         selected = []
-        for item in self.tree.get_children():
-            vals = self.tree.item(item, "values")
-            if vals[0] == "☑":
-                idx = int(self.tree.item(item, "tags")[0])
+        for idx, var in self.shop_checkboxes.items():
+            if var.get():
                 selected.append(self.app.DANH_SACH_SHOP[idx])
         return selected
 
     def run_manual_login(self):
-        selected = self.get_selected_shops_from_tree()
+        selected = self.get_selected_shops_from_list()
         if not selected:
             self.app.log("⚠️ Vui lòng tích chọn 1 shop trong bảng trên để Đăng nhập!")
             return

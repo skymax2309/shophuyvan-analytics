@@ -50,7 +50,23 @@ class HuyVanApp(ctk.CTk):
             segmented_button_selected_hover_color="#00FFFF",
             text_color="white", corner_radius=15,
             border_width=1, border_color="#333333")
-        self.tabview.pack(fill="both", expand=True, padx=15, pady=10)
+            
+        # ── TẠO TRẠM LOG CỐ ĐỊNH GLOBAL DƯỚI CÙNG ──
+        self.log_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.log_frame.pack(side="bottom", fill="x", padx=15, pady=(0, 10))
+        
+        ctk.CTkLabel(self.log_frame, text="📟 TRẠM THEO DÕI HỆ THỐNG (GLOBAL LOG):", font=("Segoe UI", 12, "bold"), text_color="#FFD700").pack(anchor="w")
+        self.global_log = ctk.CTkTextbox(self.log_frame, height=180, fg_color="#0A0A0A", text_color="#00FF88", font=("Consolas", 12))
+        self.global_log.pack(fill="x", pady=(2, 0))
+
+        self.tabview = ctk.CTkTabview(self,
+            fg_color="#1A1A1A", segmented_button_fg_color="#262626",
+            segmented_button_selected_color="#00CED1",
+            segmented_button_selected_hover_color="#00FFFF",
+            text_color="white", corner_radius=15,
+            border_width=1, border_color="#333333",
+            command=self.on_tab_change) # GẮN SỰ KIỆN KHI CLICK CHUYỂN TAB
+        self.tabview.pack(side="top", fill="both", expand=True, padx=15, pady=(10, 5))
         self.tabview._segmented_button.configure(font=("Segoe UI", 13, "bold"))
 
         tab_quanly = self.tabview.add("👤 Quản Lý Tài Khoản")
@@ -71,14 +87,34 @@ class HuyVanApp(ctk.CTk):
         # <-- GỌI FILE GIAO DIỆN BOT ĐƠN HÀNG -->
         from ui.sync_order_tab import SyncOrderTab
         self.sync_order_tab = SyncOrderTab(tab_donhang, self)
+        
+        # ── Kích hoạt hàm kiểm tra để ẩn Log lúc mới mở App ──
+        self.on_tab_change()
+    # ── ĐIỀU KHIỂN GIAO DIỆN THÔNG MINH ──
+    def on_tab_change(self):
+        """Tự động ẩn Log khi ở Tab Quản Lý để danh sách nở to ra"""
+        if self.tabview.get() == "👤 Quản Lý Tài Khoản":
+            self.log_frame.pack_forget() # Xóa ẩn đi
+        else:
+            # Gắn lại Log xuống đáy, đẩy Tabview lên trên giữ nguyên bố cục
+            self.log_frame.pack(side="bottom", fill="x", padx=15, pady=(0, 10), before=self.tabview)
 
+    
     # ── CÁC HÀM CẦU NỐI (DELEGATORS) ──
     def log(self, message):
-        """Chuyển log xuống Tab Auto Run nếu có, không thì in ra Console"""
-        if hasattr(self, 'auto_run_tab'):
-            self.auto_run_tab.log(message)
-        else:
-            print(f"[*] {message}")
+        """Gom toàn bộ log hệ thống xả vào Trạm Log Cố Định"""
+        import datetime
+        time_str = datetime.datetime.now().strftime("%H:%M:%S")
+        full_msg = f"[{time_str}] {message}\n"
+        
+        print(full_msg.strip()) # Vẫn in ra terminal ẩn để backup
+        
+        # Bắn thẳng lên giao diện Global Log
+        if hasattr(self, 'global_log'):
+            self.global_log.configure(state="normal")
+            self.global_log.insert("end", full_msg)
+            self.global_log.see("end")
+            self.global_log.configure(state="disabled")
 
     def rescue_wait(self, msg):
         if hasattr(self, 'auto_run_tab'):

@@ -256,29 +256,24 @@ def process_and_sync_files(shop_name, file_paths, log_func):
     total_products = len(product_list)
     log_func(f"🚀 Chuẩn bị bắn {total_products} Sản phẩm lên Website...")
     
-    chunk_size = 40 # Chia nhỏ mỗi lần gửi 40 sản phẩm
-    total_synced = 0
-    total_mapped = 0
-
-    for i in range(0, total_products, chunk_size):
-        chunk = product_list[i:i + chunk_size]
-        payload = {"platform": "shopee", "shop": shop_name, "products": chunk}
-        log_func(f"⏳ Đang gửi lô {i//chunk_size + 1} ({len(chunk)} SP)...")
+    # 4. ĐỒNG BỘ QUA TỔNG QUẢN PRODUCT HUB
+    import sys, os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from engines.product_core_hub import ProductCoreHub
+        hub = ProductCoreHub(log_func)
         
-        try:
-            # Thêm timeout để tránh kẹt mạng
-            res = requests.post(SYNC_VARIATIONS_URL, json=payload, timeout=60)
-            if res.status_code == 200:
-                data = res.json()
-                total_synced += data.get('synced', 0)
-                total_mapped += data.get('auto_mapped', 0)
-            else:
-                log_func(f"❌ Lỗi từ Server ở lô {i//chunk_size + 1}: {res.status_code} - {res.text}")
-        except Exception as e:
-            log_func(f"❌ Lỗi mạng ở lô {i//chunk_size + 1}: {str(e)[:50]}...")
-
-    log_func(f"🎉 HOÀN TẤT! Đã đồng bộ tổng cộng {total_synced} phân loại lên Web.")
-    log_func(f"🤖 Hệ thống tự động Map được: {total_mapped} SKU.")
+        chunk_size = 40
+        for i in range(0, total_products, chunk_size):
+            chunk = product_list[i:i + chunk_size]
+            log_func(f"\n⏳ Đang đẩy lô {i//chunk_size + 1} ({len(chunk)} SP) vào Trạm trung chuyển (Hub)...")
+            hub.sync_products(shop_name, "shopee", chunk)
+            
+        log_func("🎉 HOÀN TẤT CHUYỂN TOÀN BỘ DỮ LIỆU SHOPEE QUA HUB!")
+    except ImportError:
+        log_func("❌ LỖI HỆ THỐNG: Không tìm thấy ProductCoreHub.")
+    except Exception as e:
+        log_func(f"❌ Lỗi bất ngờ: {str(e)}")
 
 # ==========================================
 # XỬ LÝ GHÉP NỐI EXCEL TIKTOK
@@ -358,28 +353,24 @@ def process_tiktok_excel_and_sync(shop_name, filepath, log_func):
     except Exception as e:
         log_func(f"⚠️ Lỗi tạo file debug TikTok: {e}")
 
-    chunk_size = 40 # Chia nhỏ mỗi lần gửi 40 sản phẩm
-    total_synced = 0
-    total_mapped = 0
-
-    for i in range(0, total_products, chunk_size):
-        chunk = product_list[i:i + chunk_size]
-        payload = {"platform": "tiktok", "shop": shop_name, "products": chunk}
-        log_func(f"⏳ Đang gửi lô {i//chunk_size + 1} ({len(chunk)} SP)...")
+    # 4. ĐỒNG BỘ QUA TỔNG QUẢN PRODUCT HUB
+    import sys, os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from engines.product_core_hub import ProductCoreHub
+        hub = ProductCoreHub(log_func)
         
-        try:
-            res = requests.post(SYNC_VARIATIONS_URL, json=payload, timeout=60)
-            if res.status_code == 200:
-                data = res.json()
-                total_synced += data.get('synced', 0)
-                total_mapped += data.get('auto_mapped', 0)
-            else:
-                log_func(f"❌ Lỗi từ Server ở lô {i//chunk_size + 1}: {res.status_code} - {res.text}")
-        except Exception as e:
-            log_func(f"❌ Lỗi mạng ở lô {i//chunk_size + 1}: {str(e)[:50]}...")
-
-    log_func(f"🎉 HOÀN TẤT! Đã đồng bộ tổng cộng {total_synced} phân loại lên Web.")
-    log_func(f"🤖 Hệ thống tự động Map được: {total_mapped} SKU.")
+        chunk_size = 40
+        for i in range(0, total_products, chunk_size):
+            chunk = product_list[i:i + chunk_size]
+            log_func(f"\n⏳ Đang đẩy lô {i//chunk_size + 1} ({len(chunk)} SP) vào Trạm trung chuyển (Hub)...")
+            hub.sync_products(shop_name, "tiktok", chunk)
+            
+        log_func("🎉 HOÀN TẤT CHUYỂN TOÀN BỘ DỮ LIỆU TIKTOK QUA HUB!")
+    except ImportError:
+        log_func("❌ LỖI HỆ THỐNG: Không tìm thấy ProductCoreHub.")
+    except Exception as e:
+        log_func(f"❌ Lỗi bất ngờ: {str(e)}")
 
 # ==========================================
 # XỬ LÝ GHÉP NỐI EXCEL LAZADA (3 FILE)
@@ -513,26 +504,21 @@ def process_lazada_excel_and_sync(shop_name, file_paths, log_func):
             json.dump(product_list, f, ensure_ascii=False, indent=4)
     except: pass
 
-    # 4. TIẾN HÀNH ĐỒNG BỘ API (Chunk 40 SP/lần y hệt Shopee)
-    chunk_size = 40
-    total_synced = 0
-    total_mapped = 0
-
-    for i in range(0, total_products, chunk_size):
-        chunk = product_list[i:i + chunk_size]
-        payload = {"platform": "lazada", "shop": shop_name, "products": chunk}
-        log_func(f"⏳ Đang gửi lô {i//chunk_size + 1} ({len(chunk)} SP)...")
+    # 4. ĐỒNG BỘ QUA TỔNG QUẢN PRODUCT HUB
+    import sys, os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from engines.product_core_hub import ProductCoreHub
+        hub = ProductCoreHub(log_func)
         
-        try:
-            res = requests.post(SYNC_VARIATIONS_URL, json=payload, timeout=60)
-            if res.status_code == 200:
-                data = res.json()
-                total_synced += data.get('synced', 0)
-                total_mapped += data.get('auto_mapped', 0)
-            else:
-                log_func(f"❌ Lỗi từ Server ở lô {i//chunk_size + 1}: {res.status_code} - {res.text}")
-        except Exception as e:
-            log_func(f"❌ Lỗi mạng ở lô {i//chunk_size + 1}: {str(e)[:50]}...")
-
-    log_func(f"🎉 HOÀN TẤT ĐỒNG BỘ LAZADA! Đã đẩy {total_synced} phân loại lên Web.")
-    log_func(f"🤖 OMS tự động Map được: {total_mapped} SKU.")
+        chunk_size = 40
+        for i in range(0, total_products, chunk_size):
+            chunk = product_list[i:i + chunk_size]
+            log_func(f"\n⏳ Đang đẩy lô {i//chunk_size + 1} ({len(chunk)} SP) vào Trạm trung chuyển (Hub)...")
+            hub.sync_products(shop_name, "lazada", chunk)
+            
+        log_func("🎉 HOÀN TẤT CHUYỂN TOÀN BỘ DỮ LIỆU LAZADA QUA HUB!")
+    except ImportError:
+        log_func("❌ LỖI HỆ THỐNG: Không tìm thấy ProductCoreHub.")
+    except Exception as e:
+        log_func(f"❌ Lỗi bất ngờ: {str(e)}")

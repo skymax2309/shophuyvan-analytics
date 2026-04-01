@@ -308,6 +308,8 @@ async function getOrders(request, env, cors) {
   const status = url.searchParams.get("oms_status")
   const search   = url.searchParams.get("search")
   const shipping = url.searchParams.get("shipping_status")
+  const express  = url.searchParams.get("express") // 🌟 Bổ sung Hỏa tốc
+  const carrier  = url.searchParams.get("carrier") // 🌟 Bổ sung Lọc ĐVVC
   const page   = parseInt(url.searchParams.get("page") || "1")
   const limit  = parseInt(url.searchParams.get("limit") || "50")
   const offset = (page - 1) * limit
@@ -326,7 +328,18 @@ async function getOrders(request, env, cors) {
     const q = `%${search}%`
     params.push(q, q, q, q)
   }
-  if (shipping) { conds.push(`o.shipping_status = ?`); params.push(shipping) }
+if (shipping) { conds.push(`o.shipping_status = ?`); params.push(shipping) }
+  
+  // 🌟 Lọc chuẩn ĐVVC (Dropdown)
+  if (carrier) { 
+    conds.push(`o.shipping_carrier LIKE ?`); 
+    params.push(`%${carrier}%`); 
+  }
+
+  // 🌟 Lọc đơn Hỏa tốc (Quét từ khóa ĐVVC)
+  if (express === "1") { 
+    conds.push(`(o.shipping_carrier LIKE '%Ahamove%' OR o.shipping_carrier LIKE '%Grab%' OR o.shipping_carrier LIKE '%BeDelivery%' OR o.shipping_carrier LIKE '%Instant%' OR o.shipping_carrier LIKE '%Hỏa Tốc%')`) 
+  }
 
   const where = conds.join(" AND ")
 

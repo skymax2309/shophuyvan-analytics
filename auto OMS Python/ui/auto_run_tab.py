@@ -115,18 +115,9 @@ class AutoRunTab(ctk.CTkFrame):
             state="disabled", corner_radius=8)
         self.btn_confirm.pack(fill="x", pady=(0, 8))
 
-        ctk.CTkLabel(right, text="📋 NHẬT KÝ HOẠT ĐỘNG",
-                     font=("Segoe UI",12,"bold"),
-                     text_color="#00CED1").pack(anchor="w")
-        self.log_text = ctk.CTkTextbox(right, fg_color="#1A1A1A",
-                                        text_color="#DDDDDD",
-                                        font=("Consolas",10),
-                                        border_width=1, border_color="#333333")
-        self.log_text.pack(fill="both", expand=True, pady=(4,0))
-
     def log(self, message):
-        self.log_text.insert("end", f"[*] {message}\n")
-        self.log_text.see("end")
+        # Chuyển hướng dòng chảy log ra thẳng cửa sổ chính
+        self.app.log(message)
 
     def toggle_auto(self):
         if not self.auto_running:

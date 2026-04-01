@@ -450,24 +450,28 @@ class ShopeeProducts:
                             self.log_and_send(f"Lỗi lấy thông tin SP {item_id}: {str(e)[:80]}", is_error=True, shop_name=shop['ten_shop'])
                             continue
 
-                    # ── BƯỚC 3: Gửi dữ liệu TỪNG TRANG lên API (Lưu cuốn chiếu) ──
+                    # ── BƯỚC 3: Gửi dữ liệu TỪNG TRANG lên API thông qua PRODUCT HUB (Lưu cuốn chiếu) ──
                     if all_products:
-                        self.log(f"\n📤 Đang gửi {len(all_products)} sản phẩm của Trang {page_num} lên server...")
+                        self.log(f"\n📤 Chuẩn bị gửi {len(all_products)} sản phẩm của Trang {page_num} vào Trạm trung chuyển (Hub)...")
+                        
+                        # Gọi Hub để xử lý (Code được gom về 1 chỗ, dễ bảo trì)
+                        import sys, os
+                        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                         try:
-                            api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/sync-variations"
-                            data = json.dumps({
-                                "shop": shop["ten_shop"],
-                                "platform": "shopee",
-                                "products": all_products
-                            }).encode('utf-8')
-                            req = urllib.request.Request(api_url, data=data,
-                                headers={'Content-Type': 'application/json', 'User-Agent': 'HuyVanBot/2.0'},
-                                method='POST')
-                            with urllib.request.urlopen(req, timeout=120) as res:
-                                result = json.loads(res.read().decode())
-                                self.log(f"✅ Trang {page_num} gửi OK: {result.get('synced', 0)} SP | {result.get('variations', 0)} phân loại")
+                            from engines.product_core_hub import ProductCoreHub
+                            hub = ProductCoreHub(self.log)
+                            # BỌC THÉP ĐỊNH DANH: Ưu tiên dùng user_name
+                            shop_id = shop.get("user_name") or shop.get("ten_shop")
+                            is_success = hub.sync_products(shop_id, "shopee", all_products)
+                            
+                            if is_success:
+                                self.log(f"✅ Trang {page_num} hoàn tất trọn vẹn!")
+                            else:
+                                self.log(f"⚠️ Trang {page_num} có lỗi trong quá trình đẩy dữ liệu, vui lòng xem log phía trên.")
+                        except ImportError:
+                            self.log("❌ LỖI HỆ THỐNG: Không tìm thấy file engines/product_core_hub.py. Vui lòng tạo file này!")
                         except Exception as e:
-                            self.log(f"❌ Lỗi gửi API Trang {page_num}: {str(e)}")
+                            self.log(f"❌ Lỗi bất ngờ khi gọi Hub Trang {page_num}: {str(e)}")
                         
                         # Xóa list để chứa dữ liệu trang tiếp theo (tránh nặng RAM và quá tải Server)
                         all_products.clear()

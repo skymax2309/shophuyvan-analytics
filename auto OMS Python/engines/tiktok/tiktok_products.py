@@ -47,72 +47,66 @@ class TikTokProducts:
             await page.locator('button:has-text("Chọn mục đã lọc"), button:has-text("Xác nhận")').first.click(force=True)
             await asyncio.sleep(3)
             await page.locator('button:has-text("Tạo mẫu")').first.click(force=True)
-            self.log("👉 Đã bấm Tạo mẫu. Đang chờ TikTok chuẩn bị file (Có thể mất 5-10 phút)...")
-
-            # Vòng lặp kiên nhẫn 10 phút (200 vòng x 3s)
+            
+            # --- CƠ CHẾ CHỜ TẢI BỌC THÉP ---
+            dl = None
+            self.log("⏳ Đang chờ TikTok chuẩn bị dữ liệu (Có thể mất 5-10 phút)...")
+            
             for i in range(200):
-                # KHÓA MẮT BOT: Chỉ nhìn vào dòng đầu tiên của bảng dữ liệu (tbody tr)
-                first_row = page.locator("tbody tr").first
-                dang_tai_visible = await first_row.locator("text='Đang tải', text='Đang xuất', text='Đang tạo', text='Loading', text='Exporting'").first.is_visible()
-                
-                if dang_tai_visible:
-                    if i % 5 == 0:
-                        self.log("⏳ TikTok đang xoay chuẩn bị dữ liệu tại dòng 1, vui lòng không tắt trình duyệt...")
-                    await asyncio.sleep(3)
-                    continue
+                status = await page.evaluate('''() => {
+                    let rows = Array.from(document.querySelectorAll('.arco-table-tr, tbody tr'));
+                    let dataRows = rows.filter(r => r.innerText && r.innerText.trim().length > 10);
                     
-                # Tìm nút Tải Xuống nằm gọn trong dòng 1
-                btn_dl = first_row.locator("text='Tải xuống', text='Download'").first
+                    if (dataRows.length > 0) {
+                        let txt = dataRows[0].innerText.toLowerCase();
+                        if (txt.includes('đang tải') || txt.includes('đang xuất') || txt.includes('đang tạo') || txt.includes('loading')) {
+                            return "loading";
+                        }
+                        
+                        let elements = Array.from(dataRows[0].querySelectorAll('*'));
+                        let hasDownload = elements.some(el => {
+                            let t = (el.innerText || '').trim().toLowerCase();
+                            return t === 'tải xuống' || t === 'download';
+                        });
+                        
+                        if (hasDownload) return "ready";
+                    }
+                    return "waiting";
+                }''')
                 
-                if await btn_dl.is_visible():
-                    self.log("✅ Quá trình tạo hoàn tất! Chuẩn bị lấy file về...")
-                    break
+                if status == "ready":
+                    self.log("✅ Quá trình tạo hoàn tất! Bắt đầu tiêm JS kích hoạt nút Tải (Chống lệch)...")
+                    try:
+                        async with page.expect_download(timeout=60000) as dl_info:
+                            await page.evaluate('''() => {
+                                let rows = Array.from(document.querySelectorAll('.arco-table-tr, tbody tr'));
+                                let dataRows = rows.filter(r => r.innerText && r.innerText.trim().length > 10);
+                                if (dataRows.length > 0) {
+                                    let elements = Array.from(dataRows[0].querySelectorAll('*'));
+                                    let btn = elements.find(el => {
+                                        let t = (el.innerText || '').trim().toLowerCase();
+                                        return t === 'tải xuống' || t === 'download';
+                                    });
+                                    if (btn) {
+                                        let clickable = btn.closest('button, a') || btn;
+                                        clickable.click();
+                                    }
+                                }
+                            }''')
+                        dl = await dl_info.value
+                        break
+                    except Exception as e:
+                        self.log(f"⚠️ Kích hoạt JS tải thất bại, đang thử lại vòng lặp... Lỗi: {str(e)[:40]}")
+                elif status == "loading" and i % 5 == 0:
+                    self.log("⏳ TikTok đang xoay dữ liệu tại dòng 1, vui lòng không tắt trình duyệt...")
                     
                 await asyncio.sleep(3)
 
-            self.log("⏳ Đang tiêm Javascript bọc thép để kích hoạt nút Tải Dòng 1...")
-            try:
-                async with page.expect_download(timeout=60000) as dl_info:
-                    # Dùng JS can thiệp sâu: Tìm chữ Tải xuống, sau đó tự leo lên thẻ Button/A bọc ngoài để click
-                    await page.evaluate("""() => {
-                        let firstRow = document.querySelector('table tbody tr:nth-child(1)');
-                        if (firstRow) {
-                            let elements = Array.from(firstRow.querySelectorAll('button, a, span'));
-                            let target = elements.find(el => el.innerText && el.innerText.includes('Tải xuống'));
-                            if (target) {
-                                // Móc ngược lên tìm thẻ button/a thực sự chứa sự kiện tải
-                                let clickable = target.closest('button, a') || target;
-                                clickable.click();
-                            } else {
-                                throw new Error("Không tìm thấy chữ Tải xuống trong JS");
-                            }
-                        } else {
-                            throw new Error("Không tìm thấy dòng 1 của bảng dữ liệu");
-                        }
-                    }""")
-                dl = await dl_info.value
-            except Exception as e:
-                self.log(f"⚠️ JS lõi bị chặn, thử đòn cuối bằng tọa độ... ({str(e)[:50]})")
-                try:
-                    # Chốt mục tiêu fallback
-                    first_row = page.locator("tbody tr").first
-                    btn_dl = first_row.locator("button, a").filter(has_text="Tải xuống").first
-                    await btn_dl.scroll_into_view_if_needed()
-                    
-                    async with page.expect_download(timeout=60000) as dl_info:
-                        await btn_dl.click(force=True)
-                    dl = await dl_info.value
-                except Exception as ex:
-                    self.log(f"❌ BÓ TAY: TikTok chặn hoàn toàn mọi lệnh click. Lỗi: {str(ex)}")
-                    return
-            except Exception as e:
-                self.log("⚠️ Click thường bị từ chối, đang ép tải bằng Javascript lõi...")
-                async with page.expect_download(timeout=60000) as dl_info:
-                    # Chạy thẳng vào lõi JS, tìm thẻ cha để click nếu thẻ hiện tại là thẻ span bị vô hiệu hóa sự kiện
-                    await btn_dl.evaluate("el => { const parent = el.closest('button, a') || el; parent.click(); }")
-                dl = await dl_info.value
-            
-            # ÉP LƯU RA THƯ MỤC GỐC (auto OMS Python)
+            if not dl:
+                self.log("❌ BÓ TAY: TikTok chặn hoặc quá thời gian không thấy nút Tải xuống xuất hiện.")
+                return
+
+            # --- KẾT THÚC CHỜ TẢI, TIẾN HÀNH LƯU FILE ---
             base_dir = os.getcwd() 
             zip_path = os.path.join(base_dir, f"{safe_shop_name}_tiktok.zip")
             await dl.save_as(zip_path)
@@ -138,7 +132,6 @@ class TikTokProducts:
                 if "template" in new_name.lower() and new_name.endswith('.xlsx'):
                     try: 
                         self.log(f"👉 Bắt đầu đọc dữ liệu sản phẩm TikTok cho: {shop_id}")
-                        # ÉP DÙNG shop_id CHUẨN XỊN THAY VÌ ten_shop
                         process_tiktok_excel_and_sync(shop_id, new_path, self.log)
                     except Exception as e: self.log(f"Lỗi sync: {e}")
 

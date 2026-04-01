@@ -66,15 +66,11 @@ class SyncProductTab(ctk.CTkFrame):
                                          command=lambda: self.run_sync_khuyen_mai_bot("up_gia"))
         self.btn_sync_km.pack(side="left", padx=10)
 
-        self.sp_log = ctk.CTkTextbox(self, height=250, fg_color="#0A0A0A",
-                                     text_color="#00FF88", font=("Consolas", 11))
-        self.sp_log.pack(fill="both", expand=True, padx=15, pady=(5, 15))
+        # (Đã xóa ô sp_log cũ để nhường chỗ cho Global Log bám đáy của Main Window)
 
     def sp_log_msg(self, msg):
-        self.sp_log.configure(state="normal")
-        self.sp_log.insert("end", msg + "\n")
-        self.sp_log.see("end")
-        self.sp_log.configure(state="disabled")
+        # Chuyển hướng dòng chảy log ra thẳng cửa sổ chính
+        self.app.log(msg)
 
     def update_sp_shop_list(self, selected_platform):
         shops = ["Tất cả shop"] + [s["ten_shop"] for s in self.app.DANH_SACH_SHOP if s.get("platform") == selected_platform]

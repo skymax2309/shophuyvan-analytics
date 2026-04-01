@@ -4,12 +4,15 @@ class ShopeeOrderParser:
     def __init__(self, log_callback):
         self.log = log_callback
 
-    def parse_order_list(self, html_content):
+    def parse_order_list(self, html_content, cached_ids=None):
+        if cached_ids is None:
+            cached_ids = set()
+            
         soup = BeautifulSoup(html_content, 'html.parser')
         orders = []
         import re
 
-        # 1. TÌM ĐIỂM NEO (Tìm tất cả text chứa "Mã đơn hàng" thay vì class tĩnh)
+        # 1. TÌM ĐIỂM NEO (Tìm tất cả text chứa "Mã đơn hàng")
         order_sn_texts = soup.find_all(string=re.compile(r'Mã đơn hàng\s+[A-Z0-9]+'))
         
         orders_found = []
@@ -18,6 +21,11 @@ class ShopeeOrderParser:
             match = re.search(r'Mã đơn hàng\s+([A-Z0-9]+)', text_node)
             if match:
                 o_id = match.group(1)
+                
+                # 🚀 KỸ THUẬT NÉ MÌN: Nếu đơn đã nằm trong Sổ đen -> Bỏ qua không tốn công bóc tách
+                if o_id in cached_ids:
+                    continue
+                    
                 if o_id not in seen_ids:
                     seen_ids.add(o_id)
                     orders_found.append((o_id, text_node.parent))

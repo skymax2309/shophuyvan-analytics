@@ -171,7 +171,7 @@
                 "sku": "162114_combo_2_lo_yuhao_268g",
                 "price": 129000.0,
                 "discount_price": 90000.0,
-                "stock": 569,
+                "stock": 567,
                 "variation_image": "https://vn-live.slatic.net/p/9467fbe2b895a7e188bd8a2ccfb4215c.png"
             },
             {
@@ -179,7 +179,7 @@
                 "sku": "162116_combo_4_lo_yuhao_268g",
                 "price": 229000.0,
                 "discount_price": 165000.0,
-                "stock": 284,
+                "stock": 283,
                 "variation_image": "https://vn-live.slatic.net/p/7c38f4ce23f7d1ac39133a08419df9db.jpg"
             },
             {
@@ -187,7 +187,7 @@
                 "sku": "162115_combo_3_lo_yuhao_268g",
                 "price": 189000.0,
                 "discount_price": 130000.0,
-                "stock": 379,
+                "stock": 378,
                 "variation_image": "https://vn-live.slatic.net/p/c87adf5ed9189389094b9676eb0e0da6.jpg"
             },
             {
@@ -195,7 +195,7 @@
                 "sku": "1 LỌ YUHAO 268G",
                 "price": 69000.0,
                 "discount_price": 50000.0,
-                "stock": 1138,
+                "stock": 1134,
                 "variation_image": "https://vn-live.slatic.net/p/bc64b90ef73810bcd975fbbf733e6471.png"
             }
         ]
@@ -536,7 +536,7 @@
                 "sku": "K059_THANHTRUOTTRANG",
                 "price": 25000.0,
                 "discount_price": 18000.0,
-                "stock": 60,
+                "stock": 54,
                 "variation_image": "https://vn-live.slatic.net/p/4454ba1212a171b7357f0b2209fdd20f.jpg"
             }
         ]
@@ -729,7 +729,7 @@
                 "sku": "COCGAU_K149",
                 "price": 29000.0,
                 "discount_price": 15000.0,
-                "stock": 87,
+                "stock": 85,
                 "variation_image": ""
             }
         ]
@@ -847,7 +847,7 @@
                 "sku": "162612_combo_5_bich_diet_gian",
                 "price": 65000.0,
                 "discount_price": 39900.0,
-                "stock": 149,
+                "stock": 148,
                 "variation_image": "https://vn-live.slatic.net/p/0dd647d7ea85ddfc6c3c3a12840b1f46.jpg"
             },
             {
@@ -855,7 +855,7 @@
                 "sku": "162613_combo_3_bich_diet_gian",
                 "price": 45000.0,
                 "discount_price": 29000.0,
-                "stock": 249,
+                "stock": 247,
                 "variation_image": "https://vn-live.slatic.net/p/d3ea2bcc8f1d13a7a63a93308e051531.jpg"
             },
             {
@@ -863,7 +863,7 @@
                 "sku": "1 BỊCH DIỆT GIÁN K154",
                 "price": 15000.0,
                 "discount_price": 12000.0,
-                "stock": 748,
+                "stock": 743,
                 "variation_image": "https://vn-live.slatic.net/p/2522c874a5d8a4457f326b4b0e149e3c.jpg"
             }
         ]
@@ -1015,7 +1015,7 @@
                 "sku": "TREN65X65X105DAIDUONG",
                 "price": 150000.0,
                 "discount_price": 90000.0,
-                "stock": 39,
+                "stock": 38,
                 "variation_image": "https://vn-live.slatic.net/p/5dbfbfe56f2b7afb4f473492e172c0ac.jpg"
             },
             {
@@ -1039,7 +1039,7 @@
                 "sku": "TREN5KGDAIDUONG",
                 "price": 89000.0,
                 "discount_price": 70000.0,
-                "stock": 8,
+                "stock": 7,
                 "variation_image": "https://vn-live.slatic.net/p/b09fc25ecba62165c4a73296bc1b647f.jpg"
             },
             {
@@ -1086,7 +1086,7 @@
                 "sku": "BOCTULANH_MEO",
                 "price": 59000.0,
                 "discount_price": 39000.0,
-                "stock": 42,
+                "stock": 41,
                 "variation_image": "https://vn-live.slatic.net/p/a2528f7155afc69c99c15d89c5eba3de.jpg"
             },
             {
@@ -1158,7 +1158,7 @@
                 "sku": "MOCTREODAUGOI_CAOCAPK19",
                 "price": 25000.0,
                 "discount_price": 13000.0,
-                "stock": 3,
+                "stock": 0,
                 "variation_image": "https://vn-live.slatic.net/p/6a70fa6a5885d354a51997fa8c585d7c.jpg"
             }
         ]
@@ -1297,7 +1297,7 @@
                 "sku": "MIENGSILICON_BVCONGK20",
                 "price": 25000.0,
                 "discount_price": 14250.0,
-                "stock": 9,
+                "stock": 8,
                 "variation_image": ""
             }
         ]
@@ -1351,7 +1351,7 @@
                 "sku": "400348_100_day_dai_100mm",
                 "price": 15000.0,
                 "discount_price": 11400.0,
-                "stock": 32,
+                "stock": 30,
                 "variation_image": ""
             }
         ]
@@ -1446,7 +1446,7 @@
                 "sku": "TUIRAC_TUHUYK101",
                 "price": 24000.0,
                 "discount_price": 19000.0,
-                "stock": 34,
+                "stock": 33,
                 "variation_image": ""
             }
         ]
@@ -1602,7 +1602,7 @@
                 "sku": "4MOC_INOXK43",
                 "price": 25000.0,
                 "discount_price": 15000.0,
-                "stock": 87,
+                "stock": 86,
                 "variation_image": ""
             }
         ]
@@ -1668,7 +1668,7 @@
                 "sku": "MOCTREODAUGOI_CAOCAPK19",
                 "price": 35000.0,
                 "discount_price": 17640.0,
-                "stock": 3,
+                "stock": 0,
                 "variation_image": "https://vn-live.slatic.net/p/6a70fa6a5885d354a51997fa8c585d7c.jpg"
             }
         ]
@@ -1830,7 +1830,7 @@
                 "sku": "K54HOAANHDAO24CM",
                 "price": 69000.0,
                 "discount_price": 50000.0,
-                "stock": 299,
+                "stock": 298,
                 "variation_image": "https://vn-live.slatic.net/p/a215ea33d0225838b20bcfc8dfabeb2c.png"
             }
         ]
@@ -2496,7 +2496,7 @@
                 "sku": "ĐẦU VÒI LỌC NƯỚC k189",
                 "price": 49000.0,
                 "discount_price": 45000.0,
-                "stock": 171,
+                "stock": 170,
                 "variation_image": "https://vn-live.slatic.net/p/276edeb18febf8a92ecb2ca14e9b067d.jpg"
             },
             {
@@ -2512,7 +2512,7 @@
                 "sku": "297102_dauvoi_k189_van_nang",
                 "price": 69000.0,
                 "discount_price": 59000.0,
-                "stock": 171,
+                "stock": 170,
                 "variation_image": "https://vn-live.slatic.net/p/a8235129a3f61cbe374be56e1bcd59f8.jpg"
             }
         ]
@@ -2726,7 +2726,7 @@
                 "sku": "mau_hong K62",
                 "price": 39000.0,
                 "discount_price": 22000.0,
-                "stock": 26,
+                "stock": 21,
                 "variation_image": "https://vn-live.slatic.net/p/d9516490066a2fe3cac479b7cfa6d3a4.jpg"
             },
             {
@@ -2830,7 +2830,7 @@
                 "sku": "K97_100DINH2DAU",
                 "price": 79000.0,
                 "discount_price": 45000.0,
-                "stock": 51,
+                "stock": 50,
                 "variation_image": "https://vn-live.slatic.net/p/2d8c83d0be6ac96e8403bd825d8f4670.jpg"
             }
         ]
@@ -2886,7 +2886,7 @@
                 "sku": "K75_MAUNAU5CM1M",
                 "price": 69000.0,
                 "discount_price": 45000.0,
-                "stock": 233,
+                "stock": 232,
                 "variation_image": "https://vn-live.slatic.net/p/d4464a7be10f8c097c1e2f796b3dd402.jpg"
             },
             {
@@ -2894,7 +2894,7 @@
                 "sku": "K75_MAUXAM5CM1M",
                 "price": 69000.0,
                 "discount_price": 45000.0,
-                "stock": 226,
+                "stock": 225,
                 "variation_image": "https://vn-live.slatic.net/p/025308d6e931c4d3e2ed8ad081ea1d57.jpg"
             }
         ]
@@ -3543,7 +3543,7 @@
                 "sku": "TUIRAC_DAYRUTK70",
                 "price": 21600.0,
                 "discount_price": 14250.0,
-                "stock": 38,
+                "stock": 34,
                 "variation_image": ""
             }
         ]
@@ -3857,7 +3857,7 @@
                 "sku": "K46_CHAIXITVESINHBEP",
                 "price": 90000.0,
                 "discount_price": 68000.0,
-                "stock": 6,
+                "stock": 10,
                 "variation_image": "https://vn-live.slatic.net/p/0e2f3fe9187fdb6d2fff0f7dd8cf8ae3.jpg"
             }
         ]
@@ -3931,7 +3931,7 @@
                 "sku": "KHANLAU_OTOK74",
                 "price": 30000.0,
                 "discount_price": 18000.0,
-                "stock": 66,
+                "stock": 65,
                 "variation_image": ""
             }
         ]
@@ -3988,7 +3988,7 @@
                 "sku": "K232-BAC",
                 "price": 55000.0,
                 "discount_price": 45000.0,
-                "stock": 238,
+                "stock": 235,
                 "variation_image": "https://vn-live.slatic.net/p/6b0653e6e67b9f945580fabe185e42d5.jpg"
             },
             {
@@ -4595,7 +4595,7 @@
                 "sku": "mau_xam_k172",
                 "price": 75000.0,
                 "discount_price": 39000.0,
-                "stock": 11,
+                "stock": 9,
                 "variation_image": "https://vn-live.slatic.net/p/2bc9014bd8915f7efc063a47c2d9cc36.jpg"
             }
         ]
@@ -4620,7 +4620,7 @@
                 "sku": "167477_combo_10mieng_5x5cm",
                 "price": 49000.0,
                 "discount_price": 35000.0,
-                "stock": 264,
+                "stock": 260,
                 "variation_image": "https://vn-live.slatic.net/p/112f83ec20a198ffd354e173a64eb337.jpg"
             }
         ]
@@ -4710,7 +4710,7 @@
                 "sku": "10 KẸP SIZE 16MM ĐEN K114",
                 "price": 35000.0,
                 "discount_price": 29000.0,
-                "stock": 9,
+                "stock": 8,
                 "variation_image": "https://vn-live.slatic.net/p/ff2d1a4df560b218e17b97294ed9b505.jpg"
             },
             {
@@ -4726,7 +4726,7 @@
                 "sku": "10 KẸP SIZE 22MM K114 TRẮNG",
                 "price": 45000.0,
                 "discount_price": 33000.0,
-                "stock": 35,
+                "stock": 34,
                 "variation_image": "https://vn-live.slatic.net/p/e5abea92ec29cee9086c58a1de969a96.jpg"
             },
             {
@@ -4734,7 +4734,7 @@
                 "sku": "10 KẸP SIZE 12MM ĐEN K114",
                 "price": 29000.0,
                 "discount_price": 25000.0,
-                "stock": 55,
+                "stock": 53,
                 "variation_image": "https://vn-live.slatic.net/p/96c903c5d89e6b7137d029ae74a4791b.jpg"
             },
             {
@@ -4750,7 +4750,7 @@
                 "sku": "10 KẸP SIZE 16MM TRẮNG K114",
                 "price": 35000.0,
                 "discount_price": 29000.0,
-                "stock": 24,
+                "stock": 23,
                 "variation_image": "https://vn-live.slatic.net/p/3d989e65ac9300b4c57aeb04614a5a59.jpg"
             }
         ]
@@ -5004,7 +5004,7 @@
                 "sku": "XAM_5cmx2mK185",
                 "price": 119000.0,
                 "discount_price": 65000.0,
-                "stock": 55,
+                "stock": 52,
                 "variation_image": "https://vn-live.slatic.net/p/c982be5b6cc620f23c3fc8781ac46365.jpg"
             },
             {
@@ -5052,7 +5052,7 @@
                 "sku": "1 thanh Xám 3,6cm x Dài 1M",
                 "price": 45000.0,
                 "discount_price": 33000.0,
-                "stock": 180,
+                "stock": 174,
                 "variation_image": "https://vn-live.slatic.net/p/9a05fd0acdb69694f60a826a245f11f2.jpg"
             },
             {
@@ -5195,7 +5195,7 @@
                 "sku": "297102_dauvoi_k189_van_nang",
                 "price": 69000.0,
                 "discount_price": 59000.0,
-                "stock": 171,
+                "stock": 170,
                 "variation_image": "https://vn-live.slatic.net/p/a8235129a3f61cbe374be56e1bcd59f8.jpg"
             },
             {
@@ -5203,7 +5203,7 @@
                 "sku": "ĐẦU VÒI LỌC NƯỚC k189",
                 "price": 69000.0,
                 "discount_price": 45000.0,
-                "stock": 171,
+                "stock": 170,
                 "variation_image": "https://vn-live.slatic.net/p/a7f399d22c4e86401d6adcf55fba5dd2.png"
             },
             {
@@ -5227,7 +5227,7 @@
                 "sku": "Đầu Vạn Năng CAO CẤP K50",
                 "price": 25000.0,
                 "discount_price": 25000.0,
-                "stock": 740,
+                "stock": 739,
                 "variation_image": "https://vn-live.slatic.net/p/a45a083676551900c29e12deef814ab2.jpg"
             },
             {
@@ -5362,7 +5362,7 @@
                 "sku": "COMBO2LOILOCK195",
                 "price": 79000.0,
                 "discount_price": 45000.0,
-                "stock": 193,
+                "stock": 190,
                 "variation_image": "https://vn-live.slatic.net/p/9e0246f3b4f5ec62066cdf07da2b823c.jpg"
             }
         ]
@@ -5384,7 +5384,7 @@
                 "sku": "KIMBOPTAY_K163",
                 "price": 35000.0,
                 "discount_price": 24500.0,
-                "stock": 63,
+                "stock": 56,
                 "variation_image": "https://vn-live.slatic.net/p/0ca8a91fada604ce96cdd3696fbc44ca.jpg"
             }
         ]
@@ -5431,7 +5431,7 @@
                 "sku": "1_dui_den_dk_k84",
                 "price": 99000.0,
                 "discount_price": 85000.0,
-                "stock": 58,
+                "stock": 57,
                 "variation_image": "https://vn-live.slatic.net/p/cd9100ca6e23861b9b24d779d7d7c4ca.jpg"
             }
         ]
@@ -5725,7 +5725,7 @@
                 "sku": "BANGDINH_K205",
                 "price": 22000.0,
                 "discount_price": 15000.0,
-                "stock": 97,
+                "stock": 95,
                 "variation_image": "https://vn-live.slatic.net/p/7937bd6a5fda73ca9547026cac7423d6.png"
             }
         ]
@@ -6042,7 +6042,7 @@
                 "sku": "COMBO10VIENK222",
                 "price": 169000.0,
                 "discount_price": 99000.0,
-                "stock": 112,
+                "stock": 111,
                 "variation_image": "https://vn-live.slatic.net/p/c6af7eec0ea2c1280206430ba7b58529.png"
             },
             {
@@ -6050,7 +6050,7 @@
                 "sku": "COMBO5VIEN3IN1K222",
                 "price": 99000.0,
                 "discount_price": 59000.0,
-                "stock": 225,
+                "stock": 223,
                 "variation_image": "https://vn-live.slatic.net/p/c6af7eec0ea2c1280206430ba7b58529.png"
             }
         ]
@@ -6328,7 +6328,7 @@
                 "sku": "BO100-110mmK168",
                 "price": 199000.0,
                 "discount_price": 150000.0,
-                "stock": 141,
+                "stock": 135,
                 "variation_image": "https://vn-live.slatic.net/p/d4646ce1063b06123028d6181027537d.jpg"
             },
             {
@@ -6344,7 +6344,7 @@
                 "sku": "K239ONG90MMTOT",
                 "price": 119000.0,
                 "discount_price": 90000.0,
-                "stock": 72,
+                "stock": 65,
                 "variation_image": "https://vn-live.slatic.net/p/d8967fe44b1923c90324032f3a0ab77f.jpg"
             }
         ]
@@ -6367,7 +6367,7 @@
                 "sku": "HV999K241300S",
                 "price": 79000.0,
                 "discount_price": 69000.0,
-                "stock": 371,
+                "stock": 358,
                 "variation_image": "https://vn-live.slatic.net/p/632b3b402145124340fc391589a971ee.jpg"
             }
         ]
@@ -6392,7 +6392,7 @@
                 "sku": "MẠCH QUẠT K242",
                 "price": 79900.0,
                 "discount_price": 75000.0,
-                "stock": 0,
+                "stock": 36,
                 "variation_image": "https://sg-test-11.slatic.net/p/1432ed0b1ea96867291ee15ebfc1aa64.jpg"
             },
             {
@@ -6400,7 +6400,7 @@
                 "sku": "bomachquatK242_PIN3A",
                 "price": 89000.0,
                 "discount_price": 79000.0,
-                "stock": 0,
+                "stock": 33,
                 "variation_image": "https://vn-live.slatic.net/p/cf5e8c21470401488a245d4712aaedd3.png"
             }
         ]
@@ -6421,7 +6421,7 @@
                 "sku": "20BOKT 8mmX60mm K243",
                 "price": 139000.0,
                 "discount_price": 90000.0,
-                "stock": 215,
+                "stock": 213,
                 "variation_image": "https://vn-live.slatic.net/p/7d6a78bdc2bc9143d4b2b8d8c9eab430.jpg"
             },
             {
@@ -6429,7 +6429,7 @@
                 "sku": "BO20TACKE6X32MMK243",
                 "price": 85000.0,
                 "discount_price": 49000.0,
-                "stock": 385,
+                "stock": 376,
                 "variation_image": "https://vn-live.slatic.net/p/31acc8b09a7782acf7d41216b650f602.jpg"
             },
             {
@@ -6437,7 +6437,7 @@
                 "sku": "20BOTACKE5X30MMK243",
                 "price": 75000.0,
                 "discount_price": 39000.0,
-                "stock": 390,
+                "stock": 386,
                 "variation_image": "https://vn-live.slatic.net/p/fd33d77f8d21f631fa60294dcf5f4783.jpg"
             }
         ]
@@ -6483,7 +6483,7 @@
                 "sku": "K245_DAUNAMCHAMBATVIT",
                 "price": 33000.0,
                 "discount_price": 22000.0,
-                "stock": 7,
+                "stock": 5,
                 "variation_image": "https://sg-test-11.slatic.net/p/e049f0d5bf4e143224ad7dad97576358.jpg"
             }
         ]
@@ -6561,7 +6561,7 @@
                 "sku": "K252_NUOCGIATDOLOT",
                 "price": 109000.0,
                 "discount_price": 55000.0,
-                "stock": 26,
+                "stock": 22,
                 "variation_image": "https://sg-test-11.slatic.net/p/b284e95546972dc919169fe9904b49e4.jpg"
             }
         ]
@@ -6607,7 +6607,7 @@
                 "sku": "K256_BANCHAILONGMEM",
                 "price": 69000.0,
                 "discount_price": 39900.0,
-                "stock": 14,
+                "stock": 13,
                 "variation_image": "https://vn-live.slatic.net/p/461d812c879144a10e3b3063f7758546.jpg"
             }
         ]
@@ -6667,7 +6667,7 @@
                 "sku": "40TACKE8X60MMK243",
                 "price": 139000.0,
                 "discount_price": 90000.0,
-                "stock": 230,
+                "stock": 228,
                 "variation_image": "https://vn-live.slatic.net/p/c40893f47560739fa344ceaa18c663ca.jpg"
             },
             {
@@ -6675,7 +6675,7 @@
                 "sku": "40TACKE6X32MMK243",
                 "price": 85000.0,
                 "discount_price": 49000.0,
-                "stock": 35,
+                "stock": 32,
                 "variation_image": "https://vn-live.slatic.net/p/37c24d6228fd8a5ce6d22edf69964343.jpg"
             },
             {
@@ -6683,7 +6683,7 @@
                 "sku": "40TACKE5X30MM",
                 "price": 75000.0,
                 "discount_price": 39000.0,
-                "stock": 127,
+                "stock": 126,
                 "variation_image": "https://vn-live.slatic.net/p/b0d3485546da771eee9f9f46dc80be09.jpg"
             }
         ]
@@ -6708,7 +6708,7 @@
                 "sku": "K258_35-40MM",
                 "price": 75000.0,
                 "discount_price": 59000.0,
-                "stock": 205,
+                "stock": 203,
                 "variation_image": "https://vn-live.slatic.net/p/87c197cc191edf82ce19d4cf78fa75e2.jpg"
             },
             {
@@ -6716,7 +6716,7 @@
                 "sku": "K258_45-50MM",
                 "price": 85000.0,
                 "discount_price": 65000.0,
-                "stock": 84,
+                "stock": 82,
                 "variation_image": "https://vn-live.slatic.net/p/131862cb7c9a420d690f7a030351972d.jpg"
             },
             {
@@ -6724,7 +6724,7 @@
                 "sku": "K258_60-65MM",
                 "price": 95000.0,
                 "discount_price": 75000.0,
-                "stock": 162,
+                "stock": 160,
                 "variation_image": "https://vn-live.slatic.net/p/a0725e1616948f97e35d0d1d8e6f8018.jpg"
             }
         ]
@@ -6783,7 +6783,7 @@
                 "sku": "K259_PHICHCAM90DO",
                 "price": 29000.0,
                 "discount_price": 18000.0,
-                "stock": 1068,
+                "stock": 1063,
                 "variation_image": "https://vn-live.slatic.net/p/f4ecf4d632fc2cedec8359fe5fe3e4f4.jpg"
             }
         ]
@@ -6806,7 +6806,7 @@
                 "sku": "K261_DAUCHUYEN2RA3CONGTAC",
                 "price": 45000.0,
                 "discount_price": 35000.0,
-                "stock": 1,
+                "stock": 0,
                 "variation_image": "https://vn-live.slatic.net/p/1dd59f6ec9630d0bd7e88ccd394b723d.jpg"
             }
         ]
@@ -6831,7 +6831,7 @@
                 "sku": "K262_BO20TACKETHACHCAO",
                 "price": 79000.0,
                 "discount_price": 45000.0,
-                "stock": 208,
+                "stock": 201,
                 "variation_image": "https://vn-live.slatic.net/p/2de23c48bdffeba88e1f0f6f44da1beb.jpg"
             }
         ]
@@ -6854,7 +6854,7 @@
                 "sku": "K263-AS10",
                 "price": 79000.0,
                 "discount_price": 50000.0,
-                "stock": 266,
+                "stock": 265,
                 "variation_image": "https://vn-live.slatic.net/p/432b0d82609ec7ca920bd131a5d1aba2.jpg"
             }
         ]
@@ -6934,7 +6934,7 @@
                 "sku": "BO100-110mmK168",
                 "price": 219000.0,
                 "discount_price": 149000.0,
-                "stock": 141,
+                "stock": 135,
                 "variation_image": "https://vn-live.slatic.net/p/d4646ce1063b06123028d6181027537d.jpg"
             }
         ]
@@ -7075,7 +7075,7 @@
                 "sku": "1_bo_nhong_dien_k269",
                 "price": 89000.0,
                 "discount_price": 49000.0,
-                "stock": 10,
+                "stock": 6,
                 "variation_image": "https://vn-live.slatic.net/p/6f353f31f578a61a500174949a701c84.jpg"
             }
         ]

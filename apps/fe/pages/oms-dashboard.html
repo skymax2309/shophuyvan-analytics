@@ -159,26 +159,39 @@
     </div>
 
     <!-- FILTER BAR -->
-    <div class="filterbar">
+    <div class="filterbar" style="align-items: center;">
       <span class="filter-label">Từ:</span>
       <input type="date" class="filter-input filter-date" id="f_from">
       <span class="filter-label">Đến:</span>
       <input type="date" class="filter-input filter-date" id="f_to">
-      <select class="filter-select" id="f_shop">
+      
+      <select class="filter-select" id="f_shop" onchange="loadOrders(1)">
         <option value="">Tất cả shop</option>
       </select>
+      
       <input type="text" class="filter-input" id="f_search"
-        placeholder="🔍  Tìm mã đơn, tên KH, SKU..."
+        placeholder="🔍 Tìm mã đơn, tên KH, SKU..."
         oninput="debounceLoad()">
-      <select class="filter-select" id="f_shipping">
-        <option value="">Tất cả vận chuyển</option>
-        <option value="Chờ lấy hàng">📬 Chờ lấy hàng</option>
-        <option value="Đang giao">🚚 Đang giao</option>
-        <option value="Đã giao">✅ Đã giao</option>
-        <option value="Đã hủy">✗ Đã hủy</option>
-        <option value="Hoàn hàng">↩ Hoàn hàng</option>
+        
+      <select class="filter-select" id="f_carrier" onchange="loadOrders(1)">
+        <option value="">Tất cả ĐVVC</option>
+        <option value="SPX">SPX Express</option>
+        <option value="J&T">J&T Express</option>
+        <option value="GHN">Giao Hàng Nhanh</option>
+        <option value="GHTK">Giao Hàng Tiết Kiệm</option>
+        <option value="Ninja">Ninja Van</option>
+        <option value="Viettel">Viettel Post</option>
+        <option value="LEX">Lazada Express</option>
       </select>
-      <button class="btn btn-ghost" style="font-size:12px" onclick="loadOrders(1)">Lọc</button>
+      
+      <select class="filter-select" id="f_shipping" onchange="loadOrders(1)" style="display:none;">
+        <option value="">Trạng thái Ship</option>
+      </select>
+
+      <label style="color:var(--orange); font-weight:bold; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:12px; background: rgba(249,115,22,0.1); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--orange);">
+        <input type="checkbox" id="f_express" onchange="loadOrders(1)" style="accent-color: var(--orange);"> ⚡ Hỏa Tốc
+      </label>
+
       <button class="btn btn-ghost" style="font-size:12px;color:var(--muted)" onclick="resetFilter()">✕ Reset</button>
     </div>
 
@@ -260,5 +273,22 @@
   loadShopList();
   loadOrders(1);
 </script>
+<div class="modal-overlay" id="mapSkuModal">
+  <div class="modal" style="max-width: 500px;">
+    <div class="modal-header">
+      <div class="modal-title">🔗 Map SKU Nhanh</div>
+      <button class="modal-close" onclick="closeModal('mapSkuModal')">✕</button>
+    </div>
+    <div style="padding: 10px 0;">
+      <p style="font-size:12px; color:var(--muted); margin-bottom: 10px;">Đang Map cho sản phẩm: <br><b id="mapTargetName" style="color:var(--text); font-size: 14px;">---</b></p>
+      <input type="hidden" id="mapTargetRawSku">
+      <input type="hidden" id="mapTargetOrderId">
+      <input type="text" id="mapSearchInput" class="filter-input" style="width:100%; margin-bottom: 10px; font-size: 14px; padding: 10px;" placeholder="Gõ tên hoặc mã SKU nội bộ để tìm..." oninput="debounceSearchSku()">
+      
+      <div id="mapSkuResults" style="max-height: 250px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 5px;">
+        </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
