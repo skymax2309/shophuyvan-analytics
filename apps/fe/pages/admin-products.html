@@ -154,11 +154,13 @@
           </div>
       </div>
 
-      <div class="form-grid">
+<div class="form-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
         <div class="field"><label>SKU *</label><input id="s_sku" placeholder="VD: SP001"></div>
         <div class="field"><label>Tên sản phẩm *</label><input id="s_name" placeholder="Tên sản phẩm"></div>
         <div class="field"><label>Vốn hóa đơn (đ)</label><input type="number" id="s_cost_inv" placeholder="0" step="100"></div>
         <div class="field"><label>Vốn thực tế (đ)</label><input type="number" id="s_cost_real" placeholder="0" step="100"></div>
+        <div class="field"><label>📦 Tồn kho thực tế</label><input type="number" id="s_stock" placeholder="0" value="0"></div>
+        <div class="field"><label>📉 Sắp Hết Hàng</label><input type="number" id="s_min_stock" placeholder="5" value="5"></div>
       </div>
       <div style="margin-top:16px; text-align:right;">
         <button class="btn btn-primary" id="btnSaveSku" onclick="saveSku()">💾 Lưu SKU</button>
@@ -231,24 +233,22 @@
           </button>
       </div>
 
-      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0">
-        <button class="sku-tab-btn active" onclick="switchSkuTab('no-price')" id="stab-no-price"
-          style="padding:7px 14px;border:none;border-bottom:2px solid #f59e0b;background:none;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">
-          ⚠️ Chưa có giá (<span id="skuNoPriceCount">0</span>)
-        </button>
-        <button class="sku-tab-btn" onclick="switchSkuTab('partial')" id="stab-partial"
-          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
-          🔶 Còn thiếu 1 giá (<span id="skuPartialCount">0</span>)
-        </button>
-        <button class="sku-tab-btn" onclick="switchSkuTab('has-price')" id="stab-has-price"
-          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
-          ✅ Đủ giá vốn (<span id="skuHasPriceCount">0</span>)
-        </button>
-        <button class="sku-tab-btn" onclick="switchSkuTab('groups')" id="stab-groups"
-          style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">
-          🔗 Nhóm giá (<span id="skuGroupCount">0</span>)
-        </button>
+      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0;flex-wrap:wrap;">
+        <button class="sku-tab-btn active" onclick="switchSkuTab('no-price')" id="stab-no-price" style="padding:7px 14px;border:none;border-bottom:2px solid #f59e0b;background:none;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">⚠️ Chưa có giá (<span id="skuNoPriceCount">0</span>)</button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('partial')" id="stab-partial" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">🔶 Thiếu 1 giá (<span id="skuPartialCount">0</span>)</button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('has-price')" id="stab-has-price" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">✅ Đủ giá (<span id="skuHasPriceCount">0</span>)</button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('groups')" id="stab-groups" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">🔗 Nhóm giá (<span id="skuGroupCount">0</span>)</button>
+        <div style="border-left: 2px solid #e2e8f0; margin: 0 4px;"></div> <button class="sku-tab-btn" onclick="switchSkuTab('low-stock')" id="stab-low-stock" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">📉 Sắp hết hàng (<span id="skuLowStockCount">0</span>)</button>
+        <button class="sku-tab-btn" onclick="switchSkuTab('out-of-stock')" id="stab-out-of-stock" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">🔴 Hết hàng (<span id="skuOutOfStockCount">0</span>)</button>
       </div>
+
+      <div id="sku-tab-no-price"><div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div><div class="sku-grid" id="skuNoPriceTable"></div></div>
+      <div id="sku-tab-partial" style="display:none"><div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-partial" onchange="toggleAllCheck('partial',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div><div class="sku-grid" id="skuPartialTable"></div></div>
+      <div id="sku-tab-has-price" style="display:none"><div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-has" onchange="toggleAllCheck('has',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div><div class="sku-grid" id="skuHasPriceTable"></div></div>
+      <div id="sku-tab-groups" style="display:none"><div id="group-list-area">Đang tải nhóm...</div></div>
+      
+      <div id="sku-tab-low-stock" style="display:none"><div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-low" onchange="toggleAllCheck('low-stock',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div><div class="sku-grid" id="skuLowStockTable"></div></div>
+      <div id="sku-tab-out-of-stock" style="display:none"><div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-out" onchange="toggleAllCheck('out-of-stock',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div><div class="sku-grid" id="skuOutOfStockTable"></div></div>
 
       <div id="sku-tab-no-price">
         <div style="margin-bottom:10px;"><label style="font-size:14px; font-weight:600; cursor:pointer;"><input type="checkbox" id="chk-all-no" onchange="toggleAllCheck('no',this.checked)" style="transform:scale(1.3); margin-right:8px;"> Chọn tất cả trang này</label></div>

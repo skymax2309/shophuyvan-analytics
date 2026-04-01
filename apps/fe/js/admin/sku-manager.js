@@ -6,6 +6,10 @@ let bulkSkuData = []
 let _currentSkuTab = "no-price"
 let _groupMode = false
 
+// 🌟 BIẾN PHÂN TRANG (MỚI THÊM)
+let currentSkuPage = 1;
+const SKU_PER_PAGE = 48; // Chỉ load 48 mã mỗi trang cho cực mượt
+
 // ── LOAD / RENDER ─────────────────────────────────────────────────────
 async function loadSkus() {
   try {
@@ -25,73 +29,162 @@ function switchSkuTab(tab) {
     b.style.borderBottomColor = "transparent"
     b.style.color = "#888"
   })
-  const colors = { "no-price": "#f59e0b", "partial": "#f97316", "has-price": "#16a34a", "groups": "#8b5cf6" }
+  const colors = { "no-price": "#f59e0b", "partial": "#f97316", "has-price": "#16a34a", "groups": "#8b5cf6", "low-stock": "#d97706", "out-of-stock": "#dc2626" }
   const btn = document.getElementById("stab-" + tab)
   btn.style.borderBottomColor = colors[tab] || "#4f46e5"
   btn.style.color = "#333"
-  document.querySelectorAll("[id^='sku-tab-']").forEach(el => el.style.display = "none")
+document.querySelectorAll("[id^='sku-tab-']").forEach(el => el.style.display = "none")
   document.getElementById("sku-tab-" + tab).style.display = ""
-  if (tab === "groups") loadSkuGroups()
+  
+  // 🌟 Reset trang và vẽ lại bảng khi chuyển Tab
+  currentSkuPage = 1;
+  if (tab === "groups") {
+      loadSkuGroups();
+      const pag = document.getElementById("skuPaginationWrap");
+      if(pag) pag.style.display = "none";
+  } else {
+      renderSkuTables();
+      const pag = document.getElementById("skuPaginationWrap");
+      if(pag) pag.style.display = "flex";
+  }
 }
 
-function renderSkuTables() {
-  const kw   = (document.getElementById("sku-search")?.value || "").toLowerCase().trim()
-  const skus = allSkus; // 🌟 Đã tháo xích: Hiển thị 100% SKU, không giấu mã nào
+window.renderSkuTables = function(page = null) {
+  if (page !== null) currentSkuPage = page;
+
+  const kw   = (document.getElementById("sku-search")?.value || "").toLowerCase().trim();
+  const skus = allSkus; // Hiển thị 100% SKU
 
   const filtered = kw
     ? skus.filter(p =>
         (p.sku || "").toLowerCase().includes(kw) ||
         (p.product_name || "").toLowerCase().includes(kw)
       )
-    : skus
+    : skus;
 
-  const noPrice  = filtered.filter(p => !(p.cost_invoice || 0) && !(p.cost_real || 0))
-  const partial  = filtered.filter(p => ((p.cost_invoice || 0) > 0) !== ((p.cost_real || 0) > 0))
-  const hasPrice = filtered.filter(p => (p.cost_invoice || 0) > 0 && (p.cost_real || 0) > 0)
+  const noPrice  = filtered.filter(p => !(p.cost_invoice || 0) && !(p.cost_real || 0));
+  const partial  = filtered.filter(p => ((p.cost_invoice || 0) > 0) !== ((p.cost_real || 0) > 0));
+  const hasPrice = filtered.filter(p => (p.cost_invoice || 0) > 0 && (p.cost_real || 0) > 0);
+  // 🌟 Lọc kho
+  const lowStock = filtered.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= (p.min_stock || 0));
+  const outOfStock = filtered.filter(p => (p.stock || 0) <= 0);
 
-  document.getElementById("skuCount").textContent       = skus.length
-  document.getElementById("skuNoPriceCount").textContent = noPrice.length
-  document.getElementById("skuPartialCount").textContent = partial.length
-  document.getElementById("skuHasPriceCount").textContent = hasPrice.length
+  document.getElementById("skuCount").textContent       = skus.length;
+  document.getElementById("skuNoPriceCount").textContent = noPrice.length;
+  document.getElementById("skuPartialCount").textContent = partial.length;
+  document.getElementById("skuHasPriceCount").textContent = hasPrice.length;
+  if (document.getElementById("skuLowStockCount")) document.getElementById("skuLowStockCount").textContent = lowStock.length;
+  if (document.getElementById("skuOutOfStockCount")) document.getElementById("skuOutOfStockCount").textContent = outOfStock.length;
+
+  // 🌟 XÁC ĐỊNH DANH SÁCH ĐANG MỞ ĐỂ PHÂN TRANG
+  let activeList = noPrice;
+  if (_currentSkuTab === 'partial') activeList = partial;
+  if (_currentSkuTab === 'has-price') activeList = hasPrice;
+  if (_currentSkuTab === 'low-stock') activeList = lowStock;
+  if (_currentSkuTab === 'out-of-stock') activeList = outOfStock;
+
+  const totalItems = activeList.length;
+  const totalPages = Math.ceil(totalItems / SKU_PER_PAGE) || 1;
+  if (currentSkuPage > totalPages) currentSkuPage = 1;
+
+  const startIndex = (currentSkuPage - 1) * SKU_PER_PAGE;
+  const pagedNoPrice = noPrice.slice(startIndex, startIndex + SKU_PER_PAGE);
+  const pagedPartial = partial.slice(startIndex, startIndex + SKU_PER_PAGE);
+  const pagedHasPrice = hasPrice.slice(startIndex, startIndex + SKU_PER_PAGE);
+  const pagedLowStock = lowStock.slice(startIndex, startIndex + SKU_PER_PAGE);
+  const pagedOutOfStock = outOfStock.slice(startIndex, startIndex + SKU_PER_PAGE);
 
   const rowHtml = p => {
-  const encodedName = encodeURIComponent(p.product_name || "");
-  const imgUrl = p.image_url || "https://placehold.co/60x60?text=No+Image";
-  return `
-    <div class="sku-card" id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
-      <div class="sku-card-header">
-        <input type="checkbox" class="sku-chk product-checkbox" data-sku="${p.sku}" onchange="updateGroupHint(); if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.3); margin-top:4px;">
-        <img src="${imgUrl}" class="sku-img" onerror="this.src='https://placehold.co/60x60?text=Loi'">
-        <div class="sku-info">
-          <div class="sku-title" title="${p.product_name || ""}">${p.product_name || "—"}</div>
-          <span class="sku-code">${p.sku}</span>
+    const encodedName = encodeURIComponent(p.product_name || "");
+    const imgUrl = p.image_url || "https://placehold.co/60x60?text=No+Image";
+    const stockQty = p.stock || 0;
+    const minStock = p.min_stock !== undefined ? p.min_stock : 5; // Mặc định báo động < 5
+    
+    // 🌟 Tính mác Kho Hàng
+    let stockBadge = '';
+    if (stockQty <= 0) {
+        stockBadge = `<span style="background:#fee2e2;color:#dc2626;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:bold;margin-top:6px;display:inline-block">🔴 Hết hàng</span>`;
+    } else if (stockQty <= minStock) {
+        stockBadge = `<span style="background:#fef3c7;color:#d97706;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:bold;margin-top:6px;display:inline-block">📉 Sắp hết (${stockQty}/${minStock})</span>`;
+    } else {
+        stockBadge = `<span style="background:#dcfce7;color:#16a34a;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:bold;margin-top:6px;display:inline-block">📦 Tồn: ${stockQty}</span>`;
+    }
+
+    return `
+      <div class="sku-card" id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
+        <div class="sku-card-header">
+          <input type="checkbox" class="sku-chk product-checkbox" data-sku="${p.sku}" onchange="updateGroupHint(); if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.3); margin-top:4px;">
+          <img src="${imgUrl}" class="sku-img" onerror="this.src='https://placehold.co/60x60?text=Loi'">
+          <div class="sku-info">
+            <div class="sku-title" title="${escapeHtml(p.product_name || "")}">${escapeHtml(p.product_name || "—")}</div>
+            <span class="sku-code">${p.sku}</span>
+            <br>${stockBadge}
+          </div>
         </div>
-      </div>
-      <div class="sku-prices">
-        <div class="sku-price-item">
-          <span class="sku-price-label">Vốn Hóa Đơn</span>
-          <span class="sku-price-val" style="color:#6d28d9">${fmt(p.cost_invoice)}</span>
+        <div class="sku-prices">
+          <div class="sku-price-item">
+            <span class="sku-price-label">Vốn Hóa Đơn</span>
+            <span class="sku-price-val" style="color:#6d28d9">${fmt(p.cost_invoice)}</span>
+          </div>
+          <div class="sku-price-item" style="text-align:right">
+            <span class="sku-price-label">Vốn Thực Tế</span>
+            <span class="sku-price-val" style="color:#0369a1">${fmt(p.cost_real)}</span>
+          </div>
         </div>
-        <div class="sku-price-item" style="text-align:right">
-          <span class="sku-price-label">Vốn Thực Tế</span>
-          <span class="sku-price-val" style="color:#0369a1">${fmt(p.cost_real)}</span>
-        </div>
-      </div>
-      <div class="sku-actions">
-        <div>
+        <div class="sku-actions">
           <div>
-          <button class="btn btn-edit" data-sku="${p.sku}" data-name="${encodedName}" data-cinv="${p.cost_invoice || 0}" data-creal="${p.cost_real || 0}" data-img="${imgUrl}" onclick="editSkuFromBtn(this)" style="padding:7px 12px; font-size:13px; font-weight:600; border-radius:6px; margin-right:6px;">✏️ Sửa</button>
+            <button class="btn btn-edit" data-sku="${p.sku}" data-name="${encodedName}" data-cinv="${p.cost_invoice || 0}" data-creal="${p.cost_real || 0}" data-stock="${stockQty}" data-minstock="${minStock}" data-img="${imgUrl}" onclick="editSkuFromBtn(this)" style="padding:7px 12px; font-size:13px; font-weight:600; border-radius:6px; margin-right:6px;">✏️ Sửa</button>
+          </div>
+          <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="padding:7px 12px; font-size:13px; border-radius:6px;">🗑️ Xóa</button>
         </div>
-        <button class="btn btn-danger" onclick="deleteSku('${p.sku}')" style="padding:7px 12px; font-size:13px; border-radius:6px;">🗑️ Xóa</button>
-      </div>
-    </div>`
+      </div>`
   }
 
   const empty = msg => `<div style="grid-column: 1 / -1; text-align:center; padding:40px; color:#888; background:white; border-radius:12px; border:1px dashed #cbd5e1;">${msg}</div>`
 
-  document.getElementById("skuNoPriceTable").innerHTML  = noPrice.length  ? noPrice.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!")
-  document.getElementById("skuPartialTable").innerHTML  = partial.length  ? partial.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "✅ Không có SKU nào thiếu giá!")
-  document.getElementById("skuHasPriceTable").innerHTML = hasPrice.length ? hasPrice.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "Chưa có SKU nào đủ giá vốn")
+  document.getElementById("skuNoPriceTable").innerHTML  = pagedNoPrice.length  ? pagedNoPrice.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!")
+  document.getElementById("skuPartialTable").innerHTML  = pagedPartial.length  ? pagedPartial.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "✅ Không có SKU nào thiếu giá!")
+  document.getElementById("skuHasPriceTable").innerHTML = pagedHasPrice.length ? pagedHasPrice.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "Chưa có SKU nào đủ giá vốn")
+  if (document.getElementById("skuLowStockTable")) document.getElementById("skuLowStockTable").innerHTML = pagedLowStock.length ? pagedLowStock.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "✅ Kho an toàn, chưa có SKU nào sắp hết!")
+  if (document.getElementById("skuOutOfStockTable")) document.getElementById("skuOutOfStockTable").innerHTML = pagedOutOfStock.length ? pagedOutOfStock.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "🎉 Không có SKU nào bị hết hàng!")
+
+  // GỌI HÀM VẼ PHÂN TRANG
+  renderSkuPagination(totalItems, totalPages);
+}
+
+// Hàm chống lỗi HTML injection
+function escapeHtml(unsafe) {
+    return (unsafe || '').toString()
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+}
+
+function renderSkuPagination(totalItems, totalPages) {
+    let container = document.getElementById("skuPaginationWrap");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "skuPaginationWrap";
+        container.style.cssText = "display:flex; justify-content:center; align-items:center; gap:10px; margin-top:20px; width:100%; padding-bottom:20px;";
+        // Đặt dưới cùng
+        const parent = document.getElementById("skuNoPriceTable").parentElement.parentElement;
+        parent.appendChild(container);
+    }
+
+    if (totalItems === 0 || totalPages <= 1) {
+        container.innerHTML = "";
+        return;
+    }
+
+    container.innerHTML = `
+        <button onclick="renderSkuTables(${currentSkuPage - 1})" ${currentSkuPage === 1 ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${currentSkuPage === 1 ? '#f8fafc' : 'white'}; color:${currentSkuPage === 1 ? '#cbd5e1' : '#333'}; cursor:${currentSkuPage === 1 ? 'not-allowed' : 'pointer'}; font-weight:bold;">‹ Trang trước</button>
+        <span style="padding:8px 16px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:14px; border:1px solid #bfdbfe;">
+            Trang ${currentSkuPage} / ${totalPages} (Tổng ${totalItems} SKU)
+        </span>
+        <button onclick="renderSkuTables(${currentSkuPage + 1})" ${currentSkuPage === totalPages ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${currentSkuPage === totalPages ? '#f8fafc' : 'white'}; color:${currentSkuPage === totalPages ? '#cbd5e1' : '#333'}; cursor:${currentSkuPage === totalPages ? 'not-allowed' : 'pointer'}; font-weight:bold;">Trang sau ›</button>
+    `;
 }
 
 // ── CRUD SKU ─────────────────────────────────────────────────────────
@@ -100,6 +193,8 @@ async function saveSku() {
   const name = document.getElementById("s_name").value.trim()
   const cinv = parseFloat(document.getElementById("s_cost_inv").value) || 0
   const creal = parseFloat(document.getElementById("s_cost_real").value) || 0
+  const stock = parseInt(document.getElementById("s_stock").value) || 0
+  const minStock = parseInt(document.getElementById("s_min_stock").value) || 0
   
   const fileInput = document.getElementById("s_img_file")
   let finalImg = document.getElementById("s_old_img").value
@@ -124,7 +219,7 @@ async function saveSku() {
       await fetch(API + "/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg })
+        body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock, min_stock: minStock })
       })
 
       showToast("✅ Đã lưu SKU: " + sku)
@@ -150,15 +245,19 @@ function editSkuFromBtn(btn) {
   const name  = decodeURIComponent(btn.dataset.name)
   const cinv  = btn.dataset.cinv
   const creal = btn.dataset.creal
+  const stock = btn.dataset.stock
+  const minstock = btn.dataset.minstock
   const img   = btn.dataset.img
-  editSku(sku, name, cinv, creal, img)
+  editSku(sku, name, cinv, creal, stock, minstock, img)
 }
 
-function editSku(sku, name, cinv, creal, img) {
+function editSku(sku, name, cinv, creal, stock, minstock, img) {
   document.getElementById("s_sku").value      = sku
   document.getElementById("s_name").value     = name
   document.getElementById("s_cost_inv").value = cinv
   document.getElementById("s_cost_real").value = creal
+  document.getElementById("s_stock").value    = stock || 0
+  document.getElementById("s_min_stock").value = minstock || 5
   
   // Gắn ảnh lên Preview
   const defaultImg = "https://placehold.co/60x60?text=IMG";

@@ -87,8 +87,8 @@ async function handleProducts(request, env, cors) {
   if (request.method === "POST") {
     const b = await request.json();
     await env.DB.prepare(`
-      INSERT INTO products (sku, product_name, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (sku, product_name, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, min_stock)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(sku) DO UPDATE SET
         product_name = excluded.product_name,
         cost_invoice = CASE WHEN excluded.cost_invoice > 0 THEN excluded.cost_invoice ELSE products.cost_invoice END,
@@ -96,10 +96,13 @@ async function handleProducts(request, env, cors) {
         is_combo = excluded.is_combo,
         combo_items = excluded.combo_items,
         combo_qty = excluded.combo_qty,
-        image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END
+        image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END,
+        stock = excluded.stock,
+        min_stock = excluded.min_stock
     `).bind(
       b.sku, b.product_name || "", b.cost_invoice || 0, b.cost_real || 0,
-      b.is_combo || 0, b.combo_items || null, b.combo_qty || 1, b.image_url || ""
+      b.is_combo || 0, b.combo_items || null, b.combo_qty || 1, b.image_url || "",
+      b.stock !== undefined ? b.stock : 0, b.min_stock !== undefined ? b.min_stock : 5
     ).run();
     return Response.json({ status: "ok" }, { headers: cors });
   }
