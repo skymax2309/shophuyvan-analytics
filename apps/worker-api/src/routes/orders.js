@@ -333,6 +333,7 @@ async function getOrders(request, env, cors) {
   const shipping = url.searchParams.get("shipping_status")
   const express  = url.searchParams.get("express") // 🌟 Bổ sung Hỏa tốc
   const carrier  = url.searchParams.get("carrier") // 🌟 Bổ sung Lọc ĐVVC
+  const dataStatus = url.searchParams.get("data_status") // 🌟 Bổ sung Lọc Khuyết Dữ Liệu
   const page   = parseInt(url.searchParams.get("page") || "1")
   const limit  = parseInt(url.searchParams.get("limit") || "50")
   const offset = (page - 1) * limit
@@ -362,6 +363,15 @@ if (shipping) { conds.push(`o.shipping_status = ?`); params.push(shipping) }
   // 🌟 Lọc đơn Hỏa tốc (Quét từ khóa ĐVVC)
   if (express === "1") { 
     conds.push(`(o.shipping_carrier LIKE '%Ahamove%' OR o.shipping_carrier LIKE '%Grab%' OR o.shipping_carrier LIKE '%BeDelivery%' OR o.shipping_carrier LIKE '%Instant%' OR o.shipping_carrier LIKE '%Hỏa Tốc%')`) 
+  }
+
+  // 🌟 BỘ LỌC KHUYẾT DỮ LIỆU (QUAN TRỌNG)
+  if (dataStatus === "unmapped") {
+    // Tìm các đơn hàng có chứa item bị rỗng SKU hoặc có chữ "Chưa Map"
+    conds.push(`EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.order_id AND (oi.sku IS NULL OR oi.sku = '' OR oi.sku LIKE '%Chưa Map%'))`)
+  } else if (dataStatus === "no_cost") {
+    // Tìm các đơn hàng có SKU đầy đủ nhưng cost_real = 0
+    conds.push(`EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.order_id AND oi.sku IS NOT NULL AND oi.sku != '' AND oi.sku NOT LIKE '%Chưa Map%' AND (oi.cost_real IS NULL OR oi.cost_real <= 0))`)
   }
 
   const where = conds.join(" AND ")

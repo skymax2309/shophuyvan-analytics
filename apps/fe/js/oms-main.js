@@ -102,9 +102,11 @@ export async function loadOrders(page = 1) {
   const search   = document.getElementById('f_search').value.trim()
   const carrier  = document.getElementById('f_carrier').value
   const isExpress= document.getElementById('f_express').checked
+  const dataStatus = document.getElementById('f_data_status').value
 
   if (from)   params.set('from', from)
   if (to)     params.set('to', to)
+  if (dataStatus) params.set('data_status', dataStatus)
   if (shop)      params.set('shop', shop)
   if (search)    params.set('search', search)
   if (carrier)   params.set('carrier', carrier) // Truyền thẳng tham số carrier lên Server
@@ -218,6 +220,7 @@ function renderTable() {
             <div class="product-sku" style="margin-top:2px; color:var(--blue); display:flex; align-items:center; gap:5px;">
               ${item.sku || '<span style="color:var(--red)">Chưa Map SKU</span>'}
               ${(!item.sku || item.sku.includes('Chưa Map')) ? `<span onclick="openMapModal('${item.variation_name || item.product_name}', '${o.order_id}')" style="background:var(--accent); color:white; padding:1px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold; box-shadow: 0 0 5px var(--accent); animation: pulse 1.5s infinite;">➕ Map</span>` : ''}
+              ${(item.sku && !item.sku.includes('Chưa Map') && (!item.cost_real || item.cost_real <= 0)) ? `<span onclick="openCostModal('${item.sku}')" style="background:var(--orange); color:white; padding:1px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold; box-shadow: 0 0 5px var(--orange); animation: pulse 1.5s infinite;">💲 Cập nhật Vốn</span>` : ''}
             </div>
             <div class="product-qty" style="margin-top:2px; font-weight: bold;">× ${item.qty || 1}</div>
           </div>
@@ -771,7 +774,64 @@ if(!document.getElementById('pulse-css')){
   document.head.appendChild(style);
 }
 
+// ── QUICK UPDATE COST PRICE ──────────────────────────────────────────
+export function openCostModal(sku) {
+  document.getElementById('costTargetSku').textContent = sku;
+  document.getElementById('costInvoiceInput').value = '';
+  document.getElementById('costRealInput').value = '';
+  document.getElementById('costPriceModal').classList.add('open');
+  document.getElementById('costRealInput').focus();
+}
+
+export async function saveCostPrice() {
+  const sku = document.getElementById('costTargetSku').textContent;
+  const costInvoice = parseFloat(document.getElementById('costInvoiceInput').value) || 0;
+  const costReal = parseFloat(document.getElementById('costRealInput').value) || 0;
+
+  if (costReal <= 0) {
+    showToast('⚠️ Vui lòng nhập Vốn Thực Tế lớn hơn 0!');
+    return;
+  }
+
+  const btn = document.querySelector('#costPriceModal .btn-primary');
+  btn.textContent = '⏳ Đang xử lý...';
+  btn.disabled = true;
+
+  try {
+    // 1. Cập nhật thẳng vào bảng Products
+    const payload = {
+      sku: sku,
+      cost_invoice: costInvoice,
+      cost_real: costReal
+    };
+    
+    const res = await fetch(`${API}/api/products`, {
+      method: 'POST', // API cũ của bác dùng POST để upsert
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error("Server từ chối cập nhật sản phẩm");
+
+    // 2. Kích hoạt tính lại giá vốn cho các đơn hàng chứa SKU này
+    await fetch(`${API}/api/orders/recalc-cost`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku: sku })
+    });
+
+    showToast(`✅ Đã cập nhật Giá Vốn cho mã: ${sku}`);
+    closeModal('costPriceModal');
+    loadOrders(currentPage);
+  } catch (e) {
+    showToast('❌ Lỗi: ' + e.message);
+  } finally {
+    btn.textContent = '💾 Lưu & Tính Lại Lãi/Lỗ';
+    btn.disabled = false;
+  }
+}
+
 // Gắn các hàm mới vào window để HTML gọi được
-Object.assign(window, { openMapModal, debounceSearchSku, saveMapSku });
+Object.assign(window, { openMapModal, debounceSearchSku, saveMapSku, openCostModal, saveCostPrice });
 // ── INIT ─────────────────────────────────────────────────────────────
 loadShopList()
