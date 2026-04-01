@@ -54,7 +54,16 @@ async function handleProducts(request, env, cors) {
   // CÁC API CŨ CỦA PRODUCTS GỐC
   // ==========================================
   if (request.method === "GET") {
-    // Tối ưu: Dùng SQL COALESCE để lấy ảnh dự phòng từ product_variations nếu products.image_url bị rỗng
+    const search = url.searchParams.get("search");
+    let cond = "";
+    let params = [];
+    
+    // Nếu có từ khóa tìm kiếm -> Bật chế độ quét Tên và Mã SKU
+    if (search) {
+      cond = "WHERE p.sku LIKE ? OR p.product_name LIKE ?";
+      params = [`%${search}%`, `%${search}%`];
+    }
+
     const query = `
       SELECT p.*, 
         COALESCE(
@@ -63,9 +72,16 @@ async function handleProducts(request, env, cors) {
           ''
         ) as image_url
       FROM products p 
+      ${cond}
       ORDER BY p.sku
+      LIMIT 50
     `;
-    const rows = await env.DB.prepare(query).all();
+    const rows = await env.DB.prepare(query).bind(...params).all();
+    
+    // Tối ưu bọc thép: Trả về dạng { data } cho Popup Map SKU, và dạng Mảng cho trang Quản lý Sản phẩm cũ để không bị sụp Web
+    if (search) {
+      return Response.json({ data: rows.results, success: true }, { headers: cors });
+    }
     return Response.json(rows.results, { headers: cors });
   }
 

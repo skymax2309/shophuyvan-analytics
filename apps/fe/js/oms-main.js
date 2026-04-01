@@ -98,6 +98,7 @@ export async function loadOrders(page = 1) {
   const from   = document.getElementById('f_from').value
   const to     = document.getElementById('f_to').value
   const shop     = document.getElementById('f_shop').value
+  const pltFilter= document.getElementById('f_platform').value // Lấy giá trị Sàn
   const search   = document.getElementById('f_search').value.trim()
   const carrier  = document.getElementById('f_carrier').value
   const isExpress= document.getElementById('f_express').checked
@@ -110,7 +111,13 @@ export async function loadOrders(page = 1) {
   if (isExpress) params.set('express', '1')
   if (currentStatus && currentStatus !== 'ALL') params.set('oms_status', currentStatus)
   if (currentType)     params.set('order_type', currentType)
-  if (currentPlatform) params.set('platform', currentPlatform)
+  
+  // Nếu chọn Sàn ở Dropdown thì ưu tiên dùng nó
+  if (pltFilter) {
+      params.set('platform', pltFilter)
+  } else if (currentPlatform) {
+      params.set('platform', currentPlatform)
+  }
 
   try {
     const res = await fetch(API + '/api/orders?' + params).then(r => r.json())

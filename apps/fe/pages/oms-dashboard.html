@@ -165,6 +165,12 @@
       <span class="filter-label">Đến:</span>
       <input type="date" class="filter-input filter-date" id="f_to">
       
+      <select class="filter-select" id="f_platform" onchange="filterShopDropdown(this.value); loadOrders(1)" style="width: 130px;">
+        <option value="">Tất cả Sàn</option>
+        <option value="shopee">Shopee</option>
+        <option value="tiktok">TikTok</option>
+        <option value="lazada">Lazada</option>
+      </select>
       <select class="filter-select" id="f_shop" onchange="loadOrders(1)">
         <option value="">Tất cả shop</option>
       </select>
