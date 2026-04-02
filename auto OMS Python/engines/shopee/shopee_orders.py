@@ -17,22 +17,18 @@ class ShopeeOrderScraper:
             
         self.log(f"[*] Bắt đầu Tuần tra Đa Tab Shopee. Giới hạn: Mới({limits['new']}), Đang giao({limits['shipping']}), Xong({limits['done']})")
         
-        # Khởi tạo Sổ đen "Chữ ký số toàn thân" (Lưu Mã Đơn + Hash MD5)
+        # Khởi tạo Sổ đen chuẩn hóa MD5
         cache_file = f"cache_orders_shopee_{shop_name}.json"
+        cached_final_orders = {}
         try:
             if os.path.exists(cache_file):
                 with open(cache_file, "r") as f:
-                    cache_data = json.load(f)
-                    cached_final_orders = {}
-                    # Dọn dẹp các format cũ, chỉ lấy các Hash MD5 (luôn dài 32 ký tự)
-                    if isinstance(cache_data, dict):
-                        for oid, val in cache_data.items():
-                            if isinstance(val, str) and len(val) == 32:
-                                cached_final_orders[oid] = val
-            else:
-                cached_final_orders = {}
-        except:
-            cached_final_orders = {}
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        # Chỉ giữ lại các key-value hợp lệ
+                        cached_final_orders = {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
+        except Exception as e:
+            self.log(f"⚠️ Không thể đọc Sổ đen cũ, sẽ khởi tạo mới: {e}")
 
         all_orders_data = []
         
@@ -248,13 +244,7 @@ class ShopeeOrderScraper:
                             self.log(f"❌ [LỖI DỮ LIỆU] Đơn {order_id} không có Ngày đặt hàng!")
                             continue 
 
-                        # --- CƠ CHẾ NÉ MÌN 3D (Chữa lành dữ liệu) ---
-                        if order_id in cached_final_orders:
-                            c_info = cached_final_orders[order_id]
-                            # Bỏ qua CHỈ KHI: Trạng thái đúng + Ngày tháng đúng + Ngày tháng không bị rỗng
-                            if c_info['status'] == tab['name'] and c_info['date'] == order_date and c_info['date'] != "":
-                                continue
-                        # ------------------------------------------------------------------
+                
 
                         # --- THỰC HIỆN CHUẨN HÓA QUA PARSER (PHƯƠNG ÁN 1 + 2) ---
                         # Tận dụng hàm _clean_price và _map_oms_status từ parser đã sửa
