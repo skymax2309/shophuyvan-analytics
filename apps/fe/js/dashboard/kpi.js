@@ -125,6 +125,24 @@ const cancelRows = (Array.isArray(cancelStats) ? cancelStats : []).filter(r => r
   const _returnOrders    = cancelRowsAll.filter(r => r.order_type === 'return')
   const allOrds          = dash.total_all_orders || 1
 
+  // Helper render chi tiết Shop
+  const _shopBreakdownDetail = () => {
+    const sbd = dash.shop_breakdown || [];
+    if (sbd.length === 0) return '';
+    return `
+      ${_sec('📊 CHI TIẾT TỪNG SHOP:')}
+      ${sbd.map(s => `
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:3px 0;border-bottom:1px dashed rgba(0,0,0,0.05)">
+          <span style="font-weight:600;color:#374151">${s.shop || 'Chưa rõ'}</span>
+          <span style="display:flex;gap:12px;text-align:right">
+            <span style="color:#6b7280;min-width:45px">${s.shop_orders} đơn</span>
+            <span style="font-weight:700;color:#10b981;min-width:65px">${fmt(s.shop_revenue)}</span>
+          </span>
+        </div>
+      `).join('')}
+    `;
+  };
+
   const _cancelDetailBase = () => `
     ${_sec('✗ LÝ DO HỦY ĐƠN:')}
     ${_cancelOrders.length === 0
@@ -194,14 +212,16 @@ const cancelRows = (Array.isArray(cancelStats) ? cancelStats : []).filter(r => r
 
       ${_card('blue','📦','Đơn Thành Công',
         Number(dash.total_orders || 0).toLocaleString(),
-        `Tổng ${Number(dash.total_all_orders || 0).toLocaleString()} đơn`
+        `Tổng ${Number(dash.total_all_orders || 0).toLocaleString()} đơn`,
+        _shopBreakdownDetail()
       )}
 
       ${_card('green','💰','Doanh Thu',
         fmtShort(rev), fmt(rev),
         `<div style="font-size:10px;color:#888;margin-bottom:4px">Tổng tiền người mua thanh toán (đã trừ hủy/hoàn)</div>
          ${_row('📦 DT đơn import', fmt(rev))}
-         ${_row('✗ Đơn hủy/hoàn đã loại', `${(dash.total_all_orders||0)-(dash.total_orders||0)} đơn`, '', '#6b7280')}`
+         ${_row('✗ Đơn hủy/hoàn đã loại', `${(dash.total_all_orders||0)-(dash.total_orders||0)} đơn`, '', '#6b7280')}
+         ${_shopBreakdownDetail()}`
       )}
 
       ${_card('purple','📄','Lãi Hóa Đơn',
