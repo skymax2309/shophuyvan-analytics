@@ -16,7 +16,7 @@ class LazadaOrderScraper:
             {"name": "Trả hàng", "url": f"{self.base_url}?status=returned"}
         ]
 
-    async def scrape_new_orders(self, page):
+    async def scrape_new_orders(self, page, shop_name=""):
         all_orders = []
         self.log("-------------------------------------------------")
         self.log("🚀 [LAZADA RADAR] Khởi động chiến dịch quét đơn hàng...")
@@ -41,7 +41,7 @@ class LazadaOrderScraper:
                     await asyncio.sleep(1.5)
                 
                 html_content = await page.evaluate("document.body.innerHTML")
-                parsed_orders = self.parser.parse_order_list(html_content, current_tab=tab_name)
+                parsed_orders = self.parser.parse_order_list(html_content, current_tab=tab_name, shop_name=shop_name)
                 
                 if parsed_orders:
                     self.log(f"   ✅ Bóc tách thành công {len(parsed_orders)} đơn hàng tại Tab '{tab_name}'.")

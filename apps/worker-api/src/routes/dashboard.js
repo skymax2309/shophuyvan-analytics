@@ -93,7 +93,19 @@ const cancelRow = await env.DB.prepare(`
     ${whereV2NoType}
   `).bind(...params).first()
 
-  return Response.json({ ...row, ...cancelRow, ...breakdownRow }, { headers: cors })
+  // Bổ sung query gom nhóm chi tiết theo từng shop để hiển thị tooltip
+  const shopBreakdownRow = await env.DB.prepare(`
+    SELECT
+      shop,
+      COUNT(DISTINCT order_id) AS shop_orders,
+      SUM(revenue) AS shop_revenue
+    FROM orders_v2
+    ${whereV2}
+    GROUP BY shop
+    ORDER BY shop_revenue DESC
+  `).bind(...params).all()
+
+  return Response.json({ ...row, ...cancelRow, ...breakdownRow, shop_breakdown: shopBreakdownRow.results }, { headers: cors })
 }
 
 

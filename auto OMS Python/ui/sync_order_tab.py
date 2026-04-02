@@ -11,7 +11,7 @@ class SyncOrderTab(ctk.CTkFrame):
         
         # Biến kiểm soát Đa luồng & Auto
         self.is_auto_running = False
-        self.mutex_lock = False 
+        self.browser_lock = threading.Lock() # SỬ DỤNG KHÓA THÉP CỦA HỆ ĐIỀU HÀNH
         self.auto_thread = None
         
         self.pack(fill="both", expand=True)
@@ -145,7 +145,8 @@ class SyncOrderTab(ctk.CTkFrame):
                 time.sleep(60) # Đêm thì Radar quét chậm lại 1 phút/lần
                 continue
                 
-            if not self.mutex_lock: # Chỉ quét nếu Bot đang rảnh (không bị vướng lúc đang cào đơn)
+            # Nếu Khóa đang mở (Tức là Máy cày đang nghỉ), Radar mới được phép nhảy vào
+            if self.browser_lock.acquire(blocking=False):
                 try:
                     res = requests.get(api_url, timeout=10)
                     if res.status_code == 200:
@@ -163,17 +164,19 @@ class SyncOrderTab(ctk.CTkFrame):
                                 
                                 if shop_data:
                                     self.so_log_msg(f"⚡ Đang mượn Tab Shopee để xử lý GẤP cho {shop_name}...")
-                                    self.mutex_lock = True
+                                    # Đã xóa dòng self.mutex_lock = True ở đây
                                     try:
                                         # Bơm lệnh process (Chuẩn bị hàng) chạy ngay lập tức
                                         asyncio.run(self.playwright_order_job(shop_data, "process"))
                                     except Exception as e:
                                         self.so_log_msg(f"❌ Lỗi xử lý Radar: {e}")
                                     finally:
-                                        self.mutex_lock = False
-                                        time.sleep(3) # Nghỉ 3s trước khi sang shop khác
-                except Exception:
+                                        # Nghỉ 3s trước khi làm đơn của shop khác
+                                        time.sleep(3)
+                except Exception as e:
                     pass # Lỗi mạng nhẹ thì bỏ qua, 10s sau Radar quét lại
+                finally:
+                    self.browser_lock.release() # Radar dùng xong thì trả lại Khóa
                     
             # Đứng chờ 10 giây rồi lặp lại
             for _ in range(10):
@@ -213,14 +216,14 @@ class SyncOrderTab(ctk.CTkFrame):
                 if not self.is_auto_running: break
                 
                 self.so_log_msg(f"[*] Khóa an toàn: Đang Cào đơn Shop {shop['ten_shop']}...")
-                self.mutex_lock = True
+                self.browser_lock.acquire() # BẤM KHÓA: Radar bên ngoài phải đứng chờ
                 try:
                     # Truyền lệnh scrape (Chỉ cào đơn)
                     asyncio.run(self.playwright_order_job(shop, "scrape")) 
                 except Exception as e:
                     self.so_log_msg(f"❌ Lỗi Auto Shop {shop['ten_shop']}: {e}")
                 finally:
-                    self.mutex_lock = False
+                    self.browser_lock.release() # MỞ KHÓA: Radar được phép vào
                 
                 import time
                 time.sleep(3)
@@ -246,7 +249,7 @@ class SyncOrderTab(ctk.CTkFrame):
     # CHUẨN ĐẦU VÀO VÀ THỰC THI (PLAYWRIGHT CORE)
     # ==========================================
     def run_order_bot(self, action):
-        if self.mutex_lock:
+        if self.browser_lock.locked(): # Kiểm tra xem ổ khóa thật có đang bị bấm không
             self.so_log_msg("🚦 HỆ THỐNG ĐANG BẬT ĐÈN ĐỎ: Bot Auto đang dở tay làm việc, vui lòng đợi vài giây rồi bấm lại...")
             return
 
@@ -259,13 +262,13 @@ class SyncOrderTab(ctk.CTkFrame):
         if not shop_data: return
             
         def task():
-            self.mutex_lock = True
+            self.browser_lock.acquire() # BẤM KHÓA khi chạy tay
             try:
                 asyncio.run(self.playwright_order_job(shop_data, action))
             except Exception as e:
                 self.so_log_msg(f"❌ Lỗi: {e}")
             finally:
-                self.mutex_lock = False
+                self.browser_lock.release() # MỞ KHÓA khi chạy xong
                 
         threading.Thread(target=task, daemon=True).start()
 
@@ -337,104 +340,30 @@ class SyncOrderTab(ctk.CTkFrame):
                         from engines.lazada.lazada_orders import LazadaOrderScraper
                         parser = LazadaOrderParser(self.so_log_msg)
                         scraper = LazadaOrderScraper(self.so_log_msg, parser)
-                        orders_data = await scraper.scrape_new_orders(page)
+                        orders_data = await scraper.scrape_new_orders(page, shop_name=shop['ten_shop'])
                     
                     if orders_data:
                         self.so_log_msg(f"📦 Thu thập được {len(orders_data)} đơn. Đang tải lên Server...")
-                        import requests, re
-                        from datetime import datetime
+                        import requests
                         
                         api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
                         payload = {"orders": [], "items": []}
                         
+                        # Data từ các Scraper (Shopee, TikTok, Lazada) đã được chuẩn hóa 100% tại Core
+                        # Giao diện chỉ làm nhiệm vụ tách đôi Đơn hàng và Sản phẩm để đẩy lên API
                         for order in orders_data:
-                            raw_price = re.sub(r'[^\d]', '', order.get("total_price", "0"))
-                            revenue = float(raw_price) if raw_price else 0
+                            # 1. Tách thông tin Đơn hàng chính
+                            order_info = order.copy()
+                            if "items" in order_info:
+                                del order_info["items"]
+                            payload["orders"].append(order_info)
                             
-                            tab_src = order.get("tab_source", "Chờ lấy hàng")
-                            oms_st = "PENDING"
-                            ship_st = tab_src
-                            order_type = "normal"
-                            
-                            # Phân loại trạng thái theo sàn
-                            if platform == 'shopee':
-                                if tab_src == "Đang giao":
-                                    oms_st = "HANDED_OVER"
-                                elif tab_src == "Đã giao":
-                                    oms_st = "COMPLETED"
-                                # Đã map thêm Đơn Hủy/Trả hàng của luồng mới
-                                elif tab_src in ["Đã hủy", "Đơn Hủy/Trả hàng"]: 
-                                    oms_st = "CANCELLED_TRANSIT"
-                                    order_type = "cancel"
-                                # Tách bạch đơn đã in/chuẩn bị hàng
-                                elif tab_src == "Chờ lấy hàng (Đã xử lý)":
-                                    oms_st = "CONFIRMED"
-                                # Đơn mới tinh chờ in
-                                elif tab_src == "Chờ lấy hàng (Chưa xử lý)":
-                                    oms_st = "PENDING"
-
-                            elif platform == 'tiktok':
-                                if tab_src == "Đã gửi":
-                                    oms_st = "HANDED_OVER"
-                                elif tab_src == "Đã hoàn tất":
-                                    oms_st = "COMPLETED"
-                                elif tab_src == "Đã hủy":
-                                    oms_st = "CANCELLED_TRANSIT"
-                                    order_type = "cancel"
-                                elif tab_src == "Giao không thành công":
-                                    oms_st = "FAILED_DELIVERY"
-                                    order_type = "cancel"
-                                # (Tab "Cần gửi" sẽ tự động nhận mặc định là PENDING)
-
-                            elif platform == 'lazada':
-                                if tab_src in ["Đang giao", "Chờ bàn giao"]:
-                                    oms_st = "HANDED_OVER"
-                                elif tab_src == "Đã giao":
-                                    oms_st = "COMPLETED"
-                                elif tab_src == "Đã hủy":
-                                    oms_st = "CANCELLED_TRANSIT"
-                                    order_type = "cancel"
-                                elif tab_src == "Giao thất bại":
-                                    oms_st = "FAILED_DELIVERY"
-                                    order_type = "cancel"
-                                elif tab_src == "Trả hàng":
-                                    oms_st = "RETURN_REFUND"
-                                    order_type = "return"
-                                # (Tab "Chờ đóng gói" sẽ tự động nhận mặc định là PENDING)
-
-                            # 🌟 SỬA LỖI GHI ĐÈ NGÀY: 
-                            real_order_date = order.get("order_date", "")
-                            if not real_order_date:
-                                # Chỉ tự động gán ngày hôm nay nếu đây là đơn MỚI TINH
-                                if oms_st in ["PENDING", "CONFIRMED"]:
-                                    real_order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                else:
-                                    # Đơn cũ (Đang giao, Xong, Hủy) tuyệt đối KHÔNG ĐƯỢC bịa ngày
-                                    real_order_date = ""
-
-                            payload["orders"].append({
-                                "order_id": order["order_id"],
-                                "order_date": real_order_date, # Đã chốt ngày chuẩn
-                                "order_type": order_type,
-                                "platform": platform,
-                                "shop": shop['ten_shop'],
-                                "customer_name": order.get("buyer_name", "Khách hàng"),
-                                "revenue": revenue,
-                                "oms_status": oms_st,
-                                "shipping_status": ship_st,
-                                "tracking_number": order.get("tracking_number", ""),
-                                "shipping_carrier": order.get("carrier", "")
-                            })
-                            
-                            for item in order["items"]:
-                                payload["items"].append({
-                                    "order_id": order["order_id"],
-                                    "sku": item.get("sku", ""), # 🌟 ĐÃ MỞ KHÓA: Cho phép truyền SKU thật lên Server
-                                    "variation_name": item.get("variation", ""), 
-                                    "product_name": item.get("name", "Sản phẩm"), # Tránh lỗi key error
-                                    "qty": int(item.get("quantity", 1) if str(item.get("quantity", "1")).isdigit() else 1),
-                                    "image_url": item.get("image", "")
-                                })
+                            # 2. Tách danh sách Sản phẩm (Items)
+                            if "items" in order:
+                                for item in order["items"]:
+                                    item_payload = item.copy()
+                                    item_payload["order_id"] = order["order_id"]
+                                    payload["items"].append(item_payload)
                         try:
                             self.so_log_msg(f"🔎 [RADAR] Bot chuẩn bị gửi: {len(payload['orders'])} Đơn và {len(payload['items'])} Sản phẩm!")
                             res = requests.post(api_url, json=payload)

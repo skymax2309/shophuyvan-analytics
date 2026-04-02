@@ -161,17 +161,53 @@ class TiktokOrderScraper:
                         if not items:
                             items.append({"sku": "", "variation": "", "name": "Sản phẩm TikTok", "quantity": "1", "image": ""})
 
-                        # Đóng gói 1 đơn
+                        # --- QUY TẮC THÉP: KHÔNG CÓ NGÀY ĐẶT HÀNG -> BÁO LỖI ---
+                        if not order_date:
+                            self.log(f"❌ [LỖI DỮ LIỆU] Đơn {order_id} không tìm thấy Ngày đặt hàng!")
+                            continue
+
+                        # Xử lý Doanh thu thành số thực
+                        revenue_numeric = 0.0
+                        if total_price:
+                            try:
+                                revenue_numeric = float(re.sub(r'[^\d.]', '', str(total_price).replace('.', '')))
+                            except: pass
+
+                        # Map trạng thái chuẩn OMS
+                        oms_st = "PENDING"
+                        if tab_name == "Đã gửi": oms_st = "HANDED_OVER"
+                        elif tab_name == "Đã hoàn tất": oms_st = "COMPLETED"
+                        elif tab_name == "Đã hủy": oms_st = "CANCELLED_TRANSIT"
+                        elif tab_name == "Giao không thành công": oms_st = "FAILED_DELIVERY"
+
+                        # Chuẩn hóa danh sách sản phẩm
+                        formatted_items = []
+                        for it in items:
+                            formatted_items.append({
+                                "sku": it.get("sku", ""),
+                                "variation": it.get("variation", ""),
+                                "product_name": it.get("name", "Sản phẩm TikTok"),
+                                "qty": int(it.get("quantity", 1)),
+                                "image_url": ""
+                            })
+
+                        # Đóng gói 1 đơn chuẩn Database D1
                         all_orders.append({
                             "order_id": order_id,
+                            "platform": "tiktok",
+                            "shop": shop_name,
                             "order_date": order_date,
-                            "buyer_name": buyer_name,
-                            "total_price": total_price,
-                            "tab_source": tab_name,
+                            "customer_name": buyer_name,
+                            "revenue": revenue_numeric,
+                            "raw_revenue": revenue_numeric,
+                            "status": tab_name,
+                            "oms_status": oms_st,
                             "tracking_number": tracking_number,
-                            "carrier": carrier,
-                            "items": items
+                            "shipping_carrier": carrier,
+                            "oms_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "items": formatted_items
                         })
+                        self.log(f"✅ [DÒ MÌN] Đơn {order_id} | {revenue_numeric}đ | {oms_st}")
                         tab_orders_count += 1
                         
                         # Dừng ngay nếu đủ Limit của Tab

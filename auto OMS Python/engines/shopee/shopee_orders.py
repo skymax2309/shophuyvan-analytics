@@ -3,6 +3,7 @@ import json
 import os
 import math
 import re
+import hashlib
 from datetime import datetime
 
 class ShopeeOrderScraper:
@@ -16,29 +17,34 @@ class ShopeeOrderScraper:
             
         self.log(f"[*] Bắt đầu Tuần tra Đa Tab Shopee. Giới hạn: Mới({limits['new']}), Đang giao({limits['shipping']}), Xong({limits['done']})")
         
-        # Khởi tạo "Sổ đen" Cache (Lưu các đơn đã chốt hạ để né)
+        # Khởi tạo Sổ đen "Chữ ký số toàn thân" (Lưu Mã Đơn + Hash MD5)
         cache_file = f"cache_orders_shopee_{shop_name}.json"
         try:
             if os.path.exists(cache_file):
                 with open(cache_file, "r") as f:
-                    cached_final_orders = set(json.load(f))
+                    cache_data = json.load(f)
+                    cached_final_orders = {}
+                    # Dọn dẹp các format cũ, chỉ lấy các Hash MD5 (luôn dài 32 ký tự)
+                    if isinstance(cache_data, dict):
+                        for oid, val in cache_data.items():
+                            if isinstance(val, str) and len(val) == 32:
+                                cached_final_orders[oid] = val
             else:
-                cached_final_orders = set()
+                cached_final_orders = {}
         except:
-            cached_final_orders = set()
+            cached_final_orders = {}
 
         all_orders_data = []
         
-        # Danh sách URL quét cạn các Tab (Bao gồm cả Đơn Hủy và Trả Hàng)
+        # Danh sách URL quét cạn các Tab (Gộp Hủy và Trả hàng vào chung 1 trang để tăng tốc)
         tabs_to_scan = [
             {"name": "Chờ lấy hàng", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship", "limit_type": "new"},
             {"name": "Đang giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=shipping", "limit_type": "shipping"},
             {"name": "Đã giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=completed", "limit_type": "done"},
-            {"name": "Đơn Hủy", "url": "https://banhang.shopee.vn/portal/sale/order?type=cancelled", "limit_type": "done"},
-            {"name": "Trả hàng", "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel", "limit_type": "done"}
+            {"name": "Hủy & Trả hàng", "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel", "limit_type": "done"}
         ]
 
-        newly_completed = set()
+        newly_completed = {}
 
         try:
             for tab in tabs_to_scan:
@@ -52,7 +58,10 @@ class ShopeeOrderScraper:
                 self.log(f"📡 Đang mở Tab: {tab['name']} (Mục tiêu {limit_count} đơn -> Quét tối đa {max_pages} trang)")
                 
                 await page.goto(tab['url'], timeout=60000, wait_until="domcontentloaded")
-                await asyncio.sleep(5) # Chờ Shopee load khung
+                
+                # TĂNG DELAY THEO YÊU CẦU ĐỂ QUAN SÁT (12 Giây)
+                self.log("   ⏳ Đang chờ Shopee load và nới lỏng Delay để quan sát...")
+                await asyncio.sleep(12) 
 
                 # Tắt Popup quảng cáo nếu có
                 try:
@@ -62,6 +71,51 @@ class ShopeeOrderScraper:
                             await popup.click()
                             await asyncio.sleep(1)
                 except: pass
+
+                # --- MỞ KHÓA BỘ LỌC TÀNG HÌNH (Thuật toán Tọa độ Bất tử) ---
+                if tab['name'] in ["Chờ lấy hàng", "Hủy & Trả hàng"]:
+                    try:
+                        self.log("   ⚙️ Đang bung toàn bộ các nút 'Tất cả' đang bị ẩn...")
+                        clicked_any_total = False
+                        
+                        # Vòng lặp bấm tuần tự từng nút (Đảm bảo Shopee load kịp từng filter)
+                        for _ in range(6): 
+                            clicked_this_round = await page.evaluate('''() => {
+                                let btns = Array.from(document.querySelectorAll('*')).filter(el => {
+                                    if (el.children.length > 0) return false; // Chỉ lấy text lá
+                                    let txt = el.textContent.trim();
+                                    return txt === "Tất cả" || /^Tất cả\\s*\\(\\d+\\)$/.test(txt);
+                                });
+                                
+                                for (let btn of btns) {
+                                    let rect = btn.getBoundingClientRect();
+                                    // TUYỆT ĐỐI NÉ thanh Menu dọc bên trái (Tọa độ X < 240px)
+                                    if (rect.left < 240 || rect.top < 40) continue; 
+                                    
+                                    let wrap = btn.parentElement;
+                                    let classStr = (btn.className + " " + (wrap ? wrap.className : "")).toLowerCase();
+                                    let isUnselected = !classStr.includes('active') && !classStr.includes('checked') && !classStr.includes('primary') && !classStr.includes('selected');
+                                    
+                                    if (isUnselected) {
+                                        btn.click();
+                                        return true; // Click 1 nút rồi thoát JS để chờ Web load dữ liệu
+                                    }
+                                }
+                                return false; // Không còn nút nào cần bấm
+                            }''')
+                            
+                            if clicked_this_round:
+                                clicked_any_total = True
+                                await asyncio.sleep(1.5) # Chờ Shopee giật load filter
+                            else:
+                                break # Bấm xong hết tất cả rồi thì thoát vòng lặp
+                                
+                        if clicked_any_total:
+                            self.log("   ⏳ Đã bật Full bộ lọc 'Tất cả', chờ dữ liệu ổn định (4 giây)...")
+                            await asyncio.sleep(4)
+                    except Exception as e:
+                        self.log(f"   ⚠️ Lỗi khi định vị bộ lọc: {e}")
+                # ---------------------------------------------------
 
                 tab_orders = []
                 page_num = 1
@@ -92,10 +146,6 @@ class ShopeeOrderScraper:
                         id_match = re.search(r'([A-Z0-9]{14,15})', lines[0])
                         if not id_match: continue
                         order_id = id_match.group(1)
-
-                        # Bỏ qua nếu đã có trong sổ đen (Đơn đã hoàn tất không cào lại)
-                        if order_id in cached_final_orders:
-                            continue
 
                         # 2. Lấy Tên Khách Hàng (Nằm ở đuôi của khúc Text ngay phía trước)
                         buyer_name = "Khách hàng"
@@ -131,23 +181,37 @@ class ShopeeOrderScraper:
                                 tracking_number = t_match.group(1)
                                 break
 
-                        # 🌟 5. BẮT ĐÚNG THỜI GIAN ĐẶT HÀNG THỰC TẾ TRÊN GIAO DIỆN
+                        # 🌟 5. BẮT ĐÚNG THỜI GIAN VÀ BẢO VỆ DỮ LIỆU
                         order_date = ""
-                        for line in lines:
-                            # Shopee thường hiển thị: "31-03-2026 14:30" hoặc "31/03/2026"
-                            d_match = re.search(r'(\d{2}[-/]\d{2}[-/]\d{4}(?:\s\d{2}:\d{2})?)', line)
-                            if d_match:
-                                try:
-                                    raw_d = d_match.group(1).replace('-', '/')
-                                    if len(raw_d) > 10:
-                                        dt = datetime.strptime(raw_d, "%d/%m/%Y %H:%M")
-                                    else:
-                                        dt = datetime.strptime(raw_d, "%d/%m/%Y")
-                                    # Ép về chuẩn định dạng Database: YYYY-MM-DD HH:MM:SS
-                                    order_date = dt.strftime("%Y-%m-%d %H:%M:%S") 
-                                except: pass
-                                break
+                        # GIẢI MÃ NGÀY CHUẨN TỪ MÃ ĐƠN (Chân lý tuyệt đối)
+                        true_date_str = ""
+                        if order_id and len(order_id) >= 14:
+                            try:
+                                yy, mm, dd = order_id[0:2], order_id[2:4], order_id[4:6]
+                                true_date_str = f"20{yy}-{mm}-{dd}"
+                            except: pass
 
+                        for line in lines:
+                            d_match = re.search(r'(\d{4}[-/]\d{2}[-/]\d{2}(?:\s\d{2}:\d{2})?)|(\d{2}[-/]\d{2}[-/]\d{4}(?:\s\d{2}:\d{2})?)', line)
+                            if d_match:
+                                raw_d = d_match.group(0)
+                                try:
+                                    if re.match(r'^\d{4}', raw_d):
+                                        dt = datetime.strptime(raw_d.replace('/', '-'), "%Y-%m-%d %H:%M" if len(raw_d) > 10 else "%Y-%m-%d")
+                                    else:
+                                        dt = datetime.strptime(raw_d.replace('-', '/'), "%d/%m/%Y %H:%M" if len(raw_d) > 10 else "%d/%m/%Y")
+                                    
+                                    parsed_date = dt.strftime("%Y-%m-%d")
+                                    # CHỈ LẤY THỜI GIAN TRÊN GIAO DIỆN NẾU NÓ KHỚP VỚI NGÀY TRONG MÃ ĐƠN
+                                    # (Tránh bắt nhầm "Hạn giao hàng" hoặc "Hạn trả hàng" của Shopee)
+                                    if true_date_str and parsed_date == true_date_str:
+                                        order_date = dt.strftime("%Y-%m-%d %H:%M:%S")
+                                        break
+                                except: pass
+                        
+                        # --- BACKUP: NẾU TRÊN WEB BỊ ẨN, HOẶC LÀ NGÀY ẢO, ÉP LẤY NGÀY TỪ MÃ ĐƠN ---
+                        if not order_date and true_date_str:
+                            order_date = f"{true_date_str} 00:00:00"
                         # 6. Lấy Tên Sản Phẩm, SKU & Số lượng
                         sku = ""
                         variation = ""
@@ -169,29 +233,75 @@ class ShopeeOrderScraper:
 
                         if not product_name: product_name = "Sản phẩm Shopee"
                         
-                        # Chỉ dùng thời gian cào làm phương án Backup cuối cùng nếu Web bị lỗi không hiện ngày
-                        if not order_date: order_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        # --- BẺ KHÓA SHOPEE: GIẢI MÃ NGÀY TỪ ORDER ID NẾU GIAO DIỆN BỊ ẨN ---
+                        if not order_date and order_id and len(order_id) >= 14:
+                            try:
+                                # Order ID Shopee: YYMMDD... (VD: 260402 -> 2026-04-02)
+                                yy = order_id[0:2]
+                                mm = order_id[2:4]
+                                dd = order_id[4:6]
+                                order_date = f"20{yy}-{mm}-{dd} 00:00:00"
+                            except: pass
 
-                        # Đóng gói Đơn
+                        # Nếu sau khi bẻ khóa vẫn không có ngày thì mới chặn đứng
+                        if not order_date:
+                            self.log(f"❌ [LỖI DỮ LIỆU] Đơn {order_id} không có Ngày đặt hàng!")
+                            continue 
+
+                        # --- CƠ CHẾ NÉ MÌN 3D (Chữa lành dữ liệu) ---
+                        if order_id in cached_final_orders:
+                            c_info = cached_final_orders[order_id]
+                            # Bỏ qua CHỈ KHI: Trạng thái đúng + Ngày tháng đúng + Ngày tháng không bị rỗng
+                            if c_info['status'] == tab['name'] and c_info['date'] == order_date and c_info['date'] != "":
+                                continue
+                        # ------------------------------------------------------------------
+
+                        # --- THỰC HIỆN CHUẨN HÓA QUA PARSER (PHƯƠNG ÁN 1 + 2) ---
+                        # Tận dụng hàm _clean_price và _map_oms_status từ parser đã sửa
+                        revenue_numeric = self.parser._clean_price(total_price)
+                        
+                        # Ánh xạ trạng thái dựa trên tên Tab nếu Shopee không hiện text trạng thái cụ thể
+                        status_raw = tab['name'] 
+                        oms_status = self.parser._map_oms_status(status_raw)
+
+                        # Đóng gói dữ liệu theo chuẩn Database orders_v2
                         order_obj = {
                             "order_id": order_id,
+                            "platform": "shopee",
+                            "shop": shop_name,
                             "order_date": order_date,
-                            "buyer_name": buyer_name,
-                            "total_price": total_price,
-                            "tab_source": tab['name'],
+                            "customer_name": buyer_name,
+                            "revenue": revenue_numeric,
+                            "raw_revenue": revenue_numeric,
+                            "status": status_raw,
+                            "oms_status": oms_status,
                             "tracking_number": tracking_number,
-                            "carrier": carrier,
+                            "shipping_carrier": carrier,
+                            "oms_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "items": [{
                                 "sku": sku,
                                 "variation": variation,
-                                "name": product_name,
-                                "quantity": qty,
-                                "image": ""
+                                "product_name": product_name,
+                                "qty": qty,
+                                "image_url": ""
                             }]
                         }
+
+                        # --- CƠ CHẾ CHỮA LÀNH DỮ LIỆU TỰ ĐỘNG BẰNG CHỮ KÝ SỐ ---
+                        hash_data = order_obj.copy()
+                        del hash_data['oms_updated_at']
+                        order_signature = hashlib.md5(json.dumps(hash_data, sort_keys=True).encode('utf-8')).hexdigest()
+
+                        # --- HIỂN THỊ LOG TOÀN BỘ ĐƠN HÀNG (Theo yêu cầu soi ngày tháng) ---
+                        if order_id in cached_final_orders and cached_final_orders[order_id] == order_signature:
+                            self.log(f"👁️ [ĐÃ QUÉT] {order_id} | Ngày: {order_date} | {oms_status} -> (Bỏ qua vì không đổi)")
+                            continue 
+
+                        self.log(f"🚀 [CẬP NHẬT] {order_id} | Ngày: {order_date} | {oms_status} -> (Dữ liệu Mới/Đã sửa)")
                         
                         # Chống trùng lặp khi Shopee load lag
                         if not any(o['order_id'] == order_id for o in tab_orders):
+                            order_obj['_signature'] = order_signature
                             tab_orders.append(order_obj)
 
                         if len(tab_orders) >= limit_count:
@@ -202,25 +312,46 @@ class ShopeeOrderScraper:
                     if len(tab_orders) >= limit_count:
                         break # Xong chỉ tiêu của Tab này
                         
-                   # 7. Lật Trang (Shopee Pagination Chuẩn)
+                   # 7. Lật Trang (Bơm Javascript lật trang theo đúng thao tác UI)
                     try:
-                        next_btn = page.locator("button.eds-pagination__btn--next, button.shopee-icon-button--right, button.pagination-next").last
-                        
-                        # 🌟 BỌC THÉP: Kiểm tra xem nút có tồn tại trên màn hình không trước khi chạm vào
-                        if await next_btn.count() > 0:
-                            is_disabled = await next_btn.evaluate("el => el.disabled || el.classList.contains('eds-pagination__btn--disabled')")
+                        self.log(f"   ➡️ Đang tìm nút qua trang {page_num + 1}...")
+                        clicked_next = await page.evaluate('''(nextPageNum) => {
+                            let pageStr = String(nextPageNum);
                             
-                            if await next_btn.is_visible() and not is_disabled:
-                                self.log(f"   ➡️ Sang trang {page_num + 1}...")
-                                await next_btn.click()
-                                await asyncio.sleep(4)
-                                page_num += 1
-                            else:
-                                self.log("   🛑 Đã vét sạch đến trang cuối cùng.")
-                                break
+                            // CÁCH 1: Tìm và bấm chính xác vào nút mang số trang tiếp theo (Dựa vào log UI của bạn)
+                            let pageNodes = document.querySelectorAll("li.eds-pager__page, button.shopee-button-no-solid, .shopee-page-controller button");
+                            for (let node of pageNodes) {
+                                if (node.textContent.trim() === pageStr) {
+                                    node.click();
+                                    return true;
+                                }
+                            }
+                            
+                            // CÁCH 2: Backup tìm nút Mũi tên Next (Đã cập nhật class .eds-pager mới)
+                            let nextBtn = document.querySelector(".eds-pager__btn--next, .eds-pagination__btn--next, .shopee-icon-button--right, button.pagination-next");
+                            
+                            if (!nextBtn) {
+                                let svgs = Array.from(document.querySelectorAll("svg"));
+                                let rightSvg = svgs.find(svg => typeof svg.className === 'string' && (svg.className.includes('angle-right') || svg.className.includes('arrow-right')));
+                                if (rightSvg) nextBtn = rightSvg.closest('button');
+                            }
+
+                            if (nextBtn) {
+                                let isDisabled = nextBtn.disabled || nextBtn.classList.contains('eds-pagination__btn--disabled') || nextBtn.classList.contains('eds-pager__btn--disabled') || nextBtn.getAttribute('aria-disabled') === 'true';
+                                if (!isDisabled) {
+                                    nextBtn.click(); 
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }''', page_num + 1)
+
+                        if clicked_next:
+                            self.log(f"   ✅ Đã bấm sang trang {page_num + 1}, đang chờ dữ liệu load...")
+                            await asyncio.sleep(5) # Chờ load giao diện mới
+                            page_num += 1
                         else:
-                            # Nút không tồn tại (Shopee ẩn đi vì ít đơn) -> Nghỉ luôn không chờ
-                            self.log("   🛑 Không có nút chuyển trang (Chỉ có 1 trang dữ liệu).")
+                            self.log("   🛑 Đã vét sạch đến trang cuối cùng (Hoặc không có nút lật trang).")
                             break
                     except Exception as e:
                         self.log(f"   ⚠️ Lỗi lật trang: {e}")
@@ -229,10 +360,11 @@ class ShopeeOrderScraper:
                 orders_to_keep = tab_orders[:limit_count]
                 self.log(f"   ✅ CHỐT: Giữ lại {len(orders_to_keep)} đơn mới nhất tại Tab '{tab['name']}'.")
                 
-                # Ghi danh vào Sổ Đen những đơn Đã Giao/Hủy
+                # Ghi danh TẤT CẢ các đơn vào Sổ Đen kèm Chữ Ký Số để giám sát biến động
                 for o in orders_to_keep:
-                    if tab['limit_type'] == "done":
-                        newly_completed.add(o['order_id'])
+                    if '_signature' in o:
+                        newly_completed[o['order_id']] = o['_signature']
+                        del o['_signature'] # Xóa đi để rổ dữ liệu gửi lên API vẫn chuẩn và sạch
                         
                 all_orders_data.extend(orders_to_keep)
                     
@@ -242,8 +374,8 @@ class ShopeeOrderScraper:
             if newly_completed:
                 cached_final_orders.update(newly_completed)
                 with open(cache_file, "w") as f:
-                    json.dump(list(cached_final_orders), f)
-                self.log(f"💾 CẬP NHẬT SỔ ĐEN: Đã ghi nhớ thêm {len(newly_completed)} đơn chốt hạ!")
+                    json.dump(cached_final_orders, f, indent=4)
+                self.log(f"💾 CẬP NHẬT SỔ ĐEN THÔNG MINH: Đã ghi nhận/cập nhật {len(newly_completed)} đơn!")
 
             self.log(f"🎉 Hoàn tất tuần tra Shopee! Tổng gom được: {len(all_orders_data)} đơn từ các Tab.")
             return all_orders_data

@@ -1,8 +1,41 @@
 from bs4 import BeautifulSoup
+import re
 
 class ShopeeOrderParser:
     def __init__(self, log_callback):
         self.log = log_callback
+
+    def _clean_price(self, price_str):
+        """[DÒ MÌN] Chuyển đổi chuỗi tiền Shopee (₫150.000) sang số thực (150000.0)"""
+        try:
+            if not price_str or str(price_str).strip() in ['0', 'nan', 'None']: 
+                return 0.0
+            # Xóa tất cả ký tự không phải số và dấu chấm (giữ lại dấu chấm nếu là số thập phân)
+            clean_str = re.sub(r'[^\d.]', '', str(price_str).replace('.', ''))
+            return float(clean_str)
+        except Exception as e:
+            self.log(f"⚠️ [LỖI DÒ MÌN] Không thể xử lý giá tiền: '{price_str}'. Lỗi: {e}")
+            return 0.0
+
+    def _map_oms_status(self, shopee_status):
+        """Ánh xạ trạng thái Shopee sang chuẩn hệ thống OMS"""
+        status_map = {
+            # Từ khóa gốc của sàn
+            "Hoàn thành": "COMPLETED",
+            "Đã hủy": "CANCELLED_TRANSIT",
+            "Trả hàng/Hoàn tiền": "RETURN_REFUND",
+            "Đang giao": "SHIPPING",
+            "Chờ xác nhận": "PENDING",
+            "Chờ lấy hàng": "TO_SHIP",
+            "Đã xử lý": "PROCESSED",
+            
+            # Bổ sung map theo Tên Tab (Shopee Orders)
+            "Đã giao": "COMPLETED",
+            "Đơn Hủy": "CANCELLED_TRANSIT",
+            "Trả hàng": "RETURN_REFUND",
+            "Hủy & Trả hàng": "RETURN_REFUND"  # <--- Bổ sung dòng này
+        }
+        return status_map.get(shopee_status.strip(), "PENDING")
 
     def parse_order_list(self, html_content, cached_ids=None):
         if cached_ids is None:
@@ -136,16 +169,25 @@ class ShopeeOrderParser:
                         order_date = date_match.group(0)
                         break
 
+                # --- THỰC THI PHƯƠNG ÁN 2: CHUẨN HÓA DATA TRƯỚC KHI ĐẨY LÊN WEB ---
+                revenue_numeric = self._clean_price(total_price)
+                oms_status = self._map_oms_status(status)
+
                 orders.append({
                     "order_id": order_sn,
-                    "buyer_name": buyer_name,
-                    "items": items,
-                    "total_price": total_price,
-                    "status": status,
+                    "platform": "shopee",
+                    "customer_name": buyer_name,
+                    "items": items,                    # Danh sách SP để đẩy vào bảng order_items
+                    "revenue": revenue_numeric,        # Doanh thu số thực
+                    "raw_revenue": revenue_numeric,    # Doanh thu chưa trừ phí
+                    "status": status,                  # Trạng thái gốc Shopee
+                    "oms_status": oms_status,          # Trạng thái chuẩn hệ thống
                     "tracking_number": tracking_number,
-                    "carrier": carrier,
-                    "order_date": order_date # Bơm ngày chuẩn vào Rổ dữ liệu
+                    "shipping_carrier": carrier,
+                    "order_date": order_date,          # Ngày khách đặt
+                    "oms_updated_at": order_date       # Đánh dấu thời điểm cập nhật cuối
                 })
+                self.log(f"✅ Đã chuẩn hóa đơn {order_sn}: {revenue_numeric}đ | Status: {oms_status}")
             except Exception as e:
                 self.log(f"⚠️ Lỗi bóc tách 1 đơn hàng nội bộ ({order_sn}): {e}")
 
