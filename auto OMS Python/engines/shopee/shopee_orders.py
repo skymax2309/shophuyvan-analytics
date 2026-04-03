@@ -209,9 +209,10 @@ class ShopeeOrderScraper:
                         # --- BACKUP: NẾU TRÊN WEB BỊ ẨN, HOẶC LÀ NGÀY ẢO, ÉP LẤY NGÀY TỪ MÃ ĐƠN ---
                         if not order_date and true_date_str:
                             order_date = f"{true_date_str} 00:00:00"
-                        # 6. Lấy Tên Sản Phẩm, Phân loại, SKU & Số lượng (THUẬT TOÁN MỎ NEO GIÁ TIỀN)
+                        # 6. Lấy Tên Sản Phẩm, Phân loại, SKU & Số lượng (XUẤT KÉP DỮ LIỆU)
                         sku = ""
-                        variation = ""
+                        original_variation = ""
+                        clean_variation = ""
                         product_name = ""
                         qty = 1
                         
@@ -230,7 +231,7 @@ class ShopeeOrderScraper:
                             txt_clean = txt.strip()
                             txt_lower = txt_clean.lower()
                             
-                            # 1. Lọc thẻ rác chuẩn xác (Không dùng từ khóa chung chung để tránh xóa nhầm tên)
+                            # 1. Lọc thẻ rác chuẩn xác
                             if txt_lower in ["yêu thích", "yêu thích+", "mall", "xử lý bởi shopee"]: 
                                 continue
                             if "mua nhiều giảm giá" in txt_lower or ("giảm" in txt_lower and "&" in txt_lower): 
@@ -243,19 +244,18 @@ class ShopeeOrderScraper:
                                 qty = int(re.sub(r'[^\d]', '', txt_clean))
                                 continue
                                 
-                            # 3. Bắt Phân loại & Móc SKU ẩn trong ngoặc vuông [...]
+                            # 3. Bắt Phân loại (LƯU BẢN GỐC VÀ BẢN SẠCH CẮT NGOẶC)
                             if re.search(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', txt_clean, re.IGNORECASE):
-                                raw_var = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', '', txt_clean, flags=re.IGNORECASE).strip()
-                                # Dùng Regex chộp lấy dữ liệu nằm trong ngoặc vuông
-                                sku_match = re.search(r'\[(.*?)\]', raw_var)
+                                original_variation = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', '', txt_clean, flags=re.IGNORECASE).strip()
+                                sku_match = re.search(r'\[(.*?)\]', original_variation)
                                 if sku_match and not sku:
                                     sku = sku_match.group(1).strip()
-                                    variation = re.sub(r'\[.*?\]', '', raw_var).strip() # Xóa SKU để lại Tên Phân Loại sạch
+                                    clean_variation = re.sub(r'\[.*?\]', '', original_variation).strip()
                                 else:
-                                    variation = raw_var
+                                    clean_variation = original_variation
                                 continue
                                 
-                            # 4. Bắt SKU tường minh (Sàn hiển thị rõ chữ SKU)
+                            # 4. Bắt SKU tường minh
                             if "sku" in txt_lower:
                                 sku = txt_clean.split(":")[-1].strip()
                                 continue
@@ -263,19 +263,22 @@ class ShopeeOrderScraper:
                                 sku = txt_clean.strip("[]")
                                 continue
                                 
-                            # 5. Bắt Tên sản phẩm & Móc SKU ẩn trong Tên (nếu có)
+                            # 5. Bắt Tên sản phẩm & Móc SKU ẩn
                             if not product_name and len(txt_clean) > 8:
                                 sku_match = re.search(r'\[(.*?)\]', txt_clean)
                                 if sku_match and not sku:
                                     sku = sku_match.group(1).strip()
-                                    product_name = re.sub(r'\[.*?\]', '', txt_clean).strip() # Xóa SKU để lại Tên SP sạch
+                                    product_name = re.sub(r'\[.*?\]', '', txt_clean).strip()
                                 else:
                                     product_name = txt_clean
                                 
+                        # Chốt chặn an toàn: Ép kiểu để không bao giờ bị lỗi 'not defined'
                         if not product_name: product_name = "Sản phẩm Shopee"
+                        if not original_variation: original_variation = ""
+                        if not clean_variation: clean_variation = ""
                         
                         # LOG DEBUG ĐỂ KIỂM CHỨNG DỮ LIỆU
-                        self.log(f"   [DEBUG_ITEM] Đơn {order_id} | Var: '{variation}' | SKU: '{sku}' | Qty: {qty}")
+                        self.log(f"   [DEBUG_ITEM] Đơn {order_id} | Var: '{original_variation}' | SKU: '{sku}' | Qty: {qty}")
 
                         # --- BẺ KHÓA SHOPEE: GIẢI MÃ NGÀY TỪ ORDER ID NẾU GIAO DIỆN BỊ ẨN ---
                         if not order_date and order_id and len(order_id) >= 14:

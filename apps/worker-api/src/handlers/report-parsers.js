@@ -3,21 +3,28 @@
 // ════════════════════════════════════════════════════════════════════
 
 function detectReportMonth(filename) {
-  // Pattern YYYY-MM (có dấu gạch) — VD: 2026-01
-  const m1 = filename.match(/(\d{4})-(\d{2})/)
+  // 1. Chỉ bắt các năm bắt đầu bằng 20 (như 2024, 2025, 2026) chống nhầm SĐT
+  const m1 = filename.match(/(20\d{2})-(\d{2})/)
   if (m1) return `${m1[1]}-${m1[2]}`
 
-  // Pattern YYYYMMDD (8 chữ số liền) — VD: 20260201
-  const m2 = filename.match(/(\d{4})(\d{2})\d{2}/)
-  if (m2) return `${m2[1]}-${m2[2]}`
-
-  // Pattern YYYY_MM
-  const m3 = filename.match(/(\d{4})_(\d{2})/)
+  const m3 = filename.match(/(20\d{2})_(\d{2})/)
   if (m3) return `${m3[1]}-${m3[2]}`
 
-  // Pattern YYYYMM (6 chữ số liền, không có ngày) — VD: 202601
-  const m4 = filename.match(/(\d{4})(\d{2})(?!\d)/)
-  if (m4) return `${m4[1]}-${m4[2]}`
+  // 2. Bắt định dạng YYYYMMDD (ví dụ: _20260308) ưu tiên nằm sau dấu gạch dưới
+  const m4 = filename.match(/_(20\d{2})(\d{2})(\d{2})(?:_|\.|$)/)
+  if (m4) {
+    let y = parseInt(m4[1]), mo = parseInt(m4[2]) - 1
+    if (mo < 1) { mo = 12; y-- }
+    return `${y}-${String(mo).padStart(2, "0")}`
+  }
+
+  // 3. Bắt định dạng YYYYMM (ví dụ: _202602)
+  const m2 = filename.match(/_(20\d{2})(\d{2})(?:_|\.|$)/)
+  if (m2) return `${m2[1]}-${m2[2]}`
+  
+  // 4. Fallback cuối cùng cho YYYYMM liền nhau mà không có gạch dưới (VD: 202601.pdf)
+  const m5 = filename.match(/(20\d{2})(\d{2})(?!\d)/)
+  if (m5) return `${m5[1]}-${m5[2]}`
 
   // Fallback: tháng hiện tại
   const now = new Date()
