@@ -218,9 +218,9 @@ function renderTable() {
             <div class="product-name" title="${item.product_name||'—'}">${(item.product_name||'—').substring(0,40)}</div>
             ${item.variation_name ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Phân loại: ${item.variation_name}</div>` : ''}
             <div class="product-sku" style="margin-top:2px; color:var(--blue); display:flex; align-items:center; gap:5px;">
-              ${item.sku || '<span style="color:var(--red)">Chưa Map SKU</span>'}
-              ${(!item.sku || item.sku.includes('Chưa Map')) ? `<span onclick="openMapModal('${item.variation_name || item.product_name}', '${o.order_id}')" style="background:var(--accent); color:white; padding:1px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold; box-shadow: 0 0 5px var(--accent); animation: pulse 1.5s infinite;">➕ Map</span>` : ''}
-              ${(item.sku && !item.sku.includes('Chưa Map') && (!item.cost_real || item.cost_real <= 0)) ? `<span onclick="openCostModal('${item.sku}')" style="background:var(--orange); color:white; padding:1px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold; box-shadow: 0 0 5px var(--orange); animation: pulse 1.5s infinite;">💲 Cập nhật Vốn</span>` : ''}
+              ${item.db_sku_check ? item.sku : `<span style="color:var(--red)">${item.sku || 'Chưa Map SKU'}</span>`}
+              ${!item.db_sku_check ? `<span onclick="openMapModal('${item.sku || item.variation_name || item.product_name}', '${o.order_id}')" style="background:var(--accent); color:white; padding:1px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold; box-shadow: 0 0 5px var(--accent); animation: pulse 1.5s infinite;">➕ Map</span>` : ''}
+              ${(item.db_sku_check && (!item.cost_real || item.cost_real <= 0)) ? `<span onclick="openCostModal('${item.sku}')" style="background:var(--orange); color:white; padding:1px 6px; border-radius:4px; font-size:10px; cursor:pointer; font-weight:bold; box-shadow: 0 0 5px var(--orange); animation: pulse 1.5s infinite;">💲 Cập nhật Vốn</span>` : ''}
             </div>
             <div class="product-qty" style="margin-top:2px; font-weight: bold;">× ${item.qty || 1}</div>
           </div>

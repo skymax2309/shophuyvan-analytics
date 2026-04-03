@@ -411,7 +411,9 @@ if (shipping) { conds.push(`o.shipping_status = ?`); params.push(shipping) }
   if (orderIds.length > 0) {
     const placeholders = orderIds.map(() => "?").join(",")
     const { results } = await env.DB.prepare(`
-      SELECT oi.*, COALESCE(NULLIF(oi.image_url, ''), p.image_url) AS image_url
+      SELECT oi.*, 
+             COALESCE(NULLIF(oi.image_url, ''), p.image_url) AS image_url,
+             p.sku AS db_sku_check
       FROM order_items oi
       LEFT JOIN products p ON p.sku = oi.sku
       WHERE oi.order_id IN (${placeholders})
