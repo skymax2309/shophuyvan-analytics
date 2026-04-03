@@ -32,9 +32,10 @@ class ShopeeOrderScraper:
 
         all_orders_data = []
         
-        # Danh sách URL quét cạn các Tab (Gộp Hủy và Trả hàng vào chung 1 trang để tăng tốc)
+        # Danh sách URL quét cạn các Tab (Tách riêng Chưa xử lý và Đã xử lý vì Shopee giấu tab)
         tabs_to_scan = [
-            {"name": "Chờ lấy hàng", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship", "limit_type": "new"},
+            {"name": "Chờ lấy hàng (Chưa xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=to_process", "limit_type": "new"},
+            {"name": "Chờ lấy hàng (Đã xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=processed", "limit_type": "new"},
             {"name": "Đang giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=shipping", "limit_type": "shipping"},
             {"name": "Đã giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=completed", "limit_type": "done"},
             {"name": "Hủy & Trả hàng", "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel", "limit_type": "done"}
@@ -69,7 +70,7 @@ class ShopeeOrderScraper:
                 except: pass
 
                 # --- MỞ KHÓA BỘ LỌC TÀNG HÌNH (Thuật toán Tọa độ Bất tử) ---
-                if tab['name'] in ["Chờ lấy hàng", "Hủy & Trả hàng"]:
+                if "Chờ lấy hàng" in tab['name'] or tab['name'] == "Hủy & Trả hàng":
                     try:
                         self.log("   ⚙️ Đang bung toàn bộ các nút 'Tất cả' đang bị ẩn...")
                         clicked_any_total = False
@@ -208,27 +209,42 @@ class ShopeeOrderScraper:
                         # --- BACKUP: NẾU TRÊN WEB BỊ ẨN, HOẶC LÀ NGÀY ẢO, ÉP LẤY NGÀY TỪ MÃ ĐƠN ---
                         if not order_date and true_date_str:
                             order_date = f"{true_date_str} 00:00:00"
-                        # 6. Lấy Tên Sản Phẩm, SKU & Số lượng
+                        # 6. Lấy Tên Sản Phẩm, Phân loại, SKU & Số lượng (BỌC THÉP TÌM KIẾM DỰA TRÊN THỰC TẾ)
                         sku = ""
                         variation = ""
                         product_name = ""
                         qty = 1
+                        qty_idx = -1
                         
+                        # 6.1: Dò tìm dòng chứa Số lượng (x1, x 2, ×1, ...)
                         for idx, line in enumerate(lines):
-                            if re.match(r'^x\d+$', line, re.IGNORECASE):
-                                qty = int(line[1:])
-                                product_name = lines[idx-2] if idx >= 2 else "Sản phẩm Shopee"
-                                if idx >= 1:
-                                    if "Variation" in lines[idx-1] or "Phân loại" in lines[idx-1]:
-                                        variation = lines[idx-1].replace("Variation:", "").replace("Phân loại hàng:", "").strip()
-                                    else:
-                                        product_name = lines[idx-1]
-                                        
-                            if "SKU" in line.upper():
-                                sku = line.split(":")[-1].strip()
+                            if re.match(r'^[xX×]\s*\d+$', line.strip()):
+                                qty = int(re.sub(r'[^\d]', '', line))
+                                qty_idx = idx
+                                break
 
+                        # 6.2: Dò Tên Sản Phẩm (Bỏ qua các thẻ rác của Shopee)
+                        for idx in range(1, len(lines)):
+                            txt = lines[idx].strip()
+                            if txt in ["Yêu thích", "Yêu thích+", "Mall", "Xử lý bởi Shopee"] or "giảm giá" in txt.lower() or "quà tặng" in txt.lower():
+                                continue
+                            product_name = txt
+                            break
+                            
+                        # 6.3: Quét Phân loại và SKU giữa Tên SP và Số lượng
+                        if qty_idx > 1:
+                            for i in range(1, qty_idx):
+                                txt = lines[i].strip()
+                                txt_lower = txt.lower()
+                                if re.search(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', txt, re.IGNORECASE):
+                                    variation = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', '', txt, flags=re.IGNORECASE).strip()
+                                elif "sku" in txt_lower:
+                                    sku = txt.split(":")[-1].strip()
+                                elif txt.startswith("[") and txt.endswith("]") and not sku and "giảm giá" not in txt_lower and "quà tặng" not in txt_lower:
+                                    sku = txt.strip("[]")
+                                    
                         if not product_name: product_name = "Sản phẩm Shopee"
-                        
+
                         # --- BẺ KHÓA SHOPEE: GIẢI MÃ NGÀY TỪ ORDER ID NẾU GIAO DIỆN BỊ ẨN ---
                         if not order_date and order_id and len(order_id) >= 14:
                             try:
@@ -246,13 +262,21 @@ class ShopeeOrderScraper:
 
                 
 
-                        # --- THỰC HIỆN CHUẨN HÓA QUA PARSER (PHƯƠNG ÁN 1 + 2) ---
-                        # Tận dụng hàm _clean_price và _map_oms_status từ parser đã sửa
+                        # --- THỰC HIỆN CHUẨN HÓA TRẠNG THÁI (PHÂN BIỆT CHƯA XỬ LÝ / ĐÃ XỬ LÝ) ---
                         revenue_numeric = self.parser._clean_price(total_price)
                         
-                        # Ánh xạ trạng thái dựa trên tên Tab nếu Shopee không hiện text trạng thái cụ thể
                         status_raw = tab['name'] 
                         oms_status = self.parser._map_oms_status(status_raw)
+
+                        # 🌟 DÒ TÌM NÚT THAO TÁC ĐỂ PHÂN LOẠI CHÍNH XÁC TRONG TAB CHỜ LẤY HÀNG
+                        if "Chờ lấy hàng" in tab['name']:
+                            full_text = " ".join(lines)
+                            if "Chuẩn bị hàng" in full_text or "Chưa xử lý" in tab['name']:
+                                status_raw = "Chưa xử lý"
+                                oms_status = "PENDING"      # Đưa vào mục: Chờ xác nhận
+                            elif "In phiếu giao" in full_text or "Thông tin vận chuyển" in full_text or "Đã xử lý" in tab['name']:
+                                status_raw = "Đã xử lý"
+                                oms_status = "CONFIRMED"    # Đưa vào mục: Đã xác nhận
 
                         # Đóng gói dữ liệu theo chuẩn Database orders_v2
                         order_obj = {

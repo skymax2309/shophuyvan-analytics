@@ -27,6 +27,7 @@ class ShopeeOrderParser:
             "Đang giao": "SHIPPING",
             "Chờ xác nhận": "PENDING",
             "Chờ lấy hàng": "TO_SHIP",
+            "Chưa xử lý": "PENDING",     # <--- Bổ sung dòng này
             "Đã xử lý": "PROCESSED",
             
             # Bổ sung map theo Tên Tab (Shopee Orders)
@@ -96,9 +97,20 @@ class ShopeeOrderParser:
                         
                     prod_container = name_el.find_parent('div', class_=['item-inner', 'item', 'item-info']) or name_el.parent.parent
                     
-                    var_el = prod_container.find('div', class_='item-description')
-                    variation = var_el.text.replace('Variation:', '').replace('Phân loại hàng:', '').replace('Phân loại:', '').strip() if var_el else ""
-                    
+                    var_el = prod_container.find('div', class_=['item-description', 'product-variation', 'variation'])
+                    variation = ""
+                    if var_el:
+                        variation = var_el.text.replace('Variation:', '').replace('Phân loại hàng:', '').replace('Phân loại:', '').strip()
+                    else:
+                        # Mở rộng vùng quét: Rà soát toàn bộ text trong khu vực sản phẩm
+                        for txt in prod_container.stripped_strings:
+                            if "Phân loại" in txt or "Variation" in txt:
+                                variation = txt.replace('Variation:', '').replace('Phân loại hàng:', '').replace('Phân loại:', '').strip()
+                                break
+                                
+                    if not variation:
+                        self.log(f"⚠️ [DEBUG PHÂN LOẠI] Đơn {order_sn} - SP '{name[:15]}...' không cào được Phân loại! Text: {list(prod_container.stripped_strings)}")
+
                     qty_el = prod_container.find('div', class_='item-amount')
                     qty = re.sub(r'[^\d]', '', qty_el.text) if qty_el else "1"
                     if not qty: qty = "1"

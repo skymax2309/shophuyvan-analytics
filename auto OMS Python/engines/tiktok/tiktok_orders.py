@@ -1,6 +1,9 @@
 import asyncio
 import re
 import math
+import os
+import json
+import hashlib
 from datetime import datetime
 from parsers.tiktok_order_parser import TiktokOrderParser
 
@@ -21,6 +24,19 @@ class TiktokOrderScraper:
         if limits is None:
             limits = {"new": 100, "shipping": 50, "done": 20}
 
+        # Khởi tạo Sổ đen chuẩn hóa MD5 cho TikTok
+        cache_file = f"cache_orders_tiktok_{shop_name}.json"
+        cached_final_orders = {}
+        try:
+            if os.path.exists(cache_file):
+                with open(cache_file, "r") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        cached_final_orders = {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
+        except Exception as e:
+            self.log(f"⚠️ Không thể đọc Sổ đen cũ, sẽ khởi tạo mới: {e}")
+
+        newly_completed = {}
         all_orders = []
         self.log("-------------------------------------------------")
         self.log(f"🚀 [TIKTOK RADAR] Khởi động quét đơn dạng thẻ cho Shop: {shop_name}...")
@@ -175,12 +191,15 @@ class TiktokOrderScraper:
 
                         # Map trạng thái chuẩn OMS
                         oms_st = "PENDING"
-                        if tab_name == "Đã gửi": oms_st = "HANDED_OVER"
+                        if tab_name == "Cần gửi": 
+                            oms_st = "PENDING" # <--- Ép về PENDING để đẩy vào mục: Chờ xác nhận
+                        elif tab_name == "Đã gửi": 
+                            oms_st = "SHIPPING"
                         elif tab_name == "Đã hoàn tất": oms_st = "COMPLETED"
                         elif tab_name == "Đã hủy": oms_st = "CANCELLED_TRANSIT"
                         elif tab_name == "Giao không thành công": oms_st = "FAILED_DELIVERY"
 
-                        # Chuẩn hóa danh sách sản phẩm
+                        # Chuẩn hóa danh sách sản phẩm theo D1
                         formatted_items = []
                         for it in items:
                             formatted_items.append({
@@ -191,8 +210,8 @@ class TiktokOrderScraper:
                                 "image_url": ""
                             })
 
-                        # Đóng gói 1 đơn chuẩn Database D1
-                        all_orders.append({
+                        # Đóng gói dữ liệu theo chuẩn Database D1
+                        order_obj = {
                             "order_id": order_id,
                             "platform": "tiktok",
                             "shop": shop_name,
@@ -206,8 +225,30 @@ class TiktokOrderScraper:
                             "shipping_carrier": carrier,
                             "oms_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "items": formatted_items
-                        })
-                        self.log(f"✅ [DÒ MÌN] Đơn {order_id} | {revenue_numeric}đ | {oms_st}")
+                        }
+
+                        # --- CƠ CHẾ CHỮA LÀNH DỮ LIỆU BẰNG CHỮ KÝ SỐ (MD5) ---
+                        hash_data = order_obj.copy()
+                        del hash_data['oms_updated_at']
+                        order_signature = hashlib.md5(json.dumps(hash_data, sort_keys=True).encode('utf-8')).hexdigest()
+
+                        # So sánh MD5: Lơ đi nếu dữ liệu không đổi
+                        is_unchanged = False
+                        if order_id in cached_final_orders:
+                            existing_hash = cached_final_orders[order_id]
+                            if isinstance(existing_hash, str) and existing_hash == order_signature:
+                                is_unchanged = True
+                        
+                        if is_unchanged:
+                            self.log(f"👁️ [ĐÃ QUÉT] {order_id} | Ngày: {order_date} | {oms_st} -> (Bỏ qua vì không đổi)")
+                            continue
+
+                        self.log(f"🚀 [CẬP NHẬT] {order_id} | Ngày: {order_date} | {oms_st} -> (Dữ liệu Mới/Đã sửa)")
+                        
+                        # Lưu chữ ký số để chốt sổ đen ở cuối Tab
+                        order_obj['_signature'] = order_signature
+                        all_orders.append(order_obj)
+                        
                         tab_orders_count += 1
                         
                         # Dừng ngay nếu đủ Limit của Tab
@@ -238,6 +279,18 @@ class TiktokOrderScraper:
             except Exception as e:
                 self.log(f"   ❌ Lỗi khi quét Tab '{tab_name}': {e}")
                 
+        # Cập nhật các đơn mới vào Sổ đen
+        for o in all_orders:
+            if '_signature' in o:
+                newly_completed[o['order_id']] = o['_signature']
+                del o['_signature'] # Dọn dẹp trước khi gửi API
+                
+        if newly_completed:
+            cached_final_orders.update(newly_completed)
+            with open(cache_file, "w") as f:
+                json.dump(cached_final_orders, f, indent=4)
+            self.log(f"💾 CẬP NHẬT SỔ ĐEN TIKTOK: Đã ghi nhận/cập nhật {len(newly_completed)} đơn!")
+
         self.log("-------------------------------------------------")
         self.log(f"🎉 HOÀN TẤT QUÉT TIKTOK! Tổng thu hoạch: {len(all_orders)} đơn hàng.")
         return all_orders

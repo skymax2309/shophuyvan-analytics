@@ -301,6 +301,33 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return Response.json({ status: "ok", updated: order_ids.length }, { headers: cors })
       }
 
+      // [API MỚI] Xóa hàng loạt đơn hàng lỗi (Dùng cho Tool Python oms_clean_unmapped_orders)
+      if (url.pathname === "/api/orders/bulk-delete" && request.method === "POST") {
+        try {
+          const { order_ids } = await request.json()
+          if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
+            console.error("[BULK DELETE] Lỗi: Không nhận được danh sách order_ids");
+            return Response.json({ error: "Missing order_ids" }, { status: 400, headers: cors })
+          }
+          
+          const BATCH = 50 // Chia nhỏ để không vượt quá giới hạn D1
+          for (let i = 0; i < order_ids.length; i += BATCH) {
+            const chunk = order_ids.slice(i, i + BATCH)
+            const placeholders = chunk.map(() => '?').join(',')
+            
+            // Xóa items trước, sau đó xóa order gốc (Đảm bảo toàn vẹn dữ liệu)
+            await env.DB.prepare(`DELETE FROM order_items WHERE order_id IN (${placeholders})`).bind(...chunk).run()
+            await env.DB.prepare(`DELETE FROM orders_v2 WHERE order_id IN (${placeholders})`).bind(...chunk).run()
+          }
+          
+          console.log(`[BULK DELETE] Đã xóa thành công ${order_ids.length} đơn hàng lỗi khỏi Database.`)
+          return Response.json({ status: "ok", count: order_ids.length }, { headers: cors })
+        } catch (e) {
+          console.error(`[BULK DELETE] Lỗi Server: ${e.message}`);
+          return Response.json({ error: e.message }, { status: 500, headers: cors })
+        }
+      }
+	  
       // [API DÒ MÌN] Lấy danh sách trạng thái thực tế trong Database để chuẩn hóa
       if (url.pathname === "/api/orders/debug-status" && request.method === "GET") {
         try {

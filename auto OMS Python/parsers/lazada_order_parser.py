@@ -19,8 +19,8 @@ class LazadaOrderParser:
     def _map_oms_status(self, lazada_status):
         """Ánh xạ trạng thái Lazada sang chuẩn hệ thống OMS"""
         status_map = {
-            "Chờ đóng gói": "PENDING",
-            "Chờ bàn giao": "HANDED_OVER",
+            "Chờ đóng gói": "PENDING",         # Đưa vào mục: Chờ xác nhận
+            "Chờ bàn giao": "CONFIRMED",       # Đưa vào mục: Đã xác nhận (Theo oms-main.js)
             "Đang giao": "SHIPPING",
             "Đã giao": "COMPLETED",
             "Giao thất bại": "FAILED_DELIVERY",
@@ -51,7 +51,8 @@ class LazadaOrderParser:
                 for _ in range(12):
                     if parent:
                         text_dump = parent.get_text(separator=" | ")
-                        if "₫" in text_dump and "Số đơn hàng" in text_dump:
+                        # Nới lỏng điều kiện để bắt được cả Tab Trả hàng (chứa chữ "Đơn hàng:")
+                        if "₫" in text_dump and ("Số đơn hàng" in text_dump or "Đơn hàng:" in text_dump):
                             row_text = text_dump
                             break
                         parent = parent.parent
@@ -97,7 +98,14 @@ class LazadaOrderParser:
                 sku = ""
                 order_date = ""
                 
-                # Quét text tàng hình để lấy SKU và Ngày tháng
+                # 🌟 DÒ TÌM NGÀY ĐẶT HÀNG TRỰC TIẾP TỪ GIAO DIỆN (Đặc trị Tab Trả Hàng)
+                full_text = parent.get_text(separator=" ")
+                # Tìm chuỗi "Ngày đặt hàng: 2026-01-12 00:24:46"
+                exact_date_match = re.search(r'Ngày đặt hàng:\s*(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})', full_text, re.IGNORECASE)
+                if exact_date_match:
+                    order_date = exact_date_match.group(1)
+                
+                # Quét text tàng hình để lấy SKU và Ngày tháng (nếu Tab này không có chữ Ngày đặt hàng)
                 texts = list(parent.stripped_strings)
                 for i, txt in enumerate(texts):
                     txt_lower = txt.lower()
