@@ -431,45 +431,7 @@ export async function markConfirmed() {
   showToast(`✅ Đã xác nhận ${ids.length} đơn`)
   loadOrders(currentPage)
 }
-// ── QUY TRÌNH: XÓA ĐƠN LỖI (DỌN RÁC) ──────────────────────────────────
-export async function deleteErrorOrders() {
-  const ids = getChecked();
-  if (!ids.length) {
-    showToast('⚠️ Vui lòng tick chọn ít nhất 1 đơn hàng cần xóa!');
-    return;
-  }
-  
-  if (!confirm(`🚨 NGUY HIỂM: Bạn có chắc chắn muốn XÓA VĨNH VIỄN ${ids.length} đơn hàng này khỏi Database không? Hành động này không thể hoàn tác!`)) return;
 
-  const btn = document.getElementById('btnDeleteOrders');
-  if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
-  showToast('🗑️ Đang xóa dữ liệu trên Server...');
-
-  try {
-    const res = await fetch(API + '/api/orders/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_ids: ids })
-    });
-
-    if (!res.ok) throw new Error("Server từ chối xóa dữ liệu");
-    
-    showToast(`✅ Đã dọn sạch ${ids.length} đơn hàng lỗi!`);
-    
-    // Bỏ check tất cả và tải lại bảng
-    document.getElementById('chkAll').checked = false;
-    toggleAllCheck(false);
-    loadOrders(1);
-
-  } catch (e) {
-    showToast('❌ Lỗi khi xóa: ' + e.message);
-  } finally {
-    if (btn) { btn.classList.remove('spinning'); btn.disabled = false; }
-  }
-}
-
-// Bộc thép: Đừng quên gán hàm này vào window để HTML gọi được (kéo xuống cuối file oms-main.js thêm dòng này)
-Object.assign(window, { deleteErrorOrders });
 
 // ── QUY TRÌNH: CHUẨN BỊ HÀNG (in PDF → bảng soạn hàng → chuyển PACKING) ──
 export async function markPrepare() {
