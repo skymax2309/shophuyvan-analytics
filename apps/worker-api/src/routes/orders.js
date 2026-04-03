@@ -252,15 +252,15 @@ async function importOrdersV2(request, env, cors) {
   }
 
   const processedItems = items.map(i => {
-    const rawVariation = (i.variation_name || '').toLowerCase()
     const rawSku = (i.sku || '').toLowerCase()
+    const cleanVar = (i.clean_variation || '').toLowerCase()
+    const rawVariation = (i.variation_name || '').toLowerCase()
     const rawName = (i.product_name || '').toLowerCase()
     
-    // Quét ưu tiên: Có trong product_variations -> Có trong sku_alias -> Cuối cùng mới lấy SKU gốc
-    const mapped = varMap[rawVariation] || varMap[rawSku] || varMap[rawName] || null
-    const finalSku = mapped?.internal_sku || aliasMap[rawVariation] || aliasMap[rawSku] || aliasMap[rawName] || i.sku || ''
+    // Lưới quét 4 tầng: sku (trong ngoặc) -> clean_variation (phân loại sạch) -> variation_name (bản gốc dính mã) -> product_name
+    const mapped = varMap[rawSku] || varMap[cleanVar] || varMap[rawVariation] || varMap[rawName] || null
+    const finalSku = mapped?.internal_sku || aliasMap[rawSku] || aliasMap[cleanVar] || aliasMap[rawVariation] || aliasMap[rawName] || i.sku || ''
     
-    // 🌟 Vá lỗi: Trả về Item đã dịch SKU và đóng ngoặc hàm map
     return { ...i, sku: finalSku }
   })
 

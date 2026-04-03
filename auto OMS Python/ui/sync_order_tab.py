@@ -366,13 +366,19 @@ class SyncOrderTab(ctk.CTkFrame):
                                     payload["items"].append(item_payload)
                         try:
                             self.so_log_msg(f"🔎 [RADAR] Bot chuẩn bị gửi: {len(payload['orders'])} Đơn và {len(payload['items'])} Sản phẩm!")
-                            res = requests.post(api_url, json=payload)
+                            res = requests.post(api_url, json=payload, timeout=45) # Tăng timeout tránh lỗi 500
+                            
                             if res.status_code == 200:
-                                self.so_log_msg("✅ Đồng bộ dữ liệu Cào đơn thành công!")
+                                res_data = res.json()
+                                self.so_log_msg(f"✅ [SERVER] Thành công! Đã xử lý: {res_data.get('inserted', 0)} đơn mới, {res_data.get('updated', 0)} cập nhật.")
                             else:
-                                self.so_log_msg(f"❌ Lỗi từ Server API: {res.text}")
+                                # 🔴 ĐÂY LÀ DÒNG QUAN TRỌNG ĐỂ BIẾT LỖI DATABASE
+                                self.so_log_msg(f"❌ [LỖI SERVER {res.status_code}] Nội dung: {res.text}")
+                                # Nếu bị lỗi, in ra 1 đơn mẫu để kiểm tra cấu trúc
+                                if payload['orders']:
+                                    self.so_log_msg(f"📝 Mẫu đơn gửi lỗi: {payload['orders'][0]['order_id']} | Status: {payload['orders'][0].get('shipping_status')}")
                         except Exception as e:
-                            self.so_log_msg(f"❌ Lỗi đường truyền mạng: {e}")
+                            self.so_log_msg(f"❌ [LỖI KẾT NỐI] Không thể gửi dữ liệu: {e}")
                     else:
                         self.so_log_msg(f"✅ Không có đơn mới nào trên {platform.upper()}.")
 

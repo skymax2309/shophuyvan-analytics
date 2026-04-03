@@ -225,26 +225,37 @@ class ShopeeOrderScraper:
                         # 6.2 Gom tất cả text từ dưới Mã Đơn Hàng (index 1) đến trước Giá tiền
                         item_lines = lines[1:price_idx]
                         
-                        # 6.3 Lọc và nhặt đồ trong rổ text
+                        # 6.3 Lọc và nhặt đồ trong rổ text (BỌC THÉP MÓC SKU TRONG NGOẶC)
                         for txt in item_lines:
                             txt_clean = txt.strip()
                             txt_lower = txt_clean.lower()
                             
-                            # Bỏ qua các thẻ rác hệ thống Shopee
-                            if txt_clean in ["Yêu thích", "Yêu thích+", "Mall", "Xử lý bởi Shopee"] or "giảm giá" in txt_lower or "quà tặng" in txt_lower or "trả hàng/hoàn" in txt_lower:
+                            # 1. Lọc thẻ rác chuẩn xác (Không dùng từ khóa chung chung để tránh xóa nhầm tên)
+                            if txt_lower in ["yêu thích", "yêu thích+", "mall", "xử lý bởi shopee"]: 
+                                continue
+                            if "mua nhiều giảm giá" in txt_lower or ("giảm" in txt_lower and "&" in txt_lower): 
+                                continue
+                            if "trả hàng/hoàn" in txt_lower or "thanh toán khi nhận hàng" in txt_lower: 
                                 continue
                                 
-                            # Bắt Số lượng (Bất kể nằm trên hay dưới Phân loại)
+                            # 2. Bắt Số lượng
                             if re.match(r'^[xX×]\s*\d+$', txt_clean):
                                 qty = int(re.sub(r'[^\d]', '', txt_clean))
                                 continue
                                 
-                            # Bắt Phân loại
+                            # 3. Bắt Phân loại & Móc SKU ẩn trong ngoặc vuông [...]
                             if re.search(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', txt_clean, re.IGNORECASE):
-                                variation = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', '', txt_clean, flags=re.IGNORECASE).strip()
+                                raw_var = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', '', txt_clean, flags=re.IGNORECASE).strip()
+                                # Dùng Regex chộp lấy dữ liệu nằm trong ngoặc vuông
+                                sku_match = re.search(r'\[(.*?)\]', raw_var)
+                                if sku_match and not sku:
+                                    sku = sku_match.group(1).strip()
+                                    variation = re.sub(r'\[.*?\]', '', raw_var).strip() # Xóa SKU để lại Tên Phân Loại sạch
+                                else:
+                                    variation = raw_var
                                 continue
                                 
-                            # Bắt SKU
+                            # 4. Bắt SKU tường minh (Sàn hiển thị rõ chữ SKU)
                             if "sku" in txt_lower:
                                 sku = txt_clean.split(":")[-1].strip()
                                 continue
@@ -252,9 +263,14 @@ class ShopeeOrderScraper:
                                 sku = txt_clean.strip("[]")
                                 continue
                                 
-                            # Bắt Tên sản phẩm (Dòng chữ hợp lệ đầu tiên không lọt vào các màng lọc trên)
-                            if not product_name:
-                                product_name = txt_clean
+                            # 5. Bắt Tên sản phẩm & Móc SKU ẩn trong Tên (nếu có)
+                            if not product_name and len(txt_clean) > 8:
+                                sku_match = re.search(r'\[(.*?)\]', txt_clean)
+                                if sku_match and not sku:
+                                    sku = sku_match.group(1).strip()
+                                    product_name = re.sub(r'\[.*?\]', '', txt_clean).strip() # Xóa SKU để lại Tên SP sạch
+                                else:
+                                    product_name = txt_clean
                                 
                         if not product_name: product_name = "Sản phẩm Shopee"
                         
@@ -294,7 +310,17 @@ class ShopeeOrderScraper:
                                 status_raw = "Đã xử lý"
                                 oms_status = "CONFIRMED"    # Đưa vào mục: Đã xác nhận
 
-                        # Đóng gói dữ liệu theo chuẩn Database orders_v2
+                        # --- [BỌC THÉP] TỰ MAP TAB THEO TIẾNG VIỆT CHUẨN ---
+                        shipping_map = {
+                            "PENDING": "Chờ xác nhận",
+                            "CONFIRMED": "Chờ lấy hàng",
+                            "SHIPPING": "Đang giao",
+                            "COMPLETED": "Đã giao",
+                            "CANCELLED_TRANSIT": "Đã hủy",
+                            "RETURN_REFUND": "Hoàn hàng"
+                        }
+                        display_status = shipping_map.get(oms_status, "Chờ lấy hàng")
+
                         order_obj = {
                             "order_id": order_id,
                             "platform": "shopee",
@@ -303,14 +329,16 @@ class ShopeeOrderScraper:
                             "customer_name": buyer_name,
                             "revenue": revenue_numeric,
                             "raw_revenue": revenue_numeric,
-                            "status": status_raw,
+                            "status": status_raw,               # Trạng thái gốc Shopee
+                            "shipping_status": display_status,  # Chữ này sẽ làm sáng đèn Tab trên Web
                             "oms_status": oms_status,
                             "tracking_number": tracking_number,
-                            "shipping_carrier": carrier,
+                            "shipping_carrier": carrier if carrier else "SPX Express",
                             "oms_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             "items": [{
                                 "sku": sku,
-                                "variation": variation,
+                                "variation_name": original_variation, # Bản gốc (có thể dính mã SKU ko ngoặc)
+                                "clean_variation": clean_variation,   # Bản sạch (đã xóa ngoặc)
                                 "product_name": product_name,
                                 "qty": qty,
                                 "image_url": ""
