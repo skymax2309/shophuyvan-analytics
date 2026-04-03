@@ -33,14 +33,15 @@ class TikTokAuth(BaseAuth):
                 tai_khoan = shop.get("email_login") or shop.get("user_name", "")
                 mat_khau = shop.get("mat_khau", "")
 
-                tk_loc = page.locator('input[placeholder*="Số điện thoại"], input[name="mobile"], input[type="text"]').first
+                # Bắt trực tiếp theo ID chuẩn xác của form đăng nhập TikTok hiện tại
+                tk_loc = page.locator('input#TikTok_Ads_SSO_Login_Mobile_Input')
                 await tk_loc.wait_for(state="visible", timeout=5000)
                 await tk_loc.click()
                 if tai_khoan:
                     await tk_loc.fill(tai_khoan)
                 await asyncio.sleep(1)
                 
-                mk_loc = page.locator('input[type="password"]').first
+                mk_loc = page.locator('input#TikTok_Ads_SSO_Login_Pwd_Input')
                 await mk_loc.click()
                 if mat_khau:
                     await mk_loc.fill(mat_khau)
@@ -48,7 +49,7 @@ class TikTokAuth(BaseAuth):
                 
                 if tai_khoan and mat_khau:
                     self.log_step("🔑 Đã điền xong. Đang bấm nút Đăng nhập...")
-                    btn_login = page.locator('button:has-text("Đăng nhập"), button[type="submit"]').first
+                    btn_login = page.locator('button#TikTok_Ads_SSO_Login_Btn')
                     await btn_login.click(force=True)
                 else:
                     self.log_step("⚠️ Thiếu thông tin trong file, mời bạn nhập nốt phần còn thiếu...")

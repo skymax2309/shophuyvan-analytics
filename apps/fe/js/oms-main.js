@@ -358,14 +358,45 @@ function renderPagination() {
 export function onCheck() {
   const checked = getChecked()
   const n = checked.length
-  document.getElementById('selInfo').innerHTML =
-    n > 0 ? `Đã chọn <span>${n}</span> đơn` : 'Chưa chọn đơn nào'
+  const selInfo = document.getElementById('selInfo')
+  if (selInfo) selInfo.innerHTML = n > 0 ? `Đã chọn <span>${n}</span> đơn` : 'Chưa chọn đơn nào'
   const has = n > 0
+  // ĐÃ THÊM 'btnDeleteOrders' VÀO MẢNG
   ;['btnConfirm','btnPrepare','btnPacked','btnHandedOver',
-    'btnPickList','btnCancelTransit','btnFailed','btnReturn'].forEach(id => {
+    'btnPickList','btnCancelTransit','btnFailed','btnReturn','btnDeleteOrders'].forEach(id => {
     const el = document.getElementById(id)
     if (el) el.disabled = !has
   })
+}
+
+// ── QUY TRÌNH: XÓA HÀNG LOẠT (DỌN RÁC) ────────────────────────────────
+export async function deleteErrorOrders() {
+  const ids = getChecked();
+  if (!ids.length) return;
+  if (!confirm(`🚨 NGUY HIỂM: Xóa vĩnh viễn ${ids.length} đơn hàng khỏi Server? Hành động này không thể hoàn tác!`)) return;
+
+  const btn = document.getElementById('btnDeleteOrders');
+  if (btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
+  showToast('🗑️ Đang xóa dữ liệu...');
+
+  try {
+    const res = await fetch(API + '/api/orders/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_ids: ids })
+    });
+
+    if (!res.ok) throw new Error("Lỗi khi xóa trên Server");
+    
+    showToast(`✅ Đã xóa sạch ${ids.length} đơn hàng!`);
+    document.getElementById('chkAll').checked = false;
+    toggleAllCheck(false);
+    loadOrders(1);
+  } catch (e) {
+    showToast('❌ Lỗi: ' + e.message);
+  } finally {
+    if (btn) { btn.style.opacity = '1'; btn.disabled = false; }
+  }
 }
 
 function getChecked() {
@@ -400,6 +431,45 @@ export async function markConfirmed() {
   showToast(`✅ Đã xác nhận ${ids.length} đơn`)
   loadOrders(currentPage)
 }
+// ── QUY TRÌNH: XÓA ĐƠN LỖI (DỌN RÁC) ──────────────────────────────────
+export async function deleteErrorOrders() {
+  const ids = getChecked();
+  if (!ids.length) {
+    showToast('⚠️ Vui lòng tick chọn ít nhất 1 đơn hàng cần xóa!');
+    return;
+  }
+  
+  if (!confirm(`🚨 NGUY HIỂM: Bạn có chắc chắn muốn XÓA VĨNH VIỄN ${ids.length} đơn hàng này khỏi Database không? Hành động này không thể hoàn tác!`)) return;
+
+  const btn = document.getElementById('btnDeleteOrders');
+  if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
+  showToast('🗑️ Đang xóa dữ liệu trên Server...');
+
+  try {
+    const res = await fetch(API + '/api/orders/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_ids: ids })
+    });
+
+    if (!res.ok) throw new Error("Server từ chối xóa dữ liệu");
+    
+    showToast(`✅ Đã dọn sạch ${ids.length} đơn hàng lỗi!`);
+    
+    // Bỏ check tất cả và tải lại bảng
+    document.getElementById('chkAll').checked = false;
+    toggleAllCheck(false);
+    loadOrders(1);
+
+  } catch (e) {
+    showToast('❌ Lỗi khi xóa: ' + e.message);
+  } finally {
+    if (btn) { btn.classList.remove('spinning'); btn.disabled = false; }
+  }
+}
+
+// Bộc thép: Đừng quên gán hàm này vào window để HTML gọi được (kéo xuống cuối file oms-main.js thêm dòng này)
+Object.assign(window, { deleteErrorOrders });
 
 // ── QUY TRÌNH: CHUẨN BỊ HÀNG (in PDF → bảng soạn hàng → chuyển PACKING) ──
 export async function markPrepare() {

@@ -349,9 +349,16 @@ class SyncOrderTab(ctk.CTkFrame):
                         api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/import-orders-v2"
                         payload = {"orders": [], "items": []}
                         
-                        # Data từ các Scraper (Shopee, TikTok, Lazada) đã được chuẩn hóa 100% tại Core
-                        # Giao diện chỉ làm nhiệm vụ tách đôi Đơn hàng và Sản phẩm để đẩy lên API
+                        # --- [BỌC THÉP] KHỬ TRÙNG LẶP (DEDUPLICATION) TRƯỚC KHI GỬI ---
+                        unique_orders = {}
                         for order in orders_data:
+                            o_id = order.get("order_id")
+                            if o_id:
+                                # Dùng Dictionary để ép trùng: Đơn xuất hiện 2 lần ở 2 Tab sẽ đè lên nhau thành 1
+                                unique_orders[o_id] = order
+                                
+                        # Đóng gói dữ liệu ĐỘC BẢN để đẩy lên API
+                        for o_id, order in unique_orders.items():
                             # 1. Tách thông tin Đơn hàng chính
                             order_info = order.copy()
                             if "items" in order_info:
@@ -362,7 +369,7 @@ class SyncOrderTab(ctk.CTkFrame):
                             if "items" in order:
                                 for item in order["items"]:
                                     item_payload = item.copy()
-                                    item_payload["order_id"] = order["order_id"]
+                                    item_payload["order_id"] = o_id
                                     payload["items"].append(item_payload)
                         try:
                             self.so_log_msg(f"🔎 [RADAR] Bot chuẩn bị gửi: {len(payload['orders'])} Đơn và {len(payload['items'])} Sản phẩm!")
