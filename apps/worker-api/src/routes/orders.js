@@ -261,7 +261,17 @@ async function importOrdersV2(request, env, cors) {
     const mapped = varMap[rawSku] || varMap[cleanVar] || varMap[rawVariation] || varMap[rawName] || null
     const finalSku = mapped?.internal_sku || aliasMap[rawSku] || aliasMap[cleanVar] || aliasMap[rawVariation] || aliasMap[rawName] || i.sku || ''
     
-    return { ...i, sku: finalSku }
+    // 🌟 GẮN GIÁ VỐN TỰ ĐỘNG TỪ KHO
+    // Tra mã finalSku trong kho (productMap), nếu không có thì mặc định vốn = 0
+    const prod = productMap[finalSku] || { cost_real: 0, cost_invoice: 0 }
+    const itemQty = i.qty || 1
+    
+    return { 
+      ...i, 
+      sku: finalSku,
+      cost_real: prod.cost_real * itemQty,       // Vốn thực tế = Vốn 1 SP * Số lượng
+      cost_invoice: prod.cost_invoice * itemQty  // Vốn hóa đơn = Vốn 1 SP * Số lượng
+    }
   })
 
   // 2. TÍNH LỢI NHUẬN DỰA TRÊN SẢN PHẨM ĐÃ CÓ GIÁ VỐN
