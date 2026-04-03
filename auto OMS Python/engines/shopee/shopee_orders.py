@@ -209,41 +209,57 @@ class ShopeeOrderScraper:
                         # --- BACKUP: NẾU TRÊN WEB BỊ ẨN, HOẶC LÀ NGÀY ẢO, ÉP LẤY NGÀY TỪ MÃ ĐƠN ---
                         if not order_date and true_date_str:
                             order_date = f"{true_date_str} 00:00:00"
-                        # 6. Lấy Tên Sản Phẩm, Phân loại, SKU & Số lượng (BỌC THÉP TÌM KIẾM DỰA TRÊN THỰC TẾ)
+                        # 6. Lấy Tên Sản Phẩm, Phân loại, SKU & Số lượng (THUẬT TOÁN MỎ NEO GIÁ TIỀN)
                         sku = ""
                         variation = ""
                         product_name = ""
                         qty = 1
-                        qty_idx = -1
                         
-                        # 6.1: Dò tìm dòng chứa Số lượng (x1, x 2, ×1, ...)
-                        for idx, line in enumerate(lines):
-                            if re.match(r'^[xX×]\s*\d+$', line.strip()):
-                                qty = int(re.sub(r'[^\d]', '', line))
-                                qty_idx = idx
-                                break
-
-                        # 6.2: Dò Tên Sản Phẩm (Bỏ qua các thẻ rác của Shopee)
+                        # 6.1 Tìm mỏ neo Giá tiền (Dòng đầu tiên có chữ ₫)
+                        price_idx = len(lines)
                         for idx in range(1, len(lines)):
-                            txt = lines[idx].strip()
-                            if txt in ["Yêu thích", "Yêu thích+", "Mall", "Xử lý bởi Shopee"] or "giảm giá" in txt.lower() or "quà tặng" in txt.lower():
-                                continue
-                            product_name = txt
-                            break
+                            if "₫" in lines[idx]:
+                                price_idx = idx
+                                break
+                                
+                        # 6.2 Gom tất cả text từ dưới Mã Đơn Hàng (index 1) đến trước Giá tiền
+                        item_lines = lines[1:price_idx]
+                        
+                        # 6.3 Lọc và nhặt đồ trong rổ text
+                        for txt in item_lines:
+                            txt_clean = txt.strip()
+                            txt_lower = txt_clean.lower()
                             
-                        # 6.3: Quét Phân loại và SKU giữa Tên SP và Số lượng
-                        if qty_idx > 1:
-                            for i in range(1, qty_idx):
-                                txt = lines[i].strip()
-                                txt_lower = txt.lower()
-                                if re.search(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', txt, re.IGNORECASE):
-                                    variation = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', '', txt, flags=re.IGNORECASE).strip()
-                                elif "sku" in txt_lower:
-                                    sku = txt.split(":")[-1].strip()
-                                elif txt.startswith("[") and txt.endswith("]") and not sku and "giảm giá" not in txt_lower and "quà tặng" not in txt_lower:
-                                    sku = txt.strip("[]")
-                                    
+                            # Bỏ qua các thẻ rác hệ thống Shopee
+                            if txt_clean in ["Yêu thích", "Yêu thích+", "Mall", "Xử lý bởi Shopee"] or "giảm giá" in txt_lower or "quà tặng" in txt_lower or "trả hàng/hoàn" in txt_lower:
+                                continue
+                                
+                            # Bắt Số lượng (Bất kể nằm trên hay dưới Phân loại)
+                            if re.match(r'^[xX×]\s*\d+$', txt_clean):
+                                qty = int(re.sub(r'[^\d]', '', txt_clean))
+                                continue
+                                
+                            # Bắt Phân loại
+                            if re.search(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', txt_clean, re.IGNORECASE):
+                                variation = re.sub(r'^(Variation:|Phân loại hàng:|Phân loại:?)\s*', '', txt_clean, flags=re.IGNORECASE).strip()
+                                continue
+                                
+                            # Bắt SKU
+                            if "sku" in txt_lower:
+                                sku = txt_clean.split(":")[-1].strip()
+                                continue
+                            elif txt_clean.startswith("[") and txt_clean.endswith("]") and not sku:
+                                sku = txt_clean.strip("[]")
+                                continue
+                                
+                            # Bắt Tên sản phẩm (Dòng chữ hợp lệ đầu tiên không lọt vào các màng lọc trên)
+                            if not product_name:
+                                product_name = txt_clean
+                                
                         if not product_name: product_name = "Sản phẩm Shopee"
+                        
+                        # LOG DEBUG ĐỂ KIỂM CHỨNG DỮ LIỆU
+                        self.log(f"   [DEBUG_ITEM] Đơn {order_id} | Var: '{variation}' | SKU: '{sku}' | Qty: {qty}")
 
                         # --- BẺ KHÓA SHOPEE: GIẢI MÃ NGÀY TỪ ORDER ID NẾU GIAO DIỆN BỊ ẨN ---
                         if not order_date and order_id and len(order_id) >= 14:

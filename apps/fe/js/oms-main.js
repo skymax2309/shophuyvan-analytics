@@ -277,7 +277,7 @@ function renderTable() {
       </td>
       <td data-label="Sàn vận chuyển">
         <div style="font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 5px;">${o.shipping_carrier || 'Chưa rõ ĐVVC'}</div>
-        ${renderShippingStatus(o.shipping_status)}
+        ${renderShippingStatus(o.shipping_status || o.status)}
       </td>
       <td data-label="Kho (OMS)">
         <span class="oms-tag oms-${o.oms_status||'PENDING'}">
