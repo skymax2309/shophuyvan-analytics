@@ -368,9 +368,8 @@ export function onCheck() {
   const selInfo = document.getElementById('selInfo')
   if (selInfo) selInfo.innerHTML = n > 0 ? `Đã chọn <span>${n}</span> đơn` : 'Chưa chọn đơn nào'
   const has = n > 0
-  // ĐÃ THÊM 'btnDeleteOrders' VÀO MẢNG
   ;['btnConfirm','btnPrepare','btnPacked','btnHandedOver',
-    'btnPickList','btnCancelTransit','btnFailed','btnReturn','btnDeleteOrders'].forEach(id => {
+    'btnPickList','btnCancelTransit','btnFailed','btnReturn','btnDeleteOrders', 'btnBatchPrint'].forEach(id => {
     const el = document.getElementById(id)
     if (el) el.disabled = !has
   })
@@ -587,7 +586,8 @@ export function showPickList() {
     <div style="font-size:13px;color:var(--muted);margin-bottom:14px; text-align: center;">
       <b>${selected.length}</b> đơn — Cần nhặt tổng cộng <b style="color:var(--red); font-size: 16px;">${totalQty}</b> sản phẩm
     </div>
-    <table class="picklist-table" style="width: 100%; border-collapse: collapse;">
+    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 60vh; overflow-y: auto; padding-bottom: 10px;">
+    <table class="picklist-table" style="width: 100%; min-width: 480px; border-collapse: collapse;">
       <thead>
         <tr style="border-bottom: 2px solid var(--border); text-align: left;">
           <th style="width:50px; padding-bottom: 8px;">Ảnh</th>
@@ -878,6 +878,56 @@ export async function saveCostPrice() {
   } finally {
     btn.textContent = '💾 Lưu & Tính Lại Lãi/Lỗ';
     btn.disabled = false;
+  }
+}
+
+// ── IN BILL HÀNG LOẠT (GỘP NHIỀU FILE PDF THÀNH 1) ───────────────────
+export async function printBatchLabels() {
+  const ids = getChecked();
+  if (!ids.length) return;
+
+  const btn = document.getElementById('btnBatchPrint');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Đang gộp file...'; }
+  showToast('🔄 Đang gom file PDF từ Server, vui lòng không tắt trang...', 4000);
+
+  try {
+    // Gọi thư viện xử lý PDF trực tiếp trên trình duyệt
+    const { PDFDocument } = await import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm');
+    const mergedPdf = await PDFDocument.create();
+    let successCount = 0;
+
+    for (const id of ids) {
+      try {
+        const url = `${API}/api/label/${id}.pdf`;
+        const res = await fetch(url);
+        if (!res.ok) continue; // Bỏ qua nếu đơn chưa có phiếu
+        
+        const pdfBytes = await res.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+        copiedPages.forEach((page) => mergedPdf.addPage(page));
+        successCount++;
+      } catch (e) {
+        console.log("Lỗi gom PDF đơn: " + id, e);
+      }
+    }
+
+    if (successCount === 0) {
+      showToast('❌ Các đơn đã chọn chưa được Bot xử lý hoặc chưa có Phiếu in trên Server!');
+      return;
+    }
+
+    const mergedPdfFile = await mergedPdf.save();
+    const blob = new Blob([mergedPdfFile], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+    
+    window.open(blobUrl, '_blank'); // Mở Tab mới chứa file PDF tổng để in
+    showToast(`✅ Đã gộp xong ${successCount} phiếu in! Sẵn sàng in.`);
+
+  } catch (error) {
+    showToast('❌ Lỗi tạo PDF: ' + error.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '🖨️ In Bill Hàng Loạt'; }
   }
 }
 

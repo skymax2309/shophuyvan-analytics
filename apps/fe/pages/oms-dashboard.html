@@ -145,15 +145,12 @@
       <div class="toolbar-actions">
         <button class="btn btn-ghost" id="btnConfirm" onclick="markConfirmed()" disabled>✅ Xác nhận đơn</button>
         <button class="btn btn-warning" id="btnPrepare" onclick="markPrepare()" disabled>🖨️ Chuẩn bị hàng + In PDF</button>
+        <button class="btn btn-primary" id="btnBatchPrint" onclick="printBatchLabels()" style="background-color: var(--blue); border-color: var(--blue);" disabled>🖨️ In Bill Hàng Loạt</button>
         <button class="btn btn-primary" id="btnPacked" onclick="markPacked()" disabled>📦 Đã đóng gói</button>
         <button class="btn btn-success" id="btnHandedOver" onclick="markHandedOver()" disabled>🚚 Giao cho shipper</button>
         <div class="divider"></div>
         <button class="btn btn-ghost" id="btnPickList" onclick="showPickList()" disabled>📋 Bảng soạn hàng</button>
         <div class="divider"></div>
-        <button class="btn btn-ghost" style="color:var(--red)" id="btnCancelTransit" onclick="markCancelledTransit()" disabled>✗ Hủy vận chuyển</button>
-        <button class="btn btn-ghost" style="color:var(--orange)" id="btnFailed" onclick="markFailedDelivery()" disabled>⚠️ Giao thất bại</button>
-        <button class="btn btn-ghost" style="color:var(--yellow)" id="btnReturn" onclick="markReturnRefund()" disabled>↩ Trả hàng</button>
-        
         <button class="btn btn-ghost" style="background:var(--red); color:white; border: 1px solid var(--red);" id="btnDeleteOrders" onclick="deleteErrorOrders()" disabled>🗑️ Xóa Đơn Lỗi</button>
         
         <button class="btn btn-ghost" style="color:var(--muted); margin-left:auto; border: 1px dashed var(--border);" onclick="archiveOldOrders()">✨ Chuẩn hóa dữ liệu cũ</button>
@@ -275,14 +272,14 @@
   import { loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
            markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
            markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-           debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders, recalcAllCosts, deleteErrorOrders } from '../js/oms-main.js';
+           debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders, recalcAllCosts, deleteErrorOrders, printBatchLabels } from '../js/oms-main.js';
 
   // Expose to global scope (vì HTML dùng onclick="...")
   Object.assign(window, {
     loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
     markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
     markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-    debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders, recalcAllCosts, deleteErrorOrders
+    debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders, recalcAllCosts, deleteErrorOrders, printBatchLabels
   });
 
   loadShopList();

@@ -118,9 +118,39 @@ class ShopeeOrderProcessor:
                             os.makedirs("Phieu_In_PDF")
                         pdf_path = f"Phieu_In_PDF/{order_id}.pdf"
                         
+                        # --- BỌC THÉP: DỌN SẠCH GIAO DIỆN RÁC CỦA SHOPEE TRƯỚC KHI IN ---
+                        await new_page.evaluate('''() => {
+                            let junkSelectors = [
+                                'div[class*="right-panel"]', 
+                                'div[class*="config-panel"]', 
+                                '.shopee-modal__container', 
+                                '.shopee-modal__overlay', 
+                                'div[class*="modal"]',
+                                'header', '.header', '#shopee-top',
+                                'div[class*="success"]' // Xóa khung "Phiếu đã được tạo thành công"
+                            ];
+                            junkSelectors.forEach(sel => {
+                                document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
+                            });
+                            
+                            document.body.style.backgroundColor = 'white';
+                            
+                            // Ép phần tem in full màn hình
+                            let preview = document.querySelector('div[class*="left-panel"], div[class*="preview"], .print-content');
+                            if (preview) {
+                                preview.style.width = '100%';
+                                preview.style.position = 'absolute';
+                                preview.style.top = '0';
+                                preview.style.left = '0';
+                                preview.style.transform = 'none';
+                            }
+                        }''')
+                        await asyncio.sleep(1.5) # Chờ giao diện làm phẳng
+                        
                         await new_page.emulate_media(media="print")
-                        await new_page.pdf(path=pdf_path, format="A6") # In theo chuẩn tem A6
-                        self.log(f"✅ Đã lưu PDF thành công tại thư mục: {pdf_path}")
+                        # Ẩn lề rác mặc định của Chrome, đặt tem tràn viền A6
+                        await new_page.pdf(path=pdf_path, format="A6", margin={"top": "0", "bottom": "0", "left": "0", "right": "0"}, print_background=True)
+                        self.log(f"✅ Đã tải file PDF chuẩn không dính rác tại: {pdf_path}")
                         
                         # --- ĐỒNG BỘ LÊN ĐÁM MÂY (SERVER R2) ---
                         try:
