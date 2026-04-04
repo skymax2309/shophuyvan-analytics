@@ -67,8 +67,13 @@ export default {
         return handlePurchase(request, env, cors)
       }
 
-      // ── Products ──────────────────────────────────────────────────
-      if (url.pathname === "/api/products" || url.pathname === "/api/products/promo-prices" || url.pathname === "/api/products/update-promo-prices")
+// ── Products ──────────────────────────────────────────────────
+      if (url.pathname === "/api/products" || 
+          url.pathname === "/api/products/promo-prices" || 
+          url.pathname === "/api/products/update-promo-prices" ||
+          url.pathname === "/api/products/shopee-import" ||
+          url.pathname === "/api/products/group-parent" ||
+          url.pathname === "/api/products/ungroup-parent")
         return handleProducts(request, env, cors)
 
       if (url.pathname === "/api/sync-variations/bulk" && request.method === "DELETE")
