@@ -90,8 +90,17 @@
       </div>
       <button class="btn btn-primary" style="background:#2563eb" onclick="importSkusFromOrders()">⬇️ Đồng bộ SKU từ đơn hàng</button>
       <button class="btn btn-primary" style="background:#16a34a" onclick="exportSkuExcel()">📥 Tải Excel giá vốn</button>
-      <button class="btn btn-primary" style="background:#f59e0b;color:white" onclick="document.getElementById('shopee-files-input').click()">📁 Kéo 3 File Shopee (Sales, Media, Basic) vào đây</button>
-      <input type="file" id="shopee-files-input" accept=".csv, .xlsx" multiple style="display:none" onchange="processShopeeFiles(this.files)">
+    </div>
+
+    <div id="shopee-dropzone" style="border: 2px dashed #3b82f6; border-radius: 10px; padding: 24px; text-align: center; background: #f8fafc; cursor: pointer; transition: 0.2s; margin-bottom: 16px;" 
+         onclick="document.getElementById('shopee-files-input').click()"
+         ondragover="event.preventDefault(); this.style.background='#e0f2fe'; this.style.borderColor='#0284c7';"
+         ondragleave="this.style.background='#f8fafc'; this.style.borderColor='#3b82f6';"
+         ondrop="event.preventDefault(); this.style.background='#f8fafc'; this.style.borderColor='#3b82f6'; processShopeeFiles(event.dataTransfer.files);">
+        <div style="font-size: 32px; margin-bottom: 8px;">📥</div>
+        <div style="font-weight: 700; color: #1d4ed8; font-size: 15px;">Kéo thả 3 file Excel/CSV Shopee (Sales, Media, Basic) vào khung này</div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 6px;">Hoặc bấm vào đây để mở cửa sổ chọn file</div>
+        <input type="file" id="shopee-files-input" accept=".csv, .xlsx" multiple style="display:none" onchange="processShopeeFiles(this.files)">
     </div>
 
     <div class="card">
@@ -156,8 +165,10 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="../js/utils/api.js"></script>
 <script src="../js/utils/format.js"></script>
+<script src="../js/admin/sku-manager.js"></script>
 <div id="productDetailModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:10000; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
   <div style="background:white; border-radius:12px; width:90%; max-width:900px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 40px rgba(0,0,0,0.2); overflow:hidden;">
     <div style="padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
@@ -192,7 +203,6 @@
   </div>
 </div>
 
-<script src="../js/admin/sku-manager.js"></script>
 <script>
     // Hàm showToast dùng chung cho trang này
     function showToast(msg, isErr = false) {
