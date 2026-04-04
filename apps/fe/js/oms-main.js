@@ -433,12 +433,12 @@ export async function markConfirmed() {
 }
 
 
-// ── QUY TRÌNH: CHUẨN BỊ HÀNG (in PDF → bảng soạn hàng → chuyển PACKING) ──
+// ── QUY TRÌNH: CHUẨN BỊ HÀNG (Bắn lệnh In Phiếu Vận Chuyển → Chuyển PACKING) ──
 export async function markPrepare() {
   const ids = getChecked()
   if (!ids.length) return
 
-  // Bước 1: Gửi lệnh in PDF lên bot
+  // Bước 1: Gửi lệnh in Phiếu Vận Chuyển (PDF) lên Server cho Bot Python ở nhà lấy về xử lý
   try {
     await fetch(API + '/api/jobs', {
       method: 'POST',
@@ -450,15 +450,14 @@ export async function markPrepare() {
         month: new Date().getMonth()+1, year: new Date().getFullYear(),
       })
     })
-    showToast(`🖨️ Đã gửi lệnh in ${ids.length} đơn. Bot sẽ in trong vài phút.`, 3000)
+    showToast(`🖨️ Đã gửi lệnh chuẩn bị & in phiếu cho ${ids.length} đơn. Bot Python sẽ tự động xử lý!`, 4000)
   } catch(e) {
     showToast('❌ Lỗi gửi lệnh in: ' + e.message)
   }
 
-  // Bước 2: Hiện bảng soạn hàng
-  showPickList()
+  // (Đã xóa hàm showPickList() ở đây để không bị nhảy Popup gây nhầm lẫn nữa)
 
-  // Bước 3: Chuyển trạng thái sang PACKING
+  // Bước 2: Chuyển trạng thái sang PACKING (Đang đóng gói)
   await patchOmsStatus(ids, 'PACKING')
   loadOrders(currentPage)
 }

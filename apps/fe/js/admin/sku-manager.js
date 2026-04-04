@@ -216,11 +216,20 @@ async function saveSku() {
           // 🌟 Bỏ chữ "products/" để tránh làm Server hiểu lầm đường dẫn
           const fileName = 'sku_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
           const uploadUrl = `${API}/api/upload?file=${fileName}&token=huyvan_secret_2026`;
+          
+          console.log("🚀 [UPLOAD DÒ MÌN] Đang gọi API Upload:", uploadUrl);
           const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: file });
-          if (!uploadRes.ok) throw new Error("Lỗi upload ảnh lên server!");
+          
+          if (!uploadRes.ok) {
+              const errText = await uploadRes.text();
+              console.error("❌ [UPLOAD LỖI] Server trả về:", errText);
+              throw new Error("Lỗi upload ảnh lên server!");
+          }
           finalImg = `${API}/api/file/${fileName}`;
+          console.log("✅ [UPLOAD OK] Link ảnh đã tạo:", finalImg);
       }
 
+      console.log("💾 [LƯU SKU DÒ MÌN] Payload gửi đi DB:", { sku, product_name: name, image_url: finalImg });
       await fetch(API + "/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
