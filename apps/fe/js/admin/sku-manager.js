@@ -13,6 +13,10 @@ const SKU_PER_PAGE = 48; // Chỉ load 48 mã mỗi trang cho cực mượt
 // ── LOAD / RENDER ─────────────────────────────────────────────────────
 async function loadSkus() {
   try {
+    // 🌟 Lấy tổng số Shop trên hệ thống để tính "Thiếu Map"
+    const shops = await fetch(API + "/api/shops").then(r => r.json()).catch(() => []);
+    window.totalShopCount = shops.length || 0;
+
     const data = await fetch(API + "/api/products").then(r => r.json())
     allSkus = data
     window.allSkus = data // Bổ sung dòng này để đồng bộ dữ liệu sang tab Map SKU
@@ -29,7 +33,7 @@ function switchSkuTab(tab) {
     b.style.borderBottomColor = "transparent"
     b.style.color = "#888"
   })
-  const colors = { "no-price": "#f59e0b", "partial": "#f97316", "has-price": "#16a34a", "groups": "#8b5cf6", "low-stock": "#d97706", "out-of-stock": "#dc2626" }
+  const colors = { "no-price": "#f59e0b", "partial": "#f97316", "has-price": "#16a34a", "groups": "#8b5cf6", "missing-map": "#ea580c", "low-stock": "#d97706", "out-of-stock": "#dc2626" }
   const btn = document.getElementById("stab-" + tab)
   btn.style.borderBottomColor = colors[tab] || "#4f46e5"
   btn.style.color = "#333"
@@ -65,6 +69,10 @@ window.renderSkuTables = function(page = null) {
   const noPrice  = filtered.filter(p => !(p.cost_invoice || 0) && !(p.cost_real || 0));
   const partial  = filtered.filter(p => ((p.cost_invoice || 0) > 0) !== ((p.cost_real || 0) > 0));
   const hasPrice = filtered.filter(p => (p.cost_invoice || 0) > 0 && (p.cost_real || 0) > 0);
+  
+  // 🌟 Lọc Thiếu Map
+  const missingMap = filtered.filter(p => !p.mapped_shops || p.mapped_shops.split(',').length < window.totalShopCount);
+  
   // 🌟 Lọc kho
   const lowStock = filtered.filter(p => (p.stock || 0) > 0 && (p.stock || 0) <= (p.min_stock || 0));
   const outOfStock = filtered.filter(p => (p.stock || 0) <= 0);
@@ -73,6 +81,7 @@ window.renderSkuTables = function(page = null) {
   document.getElementById("skuNoPriceCount").textContent = noPrice.length;
   document.getElementById("skuPartialCount").textContent = partial.length;
   document.getElementById("skuHasPriceCount").textContent = hasPrice.length;
+  if (document.getElementById("skuMissingMapCount")) document.getElementById("skuMissingMapCount").textContent = missingMap.length;
   if (document.getElementById("skuLowStockCount")) document.getElementById("skuLowStockCount").textContent = lowStock.length;
   if (document.getElementById("skuOutOfStockCount")) document.getElementById("skuOutOfStockCount").textContent = outOfStock.length;
 
@@ -80,6 +89,7 @@ window.renderSkuTables = function(page = null) {
   let activeList = noPrice;
   if (_currentSkuTab === 'partial') activeList = partial;
   if (_currentSkuTab === 'has-price') activeList = hasPrice;
+  if (_currentSkuTab === 'missing-map') activeList = missingMap;
   if (_currentSkuTab === 'low-stock') activeList = lowStock;
   if (_currentSkuTab === 'out-of-stock') activeList = outOfStock;
 
@@ -91,6 +101,7 @@ window.renderSkuTables = function(page = null) {
   const pagedNoPrice = noPrice.slice(startIndex, startIndex + SKU_PER_PAGE);
   const pagedPartial = partial.slice(startIndex, startIndex + SKU_PER_PAGE);
   const pagedHasPrice = hasPrice.slice(startIndex, startIndex + SKU_PER_PAGE);
+  const pagedMissingMap = missingMap.slice(startIndex, startIndex + SKU_PER_PAGE);
   const pagedLowStock = lowStock.slice(startIndex, startIndex + SKU_PER_PAGE);
   const pagedOutOfStock = outOfStock.slice(startIndex, startIndex + SKU_PER_PAGE);
 
@@ -114,15 +125,17 @@ window.renderSkuTables = function(page = null) {
         stockBadge = `<span style="background:#dcfce7;color:#16a34a;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:bold;margin-top:6px;display:inline-block">📦 Tồn: ${stockQty}</span>`;
     }
 
-    // 🌟 Tính mác Map Shop
+// 🌟 Tính mác Map Shop và Nút Map Nhanh
     let mappedBadge = '';
+    const btnQuickMap = `<button onclick="openQuickMapModal('${p.sku}')" style="background:#eff6ff;color:#2563eb;border:1px dashed #93c5fd;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;transition:0.2s;margin-left:4px;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">+ Map Shop</button>`;
+    
     if (p.mapped_shops) {
         const shops = p.mapped_shops.split(',');
-        mappedBadge = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:4px;">` + 
+        mappedBadge = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">` + 
             shops.map(s => `<span style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;padding:2px 6px;border-radius:4px;font-size:10px;">🏷️ ${s.trim()}</span>`).join('') +
-            `</div>`;
+            btnQuickMap + `</div>`;
     } else {
-        mappedBadge = `<div style="margin-top:8px;"><span style="background:#fff7ed;color:#ea580c;border:1px solid #fdba74;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;">⚠️ Chưa Map Shop Nào</span></div>`;
+        mappedBadge = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;"><span style="background:#fff7ed;color:#ea580c;border:1px solid #fdba74;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;">⚠️ Chưa Map Shop Nào</span>` + btnQuickMap + `</div>`;
     }
 
     return `
@@ -158,9 +171,10 @@ window.renderSkuTables = function(page = null) {
 
   const empty = msg => `<div style="grid-column: 1 / -1; text-align:center; padding:40px; color:#888; background:white; border-radius:12px; border:1px dashed #cbd5e1;">${msg}</div>`
 
-  document.getElementById("skuNoPriceTable").innerHTML  = pagedNoPrice.length  ? pagedNoPrice.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!")
+document.getElementById("skuNoPriceTable").innerHTML  = pagedNoPrice.length  ? pagedNoPrice.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đã có giá vốn!")
   document.getElementById("skuPartialTable").innerHTML  = pagedPartial.length  ? pagedPartial.map(rowHtml).join("")  : empty(kw ? "Không tìm thấy" : "✅ Không có SKU nào thiếu giá!")
   document.getElementById("skuHasPriceTable").innerHTML = pagedHasPrice.length ? pagedHasPrice.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "Chưa có SKU nào đủ giá vốn")
+  if (document.getElementById("skuMissingMapTable")) document.getElementById("skuMissingMapTable").innerHTML = pagedMissingMap.length ? pagedMissingMap.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "🎉 Tất cả SKU đều đã được map kín shop!");
   if (document.getElementById("skuLowStockTable")) document.getElementById("skuLowStockTable").innerHTML = pagedLowStock.length ? pagedLowStock.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "✅ Kho an toàn, chưa có SKU nào sắp hết!")
   if (document.getElementById("skuOutOfStockTable")) document.getElementById("skuOutOfStockTable").innerHTML = pagedOutOfStock.length ? pagedOutOfStock.map(rowHtml).join("") : empty(kw ? "Không tìm thấy" : "🎉 Không có SKU nào bị hết hàng!")
 
@@ -740,6 +754,88 @@ window.bulkDeleteSkus = async function() {
         }
     } catch (e) {
         showToast('❌ Lỗi xóa: ' + e.message, true);
+    }
+}
+
+// ── LOGIC MAP NHANH (QUICK MAP) ─────────────────────────────────────────────
+let unmappedVarsCache = [];
+let currentQuickMapSku = "";
+
+window.openQuickMapModal = async function(sku) {
+    currentQuickMapSku = sku;
+    document.getElementById('quickMapTargetSku').textContent = sku;
+    document.getElementById('quickMapSearch').value = '';
+    document.getElementById('quickMapModal').style.display = 'flex';
+    document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#888;">⏳ Đang tải mã mồ côi từ máy chủ...</div>';
+    
+    try {
+        const res = await fetch(API + "/api/sync-variations?map_status=UNMAPPED");
+        unmappedVarsCache = await res.json();
+        renderQuickMapList();
+    } catch(e) {
+        document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#ef4444;">❌ Lỗi tải dữ liệu. Hãy kiểm tra kết nối.</div>';
+    }
+}
+
+window.closeQuickMapModal = function() {
+    document.getElementById('quickMapModal').style.display = 'none';
+}
+
+window.renderQuickMapList = function() {
+    const kw = document.getElementById('quickMapSearch').value.toLowerCase().trim();
+    const listEl = document.getElementById('quickMapList');
+    
+    const filtered = unmappedVarsCache.filter(v => 
+        (v.platform_sku && v.platform_sku.toLowerCase().includes(kw)) || 
+        (v.product_name && v.product_name.toLowerCase().includes(kw)) ||
+        (v.variation_name && v.variation_name.toLowerCase().includes(kw))
+    );
+
+    if (!filtered.length) {
+        listEl.innerHTML = '<div style="text-align:center; padding:30px; color:#888;">Không tìm thấy mã sàn nào phù hợp.</div>';
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(v => `
+        <div onclick="executeQuickMap(${v.id}, '${currentQuickMapSku}')" style="display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; transition:all 0.2s; background:white;" onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#eff6ff'; this.style.transform='translateX(4px)'" onmouseout="this.style.borderColor='#e2e8f0'; this.style.background='white'; this.style.transform='translateX(0)'">
+            <img src="${v.image_url || 'https://placehold.co/60x60?text=No+Img'}" style="width:45px; height:45px; border-radius:6px; object-fit:cover; border:1px solid #e2e8f0;">
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:13px; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v.product_name} ${v.variation_name ? '- ' + v.variation_name : ''}</div>
+                <div style="font-size:11px; color:#64748b; margin-top:4px; display:flex; gap:6px; align-items:center;">
+                    <span style="background:#f1f5f9; padding:2px 6px; border-radius:4px; font-weight:bold; color:#475569;">${(v.platform || '').toUpperCase()}</span>
+                    <span>🏪 ${v.shop || 'Không rõ'}</span>
+                    <span style="font-family:monospace; font-weight:bold;">🏷️ ${v.platform_sku || 'Không có mã'}</span>
+                </div>
+            </div>
+            <div style="color:#2563eb; font-weight:800; font-size:20px; padding:0 10px;">+</div>
+        </div>
+    `).join('');
+}
+
+window.executeQuickMap = async function(varId, internalSku) {
+    try {
+        document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#2563eb; font-weight:bold;">⏳ Đang nối mã...</div>';
+        
+        const res = await fetch(API + "/api/sync-variations/edit", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: varId,
+                internal_sku: internalSku,
+                mapped_items: JSON.stringify([{sku: internalSku, qty: 1}])
+            })
+        });
+        
+        if (res.ok) {
+            showToast(`✅ Đã Map mã sàn vào SKU: ${internalSku}`);
+            closeQuickMapModal();
+            loadSkus(); // Reload lại bảng SKU ngoài để hiện luôn Tag shop mới
+        } else {
+            showToast('❌ Lỗi khi Map!', true);
+            renderQuickMapList(); 
+        }
+    } catch(e) {
+        showToast('❌ Lỗi mạng: ' + e.message, true);
     }
 }
 
