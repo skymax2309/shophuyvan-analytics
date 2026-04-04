@@ -87,8 +87,9 @@ async function handleProducts(request, env, cors) {
     return Response.json(rows.results, { headers: cors });
   }
 
-  if (request.method === "POST") {
+if (request.method === "POST") {
     const b = await request.json();
+    console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Link ảnh:", b.image_url);
     await env.DB.prepare(`
       INSERT INTO products (sku, product_name, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, min_stock)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

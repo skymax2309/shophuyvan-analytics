@@ -118,7 +118,7 @@ window.renderSkuTables = function(page = null) {
       <div class="sku-card" id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
         <div class="sku-card-header">
           <input type="checkbox" class="sku-chk product-checkbox" data-sku="${p.sku}" onchange="updateGroupHint(); if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.3); margin-top:4px;">
-          <img src="${imgUrl}" class="sku-img" onerror="this.src='https://placehold.co/60x60?text=Loi'">
+          <img src="${imgUrl}" class="sku-img" onerror="console.error('❌ [LỖI HIỂN THỊ ẢNH SKU: ${p.sku}] Không thể tải link:', '${imgUrl}'); this.src='https://placehold.co/60x60?text=Loi'">
           <div class="sku-info">
             <div class="sku-title" title="${escapeHtml(p.product_name || "")}">${escapeHtml(p.product_name || "—")}</div>
             <span class="sku-code">${p.sku}</span>
