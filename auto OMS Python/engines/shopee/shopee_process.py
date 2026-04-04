@@ -118,39 +118,48 @@ class ShopeeOrderProcessor:
                             os.makedirs("Phieu_In_PDF")
                         pdf_path = f"Phieu_In_PDF/{order_id}.pdf"
                         
-                        # --- BỌC THÉP: DỌN SẠCH GIAO DIỆN RÁC CỦA SHOPEE TRƯỚC KHI IN ---
+                        # --- BỌC THÉP: CƯA MÁY DỌN SẠCH GIAO DIỆN RÁC CỦA SHOPEE TRƯỚC KHI IN ---
                         await new_page.evaluate('''() => {
-                            let junkSelectors = [
-                                'div[class*="right-panel"]', 
-                                'div[class*="config-panel"]', 
-                                '.shopee-modal__container', 
-                                '.shopee-modal__overlay', 
-                                'div[class*="modal"]',
-                                'header', '.header', '#shopee-top',
-                                'div[class*="success"]' // Xóa khung "Phiếu đã được tạo thành công"
-                            ];
-                            junkSelectors.forEach(sel => {
-                                document.querySelectorAll(sel).forEach(el => el.style.display = 'none');
+                            // 1. Chém bay thông báo rác và nút bấm "In phiếu"
+                            let allDivs = document.querySelectorAll('div, section, header');
+                            allDivs.forEach(el => {
+                                let txt = el.innerText || '';
+                                if ((txt.includes('Xem trước bản in') || txt.includes('Phiếu đã được tạo thành công')) && el.offsetHeight < 300) {
+                                    el.style.display = 'none';
+                                }
                             });
                             
-                            document.body.style.backgroundColor = 'white';
+                            // 2. Chém thanh cấu hình máy in bên phải (nếu có)
+                            document.querySelectorAll('div[class*="right-panel"], div[class*="config-panel"]').forEach(el => el.style.display = 'none');
                             
-                            // Ép phần tem in full màn hình
-                            let preview = document.querySelector('div[class*="left-panel"], div[class*="preview"], .print-content');
+                            // 3. Tiêm CSS ép khung tem tràn viền, triệt tiêu thanh cuộn
+                            let style = document.createElement('style');
+                            style.innerHTML = `
+                                @media print { @page { margin: 0; } body { margin: 0; } }
+                                body { overflow: hidden !important; background: white !important; }
+                                *::-webkit-scrollbar { display: none !important; }
+                            `;
+                            document.head.appendChild(style);
+                            
+                            // 4. Bắt cái khung chứa mã vạch và kéo giãn nó ra full màn hình
+                            let preview = document.querySelector('div[class*="left-panel"], div[class*="preview"], .print-content, iframe');
                             if (preview) {
-                                preview.style.width = '100%';
                                 preview.style.position = 'absolute';
                                 preview.style.top = '0';
                                 preview.style.left = '0';
-                                preview.style.transform = 'none';
+                                preview.style.width = '100vw';
+                                preview.style.height = '100vh';
+                                preview.style.margin = '0';
+                                preview.style.padding = '0';
+                                preview.style.overflow = 'hidden';
                             }
                         }''')
-                        await asyncio.sleep(1.5) # Chờ giao diện làm phẳng
+                        await asyncio.sleep(2) # Chờ 2 giây cho giao diện phẳng lỳ
                         
                         await new_page.emulate_media(media="print")
                         # Ẩn lề rác mặc định của Chrome, đặt tem tràn viền A6
                         await new_page.pdf(path=pdf_path, format="A6", margin={"top": "0", "bottom": "0", "left": "0", "right": "0"}, print_background=True)
-                        self.log(f"✅ Đã tải file PDF chuẩn không dính rác tại: {pdf_path}")
+                        self.log(f"✅ Đã tải file PDF ĐÚNG CHUẨN KHÔNG RÁC tại: {pdf_path}")
                         
                         # --- ĐỒNG BỘ LÊN ĐÁM MÂY (SERVER R2) ---
                         try:

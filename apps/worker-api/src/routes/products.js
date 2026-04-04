@@ -66,8 +66,8 @@ async function handleProducts(request, env, cors) {
 
 // Liệt kê rõ các cột để tránh lỗi trùng lặp và loại bỏ các chuỗi rác 'undefined', 'null'
     const query = `
-      SELECT p.sku, p.product_name, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.min_stock,
-        CASE 
+      SELECT p.sku, p.product_name, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.min_stock, p.is_parent, p.parent_sku,
+        CASE
           WHEN p.image_url IS NOT NULL AND TRIM(p.image_url) NOT IN ('', 'undefined', 'null') THEN TRIM(p.image_url)
           ELSE COALESCE(
             (SELECT TRIM(image_url) FROM product_variations v WHERE v.internal_sku = p.sku AND TRIM(v.image_url) NOT IN ('', 'undefined', 'null') LIMIT 1),
