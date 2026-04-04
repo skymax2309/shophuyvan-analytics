@@ -114,6 +114,17 @@ window.renderSkuTables = function(page = null) {
         stockBadge = `<span style="background:#dcfce7;color:#16a34a;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:bold;margin-top:6px;display:inline-block">📦 Tồn: ${stockQty}</span>`;
     }
 
+    // 🌟 Tính mác Map Shop
+    let mappedBadge = '';
+    if (p.mapped_shops) {
+        const shops = p.mapped_shops.split(',');
+        mappedBadge = `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:4px;">` + 
+            shops.map(s => `<span style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;padding:2px 6px;border-radius:4px;font-size:10px;">🏷️ ${s.trim()}</span>`).join('') +
+            `</div>`;
+    } else {
+        mappedBadge = `<div style="margin-top:8px;"><span style="background:#fff7ed;color:#ea580c;border:1px solid #fdba74;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;">⚠️ Chưa Map Shop Nào</span></div>`;
+    }
+
     return `
       <div class="sku-card" id="skurow-${p.sku.replace(/[^a-zA-Z0-9]/g, "_")}">
         <div class="sku-card-header">
@@ -123,6 +134,7 @@ window.renderSkuTables = function(page = null) {
             <div class="sku-title" title="${escapeHtml(p.product_name || "")}">${escapeHtml(p.product_name || "—")}</div>
             <span class="sku-code">${p.sku}</span>
             <br>${stockBadge}
+            ${mappedBadge}
           </div>
         </div>
         <div class="sku-prices">

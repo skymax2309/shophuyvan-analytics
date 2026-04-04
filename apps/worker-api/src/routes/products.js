@@ -64,7 +64,7 @@ async function handleProducts(request, env, cors) {
       params = [`%${search}%`, `%${search}%`];
     }
 
-    // Liệt kê rõ các cột để tránh lỗi trùng lặp và loại bỏ các chuỗi rác 'undefined', 'null'
+// Liệt kê rõ các cột để tránh lỗi trùng lặp và loại bỏ các chuỗi rác 'undefined', 'null'
     const query = `
       SELECT p.sku, p.product_name, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.min_stock,
         CASE 
@@ -73,7 +73,8 @@ async function handleProducts(request, env, cors) {
             (SELECT TRIM(image_url) FROM product_variations v WHERE v.internal_sku = p.sku AND TRIM(v.image_url) NOT IN ('', 'undefined', 'null') LIMIT 1),
             ''
           )
-        END as image_url
+        END as image_url,
+        (SELECT GROUP_CONCAT(DISTINCT shop) FROM product_variations v WHERE v.internal_sku = p.sku) as mapped_shops
       FROM products p 
       ${cond}
       ORDER BY p.sku
