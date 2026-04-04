@@ -560,8 +560,16 @@ export function showPickList() {
 
   for (const o of selected) {
     for (const item of (o.items || [])) {
-      const key = item.sku || item.product_name || '—'
-      if (!skuMap.has(key)) skuMap.set(key, { sku: item.sku, name: item.product_name, qty: 0, img: item.image_url })
+      // Nhóm theo SKU hoặc Tên Phân loại
+      const key = item.sku || item.variation_name || item.product_name || '—'
+      if (!skuMap.has(key)) {
+         skuMap.set(key, { 
+           sku: item.sku, 
+           variation: item.variation_name || item.product_name, // Ưu tiên hiển thị Tên phân loại
+           qty: 0, 
+           img: item.image_url 
+         })
+      }
       skuMap.get(key).qty += (item.qty || 1)
     }
   }
@@ -570,26 +578,30 @@ export function showPickList() {
   const totalQty = rows.reduce((s,r) => s+r.qty, 0)
 
   document.getElementById('pickListContent').innerHTML = `
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
-      <b style="color:var(--text)">${selected.length}</b> đơn —
-      cần nhặt tổng cộng <b style="color:var(--accent)">${totalQty}</b> sản phẩm
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px; text-align: center;">
+      <b>${selected.length}</b> đơn — Cần nhặt tổng cộng <b style="color:var(--red); font-size: 16px;">${totalQty}</b> sản phẩm
     </div>
-    <table class="picklist-table">
-      <thead><tr>
-        <th style="width:52px">Ảnh</th>
-        <th>SKU</th>
-        <th>Tên sản phẩm</th>
-        <th style="width:80px;text-align:center">SL cần nhặt</th>
-      </tr></thead>
+    <table class="picklist-table" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+          <th style="width:50px; padding-bottom: 8px;">Ảnh</th>
+          <th style="padding-bottom: 8px;">Mã SKU</th>
+          <th style="padding-bottom: 8px;">Phân loại</th>
+          <th style="width:80px; text-align:center; padding-bottom: 8px; color: var(--accent);">Số lượng</th>
+        </tr>
+      </thead>
       <tbody>
-        ${rows.map(r => `<tr>
-          <td>${r.img
-            ? `<img src="${r.img}" style="width:38px;height:38px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`
-            : `<div style="width:38px;height:38px;background:var(--surface2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px">📦</div>`}
+        ${rows.map(r => `
+        <tr style="border-bottom: 1px dashed var(--border);">
+          <td style="padding: 8px 0;">${r.img
+            ? `<img src="${r.img}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`
+            : `<div style="width:44px;height:44px;background:var(--surface2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px">📦</div>`}
           </td>
-          <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">${r.sku||'—'}</td>
-          <td style="font-size:12px;color:var(--text)">${r.name||'—'}</td>
-          <td class="picklist-qty">${r.qty}</td>
+          <td style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--blue); font-weight: bold; padding: 8px;">${r.sku||'—'}</td>
+          <td style="font-size:12px; color:var(--text); padding: 8px; line-height: 1.4;">${r.variation||'—'}</td>
+          <td style="text-align:center; padding: 8px;">
+            <span style="display:inline-block; background: rgba(239, 68, 68, 0.1); color: var(--red); font-size: 18px; font-weight: bold; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">${r.qty}</span>
+          </td>
         </tr>`).join('')}
       </tbody>
     </table>`

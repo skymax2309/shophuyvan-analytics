@@ -32,5 +32,10 @@ function showToast(msg, isErr = false) {
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────
-loadSkus()
-addComboRow() // Mặc định 1 dòng combo
+if (typeof loadSkus === 'function') {
+  loadSkus();
+}
+
+if (typeof addComboRow === 'function') {
+  addComboRow(); // Mặc định 1 dòng combo (chỉ chạy ở trang có load script combo)
+}
