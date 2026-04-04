@@ -463,7 +463,7 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return Response.json({ uploadUrl }, { headers: cors })
       }
 
-      // Route nhận file thực tế từ Bot và lưu vào R2
+// Route nhận file thực tế từ Bot và lưu vào R2
       if (url.pathname === "/api/upload" && request.method === "PUT") {
         const fileName = url.searchParams.get("file")
         const token = url.searchParams.get("token")
@@ -474,6 +474,27 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         await env.STORAGE.put(fileName, fileData)
         
         return new Response("OK", { headers: cors })
+      }
+
+      // ── API MỚI: Trả về file ảnh để Frontend hiển thị ──────────
+      if (url.pathname.startsWith("/api/file/") && request.method === "GET") {
+        const fileName = decodeURIComponent(url.pathname.replace("/api/file/", ""))
+        if (!fileName) return new Response("Missing file name", { status: 400, headers: cors })
+
+        const object = await env.STORAGE.get(fileName)
+        if (!object) return new Response("File not found", { status: 404, headers: cors })
+
+        // Đoán Content-Type từ đuôi file
+        let cType = "image/jpeg"
+        if (fileName.toLowerCase().endsWith(".png")) cType = "image/png"
+        if (fileName.toLowerCase().endsWith(".webp")) cType = "image/webp"
+
+        const headers = {
+          ...cors,
+          "Content-Type": object.httpMetadata?.contentType || cType,
+          "Cache-Control": "public, max-age=31536000" // Lưu cache ảnh 1 năm cho mượt
+        }
+        return new Response(object.body, { headers })
       }
 
       return new Response("Not found", { status: 404, headers: cors })
