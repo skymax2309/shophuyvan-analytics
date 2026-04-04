@@ -66,7 +66,7 @@ async function handleProducts(request, env, cors) {
 
 // Liệt kê rõ các cột để tránh lỗi trùng lặp và loại bỏ các chuỗi rác 'undefined', 'null'
     const query = `
-      SELECT p.sku, p.product_name, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.min_stock, p.is_parent, p.parent_sku,
+      SELECT p.sku, p.product_name, p.description, p.video_url, p.images, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.min_stock, p.is_parent, p.parent_sku,
         CASE
           WHEN p.image_url IS NOT NULL AND TRIM(p.image_url) NOT IN ('', 'undefined', 'null') THEN TRIM(p.image_url)
           ELSE COALESCE(
@@ -88,7 +88,75 @@ async function handleProducts(request, env, cors) {
     return Response.json(rows.results, { headers: cors });
   }
 
-if (request.method === "POST") {
+// ==========================================
+      // [API MỚI] Import Hàng Loạt Từ 3 File Shopee (Sales + Media + Basic)
+      // ==========================================
+      if (request.method === "POST" && url.pathname.endsWith("/shopee-import")) {
+        const { products_data } = await request.json();
+        if (!products_data || !products_data.length) return Response.json({ error: "Empty data" }, { status: 400, headers: cors });
+
+        let imported = 0;
+        const stmts = [];
+
+        for (const p of products_data) {
+            // 1. Upsert Sản phẩm Cha
+            stmts.push(env.DB.prepare(`
+                INSERT INTO products (sku, product_name, description, video_url, images, image_url, is_parent, stock, cost_invoice, cost_real)
+                VALUES (?, ?, ?, ?, ?, ?, 1, 0, 0, 0)
+                ON CONFLICT(sku) DO UPDATE SET 
+                    product_name = excluded.product_name,
+                    description = CASE WHEN excluded.description != '' THEN excluded.description ELSE products.description END,
+                    video_url = CASE WHEN excluded.video_url != '' THEN excluded.video_url ELSE products.video_url END,
+                    images = CASE WHEN excluded.images != '[]' THEN excluded.images ELSE products.images END,
+                    image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END,
+                    is_parent = 1
+            `).bind(p.parent_sku, p.product_name, p.description || '', p.video_url || '', JSON.stringify(p.images || []), p.image_url || ''));
+
+            // 2. Upsert Các Phân Loại Con
+            for (const v of p.variations) {
+                stmts.push(env.DB.prepare(`
+                    INSERT INTO products (sku, parent_sku, product_name, image_url, stock, cost_invoice, cost_real)
+                    VALUES (?, ?, ?, ?, ?, 0, 0)
+                    ON CONFLICT(sku) DO UPDATE SET
+                        parent_sku = excluded.parent_sku,
+                        product_name = excluded.product_name,
+                        image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END,
+                        stock = excluded.stock
+                `).bind(v.sku, p.parent_sku, v.variation_name, v.image_url || '', v.stock || 0));
+            }
+            imported++;
+        }
+
+        // Chạy Batch
+        for (let i = 0; i < stmts.length; i += 40) {
+            await env.DB.batch(stmts.slice(i, i + 40));
+        }
+
+        return Response.json({ status: "ok", imported }, { headers: cors });
+      }
+
+      // ==========================================
+      // [API MỚI] Gộp và Tách Sản Phẩm Cha
+      // ==========================================
+      if (request.method === "POST" && url.pathname.endsWith("/group-parent")) {
+        const { parent_sku, parent_name, child_skus } = await request.json();
+        await env.DB.prepare(`INSERT INTO products (sku, product_name, is_parent, stock, cost_invoice, cost_real) VALUES (?, ?, 1, 0, 0, 0) ON CONFLICT(sku) DO UPDATE SET is_parent = 1`).bind(parent_sku, parent_name || parent_sku).run();
+        const placeholders = child_skus.map(() => '?').join(',');
+        await env.DB.prepare(`UPDATE products SET parent_sku = ? WHERE sku IN (${placeholders})`).bind(parent_sku, ...child_skus).run();
+        return Response.json({ status: "ok" }, { headers: cors });
+      }
+      
+      if (request.method === "POST" && url.pathname.endsWith("/ungroup-parent")) {
+        const { child_skus } = await request.json();
+        const placeholders = child_skus.map(() => '?').join(',');
+        await env.DB.prepare(`UPDATE products SET parent_sku = NULL WHERE sku IN (${placeholders})`).bind(...child_skus).run();
+        return Response.json({ status: "ok" }, { headers: cors });
+      }
+
+  // ==========================================
+  // API POST GỐC (Lưu 1 sản phẩm thủ công)
+  // ==========================================
+  if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent")) {
     const b = await request.json();
     console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Link ảnh:", b.image_url);
     await env.DB.prepare(`
