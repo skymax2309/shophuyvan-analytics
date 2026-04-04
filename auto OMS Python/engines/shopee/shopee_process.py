@@ -121,6 +121,23 @@ class ShopeeOrderProcessor:
                         await new_page.emulate_media(media="print")
                         await new_page.pdf(path=pdf_path, format="A6") # In theo chuẩn tem A6
                         self.log(f"✅ Đã lưu PDF thành công tại thư mục: {pdf_path}")
+                        
+                        # --- ĐỒNG BỘ LÊN ĐÁM MÂY (SERVER R2) ---
+                        try:
+                            self.log(f"☁️ Đang đồng bộ Phiếu in của đơn {order_id} lên Server...")
+                            with open(pdf_path, "rb") as f:
+                                pdf_bytes = f.read()
+                            
+                            upload_url = f"{self.api_url}/upload?file=labels/{order_id}.pdf&token=huyvan_secret_2026"
+                            up_res = requests.put(upload_url, data=pdf_bytes, headers={"Content-Type": "application/pdf"}, timeout=30)
+                            
+                            if up_res.status_code == 200:
+                                self.log(f"✅ Đã lưu trữ đám mây thành công: {order_id}.pdf")
+                            else:
+                                self.log(f"⚠️ Lỗi đẩy file lên mây: {up_res.text}")
+                        except Exception as e_up:
+                            self.log(f"⚠️ Lỗi kết nối khi upload mây: {e_up}")
+                            
                     except Exception as pdf_err:
                         self.log(f"⚠️ Chú ý: Không thể tải PDF do bạn đang tắt chế độ 'Chạy ngầm'. Vui lòng tick 'Chạy ngầm' để Auto tải PDF!")
                         

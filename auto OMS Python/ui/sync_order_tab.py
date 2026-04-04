@@ -134,27 +134,70 @@ class SyncOrderTab(ctk.CTkFrame):
             self.so_log_msg("🛑 ĐANG TẮT AUTO... (Bot sẽ dừng sau khi hoàn thành chu kỳ hiện tại)")
 
     def listen_loop_worker(self):
-        """📡 Luồng Radar: Quét Server 10 giây/lần xem Kho có bấm Xác Nhận không"""
+        """📡 Luồng Radar: Quét Server 10s/lần xem Kho có bấm Xác Nhận hoặc Gửi Lệnh In PDF không"""
         import requests
         import time
-        api_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/orders?oms_status=CONFIRMED&platform=shopee&limit=50"
+        import json
+        import os
+        
+        api_orders = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/orders?oms_status=CONFIRMED&platform=shopee&limit=50"
+        api_jobs = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/jobs"
         
         while self.is_auto_running:
             now = datetime.now()
             if now.hour >= 21 or now.hour < 6:
-                time.sleep(60) # Đêm thì Radar quét chậm lại 1 phút/lần
+                time.sleep(60) 
                 continue
                 
-            # Nếu Khóa đang mở (Tức là Máy cày đang nghỉ), Radar mới được phép nhảy vào
             if self.browser_lock.acquire(blocking=False):
                 try:
-                    res = requests.get(api_url, timeout=10)
+                    # 1. MẮT THẦN QUÉT LỆNH ĐIỀU KHIỂN TỪ WEB (IN PDF, CÀO ĐƠN MỚI)
+                    try:
+                        res_jobs = requests.get(api_jobs, timeout=10)
+                        if res_jobs.status_code == 200:
+                            jobs = res_jobs.json()
+                            pending_jobs = [j for j in jobs if j.get('status') == 'pending']
+                            
+                            for job in pending_jobs:
+                                job_id = job.get('id')
+                                task_type = job.get('task_type')
+                                payload = json.loads(job.get('payload', '{}'))
+                                
+                                # Khóa Lệnh lại để không bị chạy trùng
+                                requests.patch(f"{api_jobs}/{job_id}", json={"status": "processing"}, timeout=10)
+                                
+                                if task_type == 'print_label':
+                                    order_ids = payload.get('order_ids', [])
+                                    self.so_log_msg(f"🖨️ [RADAR] Đã bắt được lệnh IN PHIẾU GIAO cho {len(order_ids)} đơn!")
+                                    
+                                    # Viết giấy nhớ giao việc cho Bot Shopee
+                                    with open("temp_print_jobs.json", "w") as f:
+                                        json.dump(order_ids, f)
+                                        
+                                    # Khởi động Bot Shopee đi lấy PDF ngay lập tức
+                                    shop_data = next((s for s in self.app.DANH_SACH_SHOP if s.get("platform") == "shopee"), None)
+                                    if shop_data:
+                                        self.so_log_msg("⚡ Đang khởi động Bot Shopee để lấy file PDF...")
+                                        try:
+                                            asyncio.run(self.playwright_order_job(shop_data, "process"))
+                                        except Exception as e:
+                                            self.so_log_msg(f"❌ Lỗi Radar In Phiếu: {e}")
+                                    
+                                elif task_type == 'scrape_orders':
+                                    self.so_log_msg("⚡ [RADAR] Nhận lệnh KÉO ĐƠN MỚI từ Web! Đang khởi động Máy Cày...")
+                                    
+                                # Đánh dấu xong Lệnh để dọn rác DB
+                                requests.patch(f"{api_jobs}/{job_id}", json={"status": "completed"}, timeout=10)
+                    except Exception as e_job:
+                        pass # Bỏ qua nếu hộp thư Lệnh bị lỗi mạng
+
+                    # 2. MẮT THẦN QUÉT ĐƠN HÀNG XÁC NHẬN (CŨ)
+                    res = requests.get(api_orders, timeout=10)
                     if res.status_code == 200:
                         data = res.json()
                         orders = data.get("data", [])
                         
                         if orders:
-                            # Tìm xem Web vừa duyệt đơn của shop nào
                             shops_to_process = set([o["shop"] for o in orders])
                             self.so_log_msg(f"🔔 [RADAR] Web vừa Xác nhận đơn của: {', '.join(shops_to_process)}!")
                             
@@ -164,21 +207,17 @@ class SyncOrderTab(ctk.CTkFrame):
                                 
                                 if shop_data:
                                     self.so_log_msg(f"⚡ Đang mượn Tab Shopee để xử lý GẤP cho {shop_name}...")
-                                    # Đã xóa dòng self.mutex_lock = True ở đây
                                     try:
-                                        # Bơm lệnh process (Chuẩn bị hàng) chạy ngay lập tức
                                         asyncio.run(self.playwright_order_job(shop_data, "process"))
                                     except Exception as e:
                                         self.so_log_msg(f"❌ Lỗi xử lý Radar: {e}")
                                     finally:
-                                        # Nghỉ 3s trước khi làm đơn của shop khác
                                         time.sleep(3)
                 except Exception as e:
-                    pass # Lỗi mạng nhẹ thì bỏ qua, 10s sau Radar quét lại
+                    pass 
                 finally:
-                    self.browser_lock.release() # Radar dùng xong thì trả lại Khóa
+                    self.browser_lock.release() 
                     
-            # Đứng chờ 10 giây rồi lặp lại
             for _ in range(10):
                 if not self.is_auto_running: break
                 time.sleep(1)

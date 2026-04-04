@@ -476,6 +476,23 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return new Response("OK", { headers: cors })
       }
 
+      // ── API MỚI: XEM VÀ TẢI LẠI PHIẾU IN (LABELS) ──────────
+      if (url.pathname.startsWith("/api/label/") && request.method === "GET") {
+        const orderId = url.pathname.replace("/api/label/", "").replace(".pdf", "");
+        const fileName = `labels/${orderId}.pdf`;
+        const object = await env.STORAGE.get(fileName);
+        
+        if (!object) {
+          return new Response("<h2 style='font-family:sans-serif; text-align:center; color:#ef4444; margin-top:50px;'>Phiếu in chưa được tải lên hoặc đơn hàng chưa được xử lý!</h2>", { status: 404, headers: { "Content-Type": "text/html; charset=utf-8", ...cors } });
+        }
+        
+        const headers = new Headers(cors);
+        headers.set("Content-Type", "application/pdf");
+        headers.set("Content-Disposition", `inline; filename="${orderId}.pdf"`); 
+        
+        return new Response(object.body, { headers });
+      }
+
       // ── API MỚI: Trả về file ảnh để Frontend hiển thị ──────────
       if (url.pathname.startsWith("/api/file/") && request.method === "GET") {
         const fileName = decodeURIComponent(url.pathname.replace("/api/file/", ""))

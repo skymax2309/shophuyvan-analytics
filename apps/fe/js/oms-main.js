@@ -263,6 +263,13 @@ function renderTable() {
       <td data-label="Mã đơn hàng">
         <div class="order-id">${o.order_id}<span class="order-id-copy" onclick="copyText('${o.order_id}')">⎘</span></div>
         ${o.tracking_number ? `<div style="font-size:10px;color:var(--teal);margin-top:3px;font-family:'IBM Plex Mono',monospace">${o.tracking_number}</div>` : ''}
+        
+        ${(o.oms_status !== 'PENDING') ? `
+        <div style="margin-top: 6px;">
+          <a href="${API}/api/label/${o.order_id}.pdf" target="_blank" style="font-size:10px; color:var(--blue); text-decoration:none; border: 1px solid var(--blue); padding: 2px 6px; border-radius: 4px; display:inline-flex; align-items:center; gap:3px; background: rgba(59,130,246,0.1);">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> Phiếu in
+          </a>
+        </div>` : ''}
       </td>
       <td data-label="Sàn">${pltHtml}</td>
       <td data-label="Doanh thu">
