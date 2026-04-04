@@ -67,13 +67,16 @@ class LazadaOrderParser:
                     price_match = re.search(r'([\d,]+)\s*₫', row_text)
                     total_price = price_match.group(1).replace(",", "") if price_match else "0"
 
-                # 2. Bóc Nhà vận chuyển
-                carrier_node = parent.select_one(".order-field-fm-3-pl .order-field-value, .order-field-first-mile .order-field-value")
-                carrier = carrier_node.get_text(strip=True) if carrier_node else "Lazada Express (LEX)"
-                if "AhaMove" in carrier or "AhaMove" in row_text: carrier = "Ahamove"
-                elif "BEST" in carrier or "BEST" in row_text: carrier = "BEST Express"
-                elif "J&T" in carrier or "J&T" in row_text: carrier = "J&T Express"
-                elif "Ninja" in carrier or "Ninja" in row_text: carrier = "Ninja Van"
+                # 2. Bóc Nhà vận chuyển (Neo từ khóa quét toàn diện)
+                carrier = "Lazada Express (LEX)" # Mặc định
+                row_upper = row_text.upper()
+                if "BEST" in row_upper: carrier = "BEST Express"
+                elif "J&T" in row_upper: carrier = "J&T Express"
+                elif "NINJA" in row_upper: carrier = "Ninja Van"
+                elif "AHAMOVE" in row_upper: carrier = "Ahamove"
+                elif "GHN" in row_upper or "GIAO HÀNG NHANH" in row_upper: carrier = "Giao Hàng Nhanh"
+                elif "GHTK" in row_upper or "GIAO HÀNG TIẾT KIỆM" in row_upper: carrier = "Giao Hàng Tiết Kiệm"
+                elif "VIETTEL" in row_upper: carrier = "Viettel Post"
 
                 # 3. Bóc mã vận đơn & Tên khách
                 tracking_node = parent.select_one(".order-field-tracking-number .order-field-value")
@@ -167,7 +170,8 @@ class LazadaOrderParser:
                     "oms_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "items": [{
                         "sku": sku,
-                        "variation": variation,
+                        "variation_name": variation, # Đổi tên để khớp với Server
+                        "clean_variation": variation, # Lazada không kẹp mã vào ngoặc vuông nên bản gốc = bản sạch
                         "product_name": product_name,
                         "qty": int(quantity),
                         "image_url": img_url

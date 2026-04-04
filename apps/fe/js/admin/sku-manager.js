@@ -96,7 +96,11 @@ window.renderSkuTables = function(page = null) {
 
   const rowHtml = p => {
     const encodedName = encodeURIComponent(p.product_name || "");
-    const imgUrl = p.image_url || "https://placehold.co/60x60?text=No+Image";
+    
+    // Chặn đứng các trường hợp link là chữ undefined/null
+    const validImg = p.image_url && p.image_url !== "undefined" && p.image_url !== "null" && p.image_url.trim() !== "";
+    const imgUrl = validImg ? p.image_url.trim() : "https://placehold.co/60x60?text=No+Image";
+    
     const stockQty = p.stock || 0;
     const minStock = p.min_stock !== undefined ? p.min_stock : 5; // Mặc định báo động < 5
     

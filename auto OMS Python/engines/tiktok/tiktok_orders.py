@@ -128,18 +128,18 @@ class TiktokOrderScraper:
                                     order_date = dt.strftime("%Y-%m-%d %H:%M:%S")
                                 except: pass
 
-                        # C. Lấy Đơn vị vận chuyển + Mã Vận Đơn
+                        # C. Lấy Đơn vị vận chuyển + Mã Vận Đơn (NEO TỪ KHÓA TIKTOK)
                         carrier = ""
                         tracking_number = ""
-                        for line in lines:
-                            if "Vận chuyển qua nền tảng" in line or "Express" in line or "Ahamove" in line:
-                                carrier_raw = line.replace("Vận chuyển qua nền tảng", "").replace("|", "").strip()
-                                if "," in carrier_raw:
-                                    c_parts = carrier_raw.split(",")
-                                    carrier = c_parts[0].strip()
-                                    tracking_number = c_parts[1].strip()
-                                else:
-                                    carrier = carrier_raw
+                        for i, line in enumerate(lines):
+                            # Mỏ neo 1: Nếu thấy nhãn này, ĐVVC luôn nằm ở dòng ngay bên dưới
+                            if "Vận chuyển qua nền tảng" in line:
+                                if i + 1 < len(lines):
+                                    carrier = lines[i+1].strip()
+                                break
+                            # Mỏ neo 2: Bắt trực tiếp ĐVVC nếu nó đứng trơ trọi (hoặc là Vận chuyển tiêu chuẩn)
+                            elif any(c in line for c in ["Express", "Ahamove", "J&T", "Giao Hàng", "Ninja", "Viettel", "Vận chuyển tiêu chuẩn"]):
+                                carrier = line.strip()
                                 break
 
                         # D. Lấy Tổng tiền
@@ -199,12 +199,14 @@ class TiktokOrderScraper:
                         elif tab_name == "Đã hủy": oms_st = "CANCELLED_TRANSIT"
                         elif tab_name == "Giao không thành công": oms_st = "FAILED_DELIVERY"
 
-                        # Chuẩn hóa danh sách sản phẩm theo D1
+                        # Chuẩn hóa danh sách sản phẩm theo D1 (ĐỒNG BỘ XUẤT KÉP NHƯ SHOPEE)
                         formatted_items = []
                         for it in items:
+                            var_text = it.get("variation", "")
                             formatted_items.append({
                                 "sku": it.get("sku", ""),
-                                "variation": it.get("variation", ""),
+                                "variation_name": var_text,  # Đổi tên cho khớp với Server
+                                "clean_variation": var_text, # TikTok đã tự tách riêng SKU, nên bản sạch = bản gốc
                                 "product_name": it.get("name", "Sản phẩm TikTok"),
                                 "qty": int(it.get("quantity", 1)),
                                 "image_url": ""
