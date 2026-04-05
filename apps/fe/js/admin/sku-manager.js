@@ -519,6 +519,7 @@ function exportSkuExcel() {
 }
 
 // TÍNH NĂNG MỚI: IMPORT BULK EXCEL (Cập nhật hàng loạt Data & Giá Vốn)
+// TÍNH NĂNG MỚI: IMPORT BULK EXCEL (Cập nhật hàng loạt Data & Giá Vốn)
 window.importBulkExcel = async function(input) {
     const file = input.files[0];
     if (!file) return;
@@ -535,10 +536,10 @@ window.importBulkExcel = async function(input) {
             if (rows.length === 0) throw new Error("File trống!");
             showToast(`🚀 Đang tải ${rows.length} dòng lên Server...`);
             
-            // Tiền xử lý data để map đúng tên cột, hỗ trợ cả file cũ và file Full Data mới xuất
+            // Xử lý data an toàn, chống chuỗi rỗng và loại bỏ khoảng trắng dư
             const payload = rows.map(r => ({
-                sku: r['SKU'] || r['sku'],
-                product_name: r['Tên sản phẩm'] || r['product_name'],
+                sku: String(r['SKU'] || r['sku'] || '').trim(),
+                product_name: r['Tên sản phẩm'] || r['product_name'] || "",
                 parent_sku: r['Mã SP Gốc (Parent)'] || r['parent_sku'] || null,
                 cost_invoice: parseFloat(r['Vốn hóa đơn (đ)']) || 0,
                 cost_real: parseFloat(r['Vốn thực tế (đ)']) || 0,
@@ -549,7 +550,9 @@ window.importBulkExcel = async function(input) {
                 description: r['Mô tả'] || "",
                 video_url: r['Video'] || "",
                 image_url: r['Hình ảnh'] || ""
-            })).filter(r => r.sku);
+            })).filter(r => r.sku !== '');
+
+            console.log("📦 [DÒ MÌN FRONTEND] Data chuẩn bị gửi:", payload);
 
             const res = await fetch(API + "/api/products/bulk-import", {
                 method: "POST",
@@ -557,12 +560,19 @@ window.importBulkExcel = async function(input) {
                 body: JSON.stringify({ items: payload })
             });
 
-            if (!res.ok) throw new Error("Lỗi lưu DB từ Server");
+            // 🌟 Đọc text thô trước để chống lỗi "Unexpected end of JSON"
+            const textRes = await res.text(); 
+            console.log("🌐 [SERVER PHẢN HỒI]:", textRes);
+
+            if (!res.ok) {
+                throw new Error(textRes || "Server sập nguồn không trả về lý do!");
+            }
             
             showToast("✅ Đã Import File thành công!");
             input.value = ""; 
             loadSkus(); 
         } catch (err) {
+            console.error("❌ Lỗi Import:", err);
             showToast("❌ Lỗi Import: " + err.message, true);
             input.value = "";
         }

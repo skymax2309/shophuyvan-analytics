@@ -158,8 +158,11 @@ async function handleProducts(request, env, cors) {
       // ==========================================
       if (request.method === "POST" && url.pathname.endsWith("/bulk-import")) {
         try {
-            const { items } = await request.json();
-            if (!items || !items.length) return Response.json({ error: "Empty data" }, { status: 400, headers: cors });
+            let bodyData;
+            try { bodyData = await request.json(); } catch(err) { return Response.json({ error: "Lỗi giải mã JSON từ Client" }, { status: 400, headers: cors }); }
+            
+            const { items } = bodyData;
+            if (!items || !items.length) return Response.json({ error: "Dữ liệu trống" }, { status: 400, headers: cors });
 
             console.log("🗄️ [API IMPORT EXCEL] Bắt đầu Ghi Đè", items.length, "sản phẩm...");
             const stmts = [];
@@ -181,12 +184,22 @@ async function handleProducts(request, env, cors) {
                         stock = excluded.stock,
                         min_stock = excluded.min_stock
                 `).bind(
-                    p.sku, p.product_name || "", p.parent_sku, p.description || "", p.video_url || "", 
-                    p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.image_url || "", p.stock, p.min_stock
+                    String(p.sku), 
+                    p.product_name ? String(p.product_name) : "", 
+                    p.parent_sku ? String(p.parent_sku) : null, 
+                    p.description ? String(p.description) : "", 
+                    p.video_url ? String(p.video_url) : "", 
+                    Number(p.cost_invoice) || 0, 
+                    Number(p.cost_real) || 0, 
+                    Number(p.is_combo) || 0, 
+                    p.combo_items ? String(p.combo_items) : null, 
+                    p.image_url ? String(p.image_url) : "", 
+                    Number(p.stock) || 0, 
+                    Number(p.min_stock) || 5
                 ));
             }
 
-            // Chạy Batch an toàn (Mỗi lần 50 lệnh để chống kẹt cổ chai Cloudflare)
+            // Chạy Batch an toàn
             for (let i = 0; i < stmts.length; i += 50) {
                 await env.DB.batch(stmts.slice(i, i + 50));
             }
