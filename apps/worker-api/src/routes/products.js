@@ -154,9 +154,54 @@ async function handleProducts(request, env, cors) {
       }
 
  // ==========================================
+      // [API MỚI] IMPORT EXCEL (Cập nhật Data hàng loạt)
+      // ==========================================
+      if (request.method === "POST" && url.pathname.endsWith("/bulk-import")) {
+        try {
+            const { items } = await request.json();
+            if (!items || !items.length) return Response.json({ error: "Empty data" }, { status: 400, headers: cors });
+
+            console.log("🗄️ [API IMPORT EXCEL] Bắt đầu Ghi Đè", items.length, "sản phẩm...");
+            const stmts = [];
+
+            for (const p of items) {
+                stmts.push(env.DB.prepare(`
+                    INSERT INTO products (sku, product_name, parent_sku, description, video_url, cost_invoice, cost_real, is_combo, combo_items, image_url, stock, min_stock)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(sku) DO UPDATE SET 
+                        product_name = CASE WHEN excluded.product_name != '' THEN excluded.product_name ELSE products.product_name END,
+                        parent_sku = CASE WHEN excluded.parent_sku IS NOT NULL THEN excluded.parent_sku ELSE products.parent_sku END,
+                        description = CASE WHEN excluded.description != '' THEN excluded.description ELSE products.description END,
+                        video_url = CASE WHEN excluded.video_url != '' THEN excluded.video_url ELSE products.video_url END,
+                        cost_invoice = excluded.cost_invoice,
+                        cost_real = excluded.cost_real,
+                        is_combo = excluded.is_combo,
+                        combo_items = CASE WHEN excluded.combo_items IS NOT NULL THEN excluded.combo_items ELSE products.combo_items END,
+                        image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END,
+                        stock = excluded.stock,
+                        min_stock = excluded.min_stock
+                `).bind(
+                    p.sku, p.product_name || "", p.parent_sku, p.description || "", p.video_url || "", 
+                    p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.image_url || "", p.stock, p.min_stock
+                ));
+            }
+
+            // Chạy Batch an toàn (Mỗi lần 50 lệnh để chống kẹt cổ chai Cloudflare)
+            for (let i = 0; i < stmts.length; i += 50) {
+                await env.DB.batch(stmts.slice(i, i + 50));
+            }
+
+            return Response.json({ status: "ok", imported: items.length }, { headers: cors });
+        } catch (e) {
+            console.error("Lỗi Import Excel:", e.message);
+            return Response.json({ error: e.message }, { status: 500, headers: cors });
+        }
+      }
+
+ // ==========================================
   // API POST GỐC (Lưu 1 sản phẩm thủ công)
   // ==========================================
-if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent")) {
+if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent") && !url.pathname.includes("/bulk-import")) {
     const b = await request.json();
     console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Giá Vốn HĐ:", b.cost_invoice, "| Giá Thực:", b.cost_real);
     await env.DB.prepare(`

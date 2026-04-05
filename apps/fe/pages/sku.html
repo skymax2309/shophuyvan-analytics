@@ -194,6 +194,13 @@
             <button id="btnBulkDeleteSku" onclick="bulkDeleteSkus()" style="display: none; padding: 7px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
               🗑️ Xóa đã chọn (<span id="selectedSkuCount">0</span>)
             </button>
+            <button onclick="exportSkuExcel()" style="padding: 7px 15px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+              📥 Export Full Data
+            </button>
+            <button onclick="document.getElementById('import-excel-file').click()" style="padding: 7px 15px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+              📤 Import Excel
+            </button>
+            <input type="file" id="import-excel-file" accept=".csv, .xlsx" style="display:none" onchange="importBulkExcel(this)">
         </div>
       </div>
 

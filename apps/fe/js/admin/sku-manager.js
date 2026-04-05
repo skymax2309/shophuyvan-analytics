@@ -495,20 +495,79 @@ async function importSkusFromOrders() {
 
 function exportSkuExcel() {
   const rows = allSkus;
-  let csv = "SKU,Tên sản phẩm,Vốn hóa đơn (đ),Vốn thực tế (đ)\n";
+  // Xuất Full toàn bộ cột
+  let csv = "SKU,Tên sản phẩm,Mã SP Gốc (Parent),Vốn hóa đơn (đ),Vốn thực tế (đ),Tồn kho,Tồn kho an toàn,Là Combo (1/0),Thành phần Combo,Mô tả,Video,Hình ảnh\n";
   rows.forEach(p => {
-    const safeSku  = `"${(p.sku          || "").replace(/"/g, '""')}"`;
+    const safeSku  = `"${(p.sku || "").replace(/"/g, '""')}"`;
     const safeName = `"${(p.product_name || "").replace(/"/g, '""')}"`;
-    csv += `${safeSku},${safeName},${p.cost_invoice || 0},${p.cost_real || 0}\n`;
+    const safeParent = `"${(p.parent_sku || "").replace(/"/g, '""')}"`;
+    const safeDesc = `"${(p.description || "").replace(/"/g, '""')}"`;
+    const safeVid = `"${(p.video_url || "").replace(/"/g, '""')}"`;
+    const safeImg = `"${(p.image_url || "").replace(/"/g, '""')}"`;
+    const safeComboItems = `"${(p.combo_items || "").replace(/"/g, '""')}"`;
+
+    csv += `${safeSku},${safeName},${safeParent},${p.cost_invoice || 0},${p.cost_real || 0},${p.stock || 0},${p.min_stock || 0},${p.is_combo || 0},${safeComboItems},${safeDesc},${safeVid},${safeImg}\n`;
   });
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = `gia-von-sku-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `full-data-sku-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  showToast("✅ Đã tải file Excel!");
+  showToast("✅ Đã xuất Full Data Excel!");
+}
+
+// TÍNH NĂNG MỚI: IMPORT BULK EXCEL (Cập nhật hàng loạt Data & Giá Vốn)
+window.importBulkExcel = async function(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    showToast("⏳ Đang đọc file Excel...");
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sheet);
+            
+            if (rows.length === 0) throw new Error("File trống!");
+            showToast(`🚀 Đang tải ${rows.length} dòng lên Server...`);
+            
+            // Tiền xử lý data để map đúng tên cột, hỗ trợ cả file cũ và file Full Data mới xuất
+            const payload = rows.map(r => ({
+                sku: r['SKU'] || r['sku'],
+                product_name: r['Tên sản phẩm'] || r['product_name'],
+                parent_sku: r['Mã SP Gốc (Parent)'] || r['parent_sku'] || null,
+                cost_invoice: parseFloat(r['Vốn hóa đơn (đ)']) || 0,
+                cost_real: parseFloat(r['Vốn thực tế (đ)']) || 0,
+                stock: parseInt(r['Tồn kho']) || 0,
+                min_stock: parseInt(r['Tồn kho an toàn']) || 5,
+                is_combo: parseInt(r['Là Combo (1/0)']) || 0,
+                combo_items: r['Thành phần Combo'] || null,
+                description: r['Mô tả'] || "",
+                video_url: r['Video'] || "",
+                image_url: r['Hình ảnh'] || ""
+            })).filter(r => r.sku);
+
+            const res = await fetch(API + "/api/products/bulk-import", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ items: payload })
+            });
+
+            if (!res.ok) throw new Error("Lỗi lưu DB từ Server");
+            
+            showToast("✅ Đã Import File thành công!");
+            input.value = ""; 
+            loadSkus(); 
+        } catch (err) {
+            showToast("❌ Lỗi Import: " + err.message, true);
+            input.value = "";
+        }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
 // ── LOGIC XÓA HÀNG LOẠT VÀ GỘP NHÓM ─────────────────────────────
