@@ -10,6 +10,14 @@ import { renderShippingStatus, renderTable, renderSummary, updateBadges, renderP
 // Kích hoạt cầu nối: Báo cho Popup biết dùng hàm loadOrders để tải lại bảng
 initModals(() => loadOrders(currentPage));
 
+import { initActions } from './modules/oms-actions.js';
+// Kích hoạt cầu nối Hành động
+initActions(
+  (page) => loadOrders(page),
+  () => currentPage,
+  () => { document.getElementById('chkAll').checked = false; toggleAllCheck(false); }
+);
+
 // ── STATE ───────────────────────────────────────────────────────────
 let currentPage    = 1
 let currentStatus  = 'ALL'
@@ -113,7 +121,16 @@ export async function loadOrders(page = 1) {
 }
 
 
-// ── CHECK ────────────────────────────────────────────────────────────
+// ── CHECK & GET IDS ──────────────────────────────────────────────────
+export function toggleAllCheck(checked) {
+  document.querySelectorAll('.oms-chk').forEach(c => c.checked = checked);
+  onCheck();
+}
+
+export function getChecked() {
+  return [...document.querySelectorAll('.oms-chk:checked')].map(c => c.dataset.id);
+}
+
 export function onCheck() {
   const checked = getChecked()
   const n = checked.length
@@ -127,182 +144,6 @@ export function onCheck() {
   })
 }
 
-// ── QUY TRÌNH: XÓA HÀNG LOẠT (DỌN RÁC) ────────────────────────────────
-export async function deleteErrorOrders() {
-  const ids = getChecked();
-  if (!ids.length) return;
-  if (!confirm(`🚨 NGUY HIỂM: Xóa vĩnh viễn ${ids.length} đơn hàng khỏi Server? Hành động này không thể hoàn tác!`)) return;
-
-  const btn = document.getElementById('btnDeleteOrders');
-  if (btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
-  showToast('🗑️ Đang xóa dữ liệu...');
-
-  try {
-    const res = await fetch(API + '/api/orders/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_ids: ids })
-    });
-
-    if (!res.ok) throw new Error("Lỗi khi xóa trên Server");
-    
-    showToast(`✅ Đã xóa sạch ${ids.length} đơn hàng!`);
-    document.getElementById('chkAll').checked = false;
-    toggleAllCheck(false);
-    loadOrders(1);
-  } catch (e) {
-    showToast('❌ Lỗi: ' + e.message);
-  } finally {
-    if (btn) { btn.style.opacity = '1'; btn.disabled = false; }
-  }
-}
-
-function getChecked() {
-  return [...document.querySelectorAll('.oms-chk:checked')].map(c => c.dataset.id)
-}
-
-export function toggleAllCheck(checked) {
-  document.querySelectorAll('.oms-chk').forEach(c => c.checked = checked)
-  onCheck()
-}
-
-function toggleAll() {
-  allSelected = !allSelected
-  toggleAllCheck(allSelected)
-}
-
-// ── ACTIONS ─────────────────────────────────────────────────────────
-async function patchOmsStatus(ids, status) {
-  await fetch(API + '/api/orders/bulk-oms-status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ order_ids: ids, oms_status: status })
-  })
-}
-
-// ── QUY TRÌNH: XÁC NHẬN ĐƠN ────────────────────────────────────────
-export async function markConfirmed() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Xác nhận ${ids.length} đơn hàng?`)) return
-  await patchOmsStatus(ids, 'CONFIRMED')
-  showToast(`✅ Đã xác nhận ${ids.length} đơn`)
-  loadOrders(currentPage)
-}
-
-
-// ── QUY TRÌNH: CHUẨN BỊ HÀNG (Bắn lệnh In Phiếu Vận Chuyển → Chuyển PACKING) ──
-export async function markPrepare() {
-  const ids = getChecked()
-  if (!ids.length) return
-
-  // Bước 1: Gửi lệnh in Phiếu Vận Chuyển (PDF) lên Server cho Bot Python ở nhà lấy về xử lý
-  try {
-    await fetch(API + '/api/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        task_type: 'print_label',
-        payload:   JSON.stringify({ order_ids: ids }),
-        shop_name: '', platform: '',
-        month: new Date().getMonth()+1, year: new Date().getFullYear(),
-      })
-    })
-    showToast(`🖨️ Đã gửi lệnh chuẩn bị & in phiếu cho ${ids.length} đơn. Bot Python sẽ tự động xử lý!`, 4000)
-  } catch(e) {
-    showToast('❌ Lỗi gửi lệnh in: ' + e.message)
-  }
-
-  // (Đã xóa hàm showPickList() ở đây để không bị nhảy Popup gây nhầm lẫn nữa)
-
-  // Bước 2: Chuyển trạng thái sang PACKING (Đang đóng gói)
-  await patchOmsStatus(ids, 'PACKING')
-  loadOrders(currentPage)
-}
-
-// ── QUY TRÌNH: ĐÃ ĐÓNG GÓI XONG ───────────────────────────────────
-export async function markPacked() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Xác nhận đã đóng gói xong ${ids.length} đơn?`)) return
-  await patchOmsStatus(ids, 'PACKED')
-  showToast(`📦 Đã đóng gói xong ${ids.length} đơn`)
-  loadOrders(currentPage)
-}
-
-// ── QUY TRÌNH: GIAO CHO SHIPPER ────────────────────────────────────
-export async function markHandedOver() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Xác nhận đã giao ${ids.length} đơn cho shipper?`)) return
-  await patchOmsStatus(ids, 'HANDED_OVER')
-  showToast(`🚚 Đã giao ${ids.length} đơn cho shipper`)
-  loadOrders(currentPage)
-}
-
-// ── CHUẨN HÓA ĐƠN LỊCH SỬ ─────────────────────────────────────────
-export async function archiveOldOrders() {
-  if (!confirm("Hệ thống sẽ dựa vào 'Loại đơn' và 'Trạng thái vận chuyển' cũ để tự động phân loại hàng ngàn đơn hàng lịch sử về đúng các Tab: Hoàn thành, Hủy, Trả hàng.\n\nBạn có chắc chắn muốn chuẩn hóa?")) return;
-  showToast('🔄 Đang chạy thuật toán phân loại dữ liệu...');
-  try {
-    await fetch(API + '/api/orders/archive-old', { method: 'POST' });
-    showToast('✅ Đã chuẩn hóa dữ liệu thành công!');
-    loadOrders(1);
-  } catch (e) {
-    showToast('❌ Lỗi: ' + e.message);
-  }
-}
-
-// ── TÍNH LẠI GIÁ VỐN TOÀN HỆ THỐNG ─────────────────────────────────
-export async function recalcAllCosts() {
-  if (!confirm("Hệ thống sẽ tính toán lại toàn bộ Lãi/Lỗ của TẤT CẢ đơn hàng trong lịch sử dựa trên Giá vốn mới nhất mà bạn vừa nhập.\n\nBạn có chắc chắn muốn thực hiện?")) return;
-  showToast('🔄 Đang quét Server và tính toán lại toàn bộ (có thể mất vài giây)...');
-  try {
-    // Gọi thẳng vào hàm recalcCost() bí mật trên file orders.js của Server
-    const res = await fetch(API + '/api/orders/recalc-cost', { method: 'POST' }).then(r => r.json());
-    showToast(`✅ Quá dữ! Đã cập nhật xong Lãi/Lỗ cho ${res.updated_v2 || 0} đơn hàng.`);
-    loadOrders(currentPage);
-  } catch (e) {
-    showToast('❌ Lỗi: ' + e.message);
-  }
-}
-
-// ── QUY TRÌNH: HOÀN THÀNH ──────────────────────────────────────────
-async function markCompleted() {
-  const ids = getChecked()
-  if (!ids.length) return
-  await patchOmsStatus(ids, 'COMPLETED')
-  showToast(`🏆 Hoàn thành ${ids.length} đơn`)
-  loadOrders(currentPage)
-}
-
-// ── ĐÁNH DẤU CÁC TRẠNG THÁI VẤN ĐỀ ─────────────────────────────────
-export async function markCancelledTransit() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Đánh dấu ${ids.length} đơn bị hủy trong quá trình vận chuyển?`)) return
-  await patchOmsStatus(ids, 'CANCELLED_TRANSIT')
-  showToast(`✗ Đã đánh dấu ${ids.length} đơn hủy khi vận chuyển`)
-  loadOrders(currentPage)
-}
-
-export async function markFailedDelivery() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Đánh dấu ${ids.length} đơn giao không thành công?`)) return
-  await patchOmsStatus(ids, 'FAILED_DELIVERY')
-  showToast(`⚠️ Đã đánh dấu ${ids.length} đơn giao thất bại`)
-  loadOrders(currentPage)
-}
-
-export async function markReturnRefund() {
-  const ids = getChecked()
-  if (!ids.length) return
-  if (!confirm(`Đánh dấu ${ids.length} đơn trả hàng hoàn tiền?`)) return
-  await patchOmsStatus(ids, 'RETURN_REFUND')
-  showToast(`↩ Đã đánh dấu ${ids.length} đơn trả hàng`)
-  loadOrders(currentPage)
-}
 
 // Giữ lại hàm cũ để tương thích
 async function markReady()   { await markPacked() }
@@ -350,38 +191,6 @@ export function resetFilter() {
   loadOrders(1)
 }
 
-
-
-// ── MODAL ─────────────────────────────────────────────────────────────
-
-
-// ── TRIGGER BOT CÀO ĐƠN TỪ XA (HỖ TRỢ MOBILE/WEB) ─────────────────────
-export async function triggerBotScrape() {
-  const btn = document.querySelector('button[onclick="triggerBotScrape()"]');
-  if(btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
-  showToast('🔄 Đang gửi tín hiệu đánh thức Bot...');
-
-  try {
-    // Bắn một lệnh (Job) vào Server. Bot Python ở nhà sẽ lấy lệnh này để chạy.
-    await fetch(API + '/api/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        task_type: 'scrape_orders',
-        payload: JSON.stringify({ command: "start_scraping" }),
-        shop_name: 'ALL',
-        platform: 'ALL',
-        month: new Date().getMonth() + 1,
-        year: new Date().getFullYear(),
-      })
-    });
-    showToast('✅ Đã phát lệnh! Bot Python ở nhà sẽ bắt đầu cào đơn mới.', 4000);
-  } catch (e) {
-    showToast('❌ Lỗi gửi tín hiệu: ' + e.message);
-  } finally {
-    if(btn) { btn.style.opacity = '1'; btn.disabled = false; }
-  }
-}
 
 // ── LIÊN HOÀN SÀN -> SHOP ───────────────────────────────────────────
 let globalShopList = [];
