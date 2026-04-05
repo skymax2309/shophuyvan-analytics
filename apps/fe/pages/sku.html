@@ -129,8 +129,13 @@
 
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
           <div class="card-title" style="margin:0">📋 Danh sách Sản phẩm (<span id="skuCount">0</span>)</div>
+          
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:600; color:#0f172a; background:#f1f5f9; padding:6px 12px; border-radius:6px; border:1px solid #cbd5e1;">
+              <input type="checkbox" id="selectAllChk" onchange="toggleAllCheck(this.checked)" style="transform:scale(1.2); cursor:pointer;">
+              Chọn tất cả trang này
+          </label>
         </div>
         
         <div style="display:flex; align-items:center; gap:8px;">
@@ -157,6 +162,8 @@
       <div id="sku-tab-no-price"><div class="sku-list-container" id="skuNoPriceTable"></div></div>
       <div id="sku-tab-has-price" style="display:none"><div class="sku-list-container" id="skuHasPriceTable"></div></div>
       <div id="sku-tab-missing-map" style="display:none"><div class="sku-list-container" id="skuMissingMapTable"></div></div>
+
+      <div id="skuPaginationWrap" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:24px; padding-top:16px; border-top:1px solid #e2e8f0; width:100%;"></div>
     </div>
   </div>
 </div>

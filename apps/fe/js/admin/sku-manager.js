@@ -194,14 +194,13 @@ window.renderSkuTables = function(page = null) {
 }
 
 function renderSkuPagination(totalItems, totalPages) {
-    let container = document.getElementById("skuPaginationWrap");
-    if (!container) {
-        container = document.createElement("div");
-        container.id = "skuPaginationWrap";
-        container.style.cssText = "display:flex; justify-content:center; align-items:center; gap:10px; margin-top:20px; width:100%; padding-bottom:20px;";
-        const activeTabEl = document.getElementById("sku-tab-" + _currentSkuTab);
-        if(activeTabEl) activeTabEl.appendChild(container);
-    }
+    const container = document.getElementById("skuPaginationWrap");
+    if (!container) return;
+    
+    // Tự động bỏ tick "Chọn tất cả" khi nhảy trang
+    const chkAll = document.getElementById("selectAllChk");
+    if (chkAll) chkAll.checked = false;
+
     if (totalItems === 0 || totalPages <= 1) { container.innerHTML = ""; return; }
     container.innerHTML = `
         <button onclick="renderSkuTables(${currentSkuPage - 1})" ${currentSkuPage === 1 ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; background:${currentSkuPage === 1 ? '#f8fafc' : 'white'}; color:${currentSkuPage === 1 ? '#cbd5e1' : '#333'};">‹ Trang trước</button>
@@ -528,15 +527,13 @@ window.executeQuickMap = async function(varId, internalSku) {
     }
 }
 
-window.toggleAllCheck = function(type, checked) {
-  const map = { 
-      "no": "skuNoPriceTable", 
-      "has": "skuHasPriceTable",
-      "missing-map": "skuMissingMapTable"
-  }
-  const tbody = map[type] || "skuNoPriceTable";
-  document.querySelectorAll(`#${tbody} .sku-chk`).forEach(c => c.checked = checked);
-  updateSkuBulkDeleteUI();
+window.toggleAllCheck = function(checked) {
+    // Tự động tìm bảng đang mở theo Tab hiện tại
+    const containerId = _currentSkuTab === 'has-price' ? 'skuHasPriceTable' : (_currentSkuTab === 'missing-map' ? 'skuMissingMapTable' : 'skuNoPriceTable');
+    
+    // Chọn/Bỏ chọn toàn bộ SKU có trên mặt trang
+    document.querySelectorAll(`#${containerId} .sku-chk`).forEach(c => c.checked = checked);
+    if(typeof updateSkuBulkDeleteUI === 'function') updateSkuBulkDeleteUI();
 }
 
 // ── LOGIC POPUP CHI TIẾT SẢN PHẨM CHUẨN SHOPEE ─────────────────────────
