@@ -131,8 +131,14 @@ class OMSRadarTab(ctk.CTkFrame):
                                 self.so_log_msg("⚡ [RADAR] Nhận lệnh từ Web: KÉO ĐƠN MỚI TỐC ĐỘ CAO!")
                                 for shop_data in [s for s in self.app.DANH_SACH_SHOP if s.get("platform") in ["shopee", "tiktok", "lazada"]]:
                                     if hasattr(self.legacy_engine, 'playwright_order_job'):
-                                        # Bắn mã lệnh chuẩn: Kích hoạt chế độ Tốc độ cao
                                         asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "scrape_new_only"))
+
+                            # LUỒNG MỚI: QUÉT HÀNH TRÌNH (STATUS)
+                            elif task_type == 'sync_status':
+                                self.so_log_msg("🔍 [RADAR] Nhận lệnh từ Web: ĐỒNG BỘ HÀNH TRÌNH (Trạng thái đơn)!")
+                                for shop_data in [s for s in self.app.DANH_SACH_SHOP if s.get("platform") in ["shopee", "tiktok", "lazada"]]:
+                                    if hasattr(self.legacy_engine, 'playwright_order_job'):
+                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "status"))
                                     
                             # Báo cáo hoàn thành lên Web
                             requests.patch(f"{api_jobs}/{job_id}", json={"status": "completed"}, timeout=10)

@@ -202,7 +202,33 @@ export async function triggerBotScrape() {
         year: new Date().getFullYear(),
       })
     });
-    showToast('✅ Đã phát lệnh! Bot Python ở nhà sẽ bắt đầu cào đơn mới.', 4000);
+showToast('✅ Đã phát lệnh! Bot Python ở nhà sẽ bắt đầu cào đơn mới.', 4000);
+  } catch (e) {
+    showToast('❌ Lỗi gửi tín hiệu: ' + e.message);
+  } finally {
+    if(btn) { btn.style.opacity = '1'; btn.disabled = false; }
+  }
+}
+
+export async function triggerBotStatus() {
+  const btn = document.querySelector('button[onclick="triggerBotStatus()"]');
+  if(btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
+  showToast('🔄 Đang gửi tín hiệu yêu cầu cập nhật hành trình...');
+
+  try {
+    await fetch(API + '/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task_type: 'sync_status',
+        payload: JSON.stringify({ command: "check_status" }),
+        shop_name: 'ALL',
+        platform: 'ALL',
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+      })
+    });
+    showToast('✅ Đã phát lệnh! Bot Python sẽ đi quét cập nhật trạng thái Hành trình ngay lập tức.', 5000);
   } catch (e) {
     showToast('❌ Lỗi gửi tín hiệu: ' + e.message);
   } finally {
@@ -214,5 +240,5 @@ export async function triggerBotScrape() {
 Object.assign(window, {
   deleteErrorOrders, markConfirmed, markPrepare, markPacked, markHandedOver,
   markCancelledTransit, markFailedDelivery, markReturnRefund,
-  archiveOldOrders, recalcAllCosts, triggerBotScrape
+  archiveOldOrders, recalcAllCosts, triggerBotScrape, triggerBotStatus
 });
