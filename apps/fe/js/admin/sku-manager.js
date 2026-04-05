@@ -609,10 +609,11 @@ window.openQuickMapModal = async function(sku) {
     document.getElementById('quickMapTargetSku').textContent = sku;
     document.getElementById('quickMapSearch').value = '';
     document.getElementById('quickMapModal').style.display = 'flex';
-    document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#888;">⏳ Đang tải mã mồ côi từ máy chủ...</div>';
+    document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#888;">⏳ Đang tải toàn bộ dữ liệu mã sàn...</div>';
     
     try {
-        const res = await fetch(API + "/api/sync-variations?map_status=UNMAPPED");
+        // Gọi API lấy toàn bộ mã (Không chặn UNMAPPED nữa)
+        const res = await fetch(API + "/api/sync-variations");
         unmappedVarsCache = await res.json();
         renderQuickMapList();
     } catch(e) {
@@ -628,31 +629,46 @@ window.renderQuickMapList = function() {
     const kw = document.getElementById('quickMapSearch').value.toLowerCase().trim();
     const listEl = document.getElementById('quickMapList');
     
+    // Tìm kiếm mở rộng (Bao gồm cả việc gõ tên SKU nội bộ mà mã đó đang Map)
     const filtered = unmappedVarsCache.filter(v => 
         (v.platform_sku && v.platform_sku.toLowerCase().includes(kw)) || 
         (v.product_name && v.product_name.toLowerCase().includes(kw)) ||
-        (v.variation_name && v.variation_name.toLowerCase().includes(kw))
+        (v.variation_name && v.variation_name.toLowerCase().includes(kw)) ||
+        (v.internal_sku && v.internal_sku.toLowerCase().includes(kw))
     );
 
-    if (!filtered.length) {
+    // Giới hạn 100 kết quả để giao diện không bị treo nếu kho quá nhiều SP
+    const displayList = filtered.slice(0, 100);
+
+    if (!displayList.length) {
         listEl.innerHTML = '<div style="text-align:center; padding:30px; color:#888;">Không tìm thấy mã sàn nào phù hợp.</div>';
         return;
     }
 
-    listEl.innerHTML = filtered.map(v => `
-        <div onclick="executeQuickMap(${v.id}, '${currentQuickMapSku}')" style="display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; transition:all 0.2s; background:white;" onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#eff6ff'; this.style.transform='translateX(4px)'" onmouseout="this.style.borderColor='#e2e8f0'; this.style.background='white'; this.style.transform='translateX(0)'">
+    listEl.innerHTML = displayList.map(v => {
+        const statusTag = v.map_status === 'MAPPED' 
+            ? `<span style="background:#dcfce7; color:#15803d; padding:2px 6px; border-radius:4px; font-weight:bold;">✅ Đã map với: ${escapeHtml(v.internal_sku)}</span>`
+            : `<span style="background:#fef3c7; color:#b45309; padding:2px 6px; border-radius:4px; font-weight:bold;">⚠️ Chưa map</span>`;
+
+        return `
+        <div onclick="if(confirm('Chắc chắn muốn Map mã sàn này vào ${currentQuickMapSku}?${v.map_status === 'MAPPED' ? '\\n\\n⚠️ CẢNH BÁO: Mã này hiện ĐANG ĐƯỢC MAP với [' + v.internal_sku + ']. Nếu tiếp tục, kết nối cũ sẽ bị Ghi Đè!' : ''}')) executeQuickMap(${v.id}, '${currentQuickMapSku}')" style="display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; transition:all 0.2s; background:white;" onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#eff6ff'; this.style.transform='translateX(4px)'" onmouseout="this.style.borderColor='#e2e8f0'; this.style.background='white'; this.style.transform='translateX(0)'">
             <img src="${v.image_url || 'https://placehold.co/60x60?text=No+Img'}" style="width:45px; height:45px; border-radius:6px; object-fit:cover; border:1px solid #e2e8f0;">
             <div style="flex:1; min-width:0;">
                 <div style="font-size:13px; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(v.product_name)} ${v.variation_name ? '- ' + escapeHtml(v.variation_name) : ''}</div>
-                <div style="font-size:11px; color:#64748b; margin-top:4px; display:flex; gap:6px; align-items:center;">
+                <div style="font-size:11px; color:#64748b; margin-top:4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                     <span style="background:#f1f5f9; padding:2px 6px; border-radius:4px; font-weight:bold; color:#475569;">${(v.platform || '').toUpperCase()}</span>
                     <span>🏪 ${escapeHtml(v.shop || 'Không rõ')}</span>
                     <span style="font-family:monospace; font-weight:bold;">🏷️ ${escapeHtml(v.platform_sku || 'Không có mã')}</span>
+                    ${statusTag}
                 </div>
             </div>
             <div style="color:#2563eb; font-weight:800; font-size:20px; padding:0 10px;">+</div>
-        </div>
-    `).join('');
+        </div>`
+    }).join('');
+    
+    if (filtered.length > 100) {
+        listEl.innerHTML += `<div style="text-align:center; padding:10px; color:#64748b; font-size:12px;">Và ${filtered.length - 100} kết quả khác... Hãy gõ thêm từ khóa để tìm chính xác.</div>`;
+    }
 }
 
 window.executeQuickMap = async function(varId, internalSku) {
