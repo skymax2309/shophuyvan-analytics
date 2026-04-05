@@ -11,12 +11,14 @@ class ShopeeOrderScraper:
         self.log = log_callback
         self.parser = parser
 
-    async def scrape_new_orders(self, page, limits=None, shop_name="default"):
+    async def scrape_new_orders(self, page, limits=None, shop_name="default", mode="all"):
         if not limits:
             limits = {"new": 100, "shipping": 50, "done": 20}
             
-        self.log(f"[*] Bắt đầu Tuần tra Đa Tab Shopee. Giới hạn: Mới({limits['new']}), Đang giao({limits['shipping']}), Xong({limits['done']})")
-        
+        if mode == "new_only":
+            self.log(f"[*] ⚡ Bắt đầu Kéo Đơn Tốc Độ Cao. Chỉ quét Tab: Chờ lấy hàng ({limits['new']} đơn)")
+        else:
+            self.log(f"[*] Bắt đầu Tuần tra Đa Tab Shopee. Giới hạn: Mới({limits['new']}), Đang giao({limits['shipping']}), Xong({limits['done']})")
         # Khởi tạo Sổ đen chuẩn hóa MD5
         cache_file = f"cache_orders_shopee_{shop_name}.json"
         cached_final_orders = {}
@@ -34,12 +36,17 @@ class ShopeeOrderScraper:
         
         # Danh sách URL quét cạn các Tab (Tách riêng Chưa xử lý và Đã xử lý vì Shopee giấu tab)
         tabs_to_scan = [
-            {"name": "Chờ lấy hàng (Chưa xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=to_process", "limit_type": "new"},
-            {"name": "Chờ lấy hàng (Đã xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=processed", "limit_type": "new"},
-            {"name": "Đang giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=shipping", "limit_type": "shipping"},
-            {"name": "Đã giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=completed", "limit_type": "done"},
-            {"name": "Hủy & Trả hàng", "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel", "limit_type": "done"}
+            {"name": "Chờ lấy hàng (Chưa xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=to_process", "limit_type": "new"}
         ]
+        
+        # Nếu chạy chế độ Tuần tra (all) thì mới quét thêm các Tab phụ
+        if mode == "all":
+            tabs_to_scan.extend([
+                {"name": "Chờ lấy hàng (Đã xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=processed", "limit_type": "new"},
+                {"name": "Đang giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=shipping", "limit_type": "shipping"},
+                {"name": "Đã giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=completed", "limit_type": "done"},
+                {"name": "Hủy & Trả hàng", "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel", "limit_type": "done"}
+            ])
 
         newly_completed = {}
 

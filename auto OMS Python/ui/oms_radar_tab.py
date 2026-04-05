@@ -42,7 +42,8 @@ class OMSRadarTab(ctk.CTkFrame):
                                       command=self.toggle_auto)
         self.btn_auto.pack(pady=40)
 
-        self.hide_browser_var = ctk.BooleanVar(value=True)
+        # Đổi value=False để MẶC ĐỊNH LÀ HIỆN CHROME (Chống Shopee chặn)
+        self.hide_browser_var = ctk.BooleanVar(value=False)
         self.chk_hide_browser = ctk.CTkCheckBox(auto_frame, text="👻 Chạy ngầm (Không bật Chrome, không chiếm chuột)",
                                                 variable=self.hide_browser_var, text_color="#fbbf24", font=("Segoe UI", 14, "bold"))
         self.chk_hide_browser.pack(pady=(0, 30))
@@ -121,10 +122,11 @@ class OMSRadarTab(ctk.CTkFrame):
                                     asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "process"))
 
                             elif task_type == 'scrape_orders':
-                                self.so_log_msg("⚡ [RADAR] Nhận lệnh từ Web: KÉO ĐƠN MỚI NGAY LẬP TỨC!")
+                                self.so_log_msg("⚡ [RADAR] Nhận lệnh từ Web: KÉO ĐƠN MỚI TỐC ĐỘ CAO!")
                                 for shop_data in [s for s in self.app.DANH_SACH_SHOP if s.get("platform") in ["shopee", "tiktok", "lazada"]]:
                                     if hasattr(self.legacy_engine, 'playwright_order_job'):
-                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "scrape"))
+                                        # Bắn mã lệnh chuẩn: Kích hoạt chế độ Tốc độ cao
+                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "scrape_new_only"))
                                     
                             # Báo cáo hoàn thành lên Web
                             requests.patch(f"{api_jobs}/{job_id}", json={"status": "completed"}, timeout=10)

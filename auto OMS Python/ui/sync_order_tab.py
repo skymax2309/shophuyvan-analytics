@@ -346,8 +346,9 @@ class SyncOrderTab(ctk.CTkFrame):
                     return
 
                 # --- NHIỆM VỤ 1: CÀO ĐƠN ---
-                if action in ["scrape", "auto_all"]:
-                    self.so_log_msg(f"👉 Thực thi: CÀO ĐƠN HÀNG MỚI ({platform.upper()})")
+                if action in ["scrape", "auto_all", "scrape_new_only"]:
+                    self.so_log_msg(f"👉 Thực thi: CÀO ĐƠN HÀNG ({platform.upper()}) - Mã: {action}")
+                    scrape_mode = "new_only" if action == "scrape_new_only" else "all"
                     orders_data = []
                     
                     # 🚀 Lấy số lượng Limit từ Giao diện
@@ -365,8 +366,8 @@ class SyncOrderTab(ctk.CTkFrame):
                         from engines.shopee.shopee_orders import ShopeeOrderScraper
                         parser = ShopeeOrderParser(self.so_log_msg)
                         scraper = ShopeeOrderScraper(self.so_log_msg, parser)
-                        # Đã bơm Limits và Shop name vào cho Bộ não Shopee
-                        orders_data = await scraper.scrape_new_orders(page, limits=limits, shop_name=shop['ten_shop'])
+                        # Đã bơm Limits, Shop name và CHẾ ĐỘ QUÉT vào cho Bộ não Shopee
+                        orders_data = await scraper.scrape_new_orders(page, limits=limits, shop_name=shop['ten_shop'], mode=scrape_mode)
                     elif platform == 'tiktok':
                         from parsers.tiktok_order_parser import TiktokOrderParser
                         from engines.tiktok.tiktok_orders import TiktokOrderScraper

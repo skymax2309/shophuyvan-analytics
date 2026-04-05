@@ -6,7 +6,7 @@
 <title>Quản lý Sản phẩm & SKU</title>
 <link rel="stylesheet" href="../css/admin.css">
 <style>
-  /* Layout mới: Trái Sidebar - Phải Nội dung */
+  /* Layout: Trái Sidebar - Phải Nội dung */
   .app-wrapper { display: flex; min-height: 100vh; background: #f8fafc; }
   .side-nav { width: 260px; background: #ffffff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
   .side-header { padding: 20px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; }
@@ -14,12 +14,9 @@
   .side-header a:hover { background: #e2e8f0; color: #0f172a; }
   .side-header span { font-weight: 800; font-size: 15px; color: #0f172a; }
   .side-menu { padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
-  
-  /* Đổi tab-btn thành thẻ <a> để chuyển trang */
   .side-menu a.tab-btn { text-decoration: none; padding: 12px 16px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 600; color: #64748b; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
   .side-menu a.tab-btn:hover { background: #f1f5f9; color: #0f172a; }
   .side-menu a.tab-btn.active { background: #eff6ff; color: #2563eb; border-right: 4px solid #2563eb; border-radius: 8px 4px 4px 8px; }
-  
   .container { flex: 1; padding: 24px 32px; max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
 </style>
 </head>
@@ -29,7 +26,7 @@
     <div class="shopee-parent-card" style="border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
         <div style="display: flex; align-items: center; padding: 12px 16px; background: #f8fafc; cursor: pointer; transition: 0.2s;" onclick="toggleChildRow('{{safe_sku}}')" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
             <div style="margin-right: 12px; display: flex; align-items: center;" onclick="event.stopPropagation()">
-                <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="updateGroupHint(); if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.3);">
+                <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.3); cursor:pointer;">
             </div>
             <img src="{{image}}" style="width: 48px; height: 48px; border-radius: 6px; object-fit: cover; border: 1px solid #cbd5e1; margin-right: 16px;">
             <div style="flex: 2; min-width: 0;">
@@ -37,7 +34,7 @@
                 <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Mã SP Gốc: <span style="font-family: monospace; font-weight: 600; color: #3b82f6;">{{sku}}</span></div>
                 {{mapped_badge}}
             </div>
-                <div style="flex: 1; text-align: center; font-size: 13px;">
+            <div style="flex: 1; text-align: center; font-size: 13px;">
                 <span style="color: #64748b;">Tổng Tồn Kho:</span> <span style="font-weight: 700; color: #16a34a; font-size: 15px;">{{total_stock}}</span>
                 <br>
                 <div style="display:flex; justify-content:center; gap:6px; margin-top:6px;">
@@ -57,9 +54,12 @@
 
 <template id="tpl-child-row">
     <div style="display: flex; align-items: center; padding: 10px 16px 10px 60px; border-bottom: 1px solid #f1f5f9; background: #fff; transition: 0.2s;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='#fff'">
+        <div style="margin-right: 12px; display: flex; align-items: center;" onclick="event.stopPropagation()">
+            <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{c_sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.1); cursor:pointer;">
+        </div>
         <div style="flex: 2; min-width: 0;">
             <div style="font-size: 13px; font-weight: 600; color: #334155;">↳ {{c_name}}</div>
-            <div style="font-size: 11px; color: #94a3b8; font-family: monospace; margin-top: 2px;">Mã Phân Loại (SKU): {{c_sku}}</div>
+            <div style="font-size: 11px; color: #94a3b8; font-family: monospace; margin-top: 2px;">Mã Phân Loại: {{c_sku}}</div>
             {{c_mapped_badge}}
         </div>
         <div style="flex: 1; text-align: center; font-size: 13px; color: #0f172a;">
@@ -87,19 +87,12 @@
   </aside>
 
   <div class="container">
-    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-      <div>
-        <div style="font-size:13px;font-weight:700;color:#1d4ed8">🔄 Tự động đồng bộ SKU từ đơn hàng</div>
-        <div style="font-size:12px;color:#3b82f6;margin-top:2px">Bấm để load toàn bộ SKU duy nhất từ 3 sàn — bạn chỉ cần điền giá vốn.</div>
-      </div>
-      <button class="btn btn-primary" style="background:#2563eb" onclick="importSkusFromOrders()">⬇️ Đồng bộ SKU từ đơn hàng</button>
-      <button class="btn btn-primary" style="background:#16a34a" onclick="exportSkuExcel()">📥 Tải Excel giá vốn</button>
-    </div>
-
+    
     <div id="shopee-dropzone" style="border: 2px dashed #3b82f6; border-radius: 10px; padding: 24px; text-align: center; background: #f8fafc; cursor: pointer; transition: 0.2s; margin-bottom: 16px;" 
          onclick="document.getElementById('shopee-files-input').click()"
+         ondragenter="event.preventDefault();"
          ondragover="event.preventDefault(); this.style.background='#e0f2fe'; this.style.borderColor='#0284c7';"
-         ondragleave="this.style.background='#f8fafc'; this.style.borderColor='#3b82f6';"
+         ondragleave="event.preventDefault(); this.style.background='#f8fafc'; this.style.borderColor='#3b82f6';"
          ondrop="event.preventDefault(); this.style.background='#f8fafc'; this.style.borderColor='#3b82f6'; processShopeeFiles(event.dataTransfer.files);">
         <div style="font-size: 32px; margin-bottom: 8px;">📥</div>
         <div style="font-weight: 700; color: #1d4ed8; font-size: 15px;">Kéo thả 3 file Excel/CSV Shopee (Sales, Media, Basic) vào khung này</div>
@@ -108,12 +101,12 @@
     </div>
 
     <div class="card">
-      <div class="card-title">➕ Thêm / Cập nhật SKU thủ công</div>
+      <div class="card-title">➕ Thêm / Cập nhật Sản phẩm thủ công</div>
       <input type="hidden" id="s_old_img" value="">
       <div style="display:flex; gap:16px; margin-bottom:16px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
           <img id="s_img_preview" src="https://placehold.co/60x60?text=IMG" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #cbd5e1; background:white;">
           <div style="flex:1; min-width:200px;">
-              <label style="font-size:13px; color:#475569; font-weight:700; display:block; margin-bottom:6px;">Hình ảnh đại diện SKU</label>
+              <label style="font-size:13px; color:#475569; font-weight:700; display:block; margin-bottom:6px;">Hình ảnh đại diện</label>
               <input type="file" id="s_img_file" accept="image/*" onchange="document.getElementById('s_img_preview').src = window.URL.createObjectURL(this.files[0])" style="font-size:13px; width:100%; cursor:pointer;">
           </div>
       </div>
@@ -130,19 +123,29 @@
           <textarea id="s_desc" placeholder="Nhập chi tiết bài đăng sản phẩm..." style="width:100%; height:120px; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:13px; box-sizing:border-box; outline:none;"></textarea>
       </div>
       <div style="margin-top:16px; text-align:right;">
-        <button class="btn btn-primary" id="btnSaveSku" onclick="saveSku()">💾 Lưu SKU</button>
+        <button class="btn btn-primary" id="btnSaveSku" onclick="saveSku()">💾 Lưu Sản phẩm</button>
       </div>
     </div>
 
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <div class="card-title" style="margin:0">📋 Danh sách SKU (<span id="skuCount">0</span>)</div>
+          <div class="card-title" style="margin:0">📋 Danh sách Sản phẩm (<span id="skuCount">0</span>)</div>
         </div>
-        <input id="sku-search" type="text" placeholder="🔍 Tìm SKU hoặc tên sản phẩm..." oninput="renderSkuTables()" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:280px;outline:none">
-        <button id="btnBulkDeleteSku" onclick="bulkDeleteSkus()" style="display: none; padding: 7px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 8px;">
-          🗑️ Xóa đã chọn (<span id="selectedSkuCount">0</span>)
-        </button>
+        
+        <div style="display:flex; align-items:center; gap:8px;">
+            <input id="sku-search" type="text" placeholder="🔍 Tìm SKU hoặc tên..." oninput="renderSkuTables()" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:280px;outline:none">
+            
+            <button id="btnBulkGroupParent" onclick="promptGroupParent()" style="display: none; padding: 7px 15px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+              🔗 Gộp thành SP Cha (<span id="selectedGroupCount">0</span>)
+            </button>
+            <button id="btnBulkUngroup" onclick="bulkUngroup()" style="display: none; padding: 7px 15px; background: #64748b; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+              ✂️ Tách khỏi Cha
+            </button>
+            <button id="btnBulkDeleteSku" onclick="bulkDeleteSkus()" style="display: none; padding: 7px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+              🗑️ Xóa đã chọn (<span id="selectedSkuCount">0</span>)
+            </button>
+        </div>
       </div>
 
       <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0;flex-wrap:wrap;">
@@ -173,10 +176,6 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-<script src="../js/utils/api.js"></script>
-<script src="../js/utils/format.js"></script>
-<script src="../js/admin/sku-manager.js"></script>
 <div id="productDetailModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:10000; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
   <div style="background:white; border-radius:12px; width:90%; max-width:900px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 40px rgba(0,0,0,0.2); overflow:hidden;">
     <div style="padding:16px 24px; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center; background:#f8fafc;">
@@ -211,8 +210,11 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="../js/utils/api.js"></script>
+<script src="../js/utils/format.js"></script>
+<script src="../js/admin/sku-manager.js"></script>
 <script>
-    // Hàm showToast dùng chung cho trang này
     function showToast(msg, isErr = false) {
       const t = document.getElementById("toast")
       t.textContent = msg
@@ -220,7 +222,6 @@
       t.classList.add("show")
       setTimeout(() => t.classList.remove("show"), 2500)
     }
-    // Khởi chạy khi vào trang
     document.addEventListener("DOMContentLoaded", loadSkus);
 </script>
 </body>
