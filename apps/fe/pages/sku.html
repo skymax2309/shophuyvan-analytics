@@ -79,22 +79,27 @@
 <template id="tpl-child-row">
     <div class="sku-child-row" style="display: flex; align-items: center; padding: 10px 16px 10px 60px; border-bottom: 1px solid #f1f5f9; background: #fff; transition: 0.2s;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='#fff'">
         <div style="margin-right: 12px; display: flex; align-items: center;" onclick="event.stopPropagation()">
-            <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{c_sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.1); cursor:pointer;">
+            <input type="checkbox" class="sku-chk" data-sku="{{c_sku}}" onchange="updateSkuBulkDeleteUI()" style="transform:scale(1.1); cursor:pointer;">
         </div>
+        <img src="{{c_img_url}}" style="width:36px; height:36px; border-radius:4px; object-fit:cover; border:1px solid #e2e8f0; margin-right:12px;">
         <div style="flex: 2; min-width: 0;">
             <div style="font-size: 13px; font-weight: 600; color: #334155;">↳ {{c_name}}</div>
-            <div style="font-size: 11px; color: #94a3b8; font-family: monospace; margin-top: 2px;">Mã Phân Loại: {{c_sku}}</div>
+            <div style="font-size: 11px; color: #94a3b8; font-family: monospace; margin-top: 2px;">Mã: {{c_sku}}</div>
             {{c_mapped_badge}}
         </div>
-        <div style="flex: 1; text-align: center; font-size: 13px; color: #0f172a;">
-            Giá vốn: <strong>{{c_cost}}</strong>
+        <div style="flex: 1; text-align: center; font-size: 13px;">
+            <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Giá vốn</div>
+            <strong style="color:#64748b;">{{c_cost}}</strong>
         </div>
-        <div style="flex: 1; text-align: right; font-size: 13px; color: #0f172a;">
-            Tồn kho: <strong>{{c_stock}}</strong>
+        <div style="flex: 1; text-align: center; font-size: 13px;">
+            <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Tồn kho</div>
+            <strong style="color:#2563eb; font-size:14px;">📦 {{c_stock}}</strong>
         </div>
-        <div style="flex: 0 0 140px; text-align: right; display: flex; gap: 4px; justify-content: flex-end;">
+        <div style="flex: 0 0 260px; text-align: right; display: flex; gap: 4px; justify-content: flex-end;">
+            <button onclick="openQuickMapModal('{{c_sku}}'); event.stopPropagation();" style="padding:4px 8px; font-size:11px; font-weight:600; border-radius:4px; background:#eff6ff; color:#2563eb; border:1px dashed #93c5fd; cursor:pointer;">🔗 Map SKU</button>
             <button class="btn btn-edit" data-sku="{{c_sku}}" data-name="{{c_enc_name}}" data-cinv="{{c_raw_inv}}" data-creal="{{c_raw_real}}" data-stock="{{c_raw_stock}}" data-img="{{c_img}}" onclick="editSkuFromBtn(this)" style="padding:4px 8px; font-size:11px; font-weight:600; border-radius:4px;">✏️ Sửa</button>
             <button onclick="duplicateSku('{{c_sku}}'); event.stopPropagation();" style="padding:4px 8px; font-size:11px; font-weight:600; border-radius:4px; background:#e0e7ff; color:#4f46e5; border:1px solid #c7d2fe; cursor:pointer;">📑 Nhân bản</button>
+            <button onclick="deleteSku('{{c_sku}}'); event.stopPropagation();" style="padding:4px 8px; font-size:11px; font-weight:600; border-radius:4px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; cursor:pointer;" title="Xóa phân loại này">🗑️</button>
         </div>
     </div>
 </template>

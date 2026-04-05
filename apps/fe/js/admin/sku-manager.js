@@ -131,10 +131,15 @@ function generateRowHtml(p) {
     html = html.replace(/{{total_stock}}/g, totalStock);
 
     if (p.children && p.children.length > 0) {
-        const childrenHtml = p.children.map(c => {
+const childrenHtml = p.children.map(c => {
             let ch = tplChild;
+            // Xử lý ảnh phân loại, nếu rỗng thì hiện placeholder
+            const cValidImg = c.image_url && c.image_url !== "undefined" && c.image_url !== "null" && c.image_url.trim() !== "";
+            const cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
+
             ch = ch.replace(/{{c_sku}}/g, c.sku);
             ch = ch.replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại"));
+            ch = ch.replace(/{{c_img_url}}/g, cImgUrl);
             ch = ch.replace(/{{c_cost}}/g, Math.round(c.cost_real || 0).toLocaleString('vi-VN') + 'đ');
             ch = ch.replace(/{{c_stock}}/g, c.stock || 0);
             ch = ch.replace(/{{c_enc_name}}/g, encodeURIComponent(c.product_name || ""));

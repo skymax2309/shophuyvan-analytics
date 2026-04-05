@@ -41,6 +41,29 @@ class ShopeeProducts:
             await page.goto("https://banhang.shopee.vn/portal/product-mass/mass-update/download", wait_until="commit")
             await asyncio.sleep(5)
 
+            # --- 🌟 BỌC THÉP: CÀI ĐẶT BỘ LỌC "TỒN KHO >= 1" DỰA TRÊN LOG AI ---
+            try:
+                self.log("   ⚙️ CÀI ĐẶT BỘ LỌC: Đang loại bỏ các sản phẩm hết hàng...")
+                # Bắt chính xác cái thẻ chứa toàn bộ bộ lọc
+                filter_card = page.locator('#mass-update-filter-card')
+                
+                # Bấm vào Radio "Tùy chỉnh" (Thường là ô Radio thứ 2 trong thẻ lọc)
+                custom_radio = filter_card.locator('label.eds-radio').nth(1)
+                if await custom_radio.is_visible():
+                    await custom_radio.click()
+                    await asyncio.sleep(1.5)
+                    
+                    # Điền số 1 vào ô Tồn kho (Là ô nhập số đầu tiên xuất hiện)
+                    min_stock_input = filter_card.locator('input.eds-input__input').first
+                    if await min_stock_input.is_visible():
+                        await min_stock_input.fill("") # Xóa sạch rác cũ
+                        await min_stock_input.fill("1")
+                        self.log("   ✅ Đã gài thành công bộ lọc: Chỉ tải sản phẩm có Tồn kho >= 1.")
+                    await asyncio.sleep(1.5)
+            except Exception as e:
+                self.log(f"   ⚠️ Lỗi cài bộ lọc (Bot sẽ bỏ qua và tải toàn bộ SP): {e}")
+            # --------------------------------------------------------------------
+
             # Định nghĩa 3 loại file cần tải dựa trên hướng dẫn của Huy
             file_types = {
                 "basic": "Thông tin cơ bản",
