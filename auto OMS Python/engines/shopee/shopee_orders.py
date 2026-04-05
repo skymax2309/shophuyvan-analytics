@@ -34,19 +34,25 @@ class ShopeeOrderScraper:
 
         all_orders_data = []
         
-        # Danh sách URL quét cạn các Tab (Tách riêng Chưa xử lý và Đã xử lý vì Shopee giấu tab)
-        tabs_to_scan = [
-            {"name": "Chờ lấy hàng (Chưa xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=to_process", "limit_type": "new"}
-        ]
-        
-        # Nếu chạy chế độ Tuần tra (all) thì mới quét thêm các Tab phụ
-        if mode == "all":
-            tabs_to_scan.extend([
+        # BỘ LỌC TỐC ĐỘ: CHIA LÀN THEO NHIỆM VỤ
+        if mode == "new_only":
+            tabs_to_scan = [
+                {"name": "Chờ lấy hàng (Chưa xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=to_process", "limit_type": "new"}
+            ]
+        elif mode == "status_only":
+            tabs_to_scan = [
+                {"name": "Đang giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=shipping", "limit_type": "shipping"},
+                {"name": "Đã giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=completed", "limit_type": "done"},
+                {"name": "Hủy & Trả hàng", "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel", "limit_type": "done"}
+            ]
+        else: # Chế độ all (Máy cày ban đêm quét sạch bách)
+            tabs_to_scan = [
+                {"name": "Chờ lấy hàng (Chưa xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=to_process", "limit_type": "new"},
                 {"name": "Chờ lấy hàng (Đã xử lý)", "url": "https://banhang.shopee.vn/portal/sale/order?type=toship&source=processed", "limit_type": "new"},
                 {"name": "Đang giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=shipping", "limit_type": "shipping"},
                 {"name": "Đã giao", "url": "https://banhang.shopee.vn/portal/sale/order?type=completed", "limit_type": "done"},
                 {"name": "Hủy & Trả hàng", "url": "https://banhang.shopee.vn/portal/sale/returnrefundcancel", "limit_type": "done"}
-            ])
+            ]
 
         newly_completed = {}
 

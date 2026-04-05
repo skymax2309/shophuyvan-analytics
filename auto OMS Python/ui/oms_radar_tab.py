@@ -133,12 +133,13 @@ class OMSRadarTab(ctk.CTkFrame):
                                     if hasattr(self.legacy_engine, 'playwright_order_job'):
                                         asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "scrape_new_only"))
 
-                            # LUỒNG MỚI: QUÉT HÀNH TRÌNH (STATUS)
+                            # LUỒNG MỚI: QUÉT HÀNH TRÌNH (BẰNG CÁO ĐA TAB SIÊU TỐC)
                             elif task_type == 'sync_status':
-                                self.so_log_msg("🔍 [RADAR] Nhận lệnh từ Web: ĐỒNG BỘ HÀNH TRÌNH (Trạng thái đơn)!")
+                                self.so_log_msg("🔍 [RADAR] Nhận lệnh từ Web: ĐỒNG BỘ HÀNH TRÌNH (Bỏ qua Tab Chờ Lấy Hàng)!")
                                 for shop_data in [s for s in self.app.DANH_SACH_SHOP if s.get("platform") in ["shopee", "tiktok", "lazada"]]:
                                     if hasattr(self.legacy_engine, 'playwright_order_job'):
-                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "status"))
+                                        # Truyền mã lệnh ĐẶC NHIỆM: Chỉ quét hành trình
+                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "status_only"))
                                     
                             # Báo cáo hoàn thành lên Web
                             requests.patch(f"{api_jobs}/{job_id}", json={"status": "completed"}, timeout=10)

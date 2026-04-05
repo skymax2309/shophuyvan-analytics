@@ -42,6 +42,9 @@ class TiktokOrderScraper:
         if mode == "new_only":
             self.log(f"🚀 [TIKTOK RADAR] Khởi động TỐC ĐỘ CAO (Chỉ quét 'Cần gửi') cho Shop: {shop_name}...")
             target_tabs = [t for t in self.tabs_to_scrape if t["name"] == "Cần gửi"]
+        elif mode == "status_only":
+            self.log(f"🚀 [TIKTOK RADAR] Khởi động QUÉT HÀNH TRÌNH cho Shop: {shop_name}...")
+            target_tabs = [t for t in self.tabs_to_scrape if t["name"] in ["Đã gửi", "Đã hoàn tất", "Đã hủy", "Giao không thành công"]]
         else:
             self.log(f"🚀 [TIKTOK RADAR] Khởi động quét đơn dạng thẻ cho Shop: {shop_name}...")
             target_tabs = self.tabs_to_scrape

@@ -37,6 +37,9 @@ class LazadaOrderScraper:
         if mode == "new_only":
             self.log(f"🚀 [LAZADA RADAR] Khởi động TỐC ĐỘ CAO (Chỉ quét 'Chờ đóng gói & Chờ bàn giao') cho Shop: {shop_name}...")
             target_tabs = [t for t in self.tabs_to_scrape if t["name"] in ["Chờ đóng gói", "Chờ bàn giao"]]
+        elif mode == "status_only":
+            self.log(f"🚀 [LAZADA RADAR] Khởi động QUÉT HÀNH TRÌNH cho Shop: {shop_name}...")
+            target_tabs = [t for t in self.tabs_to_scrape if t["name"] in ["Đang giao", "Đã giao", "Giao thất bại", "Đã hủy", "Trả hàng"]]
         else:
             self.log(f"🚀 [LAZADA RADAR] Khởi động chiến dịch quét đơn cho Shop: {shop_name}...")
             target_tabs = self.tabs_to_scrape

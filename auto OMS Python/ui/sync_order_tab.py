@@ -346,9 +346,13 @@ class SyncOrderTab(ctk.CTkFrame):
                     return
 
                 # --- NHIỆM VỤ 1: CÀO ĐƠN ---
-                if action in ["scrape", "auto_all", "scrape_new_only"]:
+                if action in ["scrape", "auto_all", "scrape_new_only", "status_only"]:
                     self.so_log_msg(f"👉 Thực thi: CÀO ĐƠN HÀNG ({platform.upper()}) - Mã: {action}")
-                    scrape_mode = "new_only" if action == "scrape_new_only" else "all"
+                    
+                    if action == "scrape_new_only": scrape_mode = "new_only"
+                    elif action == "status_only": scrape_mode = "status_only"
+                    else: scrape_mode = "all"
+                    
                     orders_data = []
                     
                     # 🚀 Lấy số lượng Limit từ Giao diện

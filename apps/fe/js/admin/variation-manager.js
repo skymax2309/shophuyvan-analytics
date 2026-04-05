@@ -15,7 +15,8 @@ function escapeHtml(unsafe) {
 
 // 1. TẢI DỮ LIỆU & RÚT TRÍCH DANH SÁCH SÀN/SHOP
 async function loadVariations() {
-  document.getElementById('variationsTable').innerHTML = '<p style="text-align:center;color:#888;padding:40px">⏳ Đang tải dữ liệu đa sàn...</p>';
+  const container = document.getElementById('var-list-wrapper') || document.getElementById('variationsTable');
+  if (container) container.innerHTML = '<p style="text-align:center;color:#888;padding:40px">⏳ Đang tải dữ liệu đa sàn...</p>';
   try {
     allVariations = await fetch(API + '/api/sync-variations').then(r => r.json());
     
@@ -28,7 +29,8 @@ async function loadVariations() {
     updateUnmappedBadge();
   } catch(e) {
     console.error("Lỗi tải dữ liệu:", e);
-    document.getElementById('variationsTable').innerHTML = `<p style="color:#ef4444;padding:20px;text-align:center;font-weight:bold;">❌ Lỗi kết nối Server: ${e.message}</p>`;
+    const containerErr = document.getElementById('var-list-wrapper') || document.getElementById('variationsTable');
+    if (containerErr) containerErr.innerHTML = `<p style="color:#ef4444;padding:20px;text-align:center;font-weight:bold;">❌ Lỗi kết nối Server: ${e.message}</p>`;
   }
 }
 
@@ -62,10 +64,10 @@ function updateUnmappedBadge() {
   }
 }
 
-// 2. RENDER BẢNG & BỘ LỌC (GIAO DIỆN RESPONSIVE CARDS MỚI)
+// 2. RENDER BẢNG & BỘ LỌC (GIAO DIỆN DẠNG DANH SÁCH CHUẨN SKU)
 window.renderVariations = function(page = 1) {
   try {
-      currentVarPage = page; // 🌟 Ghi nhớ trang hiện tại
+      currentVarPage = page;
       const kw = (document.getElementById('var_search').value || '').toLowerCase();
       const platformFilter = document.getElementById('var_filter_platform').value;
       const shopFilter = document.getElementById('var_filter_shop').value;
@@ -82,12 +84,15 @@ window.renderVariations = function(page = 1) {
         return matchKw && matchPlatform && matchShop && matchStatus;
       });
 
+      const container = document.getElementById('var-list-wrapper') || document.getElementById('variationsTable');
+      const paginationWrap = document.getElementById('varPaginationWrap');
+
       if (!list.length) {
-        document.getElementById('variationsTable').innerHTML = '<p style="text-align:center;color:#888;padding:40px">Không tìm thấy sản phẩm nào phù hợp</p>';
+        if (container) container.innerHTML = '<p style="text-align:center;color:#888;padding:40px; border:1px dashed #cbd5e1; border-radius:8px; background:white;">🔍 Không tìm thấy sản phẩm nào phù hợp</p>';
+        if (paginationWrap) paginationWrap.innerHTML = '';
         return;
       }
 
-      // 🌟 LỌC LẤY ĐÚNG SỐ LƯỢNG THẺ CỦA TRANG HIỆN TẠI (Chống giật lag)
       const totalItems = list.length;
       const totalPages = Math.ceil(totalItems / VARS_PER_PAGE) || 1;
       const startIndex = (currentVarPage - 1) * VARS_PER_PAGE;
@@ -104,8 +109,7 @@ window.renderVariations = function(page = 1) {
         IGNORED:  '<span style="background:#f3f4f6;color:#9ca3af;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">🚫 Bỏ qua</span>',
       })[s] || s;
 
-      // 🌟 Chỉ vẽ các thẻ thuộc trang hiện tại (pagedList thay vì list)
-      const cards = pagedList.map(v => {
+      const rows = pagedList.map(v => {
         let mappedHtml = '';
         if (v.map_status === 'MAPPED') {
           try {
@@ -120,124 +124,81 @@ window.renderVariations = function(page = 1) {
           }
         }
         
-          const priceFormatted = v.price ? Number(v.price).toLocaleString('vi-VN') + 'đ' : '0đ';
-          const discountFormatted = v.discount_price ? Number(v.discount_price).toLocaleString('vi-VN') + 'đ' : '0đ';
-          const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
+        const priceFormatted = v.price ? Number(v.price).toLocaleString('vi-VN') + 'đ' : '0đ';
+        const discountFormatted = v.discount_price ? Number(v.discount_price).toLocaleString('vi-VN') + 'đ' : '0đ';
+        const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
           
-          // XỬ LÝ FALLBACK ẢNH TẠI FRONTEND (ĐẢO NGƯỢC ƯU TIÊN):
-          let displayImg = '';
+        let displayImg = '';
+        if (v.internal_sku) {
+           const matchedSku = (window.allSkus || []).find(s => s.sku === v.internal_sku);
+           if (matchedSku && (matchedSku.image_url || '').trim() !== '') displayImg = matchedSku.image_url.trim();
+        }
+        if (!displayImg) displayImg = (v.image_url || '').trim();
+        if (!displayImg && v.internal_sku) {
+           const sibling = allVariations.find(other => other.internal_sku === v.internal_sku && (other.image_url || '').trim() !== '');
+           if (sibling) displayImg = sibling.image_url.trim();
+        }
           
-          // 1. LUÔN ƯU TIÊN tìm ảnh từ danh sách SKU nội bộ trước (Bỏ qua ảnh chung của TikTok)
-          if (v.internal_sku) {
-             const matchedSku = (window.allSkus || []).find(s => s.sku === v.internal_sku);
-             if (matchedSku && (matchedSku.image_url || '').trim() !== '') {
-                 displayImg = matchedSku.image_url.trim();
-             }
-          }
-          
-          // 2. Nếu SKU nội bộ không có ảnh, mới dùng ảnh gốc của sàn
-          if (!displayImg) {
-             displayImg = (v.image_url || '').trim();
-          }
-          
-          // 3. Nếu vẫn không có, mượn tạm ảnh của các sàn khác có cùng mã map
-          if (!displayImg && v.internal_sku) {
-             const sibling = allVariations.find(other => other.internal_sku === v.internal_sku && (other.image_url || '').trim() !== '');
-             if (sibling) displayImg = sibling.image_url.trim();
-          }
-          
-          return `
-          <div class="var-card" id="var-row-${v.id}">
-              <div class="var-card-header">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
-                      <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()" style="transform:scale(1.2)">
-                      ${displayImg ? `<img src="${displayImg}" class="var-img">` : `<div class="var-img" style="background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:24px">📦</div>`}
-                  </div>
-                <div class="var-info">
-                    <div class="var-title" title="${escapeHtml(v.product_name)}">${escapeHtml(v.product_name) || '—'}</div>
-                    <div class="var-subtitle">Phân loại: <strong style="color:#0f172a">${escapeHtml(v.variation_name) || '—'}</strong></div>
-                    <div class="var-badges">
-                        <span style="background:#f1f5f9;color:#475569;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">🛒 ${escapeHtml(v.platform).toUpperCase()} - ${escapeHtml(v.shop)}</span>
-                        <span style="background:#e0e7ff;color:#4338ca;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">SKU Sàn: ${escapeHtml(v.platform_sku) || '—'}</span>
-                        ${statusBadge(v.map_status)}
-                    </div>
+        return `
+        <div style="display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; background: #fff; transition: 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+            <div style="margin-right: 12px; display: flex; align-items: center;">
+                <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()" style="transform:scale(1.2); cursor:pointer;">
+            </div>
+            <img src="${displayImg || 'https://placehold.co/60x60?text=No+Img'}" style="width: 48px; height: 48px; border-radius: 6px; object-fit: cover; border: 1px solid #cbd5e1; margin-right: 16px;">
+            <div style="flex: 2; min-width: 0;">
+                <div style="font-weight: 700; color: #0f172a; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(v.product_name)}">${escapeHtml(v.product_name) || '—'}</div>
+                <div style="font-size: 12px; color: #64748b; margin-top: 4px;">↳ Phân loại: <strong style="color:#0f172a">${escapeHtml(v.variation_name) || '—'}</strong></div>
+                <div style="display:flex; gap:6px; margin-top:6px; align-items:center; flex-wrap:wrap;">
+                    <span style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;">🛒 ${escapeHtml(v.platform)} - ${escapeHtml(v.shop)}</span>
+                    <span style="background:#e0e7ff;color:#4338ca;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">SKU Sàn: ${escapeHtml(v.platform_sku) || '—'}</span>
+                    ${statusBadge(v.map_status)}
                 </div>
             </div>
-            
-            <div class="var-price-stock">
-                <div>
-                    <div style="font-size:11px;color:#64748b;margin-bottom:4px">Giá bán (Gốc - KM)</div>
-                    <div style="font-size:14px;font-weight:700;color:#0f172a">
-                        ${discountFormatted !== '0đ' && discountFormatted !== priceFormatted ? `<span style="text-decoration:line-through;color:#94a3b8;font-weight:500;margin-right:6px">${priceFormatted}</span><span style="color:#ef4444">${discountFormatted}</span>` : priceFormatted}
-                    </div>
-                </div>
-                <div style="text-align:right">
-                    <div style="font-size:11px;color:#64748b;margin-bottom:4px">Tồn kho</div>
-                    <div style="font-size:15px;font-weight:800;color:#2563eb">${stockStr}</div>
-                </div>
+            <div style="flex: 1; text-align: center; font-size: 13px;">
+                <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Giá bán (Gốc - KM)</div>
+                <strong>${discountFormatted !== '0đ' && discountFormatted !== priceFormatted ? `<span style="text-decoration:line-through;color:#94a3b8;font-weight:500;margin-right:4px">${priceFormatted}</span><span style="color:#ef4444">${discountFormatted}</span>` : priceFormatted}</strong>
             </div>
-
-            <div class="var-actions">
+            <div style="flex: 1; text-align: center; font-size: 13px;">
+                <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Tồn kho</div>
+                <strong style="color:#2563eb; font-size:15px;">📦 ${stockStr}</strong>
+            </div>
+            <div style="flex: 0 0 180px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
                 ${v.map_status === 'MAPPED' ? `
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <div style="display:flex; gap:6px; flex-wrap:wrap; flex:1">${mappedHtml}</div>
-                        <div style="display:flex; gap:6px;">
-                            <button onclick="resetVarMap(${v.id})" style="padding:8px 12px; background:#fee2e2; color:#dc2626; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700">✕ Hủy Map</button>
-                            <button onclick="openEditVarModal(${v.id})" style="padding:8px 12px; background:#fef3c7; color:#d97706; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700">✏️ Sửa SP</button>
-                        </div>
+                    <div style="font-size:11px; margin-bottom:4px;">${mappedHtml}</div>
+                    <div style="display:flex; gap:6px; width:100%;">
+                        <button onclick="resetVarMap(${v.id})" style="flex:1; padding:6px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">✕ Hủy Map</button>
+                        <button onclick="openEditVarModal(${v.id})" style="flex:1; padding:6px; background:#fef3c7; color:#d97706; border:1px solid #fde047; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">✏️ Sửa SP</button>
                     </div>
                 ` : `
-                    <div id="map-container-${v.id}" style="display:flex; flex-direction:column; gap:8px;">
-                        <div class="map-row" style="display:flex; gap:6px; align-items:center;">
-                            <input type="text" list="sku-datalist" class="map-sku-select" placeholder="🔍 Gõ tìm mã SKU nội bộ..." style="flex:1; min-width:120px; border:1px solid #cbd5e1; border-radius:8px; padding:8px 12px; font-size:13px">
-                            <input type="number" class="map-qty-input" value="1" min="1" style="width:55px; border:1px solid #cbd5e1; border-radius:8px; padding:8px; font-size:13px; text-align:center" title="Số lượng">
-                            <button onclick="window.addMapRow(${v.id})" style="padding:8px 14px; background:#10b981; color:white; border:none; border-radius:8px; font-size:14px; cursor:pointer; font-weight:bold" title="Thêm SKU ghép">+</button>
-                        </div>
-                    </div>
-                    <div class="var-btn-group">
-                        <button onclick="saveVarMap(${v.id})" style="background:#2563eb; color:white; border:none; border-radius:8px; padding:9px; font-size:13px; cursor:pointer; font-weight:700">💾 Lưu Map</button>
-                        <button onclick="ignoreVar(${v.id})" style="background:#f1f5f9; color:#475569; border:none; border-radius:8px; padding:9px; font-size:13px; cursor:pointer; font-weight:700">🚫 Bỏ qua</button>
-                        <button onclick="openEditVarModal(${v.id})" style="background:#f59e0b; color:white; border:none; border-radius:8px; padding:9px; font-size:13px; cursor:pointer; font-weight:700">✏️ Sửa SP</button>
+                    <button onclick="openQuickMapModal('${v.id}', '${escapeHtml(v.platform_sku)}')" style="width:100%; padding:6px 10px; background:#3b82f6; color:white; border:none; border-radius:6px; font-size:11px; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(37,99,235,0.2);">🔗 MAP Nhanh</button>
+                    <div style="display:flex; gap:6px; width:100%;">
+                        <button onclick="ignoreVar(${v.id})" style="flex:1; padding:6px 0; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">🚫 Bỏ qua</button>
+                        <button onclick="openEditVarModal(${v.id})" style="flex:1; padding:6px 0; background:#f59e0b; color:white; border:none; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">✏️ Sửa SP</button>
                     </div>
                 `}
             </div>
         </div>`;
       }).join('');
 
-      document.getElementById('variationsTable').innerHTML = `
-        <style>
-          .var-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 10px 0 20px 0; }
-          @media (min-width: 768px) { .var-grid { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); } }
-          @media (min-width: 1200px) { .var-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); } }
-          .var-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s; position: relative; }
-          .var-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
-          .var-card-header { display: flex; gap: 14px; align-items: flex-start; }
-          .var-img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid #e2e8f0; }
-          .var-info { flex: 1; min-width: 0; }
-          .var-title { font-weight: 700; font-size: 14px; color: #1e293b; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
-          .var-subtitle { font-size: 13px; color: #64748b; margin-bottom: 6px; }
-          .var-badges { display: flex; gap: 6px; flex-wrap: wrap; }
-          .var-price-stock { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 12px 14px; border-radius: 8px; border: 1px dashed #cbd5e1; }
-          .var-actions { border-top: 1px solid #e2e8f0; padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
-          .var-btn-group { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; margin-top: 4px; }
-        </style>
-        <datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>
-        <div class="var-grid">
-            ${cards}
-        </div>
+      if (container) {
+          container.innerHTML = `
+            <datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>
+            <div style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.05); margin-bottom: 20px;">
+                ${rows}
+            </div>
+          `;
+      }
         
-        <div style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:20px; margin-bottom:20px; width:100%;">
+      if (paginationWrap) {
+          paginationWrap.innerHTML = `
             <button onclick="renderVariations(${currentVarPage - 1})" ${currentVarPage === 1 ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${currentVarPage === 1 ? '#f8fafc' : 'white'}; color:${currentVarPage === 1 ? '#cbd5e1' : '#333'}; cursor:${currentVarPage === 1 ? 'not-allowed' : 'pointer'}; font-weight:bold;">‹ Trang trước</button>
-            
             <span style="padding:8px 16px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:14px; border:1px solid #bfdbfe;">
                 Trang ${currentVarPage} / ${totalPages} (Tổng ${totalItems} SP)
             </span>
-            
             <button onclick="renderVariations(${currentVarPage + 1})" ${currentVarPage === totalPages ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${currentVarPage === totalPages ? '#f8fafc' : 'white'}; color:${currentVarPage === totalPages ? '#cbd5e1' : '#333'}; cursor:${currentVarPage === totalPages ? 'not-allowed' : 'pointer'}; font-weight:bold;">Trang sau ›</button>
-        </div>
-        `;
+          `;
+      }
         
-      // 🌟 BƠM NÚT ĐỒNG BỘ TỰ ĐỘNG VÀO TIÊU ĐỀ NẾU CHƯA CÓ
       const titleEl = document.querySelector('#tab-variations .card-title');
       if (titleEl && !document.getElementById('btnAutoSyncOld')) {
           titleEl.innerHTML += ` <button id="btnAutoSyncOld" onclick="autoSyncOldUnmapped()" style="margin-left:12px; background:linear-gradient(135deg, #10b981, #059669); color:white; border:none; border-radius:8px; padding:6px 14px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 3px 6px rgba(16,185,129,0.3); transition:0.2s;" title="Biến toàn bộ mã Chưa Map thành SKU Nội bộ">⚡ Đẩy mã Chưa Map sang SKU Nội Bộ</button>`;
@@ -246,7 +207,8 @@ window.renderVariations = function(page = 1) {
       injectEditModalUI();
   } catch(err) {
       console.error("Lỗi khi render bảng:", err);
-      document.getElementById('variationsTable').innerHTML = `<p style="color:#ef4444;padding:20px;text-align:center;font-weight:bold;">❌ Lỗi vẽ giao diện: ${err.message}</p>`;
+      const containerErr = document.getElementById('var-list-wrapper') || document.getElementById('variationsTable');
+      if (containerErr) containerErr.innerHTML = `<p style="color:#ef4444;padding:20px;text-align:center;font-weight:bold;">❌ Lỗi vẽ giao diện: ${err.message}</p>`;
   }
 }
 
