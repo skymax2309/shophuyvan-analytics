@@ -156,9 +156,9 @@ async function handleProducts(request, env, cors) {
  // ==========================================
   // API POST GỐC (Lưu 1 sản phẩm thủ công)
   // ==========================================
-  if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent")) {
+if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent")) {
     const b = await request.json();
-    console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Link ảnh:", b.image_url);
+    console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Giá Vốn HĐ:", b.cost_invoice, "| Giá Thực:", b.cost_real);
     await env.DB.prepare(`
       INSERT INTO products (sku, product_name, description, video_url, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, min_stock)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -166,8 +166,8 @@ async function handleProducts(request, env, cors) {
         product_name = excluded.product_name,
         description = CASE WHEN excluded.description != '' THEN excluded.description ELSE products.description END,
         video_url = CASE WHEN excluded.video_url != '' THEN excluded.video_url ELSE products.video_url END,
-        cost_invoice = CASE WHEN excluded.cost_invoice > 0 THEN excluded.cost_invoice ELSE products.cost_invoice END,
-        cost_real = CASE WHEN excluded.cost_real > 0 THEN excluded.cost_real ELSE products.cost_real END,
+        cost_invoice = excluded.cost_invoice,
+        cost_real = excluded.cost_real,
         is_combo = excluded.is_combo,
         combo_items = excluded.combo_items,
         combo_qty = excluded.combo_qty,

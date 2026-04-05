@@ -242,13 +242,17 @@ async function saveSku() {
         body: JSON.stringify({ sku, product_name: name, description: desc, video_url: video, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock })
       });
 
-      // LOGIC TỰ ĐỘNG ÁP DỤNG GIÁ VỐN CHO TẤT CẢ ANH EM CÙNG MÃ GỐC
+// LOGIC TỰ ĐỘNG ÁP DỤNG GIÁ VỐN CHO TẤT CẢ ANH EM CÙNG MÃ GỐC
       if (applyAllCost && window.allSkus) {
+          console.log("⚡ [DÒ MÌN FRONTEND] Bắt đầu đồng bộ giá vốn. SKU Gốc đang sửa:", sku);
           const currentItem = window.allSkus.find(x => x.sku === sku);
+          console.log("⚡ [DÒ MÌN FRONTEND] Thông tin Item hiện tại:", currentItem);
           if (currentItem) {
               const targetParentSku = currentItem.parent_sku ? currentItem.parent_sku : (currentItem.is_parent == 1 ? currentItem.sku : null);
+              console.log("⚡ [DÒ MÌN FRONTEND] Mã Sản Phẩm Cha (Parent SKU) là:", targetParentSku);
               if (targetParentSku) {
                   const others = window.allSkus.filter(x => (x.parent_sku === targetParentSku || x.sku === targetParentSku) && x.sku !== sku);
+                  console.log(`⚡ [DÒ MÌN FRONTEND] Tìm thấy ${others.length} phân loại anh em cần đồng bộ:`, others);
                   if (others.length > 0) showToast(`⏳ Đang cập nhật giá vốn cho ${others.length} phân loại khác...`);
                   for (const sibling of others) {
                       await fetch(API + "/api/products", {
