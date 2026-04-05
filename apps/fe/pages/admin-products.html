@@ -105,23 +105,23 @@
         </div>
 
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select id="var_filter_platform" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="updateShopDropdown(); filterAndRender()">
+<select id="var_filter_platform" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="updateShopDropdown(); renderVariations()">
             <option value="">🌐 Tất cả Sàn</option>
             <option value="shopee">Shopee</option>
             <option value="tiktok">TikTok</option>
             <option value="lazada">Lazada</option>
           </select>
-          <select id="var_filter_shop" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="filterAndRender()">
+          <select id="var_filter_shop" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="renderVariations()">
             <option value="">🛒 Tất cả Shop</option>
           </select>
-          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="filterAndRender()">
+          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="renderVariations()">
             <option value="">Trạng thái Map</option>
             <option value="UNMAPPED">⚠️ Chưa map</option>
             <option value="MAPPED">✅ Đã map</option>
             <option value="IGNORED">🚫 Bỏ qua</option>
           </select>
           
-          <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..." oninput="filterAndRender()"
+          <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..." oninput="renderVariations()"
             style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:220px">
           
           <button id="btnBulkDeleteVar" style="display:none; background:#ef4444; color:white; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:600; cursor:pointer" onclick="bulkDeleteVariations()">
@@ -276,6 +276,9 @@
       t.classList.add("show");
       setTimeout(() => t.classList.remove("show"), 2500);
     }
+
+    // Khởi chạy tải dữ liệu khi vào trang
+    document.addEventListener("DOMContentLoaded", loadVariations);
 </script>
 
 </body>

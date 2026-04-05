@@ -155,8 +155,12 @@ window.renderVariations = function(page = 1) {
                 </div>
             </div>
             <div style="flex: 1; text-align: center; font-size: 13px;">
-                <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Giá bán (Gốc - KM)</div>
-                <strong>${discountFormatted !== '0đ' && discountFormatted !== priceFormatted ? `<span style="text-decoration:line-through;color:#94a3b8;font-weight:500;margin-right:4px">${priceFormatted}</span><span style="color:#ef4444">${discountFormatted}</span>` : priceFormatted}</strong>
+                <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Giá gốc</div>
+                <strong style="color:#64748b; text-decoration: ${discountFormatted !== '0đ' && discountFormatted !== priceFormatted ? 'line-through' : 'none'};">${priceFormatted}</strong>
+            </div>
+            <div style="flex: 1; text-align: center; font-size: 13px;">
+                <div style="color: #ef4444; font-size:11px; font-weight:bold; margin-bottom:4px;">Giá Khuyến Mãi</div>
+                <strong style="color:#ef4444; font-size:14px;">${discountFormatted !== '0đ' ? discountFormatted : '—'}</strong>
             </div>
             <div style="flex: 1; text-align: center; font-size: 13px;">
                 <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Tồn kho</div>
