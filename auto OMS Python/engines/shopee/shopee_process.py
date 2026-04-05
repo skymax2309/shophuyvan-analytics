@@ -119,43 +119,71 @@ class ShopeeOrderProcessor:
                             os.makedirs("Phieu_In_PDF")
                         pdf_path = f"Phieu_In_PDF/{order_id}.pdf"
                         
-                        # --- BỌC THÉP: CƯA MÁY DỌN SẠCH GIAO DIỆN RÁC CỦA SHOPEE TRƯỚC KHI IN ---
+                        # --- BỌC THÉP: CƯA MÁY 3.0 (CHỜ RENDER IFRAME & DIỆT THANH CUỘN) ---
+                        # 1. BẮT BUỘC phải chờ khung iframe tải xong nội dung (Triệt tiêu bệnh Đen Bill)
+                        try:
+                            await new_page.wait_for_selector('iframe', timeout=10000)
+                            frame_element = await new_page.query_selector('iframe')
+                            if frame_element:
+                                frame = await frame_element.content_frame()
+                                if frame:
+                                    # Chờ mọi tín hiệu mạng bên trong iframe im ắng
+                                    await frame.wait_for_load_state('networkidle', timeout=15000)
+                        except: pass
+                        await asyncio.sleep(3) # Tĩnh tâm thêm 3 giây để Canvas mã vạch vẽ xong
+                        
+                        # 2. Xử lý DOM: Giết thanh cuộn từ trong trứng nước
                         await new_page.evaluate('''() => {
-                            // 1. Chém bay thông báo rác và nút bấm "In phiếu"
-                            let allDivs = document.querySelectorAll('div, section, header');
-                            allDivs.forEach(el => {
+                            // Dọn rác UI Shopee
+                            document.querySelectorAll('div, section, header').forEach(el => {
                                 let txt = el.innerText || '';
-                                if ((txt.includes('Xem trước bản in') || txt.includes('Phiếu đã được tạo thành công')) && el.offsetHeight < 300) {
+                                if ((txt.includes('Xem trước') || txt.includes('thành công') || txt.includes('Tải xuống')) && el.offsetHeight < 300) {
                                     el.style.display = 'none';
                                 }
                             });
-                            
-                            // 2. Chém thanh cấu hình máy in bên phải (nếu có)
                             document.querySelectorAll('div[class*="right-panel"], div[class*="config-panel"]').forEach(el => el.style.display = 'none');
                             
-                            // 3. Tiêm CSS ép khung tem tràn viền, triệt tiêu thanh cuộn
-                            let style = document.createElement('style');
-                            style.innerHTML = `
-                                @media print { @page { margin: 0; } body { margin: 0; } }
-                                body { overflow: hidden !important; background: white !important; }
-                                *::-webkit-scrollbar { display: none !important; }
-                            `;
-                            document.head.appendChild(style);
-                            
-                            // 4. Bắt cái khung chứa mã vạch và kéo giãn nó ra full màn hình
-                            let preview = document.querySelector('div[class*="left-panel"], div[class*="preview"], .print-content, iframe');
+                            // Bắt iframe và bóp chết thanh cuộn
+                            let preview = document.querySelector('iframe') || document.querySelector('.print-content');
                             if (preview) {
-                                preview.style.position = 'absolute';
+                                preview.style.position = 'fixed';
                                 preview.style.top = '0';
                                 preview.style.left = '0';
                                 preview.style.width = '100vw';
                                 preview.style.height = '100vh';
-                                preview.style.margin = '0';
-                                preview.style.padding = '0';
-                                preview.style.overflow = 'hidden';
+                                preview.style.zIndex = '9999';
+                                preview.style.border = 'none';
+                                preview.style.background = '#FFFFFF';
+                                
+                                if (preview.tagName === 'IFRAME') {
+                                    preview.setAttribute('scrolling', 'no'); // Khóa cuộn thẻ HTML
+                                    try {
+                                        // Xuyên thủng vào trong iframe nếu cùng origin
+                                        let innerDoc = preview.contentDocument || preview.contentWindow.document;
+                                        innerDoc.body.style.overflow = 'hidden';
+                                        innerDoc.body.style.background = '#FFFFFF';
+                                        let style = innerDoc.createElement('style');
+                                        style.innerHTML = '@media print { @page { margin: 0 !important; } } ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; } * { scrollbar-width: none !important; }';
+                                        innerDoc.head.appendChild(style);
+                                    } catch(e) {}
+                                }
                             }
+
+                            // Tiêm thuốc giải cho trang chính
+                            let style = document.createElement('style');
+                            style.innerHTML = `
+                                @media print { 
+                                    @page { margin: 0 !important; } 
+                                    html, body { margin: 0 !important; padding: 0 !important; background: #FFFFFF !important; }
+                                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                                }
+                                html, body { overflow: hidden !important; background: #FFFFFF !important; }
+                                ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+                                * { scrollbar-width: none !important; }
+                            `;
+                            document.head.appendChild(style);
                         }''')
-                        await asyncio.sleep(2) # Chờ 2 giây cho giao diện phẳng lỳ
+                        await asyncio.sleep(2) # Chờ CSS ngấm
                         
                         await new_page.emulate_media(media="print")
                         # Ẩn lề rác mặc định của Chrome, đặt tem tràn viền A6
