@@ -112,12 +112,18 @@ class OMSRadarTab(ctk.CTkFrame):
                             # ── BỘ ĐIỀU PHỐI (TASK ROUTER) ──
                             if task_type == 'print_label':
                                 order_ids = payload.get('order_ids', [])
-                                self.so_log_msg(f"🖨️ [RADAR] Nhận lệnh từ Web: Chuẩn bị hàng & In Phiếu cho {len(order_ids)} đơn!")
+                                job_shop = job.get('shop_name', '')
+                                job_platform = job.get('platform', 'shopee').lower()
                                 
-                                with open("temp_print_jobs.json", "w") as f:
+                                self.so_log_msg(f"🖨️ [RADAR] Nhận lệnh Chuẩn bị hàng: {len(order_ids)} đơn của Shop {job_shop}!")
+                                
+                                # Ghi giấy nhớ riêng cho từng Shop (Tránh đè file khi nhiều Shop cùng chạy)
+                                temp_file = f"temp_print_jobs_{job_shop}.json"
+                                with open(temp_file, "w") as f:
                                     json.dump(order_ids, f)
                                     
-                                shop_data = next((s for s in self.app.DANH_SACH_SHOP if s.get("platform") == "shopee"), None)
+                                # Định vị chính xác Profile của Shop đó để mở Chrome
+                                shop_data = next((s for s in self.app.DANH_SACH_SHOP if s.get("ten_shop") == job_shop), None)
                                 if shop_data and hasattr(self.legacy_engine, 'playwright_order_job'):
                                     asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "process"))
 

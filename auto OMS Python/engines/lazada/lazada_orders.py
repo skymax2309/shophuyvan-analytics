@@ -19,7 +19,7 @@ class LazadaOrderScraper:
             {"name": "Trả hàng", "url": f"{self.base_url}?status=returned"}
         ]
 
-    async def scrape_new_orders(self, page, shop_name=""):
+    async def scrape_new_orders(self, page, shop_name="", mode="all"):
         # Khởi tạo Sổ đen chuẩn hóa MD5 cho Lazada
         cache_file = f"cache_orders_lazada_{shop_name}.json"
         cached_final_orders = {}
@@ -34,9 +34,14 @@ class LazadaOrderScraper:
         newly_completed = {}
         all_orders = []
         self.log("-------------------------------------------------")
-        self.log(f"🚀 [LAZADA RADAR] Khởi động chiến dịch quét đơn cho Shop: {shop_name}...")
+        if mode == "new_only":
+            self.log(f"🚀 [LAZADA RADAR] Khởi động TỐC ĐỘ CAO (Chỉ quét 'Chờ đóng gói & Chờ bàn giao') cho Shop: {shop_name}...")
+            target_tabs = [t for t in self.tabs_to_scrape if t["name"] in ["Chờ đóng gói", "Chờ bàn giao"]]
+        else:
+            self.log(f"🚀 [LAZADA RADAR] Khởi động chiến dịch quét đơn cho Shop: {shop_name}...")
+            target_tabs = self.tabs_to_scrape
 
-        for tab in self.tabs_to_scrape:
+        for tab in target_tabs:
             tab_name = tab["name"]
             tab_url = tab["url"]
             self.log(f"[*] Đang càn quét cứ điểm: Tab '{tab_name}'...")

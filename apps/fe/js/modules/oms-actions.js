@@ -7,12 +7,14 @@ import { showToast } from '../utils/helpers.js';
 let reloadFn = null;
 let getPageFn = null;
 let clearCheckFn = null;
+let getCacheFn = null; // Bổ sung kho chứa dữ liệu
 
 // Cầu nối nhận các hàm tiện ích từ file main truyền sang
-export function initActions(loadOrdersCallback, getPageCallback, clearCheckCallback) {
+export function initActions(loadOrdersCallback, getPageCallback, clearCheckCallback, getCacheCallback) {
   reloadFn = loadOrdersCallback;
   getPageFn = getPageCallback;
   clearCheckFn = clearCheckCallback;
+  getCacheFn = getCacheCallback;
 }
 
 // Helper nội bộ: Lấy danh sách ID đang chọn
@@ -71,18 +73,36 @@ export async function markPrepare() {
   const ids = getChecked();
   if (!ids.length) return;
 
+  // 1. Rút hồ sơ gốc của các đơn đang chọn
+  const allOrders = getCacheFn ? getCacheFn() : [];
+  const selectedOrders = allOrders.filter(o => ids.includes(o.order_id));
+
+  // 2. Thuật toán "Chia lô": Gom đơn theo đúng Sàn và đúng Shop
+  const batches = {};
+  selectedOrders.forEach(o => {
+    const key = `${o.platform}|${o.shop}`;
+    if (!batches[key]) batches[key] = { platform: o.platform, shop: o.shop, order_ids: [] };
+    batches[key].order_ids.push(o.order_id);
+  });
+
+  // 3. Đẩy từng kiện hàng (Lệnh) lên Server
   try {
-    await fetch(API + '/api/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        task_type: 'print_label',
-        payload:   JSON.stringify({ order_ids: ids }),
-        shop_name: '', platform: '',
-        month: new Date().getMonth()+1, year: new Date().getFullYear(),
-      })
-    });
-    showToast(`🖨️ Đã giao việc cho Bot! Khi nào Bot tải xong phiếu in, đơn sẽ tự động nhảy sang Tab "Đang đóng gói".`, 6000);
+    const batchKeys = Object.keys(batches);
+    for (const key of batchKeys) {
+      const batch = batches[key];
+      await fetch(API + '/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_type: 'print_label',
+          payload:   JSON.stringify({ order_ids: batch.order_ids }),
+          shop_name: batch.shop, 
+          platform:  batch.platform,
+          month: new Date().getMonth()+1, year: new Date().getFullYear(),
+        })
+      });
+    }
+    showToast(`🖨️ Đã chia thành ${batchKeys.length} lô giao cho Bot! Đơn xử lý xong sẽ tự nhảy sang "Đang đóng gói".`, 6000);
   } catch(e) {
     showToast('❌ Lỗi gửi lệnh in: ' + e.message);
   }

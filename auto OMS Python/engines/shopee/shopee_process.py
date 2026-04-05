@@ -13,12 +13,13 @@ class ShopeeOrderProcessor:
 
         orders = []
         
-        # 1. KIỂM TRA XEM CÓ LỆNH IN PDF TỪ RADAR TRUYỀN XUỐNG KHÔNG (Đọc giấy nhớ)
-        if os.path.exists("temp_print_jobs.json"):
+        # 1. KIỂM TRA XEM CÓ LỆNH IN PDF TỪ RADAR TRUYỀN XUỐNG KHÔNG (Đọc giấy nhớ theo Shop)
+        temp_file = f"temp_print_jobs_{shop_name}.json"
+        if os.path.exists(temp_file):
             try:
-                with open("temp_print_jobs.json", "r") as f:
+                with open(temp_file, "r") as f:
                     order_ids = json.load(f)
-                os.remove("temp_print_jobs.json") # Đọc xong xé bỏ giấy nhớ ngay
+                os.remove(temp_file) # Đọc xong xé bỏ giấy nhớ ngay
                 orders = [{"order_id": oid} for oid in order_ids]
                 self.log(f"🎯 [RADAR GIAO VIỆC] Nhận lệnh Xử lý & In phiếu khẩn cấp cho {len(orders)} đơn.")
             except: pass

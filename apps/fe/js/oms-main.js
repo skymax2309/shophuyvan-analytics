@@ -15,7 +15,8 @@ import { initActions } from './modules/oms-actions.js';
 initActions(
   (page) => loadOrders(page),
   () => currentPage,
-  () => { document.getElementById('chkAll').checked = false; toggleAllCheck(false); }
+  () => { document.getElementById('chkAll').checked = false; toggleAllCheck(false); },
+  () => omsCache
 );
 
 // ── STATE ───────────────────────────────────────────────────────────
@@ -144,10 +145,6 @@ export function onCheck() {
   })
 }
 
-
-// Giữ lại hàm cũ để tương thích
-async function markReady()   { await markPacked() }
-async function markShipped() { await markHandedOver() }
 
 // ── PICK LIST ────────────────────────────────────────────────────────
 export function showPickList() {

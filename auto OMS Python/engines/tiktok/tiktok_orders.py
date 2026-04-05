@@ -20,7 +20,7 @@ class TiktokOrderScraper:
             {"name": "Giao không thành công", "url": "https://seller-vn.tiktok.com/order?tab=fail_delivery", "limit_key": "done"}
         ]
 
-    async def scrape_new_orders(self, page, limits=None, shop_name=""):
+    async def scrape_new_orders(self, page, limits=None, shop_name="", mode="all"):
         if limits is None:
             limits = {"new": 100, "shipping": 50, "done": 20}
 
@@ -39,9 +39,14 @@ class TiktokOrderScraper:
         newly_completed = {}
         all_orders = []
         self.log("-------------------------------------------------")
-        self.log(f"🚀 [TIKTOK RADAR] Khởi động quét đơn dạng thẻ cho Shop: {shop_name}...")
+        if mode == "new_only":
+            self.log(f"🚀 [TIKTOK RADAR] Khởi động TỐC ĐỘ CAO (Chỉ quét 'Cần gửi') cho Shop: {shop_name}...")
+            target_tabs = [t for t in self.tabs_to_scrape if t["name"] == "Cần gửi"]
+        else:
+            self.log(f"🚀 [TIKTOK RADAR] Khởi động quét đơn dạng thẻ cho Shop: {shop_name}...")
+            target_tabs = self.tabs_to_scrape
 
-        for tab in self.tabs_to_scrape:
+        for tab in target_tabs:
             tab_name = tab["name"]
             tab_url = tab["url"]
             limit_val = limits.get(tab["limit_key"], 50)

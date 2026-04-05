@@ -373,14 +373,15 @@ class SyncOrderTab(ctk.CTkFrame):
                         from engines.tiktok.tiktok_orders import TiktokOrderScraper
                         parser = TiktokOrderParser(self.so_log_msg)
                         scraper = TiktokOrderScraper(self.so_log_msg, parser)
-                        # 🌟 Đã móc dây điện: Truyền Limits và Tên Shop xuống cho Bot TikTok
-                        orders_data = await scraper.scrape_new_orders(page, limits=limits, shop_name=shop['ten_shop'])
+                        # 🌟 Đã móc dây điện: Truyền Limits, Tên Shop và CHẾ ĐỘ QUÉT xuống cho Bot TikTok
+                        orders_data = await scraper.scrape_new_orders(page, limits=limits, shop_name=shop['ten_shop'], mode=scrape_mode)
                     elif platform == 'lazada':
                         from parsers.lazada_order_parser import LazadaOrderParser
                         from engines.lazada.lazada_orders import LazadaOrderScraper
                         parser = LazadaOrderParser(self.so_log_msg)
                         scraper = LazadaOrderScraper(self.so_log_msg, parser)
-                        orders_data = await scraper.scrape_new_orders(page, shop_name=shop['ten_shop'])
+                        # 🌟 Truyền CHẾ ĐỘ QUÉT xuống cho Bot Lazada
+                        orders_data = await scraper.scrape_new_orders(page, shop_name=shop['ten_shop'], mode=scrape_mode)
                     
                     if orders_data:
                         self.so_log_msg(f"📦 Thu thập được {len(orders_data)} đơn. Đang tải lên Server...")
