@@ -95,26 +95,33 @@
 <div id="tab-variations" class="tab-pane active">
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-        <div class="card-title" style="margin:0">🔗 Variation Đa Sàn & Map SKU</div>
+        
+        <div style="display:flex; align-items:center; gap:16px;">
+            <div class="card-title" style="margin:0">🔗 Variation Đa Sàn & Map SKU</div>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:600; color:#0f172a; background:#f1f5f9; padding:6px 12px; border-radius:6px; border:1px solid #cbd5e1;">
+                <input type="checkbox" id="selectAllVarChk" onchange="toggleAllVarCheck(this.checked)" style="transform:scale(1.2); cursor:pointer;">
+                Chọn tất cả trang này
+            </label>
+        </div>
+
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select id="var_filter_platform" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="updateShopDropdown(); renderVariations()">
-                  <option value="">🌐 Tất cả Sàn</option>
-                  <option value="shopee">Shopee</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="lazada">Lazada</option>
-                </select>
-                <select id="var_filter_shop" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="renderVariations()">
-                  <option value="">🛒 Tất cả Shop</option>
-                </select>
-          
-          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="renderVariations()">
+          <select id="var_filter_platform" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="updateShopDropdown(); filterAndRender()">
+            <option value="">🌐 Tất cả Sàn</option>
+            <option value="shopee">Shopee</option>
+            <option value="tiktok">TikTok</option>
+            <option value="lazada">Lazada</option>
+          </select>
+          <select id="var_filter_shop" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="filterAndRender()">
+            <option value="">🛒 Tất cả Shop</option>
+          </select>
+          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="filterAndRender()">
             <option value="">Trạng thái Map</option>
             <option value="UNMAPPED">⚠️ Chưa map</option>
             <option value="MAPPED">✅ Đã map</option>
             <option value="IGNORED">🚫 Bỏ qua</option>
           </select>
           
-          <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..." oninput="renderVariations()"
+          <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..." oninput="filterAndRender()"
             style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:220px">
           
           <button id="btnBulkDeleteVar" style="display:none; background:#ef4444; color:white; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:600; cursor:pointer" onclick="bulkDeleteVariations()">
@@ -122,9 +129,13 @@
           </button>
         </div>
       </div>
-      <div id="variationsTable">
+
+      <div id="var-list-wrapper">
         <p style="text-align:center;color:#888;padding:40px">Bấm vào tab để tải dữ liệu</p>
       </div>
+      
+      <div id="varPaginationWrap" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:20px; padding-bottom:10px; width:100%;"></div>
+
     </div>
   </div>
 
@@ -256,7 +267,15 @@
 <script src="../js/admin/main.js"></script>
 <script src="../js/admin/variation-manager.js?v=2"></script>
 <script>
-
+    // Hàm hiển thị thông báo pop-up (Toast) góc màn hình
+    function showToast(msg, isErr = false) {
+      const t = document.getElementById("toast");
+      if (!t) return;
+      t.textContent = msg;
+      t.style.background = isErr ? "#dc2626" : "#16a34a"; // Đỏ nếu lỗi, Xanh nếu thành công
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2500);
+    }
 </script>
 
 </body>
