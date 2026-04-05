@@ -270,16 +270,14 @@
 
 <script type="module">
   import { loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
-           markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
-           markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-           debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders, recalcAllCosts, deleteErrorOrders, printBatchLabels } from '../js/oms-main.js';
+           showPickList, resetFilter, debounceLoad, toggleAllCheck, 
+           closeModal, copyText, onCheck, printBatchLabels } from '../js/oms-main.js';
 
   // Expose to global scope (vì HTML dùng onclick="...")
   Object.assign(window, {
     loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
-    markConfirmed, markPrepare, markPacked, markHandedOver, markCancelledTransit,
-    markFailedDelivery, markReturnRefund, showPickList, resetFilter,
-    debounceLoad, toggleAllCheck, closeModal, copyText, onCheck, triggerBotScrape, archiveOldOrders, recalcAllCosts, deleteErrorOrders, printBatchLabels
+    showPickList, resetFilter, debounceLoad, toggleAllCheck, 
+    closeModal, copyText, onCheck, printBatchLabels
   });
 
   loadShopList();
