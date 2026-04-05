@@ -1,4 +1,12 @@
 import { API } from './oms-api.js';
+// NẠP LINH KIỆN ĐÃ CHIA NHỎ
+import { fmt, fmtDate, showToast, copyText, closeModal } from './utils/helpers.js';
+import { printBatchLabelsCore } from './modules/oms-pdf.js';
+// BỔ SUNG CỤM MODULE POPUP NÀY
+import { initModals, renderPickListModal } from './modules/oms-modals.js';
+
+// Kích hoạt cầu nối: Báo cho Popup biết dùng hàm loadOrders để tải lại bảng
+initModals(() => loadOrders(currentPage));
 import { ShopeeHandler } from './modules/handler-shopee.js';
 import { TiktokHandler } from './modules/handler-tiktok.js';
 import { LazadaHandler } from './modules/handler-lazada.js';
@@ -18,22 +26,6 @@ let totalPages     = 1
 let debounceTimer  = null
 let allSelected    = false
 
-// ── FORMAT ──────────────────────────────────────────────────────────
-const fmt = n => Number(n||0).toLocaleString('vi-VN') + 'đ'
-const fmtDate = s => {
-  if (!s) return '—'
-  const d = new Date(s)
-  if (isNaN(d)) return s
-  return d.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' })
-}
-
-// ── TOAST ───────────────────────────────────────────────────────────
-function showToast(msg, duration = 2500) {
-  const t = document.getElementById('toast')
-  t.textContent = msg
-  t.classList.add('show')
-  setTimeout(() => t.classList.remove('show'), duration)
-}
 
 // ── DEBOUNCE ────────────────────────────────────────────────────────
 export function debounceLoad() {
@@ -558,85 +550,15 @@ async function markShipped() { await markHandedOver() }
 
 // ── PICK LIST ────────────────────────────────────────────────────────
 export function showPickList() {
-  const ids      = getChecked()
-  if (!ids.length) return
-  const selected = omsCache.filter(o => ids.includes(o.order_id))
-  const skuMap   = new Map()
-
-  for (const o of selected) {
-    for (const item of (o.items || [])) {
-      // Nhóm theo SKU hoặc Tên Phân loại
-      const key = item.sku || item.variation_name || item.product_name || '—'
-      if (!skuMap.has(key)) {
-         skuMap.set(key, { 
-           sku: item.sku, 
-           variation: item.variation_name || item.product_name, // Ưu tiên hiển thị Tên phân loại
-           qty: 0, 
-           img: item.image_url 
-         })
-      }
-      skuMap.get(key).qty += (item.qty || 1)
-    }
-  }
-
-  const rows = [...skuMap.values()].sort((a,b) => b.qty - a.qty)
-  const totalQty = rows.reduce((s,r) => s+r.qty, 0)
-
-  document.getElementById('pickListContent').innerHTML = `
-    <div style="font-size:13px;color:var(--muted);margin-bottom:14px; text-align: center;">
-      <b>${selected.length}</b> đơn — Cần nhặt tổng cộng <b style="color:var(--red); font-size: 16px;">${totalQty}</b> sản phẩm
-    </div>
-    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 60vh; overflow-y: auto; padding-bottom: 10px;">
-    <table class="picklist-table" style="width: 100%; min-width: 480px; border-collapse: collapse;">
-      <thead>
-        <tr style="border-bottom: 2px solid var(--border); text-align: left;">
-          <th style="width:50px; padding-bottom: 8px;">Ảnh</th>
-          <th style="padding-bottom: 8px;">Mã SKU</th>
-          <th style="padding-bottom: 8px;">Phân loại</th>
-          <th style="width:80px; text-align:center; padding-bottom: 8px; color: var(--accent);">Số lượng</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map(r => `
-        <tr style="border-bottom: 1px dashed var(--border);">
-          <td style="padding: 8px 0;">${r.img
-            ? `<img src="${r.img}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid var(--border)">`
-            : `<div style="width:44px;height:44px;background:var(--surface2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px">📦</div>`}
-          </td>
-          <td style="font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--blue); font-weight: bold; padding: 8px;">${r.sku||'—'}</td>
-          <td style="font-size:12px; color:var(--text); padding: 8px; line-height: 1.4;">${r.variation||'—'}</td>
-          <td style="text-align:center; padding: 8px;">
-            <span style="display:inline-block; background: rgba(239, 68, 68, 0.1); color: var(--red); font-size: 18px; font-weight: bold; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3);">${r.qty}</span>
-          </td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`
-
-  document.getElementById('pickListModal').classList.add('open')
+  const ids = getChecked();
+  if (!ids.length) return;
+  const selected = omsCache.filter(o => ids.includes(o.order_id));
+  
+  // Ném toàn bộ dữ liệu thô sang file Modals để nó tự tính toán và vẽ Giao diện
+  renderPickListModal(selected);
 }
 
-// ── PRINT LABEL ──────────────────────────────────────────────────────
-async function printLabel() {
-  const ids = getChecked()
-  if (!ids.length) return
-  try {
-    await fetch(API + '/api/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        task_type: 'print_label',
-        payload:   JSON.stringify({ order_ids: ids }),
-        shop_name: '',
-        platform:  '',
-        month:     new Date().getMonth() + 1,
-        year:      new Date().getFullYear(),
-      })
-    })
-    showToast(`🖨️ Đã gửi lệnh in tem cho ${ids.length} đơn. Bot sẽ xử lý trong vài phút.`, 3500)
-  } catch (e) {
-    showToast('❌ Lỗi gửi lệnh in tem: ' + e.message)
-  }
-}
+
 
 // ── SYNC (trigger Bot) ───────────────────────────────────────────────
 export async function syncOrders() {
@@ -668,18 +590,9 @@ export function resetFilter() {
   loadOrders(1)
 }
 
-// ── COPY ─────────────────────────────────────────────────────────────
-export function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => showToast('✅ Đã copy: ' + text))
-}
+
 
 // ── MODAL ─────────────────────────────────────────────────────────────
-export function closeModal(id) {
-  document.getElementById(id).classList.remove('open')
-}
-document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open') })
-})
 
 
 // ── TRIGGER BOT CÀO ĐƠN TỪ XA (HỖ TRỢ MOBILE/WEB) ─────────────────────
@@ -732,206 +645,14 @@ export function filterShopDropdown(platform) {
   if (uniqueShops.includes(currentVal)) sel.value = currentVal;
 }
 
-// ── QUICK MAP SKU CORE ─────────────────────────────────────────────
-let mapSearchTimer = null;
-export function openMapModal(rawName, orderId) {
-  document.getElementById('mapTargetName').textContent = rawName || 'Sản phẩm lỗi tên';
-  document.getElementById('mapTargetRawSku').value = rawName;
-  document.getElementById('mapTargetOrderId').value = orderId;
-  document.getElementById('mapSearchInput').value = '';
-  document.getElementById('mapSkuResults').innerHTML = '<div style="padding:10px;color:var(--muted);text-align:center;">Gõ tên sản phẩm để tìm...</div>';
-  document.getElementById('mapSkuModal').classList.add('open');
-  document.getElementById('mapSearchInput').focus();
-}
 
-export function debounceSearchSku() {
-  clearTimeout(mapSearchTimer);
-  mapSearchTimer = setTimeout(searchDbSku, 400);
-}
-
-async function searchDbSku() {
-  const keyword = document.getElementById('mapSearchInput').value.trim();
-  const box = document.getElementById('mapSkuResults');
-  if (keyword.length < 2) {
-    box.innerHTML = '<div style="padding:10px;color:var(--muted);text-align:center;">Gõ thêm ký tự để tìm...</div>';
-    return;
-  }
-  box.innerHTML = '<div style="padding:10px;text-align:center;">⏳ Đang tìm...</div>';
-  try {
-    const res = await fetch(`${API}/api/products?search=${encodeURIComponent(keyword)}`).then(r => r.json());
-    if (!res.data || res.data.length === 0) {
-      box.innerHTML = '<div style="padding:10px;color:var(--red);text-align:center;">Không tìm thấy SKU nào!</div>';
-      return;
-    }
-    box.innerHTML = res.data.map(p => `
-      <div style="display:flex; justify-content:space-between; align-items:center; padding: 8px; border-bottom: 1px solid var(--border); cursor:pointer;" onclick="saveMapSku('${p.sku}')">
-        <div style="display:flex; gap: 10px; align-items:center;">
-          <img src="${p.image_url || ''}" style="width:30px; height:30px; border-radius:4px; background:var(--surface);">
-          <div>
-             <div style="color:var(--blue); font-weight:bold; font-size:12px;">${p.sku}</div>
-             <div style="font-size:11px; color:var(--text);">${(p.product_name||'').substring(0,35)}</div>
-          </div>
-        </div>
-        <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;">Chốt</button>
-      </div>
-    `).join('');
-  } catch (e) {
-    box.innerHTML = '<div style="padding:10px;color:var(--red);text-align:center;">Lỗi mạng!</div>';
-  }
-}
-
-window.saveMapSku = async function(internalSku) {
-  const rawName = document.getElementById('mapTargetRawSku').value;
-  document.getElementById('mapSkuResults').innerHTML = '<div style="padding:10px;text-align:center;color:var(--green);font-weight:bold;">🚀 Đang đẩy dữ liệu Map lên Server...</div>';
-  try {
-    // 🌟 ĐÃ SỬA: Đổi sang phương thức PATCH và gửi Object chuẩn (Không dùng Mảng)
-    const payload = { platform_sku: rawName, internal_sku: internalSku };
-    const response = await fetch(`${API}/api/sync-variations`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    
-    // Đọc phản hồi và in Log ra F12 (Console)
-    const resData = await response.json();
-    console.log("[QUICK MAP] Phản hồi từ Server:", resData);
-
-    // Chặn đứng "Thành công ảo"
-    if (!response.ok || resData.error) {
-        throw new Error(resData.error || "Server từ chối lưu Map");
-    }
-    
-    // Đỉnh cao: Truyền đúng SKU vừa map để Server CHỈ tính lại các đơn liên quan (Tránh sụp CPU)
-    await fetch(`${API}/api/orders/recalc-cost`, { 
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sku: internalSku })
-    });
-    
-    showToast(`✅ Đã Map thành công SKU: ${internalSku}`);
-    closeModal('mapSkuModal');
-    loadOrders(currentPage); // F5 lại bảng để hiện ảnh và giá vốn
-  } catch (e) {
-    showToast('❌ Lỗi lưu Map SKU: ' + e.message);
-  }
-}
-
-// Bộc thép style cho nhịp đập nút Map
-if(!document.getElementById('pulse-css')){
-  const style = document.createElement('style');
-  style.id = 'pulse-css';
-  style.innerHTML = `@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(0, 255, 136, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); } }`;
-  document.head.appendChild(style);
-}
-
-// ── QUICK UPDATE COST PRICE ──────────────────────────────────────────
-export function openCostModal(sku) {
-  document.getElementById('costTargetSku').textContent = sku;
-  document.getElementById('costInvoiceInput').value = '';
-  document.getElementById('costRealInput').value = '';
-  document.getElementById('costPriceModal').classList.add('open');
-  document.getElementById('costRealInput').focus();
-}
-
-export async function saveCostPrice() {
-  const sku = document.getElementById('costTargetSku').textContent;
-  const costInvoice = parseFloat(document.getElementById('costInvoiceInput').value) || 0;
-  const costReal = parseFloat(document.getElementById('costRealInput').value) || 0;
-
-  if (costReal <= 0) {
-    showToast('⚠️ Vui lòng nhập Vốn Thực Tế lớn hơn 0!');
-    return;
-  }
-
-  const btn = document.querySelector('#costPriceModal .btn-primary');
-  btn.textContent = '⏳ Đang xử lý...';
-  btn.disabled = true;
-
-  try {
-    // 1. Cập nhật thẳng vào bảng Products
-    const payload = {
-      sku: sku,
-      cost_invoice: costInvoice,
-      cost_real: costReal
-    };
-    
-    const res = await fetch(`${API}/api/products`, {
-      method: 'POST', // API cũ của bác dùng POST để upsert
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) throw new Error("Server từ chối cập nhật sản phẩm");
-
-    // 2. Kích hoạt tính lại giá vốn cho các đơn hàng chứa SKU này
-    await fetch(`${API}/api/orders/recalc-cost`, { 
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sku: sku })
-    });
-
-    showToast(`✅ Đã cập nhật Giá Vốn cho mã: ${sku}`);
-    closeModal('costPriceModal');
-    loadOrders(currentPage);
-  } catch (e) {
-    showToast('❌ Lỗi: ' + e.message);
-  } finally {
-    btn.textContent = '💾 Lưu & Tính Lại Lãi/Lỗ';
-    btn.disabled = false;
-  }
-}
-
-// ── IN BILL HÀNG LOẠT (GỘP NHIỀU FILE PDF THÀNH 1) ───────────────────
+// Dùng hàm In từ file oms-pdf.js, truyền danh sách đơn được chọn vào
 export async function printBatchLabels() {
-  const ids = getChecked();
-  if (!ids.length) return;
-
-  const btn = document.getElementById('btnBatchPrint');
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Đang gộp file...'; }
-  showToast('🔄 Đang gom file PDF từ Server, vui lòng không tắt trang...', 4000);
-
-  try {
-    // Gọi thư viện xử lý PDF trực tiếp trên trình duyệt
-    const { PDFDocument } = await import('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm');
-    const mergedPdf = await PDFDocument.create();
-    let successCount = 0;
-
-    for (const id of ids) {
-      try {
-        const url = `${API}/api/label/${id}.pdf`;
-        const res = await fetch(url);
-        if (!res.ok) continue; // Bỏ qua nếu đơn chưa có phiếu
-        
-        const pdfBytes = await res.arrayBuffer();
-        const pdfDoc = await PDFDocument.load(pdfBytes);
-        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
-        copiedPages.forEach((page) => mergedPdf.addPage(page));
-        successCount++;
-      } catch (e) {
-        console.log("Lỗi gom PDF đơn: " + id, e);
-      }
-    }
-
-    if (successCount === 0) {
-      showToast('❌ Các đơn đã chọn chưa được Bot xử lý hoặc chưa có Phiếu in trên Server!');
-      return;
-    }
-
-    const mergedPdfFile = await mergedPdf.save();
-    const blob = new Blob([mergedPdfFile], { type: 'application/pdf' });
-    const blobUrl = URL.createObjectURL(blob);
-    
-    window.open(blobUrl, '_blank'); // Mở Tab mới chứa file PDF tổng để in
-    showToast(`✅ Đã gộp xong ${successCount} phiếu in! Sẵn sàng in.`);
-
-  } catch (error) {
-    showToast('❌ Lỗi tạo PDF: ' + error.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '🖨️ In Bill Hàng Loạt'; }
-  }
+  await printBatchLabelsCore(getChecked());
 }
 
-// Gắn các hàm mới vào window để HTML gọi được
-Object.assign(window, { openMapModal, debounceSearchSku, saveMapSku, openCostModal, saveCostPrice });
+// Mở lại cổng xuất khẩu cho các file HTML gọi đến
+export { fmt, fmtDate, showToast, copyText, closeModal };
+
 // ── INIT ─────────────────────────────────────────────────────────────
 loadShopList()
