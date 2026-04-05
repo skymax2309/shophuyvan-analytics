@@ -65,6 +65,13 @@ async function loadSkus() {
     allSkus = data;
     window.allSkus = data;
     window.skuTree = buildSkuTree(data); // Tạo cây Cha - Con
+    
+    // Đổ dữ liệu vào Datalist để gõ tìm kiếm nhanh lúc tạo Combo
+    const datalist = document.getElementById('all-sku-datalist');
+    if (datalist) {
+        datalist.innerHTML = data.filter(s => !s.is_combo).map(s => `<option value="${escapeHtml(s.sku)}">${escapeHtml(s.sku)} - ${escapeHtml(s.product_name)}</option>`).join('');
+    }
+
     renderSkuTables();
   } catch (e) {
     const table = document.getElementById("skuNoPriceTable");
@@ -209,6 +216,72 @@ function renderSkuPagination(totalItems, totalPages) {
     `;
 }
 
+// ── LOGIC GIAO DIỆN COMBO ──────────────────────────────────────────
+window.toggleComboUI = function(show) {
+    document.getElementById('combo-ui-wrapper').style.display = show ? 'block' : 'none';
+    if (show && document.getElementById('combo-items-list').children.length === 0) {
+        addComboItemRow(); // Mặc định thêm sẵn 1 dòng
+    }
+}
+
+window.addComboItemRow = function(sku = '', qty = 1) {
+    const list = document.getElementById('combo-items-list');
+    const row = document.createElement('div');
+    row.className = 'combo-item-row';
+    row.style.cssText = 'display:flex; gap:8px; align-items:center;';
+    row.innerHTML = `
+        <input type="text" class="combo-sku-input" list="all-sku-datalist" value="${escapeHtml(sku)}" placeholder="🔍 Tìm/Nhập mã SKU thành phần..." style="flex:1; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; font-size:13px;">
+        <span style="font-weight:bold; color:#64748b;">Số lượng: </span>
+        <input type="number" class="combo-qty-input" value="${qty}" min="1" style="width:60px; border:1px solid #cbd5e1; border-radius:6px; padding:6px; font-size:13px; text-align:center;">
+        <button onclick="this.parentElement.remove()" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:6px 10px; cursor:pointer; font-weight:bold;" title="Xóa dòng này">✕</button>
+    `;
+    list.appendChild(row);
+}
+
+// ── LOGIC NHÂN BẢN SKU ─────────────────────────────────────────────
+window.duplicateSku = async function(originalSku) {
+    const item = window.allSkus.find(s => s.sku === originalSku);
+    if (!item) return showToast("❌ Không tìm thấy dữ liệu gốc!", true);
+
+    const newSku = prompt(`Bạn đang Nhân bản sản phẩm [${originalSku}].\nVui lòng nhập Mã SKU MỚI cho bản sao này:`, originalSku + "_COPY");
+    if (!newSku || newSku.trim() === "") return;
+    
+    if (window.allSkus.some(s => s.sku.toLowerCase() === newSku.toLowerCase().trim())) {
+        return showToast("❌ Mã SKU này đã tồn tại! Vui lòng chọn mã khác.", true);
+    }
+
+    try {
+        showToast("⏳ Đang xử lý nhân bản...");
+        const payload = {
+            sku: newSku.trim(),
+            product_name: item.product_name + " (Bản sao)",
+            description: item.description || "",
+            video_url: item.video_url || "",
+            cost_invoice: item.cost_invoice || 0,
+            cost_real: item.cost_real || 0,
+            image_url: item.image_url || "",
+            stock: item.stock || 0,
+            is_combo: item.is_combo || 0,
+            combo_items: item.combo_items || null,
+            combo_qty: item.combo_qty || 1
+        };
+
+        const res = await fetch(API + "/api/products", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            showToast("✅ Đã nhân bản thành công mã: " + newSku);
+            loadSkus();
+        } else {
+            showToast("❌ Lỗi lưu dữ liệu lên Server", true);
+        }
+    } catch (e) {
+        showToast("❌ Lỗi: " + e.message, true);
+    }
+}
+
 // ── CRUD SKU ─────────────────────────────────────────────────────────
 async function saveSku() {
   const sku  = document.getElementById("s_sku").value.trim();
@@ -237,9 +310,27 @@ async function saveSku() {
           finalImg = `${API}/api/file/${fileName}`;
       }
 
+// Bóc tách dữ liệu Combo từ giao diện
+      const isCombo = document.getElementById('s_is_combo') ? document.getElementById('s_is_combo').checked : false;
+      const comboItems = [];
+      if (isCombo) {
+          document.querySelectorAll('.combo-item-row').forEach(row => {
+              let cSku = row.querySelector('.combo-sku-input').value.trim();
+              if (cSku.includes(' - ')) cSku = cSku.split(' - ')[0].trim(); // Lọc lấy cái Mã đứng đầu
+              const cQty = parseInt(row.querySelector('.combo-qty-input').value) || 1;
+              if (cSku) comboItems.push({ sku: cSku, qty: cQty });
+          });
+          if (comboItems.length === 0) { throw new Error("Sản phẩm Combo cần ít nhất 1 SKU thành phần!"); }
+      }
+
       await fetch(API + "/api/products", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sku, product_name: name, description: desc, video_url: video, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock })
+        body: JSON.stringify({ 
+            sku, product_name: name, description: desc, video_url: video, 
+            cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock,
+            is_combo: isCombo ? 1 : 0,
+            combo_items: isCombo ? JSON.stringify(comboItems) : null
+        })
       });
 
 // LOGIC TỰ ĐỘNG ÁP DỤNG GIÁ VỐN CHO TẤT CẢ ANH EM CÙNG MÃ GỐC
@@ -302,6 +393,22 @@ function editSku(sku, name, cinv, creal, stock, img) {
   document.getElementById("s_cost_real").value = creal;
   document.getElementById("s_stock").value = stock || 0;
   
+  // Tái tạo lại Giao diện Combo
+  const p = window.allSkus ? window.allSkus.find(s => s.sku === sku) : null;
+  const isComboCb = document.getElementById('s_is_combo');
+  const comboList = document.getElementById('combo-items-list');
+  if (isComboCb && comboList) {
+      isComboCb.checked = (p && p.is_combo == 1);
+      toggleComboUI(isComboCb.checked);
+      comboList.innerHTML = ''; // Xóa rác cũ
+      if (isComboCb.checked && p && p.combo_items) {
+          try {
+              const items = JSON.parse(p.combo_items);
+              items.forEach(i => addComboItemRow(i.sku, i.qty));
+          } catch(e) {}
+      }
+  }
+  
   const defaultImg = "https://placehold.co/60x60?text=IMG";
   const isValidImg = img && img !== "undefined" && img !== "null" && img.trim() !== "" && !img.includes('placehold');
   document.getElementById("s_old_img").value = isValidImg ? img : "";
@@ -324,6 +431,21 @@ window.editParentSku = function(safeSku) {
     document.getElementById("s_cost_inv").value = p.cost_invoice || 0; 
     document.getElementById("s_cost_real").value = p.cost_real || 0;
     document.getElementById("s_stock").value = p.stock || 0;
+
+    // Tái tạo lại Giao diện Combo cho SP Cha
+    const isComboCb = document.getElementById('s_is_combo');
+    const comboList = document.getElementById('combo-items-list');
+    if (isComboCb && comboList) {
+        isComboCb.checked = (p.is_combo == 1);
+        toggleComboUI(isComboCb.checked);
+        comboList.innerHTML = ''; 
+        if (isComboCb.checked && p.combo_items) {
+            try {
+                const items = JSON.parse(p.combo_items);
+                items.forEach(i => addComboItemRow(i.sku, i.qty));
+            } catch(e) {}
+        }
+    }
     
     const img = p.image_url;
     const isValidImg = img && img.trim() !== "" && !img.includes('placehold');
