@@ -441,6 +441,16 @@ class SyncOrderTab(ctk.CTkFrame):
                         from engines.shopee.shopee_process import ShopeeOrderProcessor
                         processor = ShopeeOrderProcessor(self.so_log_msg)
                         await processor.process_confirmed_orders(page, shop['ten_shop'])
+                    elif platform == 'lazada':
+                        self.so_log_msg("👉 Thực thi: TỰ ĐỘNG CHUẨN BỊ HÀNG LAZADA")
+                        from engines.lazada.lazada_process import LazadaOrderProcessor
+                        processor = LazadaOrderProcessor(self.so_log_msg)
+                        await processor.process_confirmed_orders(page, shop['ten_shop'])
+                    elif platform == 'tiktok':
+                        self.so_log_msg("👉 Thực thi: TỰ ĐỘNG CHUẨN BỊ HÀNG TIKTOK")
+                        from engines.tiktok.tiktok_process import TikTokOrderProcessor
+                        processor = TikTokOrderProcessor(self.so_log_msg)
+                        await processor.process_confirmed_orders(page, shop['ten_shop'])
                     else:
                         self.so_log_msg(f"⚠️ Chức năng Chuẩn bị hàng chưa hỗ trợ tự động cho {platform.upper()}")
 
