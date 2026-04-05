@@ -221,6 +221,7 @@ async function saveSku() {
   
   const fileInput = document.getElementById("s_img_file");
   let finalImg = document.getElementById("s_old_img").value;
+  const applyAllCost = document.getElementById("s_apply_all_cost") ? document.getElementById("s_apply_all_cost").checked : false;
 
   if (!sku || !name) { showToast("⚠️ Nhập SKU và Tên sản phẩm!", true); return; }
 
@@ -241,9 +242,37 @@ async function saveSku() {
         body: JSON.stringify({ sku, product_name: name, description: desc, video_url: video, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock })
       });
 
-      showToast("✅ Đã lưu SKU: " + sku);
+      // LOGIC TỰ ĐỘNG ÁP DỤNG GIÁ VỐN CHO TẤT CẢ ANH EM CÙNG MÃ GỐC
+      if (applyAllCost && window.allSkus) {
+          const currentItem = window.allSkus.find(x => x.sku === sku);
+          if (currentItem) {
+              const targetParentSku = currentItem.parent_sku ? currentItem.parent_sku : (currentItem.is_parent == 1 ? currentItem.sku : null);
+              if (targetParentSku) {
+                  const others = window.allSkus.filter(x => (x.parent_sku === targetParentSku || x.sku === targetParentSku) && x.sku !== sku);
+                  if (others.length > 0) showToast(`⏳ Đang cập nhật giá vốn cho ${others.length} phân loại khác...`);
+                  for (const sibling of others) {
+                      await fetch(API + "/api/products", {
+                        method: "POST", headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ 
+                            sku: sibling.sku, 
+                            product_name: sibling.product_name, 
+                            description: sibling.description, 
+                            video_url: sibling.video_url, 
+                            cost_invoice: cinv, 
+                            cost_real: creal,   
+                            image_url: sibling.image_url, 
+                            stock: sibling.stock 
+                        })
+                      });
+                  }
+              }
+          }
+      }
+
+      showToast("✅ Đã lưu thành công!");
       if(document.getElementById("s_desc")) document.getElementById("s_desc").value = "";
       if(document.getElementById("s_video_url")) document.getElementById("s_video_url").value = "";
+      if(document.getElementById("s_apply_all_cost")) document.getElementById("s_apply_all_cost").checked = false;
       loadSkus();
   } catch (e) {
       showToast("❌ Lỗi: " + e.message, true);
