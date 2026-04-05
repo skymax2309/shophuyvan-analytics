@@ -72,7 +72,7 @@ class HuyVanApp(ctk.CTk):
         tab_quanly = self.tabview.add("👤 Quản Lý Tài Khoản")
         tab_chay   = self.tabview.add("🚀 Chạy Tự Động (Auto)")
         tab_sp     = self.tabview.add("🛍️ Đồng bộ Sản phẩm")
-        tab_donhang = self.tabview.add("📦 Quản lý Đơn hàng") # <-- BỔ SUNG TAB MỚI
+        tab_donhang = self.tabview.add("📡 Radar Đơn Hàng") # <-- ĐÃ NÂNG CẤP LÊN RADAR
 
         # ── NHÚNG CÁC TAB TỪ MODULE BÊN NGOÀI VÀO ──
         from ui.login_tab import LoginTab
@@ -84,9 +84,9 @@ class HuyVanApp(ctk.CTk):
         from ui.sync_product_tab import SyncProductTab
         self.sync_product_tab = SyncProductTab(tab_sp, self)
 
-        # <-- GỌI FILE GIAO DIỆN BOT ĐƠN HÀNG -->
-        from ui.sync_order_tab import SyncOrderTab
-        self.sync_order_tab = SyncOrderTab(tab_donhang, self)
+        # <-- GỌI FILE GIAO DIỆN RADAR ĐƠN HÀNG (SAAS) -->
+        from ui.oms_radar_tab import OMSRadarTab
+        self.oms_radar_tab = OMSRadarTab(tab_donhang, self)
         
         # ── Kích hoạt hàm kiểm tra để ẩn Log lúc mới mở App ──
         self.on_tab_change()

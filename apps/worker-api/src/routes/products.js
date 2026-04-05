@@ -153,17 +153,19 @@ async function handleProducts(request, env, cors) {
         return Response.json({ status: "ok" }, { headers: cors });
       }
 
-  // ==========================================
+ // ==========================================
   // API POST GỐC (Lưu 1 sản phẩm thủ công)
   // ==========================================
   if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent")) {
     const b = await request.json();
     console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Link ảnh:", b.image_url);
     await env.DB.prepare(`
-      INSERT INTO products (sku, product_name, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, min_stock)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (sku, product_name, description, video_url, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, min_stock)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(sku) DO UPDATE SET
         product_name = excluded.product_name,
+        description = CASE WHEN excluded.description != '' THEN excluded.description ELSE products.description END,
+        video_url = CASE WHEN excluded.video_url != '' THEN excluded.video_url ELSE products.video_url END,
         cost_invoice = CASE WHEN excluded.cost_invoice > 0 THEN excluded.cost_invoice ELSE products.cost_invoice END,
         cost_real = CASE WHEN excluded.cost_real > 0 THEN excluded.cost_real ELSE products.cost_real END,
         is_combo = excluded.is_combo,
@@ -173,7 +175,8 @@ async function handleProducts(request, env, cors) {
         stock = excluded.stock,
         min_stock = excluded.min_stock
     `).bind(
-      b.sku, b.product_name || "", b.cost_invoice || 0, b.cost_real || 0,
+      b.sku, b.product_name || "", b.description || "", b.video_url || "", 
+      b.cost_invoice || 0, b.cost_real || 0,
       b.is_combo || 0, b.combo_items || null, b.combo_qty || 1, b.image_url || "",
       b.stock !== undefined ? b.stock : 0, b.min_stock !== undefined ? b.min_stock : 5
     ).run();

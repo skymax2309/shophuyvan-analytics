@@ -17,7 +17,7 @@ except Exception:
     pass
 
 # --- CẤU HÌNH ---
-API_URL = "https://shophuyvan-analytics.nghiemchihuy.workers.dev/api/products/shopee-import"
+API_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/products/shopee-import"
 
 # 1. TỰ ĐỘNG TÌM FILE TRONG THƯ MỤC HIỆN TẠI
 current_dir = os.path.dirname(os.path.abspath(__file__))

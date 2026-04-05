@@ -7,27 +7,29 @@ let _currentSkuTab = "no-price";
 let currentSkuPage = 1;
 const SKU_PER_PAGE = 30; // Chứa 30 Nhóm Sản Phẩm mỗi trang
 
-// 🌟 GỘP NHÓM CHA CON TỰ ĐỘNG
+// 🌟 GỘP NHÓM CHA CON TỰ ĐỘNG (Đã bọc thép chống lỗi dữ liệu)
 function buildSkuTree(flatData) {
     const tree = [];
     const parentMap = {};
     
-    // Bước 1: Lọc ra các sản phẩm gốc (Cha) hoặc sản phẩm độc lập
+    // Bước 1: Đăng ký tất cả sản phẩm Cha
     flatData.forEach(p => {
-        if (p.is_parent === 1) {
+        if (p.is_parent == 1) { // Dùng == thay vì === để không kén dữ liệu
             p.children = [];
             parentMap[p.sku] = p;
             tree.push(p);
-        } else if (!p.parent_sku) {
-            p.children = [];
-            tree.push(p); // Đứng độc lập như một Cha
         }
     });
     
-    // Bước 2: Nhét các phân loại (Con) vào trong Cha tương ứng
+    // Bước 2: Gom con vào Cha, ai mồ côi thì đứng riêng
     flatData.forEach(p => {
-        if (p.is_parent !== 1 && p.parent_sku && parentMap[p.parent_sku]) {
-            parentMap[p.parent_sku].children.push(p);
+        if (p.is_parent != 1) {
+            if (p.parent_sku && parentMap[p.parent_sku]) {
+                parentMap[p.parent_sku].children.push(p);
+            } else {
+                p.children = [];
+                tree.push(p); 
+            }
         }
     });
     return tree;
@@ -212,10 +214,11 @@ function renderSkuPagination(totalItems, totalPages) {
 async function saveSku() {
   const sku  = document.getElementById("s_sku").value.trim();
   const name = document.getElementById("s_name").value.trim();
+  const desc = document.getElementById("s_desc") ? document.getElementById("s_desc").value.trim() : "";
+  const video = document.getElementById("s_video_url") ? document.getElementById("s_video_url").value.trim() : "";
   const cinv = parseFloat(document.getElementById("s_cost_inv").value) || 0;
   const creal = parseFloat(document.getElementById("s_cost_real").value) || 0;
   const stock = parseInt(document.getElementById("s_stock").value) || 0;
-  const minStock = parseInt(document.getElementById("s_min_stock").value) || 0;
   
   const fileInput = document.getElementById("s_img_file");
   let finalImg = document.getElementById("s_old_img").value;
@@ -223,41 +226,30 @@ async function saveSku() {
   if (!sku || !name) { showToast("⚠️ Nhập SKU và Tên sản phẩm!", true); return; }
 
   const btn = document.getElementById("btnSaveSku");
-  btn.innerHTML = "⏳ Đang lưu...";
-  btn.disabled = true;
+  btn.innerHTML = "⏳ Đang lưu..."; btn.disabled = true;
 
   try {
       if (fileInput.files.length > 0) {
           const file = fileInput.files[0];
           const fileName = 'sku_' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '');
-          const uploadUrl = `${API}/api/upload?file=${fileName}&token=huyvan_secret_2026`;
-          
-          const uploadRes = await fetch(uploadUrl, { method: 'PUT', body: file });
+          const uploadRes = await fetch(`${API}/api/upload?file=${fileName}&token=huyvan_secret_2026`, { method: 'PUT', body: file });
           if (!uploadRes.ok) throw new Error("Lỗi upload ảnh lên server!");
           finalImg = `${API}/api/file/${fileName}`;
       }
 
       await fetch(API + "/api/products", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock, min_stock: minStock })
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sku, product_name: name, description: desc, video_url: video, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock })
       });
 
       showToast("✅ Đã lưu SKU: " + sku);
-      document.getElementById("s_sku").value = "";
-      document.getElementById("s_name").value = "";
-      document.getElementById("s_cost_inv").value = "";
-      document.getElementById("s_cost_real").value = "";
-      document.getElementById("s_img_file").value = "";
-      document.getElementById("s_img_preview").src = "https://placehold.co/60x60?text=IMG";
-      document.getElementById("s_old_img").value = "";
-      
+      if(document.getElementById("s_desc")) document.getElementById("s_desc").value = "";
+      if(document.getElementById("s_video_url")) document.getElementById("s_video_url").value = "";
       loadSkus();
   } catch (e) {
       showToast("❌ Lỗi: " + e.message, true);
   } finally {
-      btn.innerHTML = "💾 Lưu SKU";
-      btn.disabled = false;
+      btn.innerHTML = "💾 Lưu SKU"; btn.disabled = false;
   }
 }
 
@@ -286,6 +278,28 @@ function editSku(sku, name, cinv, creal, stock, img) {
   
   window.scrollTo({ top: 0, behavior: "smooth" });
   showToast("✏️ Đang chỉnh sửa SKU: " + sku);
+}
+
+window.editParentSku = function(safeSku) {
+    const sku = safeSku.replace(/_/g, " ").trim(); 
+    const p = window.allSkus.find(s => s.sku.toLowerCase() === sku.toLowerCase() || s.sku.replace(/[^a-zA-Z0-9]/g, "_") === safeSku);
+    if (!p) { showToast("❌ Không tìm thấy dữ liệu sản phẩm", true); return; }
+    
+    document.getElementById("s_sku").value = p.sku; 
+    document.getElementById("s_name").value = p.product_name || "";
+    if(document.getElementById("s_desc")) document.getElementById("s_desc").value = p.description || "";
+    if(document.getElementById("s_video_url")) document.getElementById("s_video_url").value = p.video_url || "";
+    document.getElementById("s_cost_inv").value = p.cost_invoice || 0; 
+    document.getElementById("s_cost_real").value = p.cost_real || 0;
+    document.getElementById("s_stock").value = p.stock || 0;
+    
+    const img = p.image_url;
+    const isValidImg = img && img.trim() !== "" && !img.includes('placehold');
+    document.getElementById("s_old_img").value = isValidImg ? img : "";
+    document.getElementById("s_img_preview").src = isValidImg ? img : "https://placehold.co/60x60?text=IMG";
+    
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    showToast("✏️ Đang chỉnh sửa Bài Đăng Gốc: " + p.sku);
 }
 
 async function deleteSku(sku) {
@@ -343,14 +357,70 @@ function exportSkuExcel() {
   showToast("✅ Đã tải file Excel!");
 }
 
-// ── LOGIC XÓA HÀNG LOẠT VÀ XÓA SẠCH KHO ─────────────────────────────
+// ── LOGIC XÓA HÀNG LOẠT VÀ GỘP NHÓM ─────────────────────────────
 window.updateSkuBulkDeleteUI = function() {
     const count = document.querySelectorAll('.sku-chk:checked').length;
     const btnBulk = document.getElementById('btnBulkDeleteSku');
     const countSpan = document.getElementById('selectedSkuCount');
-    if (btnBulk && countSpan) {
-        btnBulk.style.display = count > 0 ? 'inline-block' : 'none';
-        countSpan.textContent = count;
+    const btnGroup = document.getElementById('btnBulkGroupParent');
+    const btnUngroup = document.getElementById('btnBulkUngroup');
+    const groupCountSpan = document.getElementById('selectedGroupCount');
+
+    if (btnBulk) btnBulk.style.display = count > 0 ? 'inline-block' : 'none';
+    if (btnGroup) btnGroup.style.display = count > 0 ? 'inline-block' : 'none';
+    if (btnUngroup) btnUngroup.style.display = count > 0 ? 'inline-block' : 'none';
+    
+    if(countSpan) countSpan.textContent = count;
+    if(groupCountSpan) groupCountSpan.textContent = count;
+}
+
+window.promptGroupParent = async function() {
+    const checked = document.querySelectorAll('.sku-chk:checked');
+    const skus = Array.from(checked).map(cb => cb.dataset.sku);
+    if (!skus.length) return;
+
+    const parentSku = prompt(`Bạn đang gộp ${skus.length} mã phân loại.\nNhập mã Sản Phẩm GỐC (Cha) (VD: CONLAN2IN1_K177):`);
+    if (!parentSku) return;
+
+    const parentName = prompt(`Nhập tên chung cho Sản Phẩm Gốc này:`, "Sản phẩm " + parentSku);
+
+    try {
+        const res = await fetch(API + '/api/products/group-parent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ parent_sku: parentSku.trim(), parent_name: parentName, child_skus: skus })
+        });
+        if (res.ok) {
+            showToast(`✅ Đã gộp thành công ${skus.length} phân loại!`);
+            document.querySelectorAll('.sku-chk').forEach(c => c.checked = false);
+            updateSkuBulkDeleteUI();
+            loadSkus();
+        }
+    } catch (e) {
+        showToast('❌ Lỗi gộp: ' + e.message, true);
+    }
+}
+
+window.bulkUngroup = async function() {
+    const checked = document.querySelectorAll('.sku-chk:checked');
+    const skus = Array.from(checked).map(cb => cb.dataset.sku);
+    if (!skus.length) return;
+    if (!confirm(`Tách ${skus.length} mã này ra đứng độc lập?`)) return;
+
+    try {
+        const res = await fetch(API + '/api/products/ungroup-parent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ child_skus: skus })
+        });
+        if (res.ok) {
+            showToast(`✅ Đã tách thành công!`);
+            document.querySelectorAll('.sku-chk').forEach(c => c.checked = false);
+            updateSkuBulkDeleteUI();
+            loadSkus();
+        }
+    } catch (e) {
+        showToast('❌ Lỗi tách: ' + e.message, true);
     }
 }
 
@@ -448,7 +518,7 @@ window.executeQuickMap = async function(varId, internalSku) {
         if (res.ok) {
             showToast(`✅ Đã Map mã sàn vào SKU: ${internalSku}`);
             closeQuickMapModal();
-            loadSkus(); // Reload lại bảng SKU ngoài để hiện luôn Tag shop mới
+            loadSkus(); 
         } else {
             showToast('❌ Lỗi khi Map!', true);
             renderQuickMapList(); 
@@ -469,193 +539,74 @@ window.toggleAllCheck = function(type, checked) {
   updateSkuBulkDeleteUI();
 }
 
-// Hàm bổ trợ để JSON Upload
-async function uploadProductJson(file) {
-  if (!file) return;
-  const btn = document.querySelector('button[onclick="document.getElementById(\'json-file-input\').click()"]');
-  const originalText = btn.textContent;
-  btn.textContent = "⏳ Đang xử lý...";
-  btn.disabled = true;
+// ── LOGIC POPUP CHI TIẾT SẢN PHẨM CHUẨN SHOPEE ─────────────────────────
+window.openProductDetail = function(parentSku) {
+    const p = window.skuTree.find(s => s.sku === parentSku);
+    if (!p) return;
 
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-    const products = Array.isArray(data) ? data : (data.items || []);
+    document.getElementById('pd-title').textContent = p.product_name || 'Không có tên';
+    document.getElementById('pd-sku').textContent = p.sku;
+    document.getElementById('pd-desc').textContent = p.description || 'Chưa có mô tả chi tiết.';
     
-    if (!products.length) {
-      showToast("⚠️ File JSON trống hoặc không đúng định dạng!", true);
-      return;
-    }
+    const totalStock = (p.stock || 0) + (p.children ? p.children.reduce((sum, c) => sum + (c.stock || 0), 0) : 0);
+    document.getElementById('pd-stock').textContent = totalStock;
+    document.getElementById('pd-price').textContent = p.children && p.children.length > 0 ? "Bấm chọn phân loại để xem giá" : "Giá chưa đồng bộ"; 
 
-    let updatedCount = 0;
-    const existingSkus = new Map(allSkus.map(s => [s.sku.toLowerCase(), s]));
-
-    for (const p of products) {
-      const variants = Array.isArray(p.variants) ? p.variants : [];
-      let skuToMap = null;
-      let imgToMap = (Array.isArray(p.images) && p.images.length > 0) ? p.images[0] : "";
-
-      for (const v of variants) {
-        if (v.sku && existingSkus.has(v.sku.toLowerCase())) {
-          skuToMap = v.sku;
-          break;
-        }
-      }
-
-      if (!skuToMap && p.sku && existingSkus.has(p.sku.toLowerCase())) {
-        skuToMap = p.sku;
-      }
-
-      if (skuToMap) {
-        const currentData = existingSkus.get(skuToMap.toLowerCase());
-        if (imgToMap && currentData.image_url !== imgToMap) {
-          await fetch(API + "/api/products", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              sku: currentData.sku, 
-              product_name: currentData.product_name,
-              cost_invoice: currentData.cost_invoice,
-              cost_real: currentData.cost_real,
-              image_url: imgToMap 
-            })
-          });
-          updatedCount++;
-        }
-      }
-    }
-
-    showToast(`✅ Đã cập nhật ảnh cho ${updatedCount} SKU!`);
-    loadSkus();
-  } catch (e) {
-    console.error("Lỗi đọc file JSON", e);
-    showToast("❌ Lỗi khi đọc file JSON!", true);
-  } finally {
-    btn.textContent = originalText;
-    btn.disabled = false;
-    document.getElementById('json-file-input').value = "";
-  }
-}
-
-// ── LOGIC XỬ LÝ 3 FILE SHOPEE (SALES, MEDIA, BASIC) ───────────────────────
-window.processShopeeFiles = async function(files) {
-    if (!files || files.length < 2) {
-        showToast("⚠️ Vui lòng tải lên ít nhất 2 file (Sales và Media) cùng lúc!", true);
-        return;
-    }
-    showToast("⏳ Đang đọc và phân tích dữ liệu...", false);
+    let images = [];
+    try { images = typeof p.images === 'string' ? JSON.parse(p.images) : (p.images || []); } catch(e) { images = []; }
+    if (p.image_url && !images.includes(p.image_url)) images.unshift(p.image_url);
     
-    let salesData = [], mediaData = [], basicData = [];
+    const mediaContainer = document.getElementById('pd-main-media');
+    const galleryContainer = document.getElementById('pd-gallery');
+    galleryContainer.innerHTML = '';
 
-    // Hàm đọc file CSV thành mảng JSON
-    const readCSV = (file) => new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const wb = XLSX.read(e.target.result, { type: 'binary' });
-            // Lấy dòng 0 làm Header (Sử dụng mã hệ thống tiếng Anh gốc của Shopee để không bị lệch)
-            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-            resolve(json);
-        };
-        reader.readAsBinaryString(file);
-    });
-
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const data = await readCSV(file);
-        
-        // BỘ LỌC RÁC: Xóa bỏ 5 dòng hướng dẫn rác của Shopee. Chỉ giữ lại những dòng có ID là dãy số.
-        const cleanData = data.filter(row => row['et_title_product_id'] && /^\\d+$/.test(row['et_title_product_id'].toString().trim()));
-
-        if (file.name.toLowerCase().includes("sales")) salesData = cleanData;
-        else if (file.name.toLowerCase().includes("media")) mediaData = cleanData;
-        else if (file.name.toLowerCase().includes("basic")) basicData = cleanData;
-    }
-
-    if (!salesData.length || !mediaData.length) {
-        showToast("❌ Không tìm thấy dữ liệu hợp lệ trong file Sales / Media!", true);
-        return;
-    }
-
-    const mediaMap = {};
-    mediaData.forEach(m => mediaMap[m['et_title_product_id']] = m);
-    
-    const basicMap = {};
-    basicData.forEach(b => basicMap[b['et_title_product_id']] = b);
-
-    const productTree = {};
-
-    salesData.forEach(row => {
-        const productId = row['et_title_product_id'];
-        // Ưu tiên dùng SKU gốc của Shopee, nếu trống thì mượn ID
-        const parentSku = row['et_title_parent_sku'] || `SP_${productId}`;
-        const varSku = row['et_title_variation_sku'];
-        const varName = row['et_title_variation_name'];
-        const price = parseFloat(row['et_title_variation_price']) || 0;
-        const stock = parseInt(row['et_title_variation_stock']) || 0;
-        const productName = row['et_title_product_name'];
-
-        if (!productTree[productId]) {
-            const media = mediaMap[productId] || {};
-            const basic = basicMap[productId] || {};
-            
-            const images = [];
-            if (media['ps_item_cover_image']) images.push(media['ps_item_cover_image']);
-            for(let i=1; i<=8; i++) {
-                if (media[`ps_item_image.${i}`]) images.push(media[`ps_item_image.${i}`]);
-            }
-
-            productTree[productId] = {
-                parent_sku: parentSku.toString().toUpperCase(),
-                product_name: productName,
-                description: basic['et_title_product_description'] || '',
-                video_url: media['ps_item_video'] || media['ps_item_video_url'] || '', 
-                image_url: images[0] || '',
-                images: images,
-                variations: [],
-                _mediaRef: media 
-            };
-        }
-
-        // Xử lý Phân loại con
-        if (varSku) {
-            const media = productTree[productId]._mediaRef;
-            let varImage = '';
-            
-            // Dò tìm hình ảnh phân loại theo tên (Từ vị trí 1 đến 20)
-            for(let i=1; i<=20; i++) {
-                if (media[`et_title_option_${i}_for_variation_1`] === varName) {
-                    varImage = media[`et_title_option_image_${i}_for_variation_1`] || '';
-                    break;
-                }
-            }
-
-            productTree[productId].variations.push({
-                sku: varSku.toString().toUpperCase(),
-                variation_name: varName,
-                price: price,
-                stock: stock,
-                image_url: varImage
-            });
-        }
-    });
-
-    const finalPayload = Object.values(productTree);
-    
-    try {
-        const res = await fetch(API + "/api/products/shopee-import", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ products_data: finalPayload })
-        });
-        const result = await res.json();
-        if (res.ok) {
-            showToast(`✅ Đã đồng bộ hoàn chỉnh ${result.imported} sản phẩm!`);
-            document.getElementById('shopee-files-input').value = ""; // Reset
-            loadSkus();
+    const setMainMedia = (url, isVideo = false) => {
+        if (isVideo) {
+            mediaContainer.innerHTML = `<video controls autoplay style="width:100%; height:100%; object-fit:contain;"><source src="${url}" type="video/mp4"></video>`;
         } else {
-            showToast(`❌ Lỗi API: ${result.error}`, true);
+            mediaContainer.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:contain;">`;
         }
-    } catch (e) {
-        showToast("❌ Lỗi hệ thống: " + e.message, true);
+    };
+
+    if (p.video_url) {
+        galleryContainer.innerHTML += `<div onclick="setMainMedia('${p.video_url}', true)" style="width:60px; height:60px; border-radius:6px; border:2px solid #e2e8f0; cursor:pointer; background:#000; position:relative; display:flex; align-items:center; justify-content:center;"><span style="color:white; font-size:24px;">▶</span></div>`;
+        setMainMedia(p.video_url, true);
+    } else if (images.length > 0) {
+        setMainMedia(images[0]);
+    } else {
+        setMainMedia('https://placehold.co/400x400?text=No+Image');
     }
+
+    images.forEach(img => {
+        if(!img) return;
+        galleryContainer.innerHTML += `<img onclick="setMainMedia('${img}')" src="${img}" style="width:60px; height:60px; border-radius:6px; border:2px solid transparent; cursor:pointer; object-fit:cover;" onmouseover="this.style.borderColor='#3b82f6'" onmouseout="this.style.borderColor='transparent'">`;
+    });
+
+    const varContainer = document.getElementById('pd-variations');
+    varContainer.innerHTML = '';
+    
+    if (p.children && p.children.length > 0) {
+        p.children.forEach(c => {
+            const btn = document.createElement('button');
+            btn.className = 'var-btn';
+            btn.style.cssText = "padding:8px 16px; background:white; border:1px solid #cbd5e1; border-radius:4px; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px; transition:0.2s;";
+            
+            if (c.image_url) btn.innerHTML = `<img src="${c.image_url}" style="width:24px; height:24px; border-radius:4px; object-fit:cover;">`;
+            btn.innerHTML += `<span>${escapeHtml(c.product_name)}</span>`;
+
+            btn.onclick = () => {
+                document.querySelectorAll('.var-btn').forEach(b => { b.style.borderColor = '#cbd5e1'; b.style.color = '#333'; b.style.background = 'white'; });
+                btn.style.borderColor = '#ee4d2d'; btn.style.color = '#ee4d2d'; btn.style.background = '#fff4f4';
+                if(c.image_url) setMainMedia(c.image_url);
+                document.getElementById('pd-stock').textContent = c.stock || 0;
+                document.getElementById('pd-sku').textContent = c.sku;
+                document.getElementById('pd-price').textContent = Math.round(c.price || 0).toLocaleString('vi-VN') + 'đ';
+            };
+            varContainer.appendChild(btn);
+        });
+    } else {
+        varContainer.innerHTML = '<span style="color:#94a3b8; font-size:13px; font-style:italic;">Sản phẩm không có phân loại</span>';
+    }
+
+    document.getElementById('productDetailModal').style.display = 'flex';
 }
