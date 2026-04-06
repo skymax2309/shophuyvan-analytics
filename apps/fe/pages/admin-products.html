@@ -87,6 +87,7 @@
       </button>
       <button class="tab-btn" onclick="switchTab('invoice')"><span>🧾 Hóa Đơn Nhập</span></button>
       <button class="tab-btn" onclick="switchTab('loss')"><span>🔴 Đơn âm tiền</span></button>
+      <button class="tab-btn" onclick="switchTab('shops')"><span>🏪 Cửa Hàng & Phân Kho</span></button>
     </div>
   </aside>
 
@@ -191,6 +192,27 @@
     <div class="card">
       <div class="card-title">📋 Hóa Đơn Đã Lưu</div>
       <div id="inv-list">Đang tải...</div>
+    </div>
+  </div>
+  
+  <div id="tab-shops" class="tab-pane" style="display: none;">
+    <div class="card">
+      <div class="card-title">🏪 Thiết lập Nguồn Kho xuất hàng cho từng Shop</div>
+      <div style="font-size:13px;color:#64748b;margin-bottom:16px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+        💡 <b>Quy tắc:</b> Chọn kho vật lý mà mỗi cửa hàng sẽ trừ tồn kho khi có đơn, và đồng bộ số lượng lên sàn.
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
+            <th style="padding:12px;text-align:left;color:#475569;">Nền tảng</th>
+            <th style="padding:12px;text-align:left;color:#475569;">Tên Cửa Hàng (Shop)</th>
+            <th style="padding:12px;text-align:left;color:#475569;">Nguồn Kho Lấy Hàng 📦</th>
+          </tr>
+        </thead>
+        <tbody id="shop-warehouse-list">
+            <tr><td colspan="3" style="padding:20px; text-align:center; color:#888;">⏳ Đang tải danh sách cửa hàng...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
      
