@@ -852,7 +852,7 @@ window.executeQuickMap = async function(varId, internalSku) {
 
 window.toggleAllCheck = function(checked) {
     // Tự động tìm bảng đang mở theo Tab hiện tại
-    const containerId = _currentSkuTab === 'has-price' ? 'skuHasPriceTable' : (_currentSkuTab === 'missing-map' ? 'skuMissingMapTable' : 'skuNoPriceTable');
+    const containerId = _currentSkuTab === 'combo' ? 'skuComboTable' : (_currentSkuTab === 'has-price' ? 'skuHasPriceTable' : (_currentSkuTab === 'missing-map' ? 'skuMissingMapTable' : 'skuNoPriceTable'));
     
     // Chọn/Bỏ chọn toàn bộ SKU có trên mặt trang
     document.querySelectorAll(`#${containerId} .sku-chk`).forEach(c => c.checked = checked);
