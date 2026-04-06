@@ -24,26 +24,44 @@ class TikTokProducts:
         await asyncio.sleep(8)
 
         try:
-            await page.get_by_text("Tất cả thông tin", exact=True).first.click(force=True)
-            await asyncio.sleep(2)
-            await page.locator('button:has-text("Chọn các sản phẩm"), button:has-text("Chọn sản phẩm")').first.click(force=True)
-            await asyncio.sleep(4)
+            # 1. Tắt popup rác cản đường (nếu có)
+            try:
+                popups = await page.locator("button:has-text('Đã hiểu'), button:has-text('Đóng'), .TUXModal-close").all()
+                for popup in popups:
+                    if await popup.is_visible(): await popup.click()
+            except: pass
 
+            # 2. Bấm "Chọn các sản phẩm" (Bỏ qua bước Chọn Tất cả thông tin vì TikTok đã mặc định)
+            self.log("   ⚙️ Đang bấm nút 'Chọn các sản phẩm'...")
+            try:
+                await page.locator('button:has-text("Chọn các sản phẩm"), button:has-text("Chọn sản phẩm")').first.click(timeout=15000, force=True)
+                await asyncio.sleep(4)
+            except Exception as e:
+                self.log(f"   ❌ Lỗi không tìm thấy nút 'Chọn sản phẩm': {str(e)[:50]}")
+                return
+
+            # 3. Vòng lặp tick chọn toàn bộ sản phẩm trên tất cả các trang
+            self.log("   ⚙️ Đang tick chọn toàn bộ sản phẩm...")
             while True:
                 await page.evaluate('''() => {
-                    const wrapper = document.querySelector('th .arco-checkbox');
+                    // Cập nhật class CSS mới của TikTok: core-checkbox-mask
+                    const wrapper = document.querySelector('th .arco-checkbox, th .core-checkbox-mask');
                     if (wrapper) wrapper.click();
                     else { const cb = document.querySelector('th input[type="checkbox"]'); if(cb) cb.click(); }
                 }''')
-                await asyncio.sleep(5)
+                await asyncio.sleep(3)
+                
+                # Bấm trang tiếp theo
                 status = await page.evaluate('''() => {
-                    const next = document.querySelector('.arco-pagination-item-next');
-                    if (!next || next.classList.contains('arco-pagination-item-disabled')) return "disabled";
+                    const next = document.querySelector('.arco-pagination-item-next, .core-pagination-next');
+                    if (!next || next.classList.contains('arco-pagination-item-disabled') || next.classList.contains('core-pagination-disabled')) return "disabled";
                     next.click(); return "clicked";
                 }''')
                 if status != "clicked": break
-                await asyncio.sleep(5)
+                await asyncio.sleep(4)
 
+            # 4. Xác nhận và Tạo mẫu
+            self.log("   ⚙️ Đang Xác nhận & Yêu cầu Tạo mẫu Excel...")
             await page.locator('button:has-text("Chọn mục đã lọc"), button:has-text("Xác nhận")').first.click(force=True)
             await asyncio.sleep(3)
             await page.locator('button:has-text("Tạo mẫu")').first.click(force=True)
@@ -75,28 +93,26 @@ class TikTokProducts:
                 }''')
                 
                 if status == "ready":
-                    self.log("✅ Quá trình tạo hoàn tất! Bắt đầu tiêm JS kích hoạt nút Tải (Chống lệch)...")
+                    self.log("✅ Quá trình tạo hoàn tất! Đang dùng Playwright bóp cò tải file...")
                     try:
+                        # Bắt chính xác nút "Tải xuống" đầu tiên trên màn hình (Chính là file mới nhất)
+                        download_btn = page.locator("button:has-text('Tải xuống'), a:has-text('Tải xuống')").first
+
+                        await download_btn.scroll_into_view_if_needed()
+                        await asyncio.sleep(1)
+
                         async with page.expect_download(timeout=60000) as dl_info:
-                            await page.evaluate('''() => {
-                                let rows = Array.from(document.querySelectorAll('.arco-table-tr, tbody tr'));
-                                let dataRows = rows.filter(r => r.innerText && r.innerText.trim().length > 10);
-                                if (dataRows.length > 0) {
-                                    let elements = Array.from(dataRows[0].querySelectorAll('*'));
-                                    let btn = elements.find(el => {
-                                        let t = (el.innerText || '').trim().toLowerCase();
-                                        return t === 'tải xuống' || t === 'download';
-                                    });
-                                    if (btn) {
-                                        let clickable = btn.closest('button, a') || btn;
-                                        clickable.click();
-                                    }
-                                }
-                            }''')
+                            try:
+                                # Ưu tiên dùng lực click native của Playwright để kích hoạt React
+                                await download_btn.click(force=True)
+                            except:
+                                # Nếu bị chặn, dùng JS ép click thẳng vào Element đó
+                                await download_btn.evaluate("el => el.click()")
+                                
                         dl = await dl_info.value
                         break
                     except Exception as e:
-                        self.log(f"⚠️ Kích hoạt JS tải thất bại, đang thử lại vòng lặp... Lỗi: {str(e)[:40]}")
+                        self.log(f"⚠️ Kích hoạt tải thất bại, đang thử lại... Lỗi: {str(e)[:60]}")
                 elif status == "loading" and i % 5 == 0:
                     self.log("⏳ TikTok đang xoay dữ liệu tại dòng 1, vui lòng không tắt trình duyệt...")
                     
@@ -139,3 +155,54 @@ class TikTokProducts:
             shutil.rmtree(extract_dir)
             self.log("🎉 HOÀN TẤT ĐỒNG BỘ TIKTOK!")
         except Exception as e: self.log(f"❌ Lỗi: {str(e)}")
+
+        # ==========================================
+    # TÍNH NĂNG CHỜ KẾT NỐI: ĐẨY TỒN KHO LÊN SÀN
+    # ==========================================
+    async def upload_inventory_excel(self, page, shop, file_path):
+        """Hàm này đọc file Excel từ máy tính và bơm thẳng lên Tiktok"""
+        shop_id = shop.get('user_name', shop.get('ten_shop', 'Unknown'))
+        self.log(f"🚀 [UPLOAD] Bắt đầu đẩy file Tồn kho lên TikTok shop: {shop_id}")
+        
+        if not os.path.exists(file_path):
+            self.log(f"❌ Không tìm thấy file Excel để tải lên tại: {file_path}")
+            return False
+
+        if not await self.auth.check_and_login(page, shop): return False
+        
+        await page.goto("https://seller-vn.tiktok.com/product/batch/edit-prods?entry-from=manage&shop_region=VN", wait_until="commit")
+        await asyncio.sleep(8)
+
+        try:
+            # 1. Tắt popup quảng cáo nếu có
+            try:
+                popups = await page.locator("button:has-text('Đã hiểu'), button:has-text('Đóng'), .TUXModal-close").all()
+                for popup in popups:
+                    if await popup.is_visible(): await popup.click()
+            except: pass
+
+            # 2. Chuyển sang Tab "Tải lên" (Dựa theo Log AI của bạn)
+            self.log("   ⚙️ Đang chuyển sang Tab 'Tải lên'...")
+            try:
+                await page.locator('div.pulse-tabs-pane-title-content:has-text("Tải lên"), div:has-text("Tải lên")').first.click(timeout=10000)
+                await asyncio.sleep(3)
+            except Exception as e:
+                self.log(f"   ❌ Lỗi không tìm thấy Tab Tải Lên: {str(e)[:50]}")
+                return False
+
+            # 3. Bơm file Excel thẳng vào lỗ hổng Input (Không cần bấm nút "Chọn một file" bằng chuột)
+            self.log(f"   📤 Đang bơm file Excel: {os.path.basename(file_path)}")
+            file_input = page.locator('input[type="file"], input[accept*="excel"], input[accept*="xls"]').first
+            
+            # Hàm set_input_files của Playwright sẽ giả lập thao tác User kéo thả file vào web
+            await file_input.set_input_files(file_path)
+            self.log("   ⏳ Đang chờ TikTok nhai file và xử lý tồn kho...")
+            
+            # Chờ quá trình upload diễn ra (Khoảng 10 - 15 giây)
+            await asyncio.sleep(15)
+            self.log("   ✅ Bơm file hoàn tất! Vui lòng kiểm tra trên giao diện TikTok.")
+            return True
+
+        except Exception as e:
+            self.log(f"   ❌ Lỗi trong quá trình Upload TikTok: {str(e)[:80]}")
+            return False

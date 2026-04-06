@@ -749,7 +749,8 @@ window.executeQuickMap = async function(varId, internalSku) {
     try {
         document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#2563eb; font-weight:bold;">⏳ Đang nối mã...</div>';
         
-        const res = await fetch(API + "/api/sync-variations/edit", {
+        // ĐÃ SỬA: Xóa đuôi "/edit" để API chạy thẳng vào luồng Map, không đi lạc sang luồng Sửa Tên/Giá
+        const res = await fetch(API + "/api/sync-variations", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

@@ -41,7 +41,8 @@ class ShopeeOrderProcessor:
             return
 
         # 3. TRUY CẬP TRANG QUẢN LÝ ĐƠN SHOPEE
-        target_url = "https://banhang.shopee.vn/portal/sale/order?type=toship&source=all"
+        # BỌC THÉP: Ép Bot vào thẳng Tab "Tất cả" để lôi cổ đơn hàng ra dù nó ở bất kỳ trạng thái nào
+        target_url = "https://banhang.shopee.vn/portal/sale/order"
         await page.goto(target_url, timeout=60000, wait_until="domcontentloaded")
         await asyncio.sleep(5)
 
@@ -62,12 +63,17 @@ class ShopeeOrderProcessor:
             self.log(f"[*] Đang xử lý Mã đơn: {order_id}")
 
             try:
-                # Điền mã đơn
+                # Điền mã đơn và tìm kiếm (CÓ NHỊP THỞ CHỐNG LAG)
                 await search_input.wait_for(state="visible", timeout=15000)
                 await search_input.fill("")
+                await asyncio.sleep(0.5) # Chờ xíu cho Shopee kịp xóa rác cũ
+                
                 await search_input.fill(order_id)
+                self.log(f"   ⏳ Đang chờ 2s để Shopee nhận diện mã đơn...")
+                await asyncio.sleep(2) # Tĩnh tâm 2s theo thiết kế của Kỹ sư trưởng
+                
                 await page.keyboard.press("Enter")
-                await asyncio.sleep(4)
+                await asyncio.sleep(4) # Chờ kết quả hiển thị
 
                 # ====================================================
                 # PHẦN A: KIỂM TRA VÀ BẤM NÚT "CHUẨN BỊ HÀNG"

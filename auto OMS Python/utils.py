@@ -245,16 +245,31 @@ def process_and_sync_files(shop_name, file_paths, log_func):
         v_img = var_media_map.get(search_key, "")
         
         products_dict[p_id]["variations"].append({
-            "variation_name": vname,
+            "variation_name": str(row.get('variation_value', '')).strip(),
             "sku": var_sku if var_sku != 'nan' else '',
             "price": float(price) if price.replace('.', '', 1).isdigit() else 0,
             "stock": int(stock) if float(stock).is_integer() else 0,
-            "variation_image": v_img
+            "variation_image": var_image if var_image != 'nan' else ""
         })
 
-    product_list = list(products_dict.values())
+    # --- 🌟 BỌC THÉP TỔNG TỒN KHO: LỌC BỎ SẢN PHẨM CHẾT (TỒN = 0) ---
+    valid_products = []
+    for p in products_dict.values():
+        # Cộng dồn tồn kho của tất cả phân loại
+        total_stock = sum(v.get("stock", 0) for v in p["variations"])
+        # Chỉ giữ lại sản phẩm nếu tổng tồn kho > 0
+        if total_stock > 0:
+            valid_products.append(p)
+    
+    product_list = valid_products
     total_products = len(product_list)
-    log_func(f"🚀 Chuẩn bị bắn {total_products} Sản phẩm lên Website...")
+    
+    # Báo cáo số lượng rác đã dọn
+    trash_count = len(products_dict) - total_products
+    if trash_count > 0:
+        log_func(f"🧹 Đã dọn dẹp {trash_count} sản phẩm rác (Tổng tồn bằng 0).")
+        
+    log_func(f"🚀 Chuẩn bị bắn {total_products} Sản phẩm TIKTOK lên Website...")
     
     # 4. ĐỒNG BỘ QUA TỔNG QUẢN PRODUCT HUB
     import sys, os
@@ -492,8 +507,20 @@ def process_lazada_excel_and_sync(shop_name, file_paths, log_func):
             "variation_image": v_img
         })
 
-    product_list = list(products_dict.values())
+    # --- 🌟 BỌC THÉP TỔNG TỒN KHO: LỌC BỎ SẢN PHẨM CHẾT (TỒN = 0) ---
+    valid_products = []
+    for p in products_dict.values():
+        total_stock = sum(v.get("stock", 0) for v in p["variations"])
+        if total_stock > 0:
+            valid_products.append(p)
+            
+    product_list = valid_products
     total_products = len(product_list)
+    
+    trash_count = len(products_dict) - total_products
+    if trash_count > 0:
+        log_func(f"🧹 Đã dọn dẹp {trash_count} sản phẩm rác (Tổng tồn bằng 0).")
+        
     log_func(f"🚀 Xào nấu hoàn tất! Đã gom được {total_products} Sản phẩm Lazada. Chuẩn bị bắn lên Website...")
     
     # [DEBUG] XUẤT FILE LOG ĐỂ KIỂM TRA DỮ LIỆU JSON

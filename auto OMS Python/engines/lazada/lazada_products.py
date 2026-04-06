@@ -144,3 +144,67 @@ class LazadaProducts:
                 self.log("⚠️ Cảnh báo: File bị mất tích! Không đủ 3 file Excel trong thư mục để tiến hành xào nấu.")
         except Exception as e:
             self.log(f"❌ Lỗi hệ thống khi kích hoạt mảng đồng bộ Lazada: {e}")
+
+# ==========================================
+    # TÍNH NĂNG CHỜ KẾT NỐI: ĐẨY TỒN KHO LÊN SÀN
+    # ==========================================
+    async def upload_inventory_excel(self, page, shop, file_path):
+        """Hàm này đọc file Excel Tồn kho từ máy tính và bơm thẳng lên Lazada"""
+        shop_id = shop.get('user_name', shop.get('ten_shop', 'Unknown'))
+        self.log(f"🚀 [UPLOAD] Bắt đầu đẩy file Tồn kho lên LAZADA shop: {shop_id}")
+        
+        if not os.path.exists(file_path):
+            self.log(f"❌ Không tìm thấy file Excel để tải lên tại: {file_path}")
+            return False
+
+        if not await self.auth.check_and_login(page, shop): return False
+        
+        await page.goto("https://sellercenter.lazada.vn/apps/product/list?tab=online_product", wait_until="commit")
+        await asyncio.sleep(8)
+
+        try:
+            # 1. Tắt popup cản đường (nếu có)
+            try:
+                popups = await page.locator("button.next-dialog-close, button:has-text('Đóng')").all()
+                for popup in popups:
+                    if await popup.is_visible(): await popup.click()
+            except: pass
+
+            # 2. Bấm vào nút "Xuất dữ liệu" để mở bảng điều khiển Data
+            self.log("   ⚙️ Đang mở bảng điều khiển Dữ liệu...")
+            try:
+                await page.locator("button:has-text('Xuất dữ liệu'), span:has-text('Xuất dữ liệu')").first.click(timeout=10000)
+                await asyncio.sleep(3)
+            except Exception as e:
+                self.log(f"   ❌ Lỗi không tìm thấy nút Xuất dữ liệu: {str(e)[:50]}")
+                return False
+
+            # 3. Chuyển sang Tab "Tải lên file Excel" (Dựa theo Log AI)
+            self.log("   ⚙️ Đang chuyển sang Tab 'Tải lên'...")
+            try:
+                await page.locator("span.tab-desc:has-text('Tải lên file Excel'), text='Tải lên file Excel'").first.click(timeout=10000)
+                await asyncio.sleep(3)
+            except Exception as e:
+                self.log(f"   ❌ Lỗi không tìm thấy Tab Tải lên: {str(e)[:50]}")
+                return False
+
+            # 4. Bơm file Excel vào lỗ hổng Input (Không cần dùng chuột click nút Chọn Tập Tin)
+            self.log(f"   📤 Đang bơm file Excel: {os.path.basename(file_path)}")
+            file_input = page.locator('input[type="file"], input[accept*="excel"], input[accept*="xls"]').first
+            await file_input.set_input_files(file_path)
+            
+            self.log("   ⏳ Đang chờ Lazada nhai file và xử lý tồn kho...")
+            await asyncio.sleep(15)
+            
+            # 5. Bấm xem lịch sử upload (Theo thao tác chuẩn của bạn)
+            try:
+                await page.locator("button:has-text('See Upload History'), span:has-text('See Upload History')").first.click(timeout=5000)
+                await asyncio.sleep(3)
+            except: pass
+
+            self.log("   ✅ Bơm file hoàn tất! Vui lòng kiểm tra trên giao diện Lazada.")
+            return True
+
+        except Exception as e:
+            self.log(f"   ❌ Lỗi trong quá trình Upload Lazada: {str(e)[:80]}")
+            return False
