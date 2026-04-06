@@ -135,6 +135,14 @@ class ShopeeOrderProcessor:
                                 if frame:
                                     # Chờ mọi tín hiệu mạng bên trong iframe im ắng
                                     await frame.wait_for_load_state('networkidle', timeout=15000)
+                                    
+                                    # 🌟 BỌC THÉP XUYÊN GIÁP: Dùng quyền lực của Playwright tiêm thẳng CSS vào iframe (Vượt rào bảo mật CORS của Chrome)
+                                    await frame.add_style_tag(content="""
+                                        @media print { @page { margin: 0 !important; } }
+                                        html, body { overflow: hidden !important; background: #FFFFFF !important; margin: 0 !important; padding: 0 !important; }
+                                        ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+                                        * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+                                    """)
                         except: pass
                         await asyncio.sleep(3) # Tĩnh tâm thêm 3 giây để Canvas mã vạch vẽ xong
                         

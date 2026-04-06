@@ -178,15 +178,20 @@ window.renderSkuTables = function(page = null) {
       const noMapChild = p.children.some(c => !c.mapped_shops || c.mapped_shops.split(',').length < window.totalShopCount);
       return noMapParent || noMapChild;
   });
+  
+  // Lọc riêng rổ Combo
+  const comboList = filtered.filter(p => p.is_combo == 1 || p.children.some(c => c.is_combo == 1));
 
   document.getElementById("skuCount").textContent = tree.length;
   if(document.getElementById("skuNoPriceCount")) document.getElementById("skuNoPriceCount").textContent = noPrice.length;
   if(document.getElementById("skuHasPriceCount")) document.getElementById("skuHasPriceCount").textContent = hasPrice.length;
   if(document.getElementById("skuMissingMapCount")) document.getElementById("skuMissingMapCount").textContent = missingMap.length;
+  if(document.getElementById("skuComboCount")) document.getElementById("skuComboCount").textContent = comboList.length;
 
   let activeList = noPrice;
   if (_currentSkuTab === 'has-price') activeList = hasPrice;
   if (_currentSkuTab === 'missing-map') activeList = missingMap;
+  if (_currentSkuTab === 'combo') activeList = comboList;
 
   const totalItems = activeList.length;
   const totalPages = Math.ceil(totalItems / SKU_PER_PAGE) || 1;
@@ -221,11 +226,39 @@ function renderSkuPagination(totalItems, totalPages) {
     `;
 }
 
-// ── LOGIC GIAO DIỆN COMBO ──────────────────────────────────────────
+// ── LOGIC GIAO DIỆN COMBO & TỰ ĐỘNG TÍNH GIÁ ──────────────────────────
+window.recalcComboCost = function() {
+    if (!document.getElementById('s_is_combo').checked) return;
+    let totalInv = 0, totalReal = 0;
+    document.querySelectorAll('.combo-item-row').forEach(row => {
+        let cSku = row.querySelector('.combo-sku-input').value.trim();
+        if (cSku.includes(' - ')) cSku = cSku.split(' - ')[0].trim();
+        const cQty = parseInt(row.querySelector('.combo-qty-input').value) || 1;
+        if (cSku && window.allSkus) {
+            const item = window.allSkus.find(s => s.sku === cSku);
+            if (item) {
+                totalInv += (parseFloat(item.cost_invoice) || 0) * cQty;
+                totalReal += (parseFloat(item.cost_real) || 0) * cQty;
+            }
+        }
+    });
+    document.getElementById('s_cost_inv').value = totalInv;
+    document.getElementById('s_cost_real').value = totalReal;
+}
+
 window.toggleComboUI = function(show) {
     document.getElementById('combo-ui-wrapper').style.display = show ? 'block' : 'none';
-    if (show && document.getElementById('combo-items-list').children.length === 0) {
-        addComboItemRow(); // Mặc định thêm sẵn 1 dòng
+    const invInput = document.getElementById('s_cost_inv');
+    const realInput = document.getElementById('s_cost_real');
+    
+    if (show) {
+        invInput.readOnly = true; invInput.style.background = '#f1f5f9';
+        realInput.readOnly = true; realInput.style.background = '#f1f5f9';
+        if (document.getElementById('combo-items-list').children.length === 0) addComboItemRow();
+        recalcComboCost(); // Gọi tính liền
+    } else {
+        invInput.readOnly = false; invInput.style.background = 'white';
+        realInput.readOnly = false; realInput.style.background = 'white';
     }
 }
 
@@ -235,12 +268,34 @@ window.addComboItemRow = function(sku = '', qty = 1) {
     row.className = 'combo-item-row';
     row.style.cssText = 'display:flex; gap:8px; align-items:center;';
     row.innerHTML = `
-        <input type="text" class="combo-sku-input" list="all-sku-datalist" value="${escapeHtml(sku)}" placeholder="🔍 Tìm/Nhập mã SKU thành phần..." style="flex:1; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; font-size:13px;">
-        <span style="font-weight:bold; color:#64748b;">Số lượng: </span>
-        <input type="number" class="combo-qty-input" value="${qty}" min="1" style="width:60px; border:1px solid #cbd5e1; border-radius:6px; padding:6px; font-size:13px; text-align:center;">
-        <button onclick="this.parentElement.remove()" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:6px 10px; cursor:pointer; font-weight:bold;" title="Xóa dòng này">✕</button>
+        <input type="text" class="combo-sku-input" list="all-sku-datalist" value="${escapeHtml(sku)}" oninput="recalcComboCost()" onchange="recalcComboCost()" placeholder="🔍 Tìm/Nhập mã SKU..." style="flex:1; border:1px solid #cbd5e1; border-radius:6px; padding:6px 10px; font-size:13px;">
+        <span style="font-weight:bold; color:#64748b;">SL: </span>
+        <input type="number" class="combo-qty-input" value="${qty}" min="1" oninput="recalcComboCost()" onchange="recalcComboCost()" style="width:60px; border:1px solid #cbd5e1; border-radius:6px; padding:6px; font-size:13px; text-align:center;">
+        <button onclick="this.parentElement.remove(); recalcComboCost();" style="background:#fee2e2; color:#dc2626; border:none; border-radius:6px; padding:6px 10px; cursor:pointer; font-weight:bold;" title="Xóa">✕</button>
     `;
     list.appendChild(row);
+}
+
+// Chuyển nhanh 1 SKU thành Combo
+window.makeCombo = function(sku, isParent) {
+    if (isParent) {
+        editParentSku(sku);
+    } else {
+        const btn = document.querySelector(`button.btn-edit[data-sku="${sku}"]`);
+        if (btn) editSkuFromBtn(btn);
+        else {
+            const p = window.allSkus.find(s => s.sku === sku);
+            if (p) editSku(p.sku, p.product_name, p.cost_invoice, p.cost_real, p.stock, p.image_url);
+        }
+    }
+    setTimeout(() => {
+        const cb = document.getElementById('s_is_combo');
+        if (cb && !cb.checked) {
+            cb.checked = true;
+            toggleComboUI(true);
+            showToast("📦 Chế độ tự tính Giá Vốn Combo đã được bật!");
+        }
+    }, 100);
 }
 
 // ── LOGIC NHÂN BẢN SKU ─────────────────────────────────────────────
