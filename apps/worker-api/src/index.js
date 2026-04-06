@@ -13,6 +13,7 @@ import { parseInvoiceAI, saveInvoice, listInvoices, getInvoiceFile,
          updateCostPrices, getSkuMap, getSkuGroups, saveSkuGroup,
          updateGroupPrice, deleteSkuGroup, deleteInvoice } from './routes/invoices.js'
 import { handlePurchase } from './routes/purchase.js'
+import { handleAuth } from './handlers/auth.js' // Chèn Handler mới
 		 
 export default {
   // ── Tự động chạy mỗi 24h (Cron Trigger) ─────────────────
@@ -59,6 +60,11 @@ export default {
 
     if (url.pathname === "/")
       return new Response("ShopHuyVan Profit API v2")
+
+    // ── Cổng VIP: Xử lý Ủy Quyền Shopee/Lazada ─────────────────
+    if (url.pathname.startsWith("/api/auth/") || url.pathname.includes("/callback")) {
+      return handleAuth(request, env, url)
+    }
 
     try {
 		
