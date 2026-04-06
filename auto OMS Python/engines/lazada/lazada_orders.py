@@ -149,7 +149,9 @@ class LazadaOrderScraper:
                     order_items_raw = item_data.get("data", [])
                     # Lấy ĐVVC và Mã vận đơn từ sản phẩm đầu tiên của đơn hàng
                     if order_items_raw:
-                        shipping_provider = order_items_raw[0].get('shipment_provider', 'Lazada Shipping')
+                        raw_provider = order_items_raw[0].get('shipment_provider', 'Lazada Shipping')
+                        # Làm sạch tên ĐVVC (Ví dụ: "Pickup: BEST VN..." -> "BEST VN")
+                        shipping_provider = raw_provider.split(':')[-1].split(',')[0].strip()
                         tracking_number = order_items_raw[0].get('tracking_code', '')
 
                     for it in order_items_raw:
@@ -160,7 +162,7 @@ class LazadaOrderScraper:
                             "price": float(it.get('item_price', 0))
                         })
 
-                # Gộp thành Order chuẩn mực cho Đám mây
+                # Gộp thành Order chuẩn mực cho Đám mây (CHỈ GIỮ LẠI KHỐI NÀY)
                 standard_order = {
                     "order_id": order_id,
                     "shop": shop_name,
@@ -169,21 +171,8 @@ class LazadaOrderScraper:
                     "customer_name": o.get('customer_first_name', 'Khách Lazada'),
                     "shipping_fee": float(o.get('shipping_fee', 0)),
                     "order_total": float(o.get('price', 0)),
-                    "shipping_provider": shipping_provider, # <-- Thêm Đơn vị vận chuyển
-                    "tracking_number": tracking_number,     # <-- Thêm Mã vận đơn
-                    "oms_status": oms_status,
-                    "order_type": "return" if raw_status == 'returned' else ("cancel" if raw_status == 'canceled' else "normal"),
-                    "shipping_status": raw_status,
-                    "items": items_list
-                }
-                standard_order = {
-                    "order_id": order_id,
-                    "shop": shop_name,
-                    "platform": "lazada",
-                    "order_date": o.get('created_at', '')[:19].replace('T', ' '),
-                    "customer_name": o.get('customer_first_name', 'Khách Lazada'),
-                    "shipping_fee": float(o.get('shipping_fee', 0)),
-                    "order_total": float(o.get('price', 0)),
+                    "shipping_provider": shipping_provider, 
+                    "tracking_number": tracking_number,     
                     "oms_status": oms_status,
                     "order_type": "return" if raw_status == 'returned' else ("cancel" if raw_status == 'canceled' else "normal"),
                     "shipping_status": raw_status,
