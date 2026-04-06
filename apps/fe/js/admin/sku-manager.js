@@ -171,8 +171,18 @@ window.renderSkuTables = function(page = null) {
       return matchParent || matchChild;
   }) : tree;
 
-  const noPrice = filtered.filter(p => (!(p.cost_invoice || 0) && !(p.cost_real || 0)) || p.children.some(c => !(c.cost_invoice || 0) && !(c.cost_real || 0)));
-  const hasPrice = filtered.filter(p => ((p.cost_invoice || 0) > 0 && (p.cost_real || 0) > 0) || p.children.some(c => (c.cost_invoice || 0) > 0 && (c.cost_real || 0) > 0));
+const noPrice = filtered.filter(p => {
+      // Nếu có Phân loại con -> Chỉ cần 1 đứa con thiếu giá là ném vào Tab Chưa Giá
+      if (p.children && p.children.length > 0) return p.children.some(c => !(c.cost_invoice || 0) && !(c.cost_real || 0));
+      // Nếu là SP độc lập (Không có con) -> Mới xét giá của chính nó
+      return !(p.cost_invoice || 0) && !(p.cost_real || 0);
+  });
+
+  const hasPrice = filtered.filter(p => {
+      // Nếu có Phân loại con -> Tất cả các con phải có giá thì mới cho vào Tab Đủ Giá
+      if (p.children && p.children.length > 0) return p.children.every(c => (c.cost_invoice || 0) > 0 || (c.cost_real || 0) > 0);
+      return (p.cost_invoice || 0) > 0 || (p.cost_real || 0) > 0;
+  });
   const missingMap = filtered.filter(p => {
       const noMapParent = !p.mapped_shops || p.mapped_shops.split(',').length < window.totalShopCount;
       const noMapChild = p.children.some(c => !c.mapped_shops || c.mapped_shops.split(',').length < window.totalShopCount);
