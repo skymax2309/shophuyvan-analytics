@@ -12,13 +12,13 @@ async function signHMAC(keyStr, message) {
 const SHOPEE = {
   PID: 2013730,
   KEY: "shpk66746e4845745341714d6b63656a5a6c7049524b7444486c4a686c4d4a4m",
-  REDIRECT: "https://api.shophuyvan.vn/channels/shopee/callback"
+  REDIRECT: "https://huyvan-worker-api.nghiemchihuy.workers.dev/channels/shopee/callback"
 };
 
 const LAZADA = {
   APP_KEY: "135731",
   SECRET: "UHMS2CUNhAspEYgNMYZ1ywytbHhCx1wK",
-  REDIRECT: "https://api.shophuyvan.vn/channels/lazada/callback"
+  REDIRECT: "https://huyvan-worker-api.nghiemchihuy.workers.dev/channels/lazada/callback"
 };
 
 export async function handleAuth(request, env, url) {
