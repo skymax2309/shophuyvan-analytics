@@ -56,8 +56,15 @@ export async function handleAuth(request, env, url) {
     if (data.access_token) {
       console.log(`[AUTH-LOG] Đúc Token Shopee thành công cho Shop ${shop_id}`);
       const expireAt = new Date(Date.now() + (data.expire_in * 1000)).toISOString();
-      await env.DB.prepare(`UPDATE shops SET access_token=?, refresh_token=?, token_expire_at=? WHERE api_shop_id=?`)
-        .bind(data.access_token, data.refresh_token, expireAt, shop_id.toString()).run();
+      
+      const exist = await env.DB.prepare("SELECT id FROM shops WHERE api_shop_id = ? OR user_name = ?").bind(shop_id.toString(), shop_id.toString()).first();
+      if (exist) {
+        await env.DB.prepare(`UPDATE shops SET api_shop_id=?, access_token=?, refresh_token=?, token_expire_at=? WHERE id=?`)
+          .bind(shop_id.toString(), data.access_token, data.refresh_token, expireAt, exist.id).run();
+      } else {
+        await env.DB.prepare(`INSERT INTO shops (shop_name, platform, user_name, api_shop_id, access_token, refresh_token, token_expire_at) VALUES (?, 'shopee', ?, ?, ?, ?, ?)`)
+          .bind(`Shopee ${shop_id}`, shop_id.toString(), shop_id.toString(), data.access_token, data.refresh_token, expireAt).run();
+      }
       return Response.redirect("https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/oms-dashboard.html?api_status=success", 302);
     }
     return Response.json({ error: "Lỗi đúc Token Shopee", detail: data });
@@ -97,17 +104,27 @@ export async function handleAuth(request, env, url) {
       const data = await res.json();
       console.log("[AUTH-LOG] Kết quả phản hồi từ Lazada:", JSON.stringify(data));
 
-      if (data.access_token) {
+if (data.access_token) {
         const seller_id = data.country_user_info[0]?.seller_id || data.account;
-        console.log(`[AUTH-LOG] Đúc thành công! SellerID: ${seller_id}`);
+        const account_email = data.account; // Email Lazada dùng đăng nhập
+        console.log(`[AUTH-LOG] Đúc thành công! SellerID: ${seller_id}, Email: ${account_email}`);
         
         const expireAt = new Date(Date.now() + (data.expires_in * 1000)).toISOString();
+        console.log("[AUTH-LOG] Đang cập nhật Database D1 (Thuật toán Upsert)...");
         
-        console.log("[AUTH-LOG] Đang cập nhật Database D1...");
-        const dbResult = await env.DB.prepare(`UPDATE shops SET access_token=?, refresh_token=?, token_expire_at=? WHERE api_shop_id=?`)
-          .bind(data.access_token, data.refresh_token, expireAt, seller_id.toString()).run();
+        // Dò mìn xem có Shop nào khớp ID hoặc Email (user_name) chưa
+        const exist = await env.DB.prepare("SELECT id FROM shops WHERE api_shop_id = ? OR user_name = ?").bind(seller_id.toString(), account_email).first();
         
-        console.log(`[AUTH-LOG] Database trả về: ${dbResult.success ? "Thành công" : "Thất bại"}`);
+        if (exist) {
+          await env.DB.prepare(`UPDATE shops SET api_shop_id=?, access_token=?, refresh_token=?, token_expire_at=? WHERE id=?`)
+            .bind(seller_id.toString(), data.access_token, data.refresh_token, expireAt, exist.id).run();
+          console.log("[AUTH-LOG] Đã UPDATE shop có sẵn và vá lỗ hổng api_shop_id.");
+        } else {
+          await env.DB.prepare(`INSERT INTO shops (shop_name, platform, user_name, api_shop_id, access_token, refresh_token, token_expire_at) VALUES (?, 'lazada', ?, ?, ?, ?, ?)`)
+            .bind(`Lazada ${account_email}`, account_email, seller_id.toString(), data.access_token, data.refresh_token, expireAt).run();
+          console.log("[AUTH-LOG] Đã INSERT tạo shop Lazada mới hoàn toàn.");
+        }
+        
         return Response.redirect("https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/oms-dashboard.html?api_status=success", 302);
       } else {
         console.error("[AUTH-LOG] Lazada trả về thành công nhưng không có access_token!", data);
