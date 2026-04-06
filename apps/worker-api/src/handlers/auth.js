@@ -63,33 +63,60 @@ export async function handleAuth(request, env, url) {
     return Response.json({ error: "Lỗi đúc Token Shopee", detail: data });
   }
 
-  // 4. Callback Lazada: Đúc Token & Lưu Database
+  // 4. Callback Lazada: Đúc Token & Lưu Database (Bản Bọc Thép Gắn Log)
   if (url.pathname === "/channels/lazada/callback") {
-    const code = url.searchParams.get("code");
-    console.log(`[AUTH-LOG] Lazada Callback: Code=${code}`);
+    try {
+      const code = url.searchParams.get("code");
+      console.log(`[AUTH-LOG] Bắt đầu xử lý Lazada Callback. Code: ${code}`);
 
-    const api_path = "/auth/token/create";
-    const params = { app_key: LAZADA.APP_KEY, timestamp: Date.now().toString(), sign_method: "sha256", code: code };
-    let signString = api_path;
-    Object.keys(params).sort().forEach(k => signString += `${k}${params[k]}`);
-    const sign = (await signHMAC(LAZADA.SECRET, signString)).toUpperCase();
-    
-    const formData = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => formData.append(k, v));
-    formData.append("sign", sign);
+      if (!code) {
+        console.error("[AUTH-LOG] Lazada không trả về Code!");
+        return new Response("Thiếu mã Code từ Lazada", { status: 400 });
+      }
 
-    const res = await fetch(`https://auth.lazada.com/rest${api_path}?${formData.toString()}`, { method: "POST" });
-    const data = await res.json();
+      const api_path = "/auth/token/create";
+      const params = { app_key: LAZADA.APP_KEY, timestamp: Date.now().toString(), sign_method: "sha256", code: code };
+      
+      let signString = api_path;
+      Object.keys(params).sort().forEach(k => signString += `${k}${params[k]}`);
+      const sign = (await signHMAC(LAZADA.SECRET, signString)).toUpperCase();
+      
+      const formData = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => formData.append(k, v));
+      formData.append("sign", sign);
 
-    if (data.access_token) {
-      const seller_id = data.country_user_info[0]?.seller_id || data.account;
-      console.log(`[AUTH-LOG] Đúc Token Lazada thành công cho Seller ${seller_id}`);
-      const expireAt = new Date(Date.now() + (data.expires_in * 1000)).toISOString();
-      await env.DB.prepare(`UPDATE shops SET access_token=?, refresh_token=?, token_expire_at=? WHERE api_shop_id=?`)
-        .bind(data.access_token, data.refresh_token, expireAt, seller_id.toString()).run();
-      return Response.redirect("https://admin.shophuyvan.vn/pages/oms-dashboard.html?api_status=success", 302);
+      console.log("[AUTH-LOG] Đang gọi API Lazada đúc Token...");
+      const res = await fetch(`https://auth.lazada.com/rest${api_path}?${formData.toString()}`, { method: "POST" });
+      
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`[AUTH-LOG] Lazada Server từ chối Request (HTTP ${res.status}): ${errorText}`);
+        return new Response(`Lỗi kết nối Lazada: ${errorText}`, { status: 500 });
+      }
+
+      const data = await res.json();
+      console.log("[AUTH-LOG] Kết quả phản hồi từ Lazada:", JSON.stringify(data));
+
+      if (data.access_token) {
+        const seller_id = data.country_user_info[0]?.seller_id || data.account;
+        console.log(`[AUTH-LOG] Đúc thành công! SellerID: ${seller_id}`);
+        
+        const expireAt = new Date(Date.now() + (data.expires_in * 1000)).toISOString();
+        
+        console.log("[AUTH-LOG] Đang cập nhật Database D1...");
+        const dbResult = await env.DB.prepare(`UPDATE shops SET access_token=?, refresh_token=?, token_expire_at=? WHERE api_shop_id=?`)
+          .bind(data.access_token, data.refresh_token, expireAt, seller_id.toString()).run();
+        
+        console.log(`[AUTH-LOG] Database trả về: ${dbResult.success ? "Thành công" : "Thất bại"}`);
+        return Response.redirect("https://admin.shophuyvan.vn/pages/oms-dashboard.html?api_status=success", 302);
+      } else {
+        console.error("[AUTH-LOG] Lazada trả về thành công nhưng không có access_token!", data);
+        return Response.json({ error: "Lazada không cấp Token", detail: data });
+      }
+    } catch (err) {
+      console.error("[AUTH-LOG] CRITICAL ERROR (Sập luồng Lazada):", err.stack);
+      return new Response(`Lỗi Server Nội Bộ: ${err.message}`, { status: 500 });
     }
-    return Response.json({ error: "Lỗi đúc Token Lazada", detail: data });
   }
 
   return new Response("Auth Route Not Found", { status: 404 });
