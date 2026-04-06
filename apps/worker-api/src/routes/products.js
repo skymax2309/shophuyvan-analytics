@@ -262,11 +262,29 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
       await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...skus).run();
       return Response.json({ status: "ok", count: skus.length }, { headers: cors });
     }
-    const sku = path.split('/').pop();
-    await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run();
-    return Response.json({ status: "ok" }, { headers: cors });
-  }
-}
+const sku = path.split('/').pop();
+        await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run();
+        return Response.json({ status: "ok" }, { headers: cors });
+      }
+
+      // ==========================================
+      // [API MỚI] LẤY DANH SÁCH SHOP & CÀI ĐẶT KHO
+      // ==========================================
+      if (request.method === "GET" && url.pathname.endsWith("/shops-warehouse-list")) {
+          const { results } = await env.DB.prepare(`SELECT id, shop_name, platform, COALESCE(warehouse_source, 'main') as warehouse_source FROM shops ORDER BY platform, shop_name`).all();
+          return Response.json(results, { headers: cors });
+      }
+
+      // ==========================================
+      // [API MỚI] CẬP NHẬT NGUỒN KHO CHO SHOP
+      // ==========================================
+      if (request.method === "POST" && url.pathname.endsWith("/update-shop-warehouse")) {
+          const reqBody = await request.json();
+          await env.DB.prepare(`UPDATE shops SET warehouse_source = ? WHERE id = ?`).bind(reqBody.warehouse_source, reqBody.shop_id).run();
+          return Response.json({ status: "ok" }, { headers: cors });
+      }
+
+    }
 
 // ════════════════════════════════════════════════════════════════════
 // COST SETTINGS
@@ -581,22 +599,6 @@ async function handleVariations(request, env, cors) {
   }
 }
 
-// ==========================================
-  // [API MỚI] LẤY DANH SÁCH SHOP & CÀI ĐẶT KHO
-  // ==========================================
-  if (request.method === "GET" && url.pathname.endsWith("/shops-warehouse-list")) {
-      const { results } = await env.DB.prepare(`SELECT id, shop_name, platform, COALESCE(warehouse_source, 'main') as warehouse_source FROM shops ORDER BY platform, shop_name`).all();
-      return Response.json(results, { headers: cors });
-  }
-
-  // ==========================================
-  // [API MỚI] CẬP NHẬT NGUỒN KHO CHO SHOP
-  // ==========================================
-  if (request.method === "POST" && url.pathname.endsWith("/update-shop-warehouse")) {
-      const { shop_id, warehouse_source } = await request.json();
-      await env.DB.prepare(`UPDATE shops SET warehouse_source = ? WHERE id = ?`).bind(warehouse_source, shop_id).run();
-      return Response.json({ status: "ok" }, { headers: cors });
-  }
 
 
 export { handleProducts, handleCostSettings, handleVariations }
