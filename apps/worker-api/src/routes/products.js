@@ -5,8 +5,21 @@ async function handleProducts(request, env, cors) {
   const url = new URL(request.url);
 
   // ==========================================
-  // THÊM MỚI 1: API LẤY GIÁ KHUYẾN MÃI (/api/products/promo-prices)
+  // [BỌC THÉP] LẤY DANH SÁCH SHOP & CÀI ĐẶT KHO (ĐẶT TRÊN CÙNG ĐỂ NÉ HỐ ĐEN)
   // ==========================================
+  if (request.method === "GET" && url.pathname.endsWith("/shops-warehouse-list")) {
+      const { results } = await env.DB.prepare(`SELECT id, shop_name, platform, COALESCE(warehouse_source, 'main') as warehouse_source FROM shops ORDER BY platform, shop_name`).all();
+      return Response.json(results, { headers: cors });
+  }
+
+  if (request.method === "POST" && url.pathname.endsWith("/update-shop-warehouse")) {
+      const reqBody = await request.json();
+      await env.DB.prepare(`UPDATE shops SET warehouse_source = ? WHERE id = ?`).bind(reqBody.warehouse_source, reqBody.shop_id).run();
+      return Response.json({ status: "ok" }, { headers: cors });
+  }
+
+  // ==========================================
+  // THÊM MỚI 1: API LẤY GIÁ KHUYẾN MÃI (/api/products/promo-prices)
   if (request.method === "GET" && url.pathname.endsWith('/promo-prices')) {
     try {
       const platform = url.searchParams.get('platform') || 'shopee';
@@ -267,24 +280,6 @@ const sku = path.split('/').pop();
         return Response.json({ status: "ok" }, { headers: cors });
       }
 
-      // ==========================================
-      // [API MỚI] LẤY DANH SÁCH SHOP & CÀI ĐẶT KHO
-      // ==========================================
-      if (request.method === "GET" && url.pathname.endsWith("/shops-warehouse-list")) {
-          const { results } = await env.DB.prepare(`SELECT id, shop_name, platform, COALESCE(warehouse_source, 'main') as warehouse_source FROM shops ORDER BY platform, shop_name`).all();
-          return Response.json(results, { headers: cors });
-      }
-
-      // ==========================================
-      // [API MỚI] CẬP NHẬT NGUỒN KHO CHO SHOP
-      // ==========================================
-      if (request.method === "POST" && url.pathname.endsWith("/update-shop-warehouse")) {
-          const reqBody = await request.json();
-          await env.DB.prepare(`UPDATE shops SET warehouse_source = ? WHERE id = ?`).bind(reqBody.warehouse_source, reqBody.shop_id).run();
-          return Response.json({ status: "ok" }, { headers: cors });
-      }
-
-    }
 
 // ════════════════════════════════════════════════════════════════════
 // COST SETTINGS

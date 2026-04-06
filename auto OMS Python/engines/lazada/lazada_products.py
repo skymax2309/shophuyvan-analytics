@@ -23,8 +23,11 @@ class LazadaProducts:
             res = requests.get(f"{self.SERVER_URL}/shops/tokens", timeout=10)
             if res.status_code == 200:
                 for shop in res.json():
+                    # ĐIỀU KIỆN MỚI: Phải có access_token thì mới lấy (Bỏ qua rác)
                     if shop.get('platform') == 'lazada' and (shop.get('user_name') == shop_name or shop.get('shop_name') == shop_name):
-                        return shop.get('access_token')
+                        token = shop.get('access_token')
+                        if token: # <-- Chỉ trả về nếu token thực sự tồn tại
+                            return token
         except Exception as e:
             self.log(f"   ⚠️ Lỗi lấy Token từ Server: {e}")
         return None
