@@ -58,7 +58,7 @@ export async function handleAuth(request, env, url) {
       const expireAt = new Date(Date.now() + (data.expire_in * 1000)).toISOString();
       await env.DB.prepare(`UPDATE shops SET access_token=?, refresh_token=?, token_expire_at=? WHERE api_shop_id=?`)
         .bind(data.access_token, data.refresh_token, expireAt, shop_id.toString()).run();
-      return Response.redirect("https://admin.shophuyvan.vn/pages/oms-dashboard.html?api_status=success", 302);
+      return Response.redirect("https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/oms-dashboard.html?api_status=success", 302);
     }
     return Response.json({ error: "Lỗi đúc Token Shopee", detail: data });
   }
@@ -108,7 +108,7 @@ export async function handleAuth(request, env, url) {
           .bind(data.access_token, data.refresh_token, expireAt, seller_id.toString()).run();
         
         console.log(`[AUTH-LOG] Database trả về: ${dbResult.success ? "Thành công" : "Thất bại"}`);
-        return Response.redirect("https://admin.shophuyvan.vn/pages/oms-dashboard.html?api_status=success", 302);
+        return Response.redirect("https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/oms-dashboard.html?api_status=success", 302);
       } else {
         console.error("[AUTH-LOG] Lazada trả về thành công nhưng không có access_token!", data);
         return Response.json({ error: "Lazada không cấp Token", detail: data });
