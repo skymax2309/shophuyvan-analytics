@@ -5,64 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quản lý Sản phẩm & SKU</title>
 <link rel="stylesheet" href="../css/admin.css">
-<style>
-  /* Layout: Trái Sidebar - Phải Nội dung */
-  .app-wrapper { display: flex; min-height: 100vh; background: #f8fafc; }
-  .side-nav { width: 260px; background: #ffffff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
-  .side-header { padding: 20px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; }
-  .side-header a { text-decoration: none; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; color: #475569; font-weight: 700; font-size: 13px; transition: 0.2s; }
-  .side-header a:hover { background: #e2e8f0; color: #0f172a; }
-  .side-header span { font-weight: 800; font-size: 15px; color: #0f172a; }
-  .side-menu { padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
-  .side-menu a.tab-btn { text-decoration: none; padding: 12px 16px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 600; color: #64748b; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
-  .side-menu a.tab-btn:hover { background: #f1f5f9; color: #0f172a; }
-  .side-menu a.tab-btn.active { background: #eff6ff; color: #2563eb; border-right: 4px solid #2563eb; border-radius: 8px 4px 4px 8px; }
-  .container { flex: 1; padding: 24px 32px; max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
-  
-  /* BỌC THÉP GIAO DIỆN SẢN PHẨM (CHỐNG BỂ FORM) */
-  .sku-item-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; background: #fff; transition: 0.2s; border-bottom: 1px solid #f1f5f9; }
-  .sku-item-row:hover { background: #f8fafc; }
-  .sku-col-chk { flex: 0 0 24px; display: flex; align-items: center; }
-  .sku-col-img { flex: 0 0 auto; }
-  .sku-col-info { flex: 1 1 150px; min-width: 0; }
-  .sku-col-stats { flex: 0 0 auto; text-align: center; font-size: 13px; margin: 0 10px; }
-  .sku-col-actions { flex: 0 0 auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-  .sku-col-actions button { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; white-space: nowrap; border: 1px solid transparent; transition: 0.2s; display:flex; align-items:center; gap:4px; }
-  .sku-col-actions button:hover { filter: brightness(0.95); }
-
-  /* Tối ưu Mobile Responsive */
-  @media (max-width: 768px) {
-    .app-wrapper { flex-direction: column; }
-    .side-nav { width: 100%; height: auto; position: relative; }
-    .container { padding: 12px; }
-    .sku-col-actions { width: 100%; justify-content: flex-start; margin-top: 8px; }
-    .sku-col-actions button { flex: 1; justify-content: center; }
-    .sku-col-stats { text-align: left; margin: 0; width: 100%; display: flex; gap: 16px; margin-top: 8px;}
-  }
-</style>
 </head>
 <body>
 
 <template id="tpl-parent-card">
-<div class="shopee-parent-card" style="border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
-    <div class="sku-item-row" style="background: #f8fafc; cursor: pointer;" onclick="toggleChildRow('{{safe_sku}}')">
+<div class="shopee-parent-card">
+    <div class="sku-item-row parent-row" onclick="toggleChildRow('{{safe_sku}}')">
         <div class="sku-col-chk" onclick="event.stopPropagation()">
-            <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.3); cursor:pointer;">
+            <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()">
         </div>
-        <img class="sku-col-img" src="{{image}}" style="width: 48px; height: 48px; border-radius: 6px; object-fit: cover; border: 1px solid #cbd5e1;">
+        <img class="sku-col-img" src="{{image}}">
         <div class="sku-col-info">
-            <div style="font-weight: 700; color: #0f172a; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{name}}</div>
-            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Mã SP Gốc: <span style="font-family: monospace; font-weight: 600; color: #3b82f6;">{{sku}}</span></div>
+            <div class="title">{{name}}</div>
+            <div class="meta">Mã SP Gốc: <span>{{sku}}</span></div>
             {{mapped_badge}}
         </div>
         <div class="sku-col-stats">
-            <span style="color: #64748b;">Tổng Tồn:</span> <span style="font-weight: 700; color: #16a34a; font-size: 15px;">{{total_stock}}</span>
+            <span class="label">Tổng Tồn:</span>
+            <span class="value">{{total_stock}}</span>
         </div>
         <div class="sku-col-actions">
-            <button onclick="openProductDetail('{{sku}}'); event.stopPropagation();" style="background:#eff6ff; color:#2563eb; border-color:#bfdbfe;">👁️ Xem</button>
-            <button onclick="editParentSku('{{safe_sku}}'); event.stopPropagation();" style="background:#fef08a; color:#854d0e; border-color:#fde047;">✏️ Sửa</button>
-            <button onclick="makeCombo('{{sku}}', true); event.stopPropagation();" style="background:#fce7f3; color:#be185d; border-color:#fbcfe8;">📦 Combo</button>
-            <button onclick="duplicateSku('{{sku}}'); event.stopPropagation();" style="background:#e0e7ff; color:#4f46e5; border-color:#c7d2fe;">📑 Copy</button>
+            <button class="btn-view" onclick="openProductDetail('{{sku}}'); event.stopPropagation();">👁️ Xem</button>
+            <button class="btn-edit" onclick="editParentSku('{{safe_sku}}'); event.stopPropagation();">✏️ Sửa</button>
+            <button class="btn-combo" onclick="makeCombo('{{sku}}', true); event.stopPropagation();">📦 Combo</button>
+            <button class="btn-copy" onclick="duplicateSku('{{sku}}'); event.stopPropagation();">📑 Copy</button>
         </div>
         <div style="flex: 0 0 20px; text-align: right; color: #64748b; display: {{show_toggle}};">
             <span id="icon-{{safe_sku}}" style="font-size: 12px; transition: transform 0.3s; display: inline-block;">▼</span>
@@ -75,30 +41,30 @@
 </template>
 
 <template id="tpl-child-row">
-    <div class="sku-item-row" style="padding-left: 40px;">
+    <div class="sku-item-row child-row">
         <div class="sku-col-chk" onclick="event.stopPropagation()">
-            <input type="checkbox" class="sku-chk" data-sku="{{c_sku}}" onchange="updateSkuBulkDeleteUI()" style="transform:scale(1.1); cursor:pointer;">
+            <input type="checkbox" class="sku-chk" data-sku="{{c_sku}}" onchange="updateSkuBulkDeleteUI()">
         </div>
-        <img class="sku-col-img" src="{{c_img_url}}" style="width:36px; height:36px; border-radius:4px; object-fit:cover; border:1px solid #e2e8f0;">
+        <img class="sku-col-img" src="{{c_img_url}}">
         <div class="sku-col-info">
-            <div style="font-size: 13px; font-weight: 600; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">↳ {{c_name}}</div>
-            <div style="font-size: 11px; color: #94a3b8; font-family: monospace; margin-top: 2px;">Mã: {{c_sku}}</div>
+            <div class="title">↳ {{c_name}}</div>
+            <div class="meta">Mã: <span>{{c_sku}}</span></div>
             {{c_mapped_badge}}
         </div>
         <div class="sku-col-stats">
-            <div style="color: #64748b; font-size:11px; margin-bottom:2px;">Giá vốn</div>
-            <strong style="color:#64748b;">{{c_cost}}</strong>
+            <span class="label">Giá vốn</span>
+            <strong class="value">{{c_cost}}</strong>
         </div>
         <div class="sku-col-stats">
-            <div style="color: #64748b; font-size:11px; margin-bottom:2px;">Tồn kho</div>
-            <strong style="color:#2563eb; font-size:14px;">📦 {{c_stock}}</strong>
+            <span class="label">Tồn kho</span>
+            <strong class="value" style="color:#2563eb;">📦 {{c_stock}}</strong>
         </div>
         <div class="sku-col-actions">
-            <button onclick="openQuickMapModal('{{c_sku}}'); event.stopPropagation();" style="background:#eff6ff; color:#2563eb; border-color:#93c5fd; border-style:dashed;">🔗 Map</button>
-            <button class="btn btn-edit" data-sku="{{c_sku}}" data-name="{{c_enc_name}}" data-cinv="{{c_raw_inv}}" data-creal="{{c_raw_real}}" data-stock="{{c_raw_stock}}" data-img="{{c_img}}" onclick="editSkuFromBtn(this)" style="background:#f1f5f9; color:#475569; border-color:#cbd5e1;">✏️ Sửa</button>
-            <button onclick="makeCombo('{{c_sku}}', false); event.stopPropagation();" style="background:#fce7f3; color:#be185d; border-color:#fbcfe8;">📦 Ghép</button>
-            <button onclick="duplicateSku('{{c_sku}}'); event.stopPropagation();" style="background:#e0e7ff; color:#4f46e5; border-color:#c7d2fe;">📑 Copy</button>
-            <button onclick="deleteSku('{{c_sku}}'); event.stopPropagation();" style="background:#fee2e2; color:#dc2626; border-color:#fca5a5;">🗑️ Xóa</button>
+            <button class="btn-map" onclick="openQuickMapModal('{{c_sku}}'); event.stopPropagation();">🔗 Map</button>
+            <button class="btn-edit" data-sku="{{c_sku}}" data-name="{{c_enc_name}}" data-cinv="{{c_raw_inv}}" data-creal="{{c_raw_real}}" data-stock="{{c_raw_stock}}" data-img="{{c_img}}" onclick="editSkuFromBtn(this)">✏️ Sửa</button>
+            <button class="btn-combo" onclick="makeCombo('{{c_sku}}', false); event.stopPropagation();">📦 Ghép</button>
+            <button class="btn-copy" onclick="duplicateSku('{{c_sku}}'); event.stopPropagation();">📑 Copy</button>
+            <button class="btn-delete" onclick="deleteSku('{{c_sku}}'); event.stopPropagation();">🗑️ Xóa</button>
         </div>
     </div>
 </template>
@@ -214,7 +180,7 @@
         <button class="sku-tab-btn" id="stab-combo" onclick="switchSkuTab('combo')" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">📦 Combo (<span id="skuComboCount">0</span>)</button>
       </div>
         
-      <div style="flex: 1; overflow-y: auto; background: #fff; padding: 20px 0;">
+      <div style="flex: 1; background: #fff; padding: 20px 0;">
           <div id="sku-tab-no-price" class="sku-list-container">
             <div id="skuNoPriceTable"></div>
           </div>
@@ -257,10 +223,8 @@
     </div>
     <div style="display:flex; flex-wrap:wrap; overflow-y:auto; padding:24px; gap:24px;">
       <div style="flex: 1; min-width: 300px; max-width: 400px; display:flex; flex-direction:column; gap:12px;">
-        <div id="pd-main-media" style="width:100%; aspect-ratio:1; background:#f1f5f9; border-radius:8px; border:1px solid #e2e8f0; overflow:hidden; display:flex; align-items:center; justify-content:center;">
-        </div>
-        <div id="pd-gallery" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;">
-        </div>
+        <div id="pd-main-media" style="width:100%; aspect-ratio:1; background:#f1f5f9; border-radius:8px; border:1px solid #e2e8f0; overflow:hidden; display:flex; align-items:center; justify-content:center;"></div>
+        <div id="pd-gallery" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;"></div>
       </div>
       <div style="flex: 2; min-width: 300px; display:flex; flex-direction:column; gap:16px;">
         <h2 id="pd-title" style="margin:0; font-size:20px; line-height:1.4; color:#0f172a;">Tên sản phẩm</h2>
@@ -270,13 +234,11 @@
         </div>
         <div>
             <div style="font-size:14px; color:#475569; font-weight:600; margin-bottom:8px;">Phân loại hàng:</div>
-            <div id="pd-variations" style="display:flex; flex-wrap:wrap; gap:10px;">
-            </div>
+            <div id="pd-variations" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
         </div>
         <div style="margin-top:auto; padding-top:16px; border-top:1px solid #e2e8f0;">
             <div style="font-size:14px; font-weight:700; margin-bottom:8px; color:#1e293b;">Mô tả sản phẩm</div>
-            <div id="pd-desc" style="font-size:13px; color:#475569; line-height:1.6; white-space:pre-wrap; max-height:200px; overflow-y:auto; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-            </div>
+            <div id="pd-desc" style="font-size:13px; color:#475569; line-height:1.6; white-space:pre-wrap; max-height:200px; overflow-y:auto; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;"></div>
         </div>
       </div>
     </div>

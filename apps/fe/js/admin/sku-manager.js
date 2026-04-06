@@ -81,20 +81,21 @@ async function loadSkus() {
 
 function switchSkuTab(tab) {
   _currentSkuTab = tab;
-  document.querySelectorAll(".sku-tab-btn").forEach(b => {
-    b.style.borderBottomColor = "transparent";
-    b.style.color = "#888";
-  });
-  const colors = { "no-price": "#f59e0b", "has-price": "#16a34a", "missing-map": "#ea580c" };
-  const btn = document.getElementById("stab-" + tab);
-  if(btn) {
-    btn.style.borderBottomColor = colors[tab] || "#4f46e5";
-    btn.style.color = "#333";
-  }
-  
-  document.querySelectorAll(".sku-list-container").forEach(el => el.parentElement.style.display = "none");
-  const targetTab = document.getElementById("sku-tab-" + tab);
-  if (targetTab) targetTab.style.display = "block";
+document.querySelectorAll(".sku-tab-btn").forEach(b => {
+        b.style.borderBottomColor = "transparent";
+        b.style.color = "#888";
+      });
+      const colors = { "no-price": "#f59e0b", "has-price": "#16a34a", "missing-map": "#ea580c" };
+      const btn = document.getElementById("stab-" + tab);
+      if(btn) {
+        btn.style.borderBottomColor = colors[tab] || "#4f46e5";
+        btn.style.color = "#333";
+      }
+      
+      // FIX LỖI MẤT TAB: Chỉ ẩn bản thân container, không ẩn thẻ cha của nó
+      document.querySelectorAll(".sku-list-container").forEach(el => el.style.display = "none");
+      const targetTab = document.getElementById("sku-tab-" + tab);
+      if (targetTab) targetTab.style.display = "block";
   
   currentSkuPage = 1;
   renderSkuTables();
@@ -498,9 +499,20 @@ window.editParentSku = function(safeSku) {
     document.getElementById("s_name").value = p.product_name || "";
     if(document.getElementById("s_desc")) document.getElementById("s_desc").value = p.description || "";
     if(document.getElementById("s_video_url")) document.getElementById("s_video_url").value = p.video_url || "";
-    document.getElementById("s_cost_inv").value = p.cost_invoice || 0; 
-    document.getElementById("s_cost_real").value = p.cost_real || 0;
+    
+    // TỰ ĐỘNG BỐC GIÁ TỪ CON LÊN NẾU CHA BẰNG 0 (Chống mù giá)
+    let cinv = p.cost_invoice || 0;
+    let creal = p.cost_real || 0;
+    if (cinv === 0 && creal === 0 && p.children && p.children.length > 0) {
+        cinv = p.children[0].cost_invoice || 0;
+        creal = p.children[0].cost_real || 0;
+    }
+    document.getElementById("s_cost_inv").value = cinv; 
+    document.getElementById("s_cost_real").value = creal;
     document.getElementById("s_stock").value = p.stock || 0;
+
+    // Tự động tick "Áp dụng cho tất cả phân loại" để anh không cần thao tác 2 lần
+    if (document.getElementById("s_apply_all_cost")) document.getElementById("s_apply_all_cost").checked = true;
 
     // Tái tạo lại Giao diện Combo cho SP Cha
     const isComboCb = document.getElementById('s_is_combo');
