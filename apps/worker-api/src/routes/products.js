@@ -66,7 +66,7 @@ async function handleProducts(request, env, cors) {
 
 // Liệt kê rõ các cột để tránh lỗi trùng lặp và loại bỏ các chuỗi rác 'undefined', 'null'
     const query = `
-      SELECT p.sku, p.product_name, p.description, p.video_url, p.images, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.min_stock, p.is_parent, p.parent_sku,
+      SELECT p.sku, p.product_name, p.description, p.video_url, p.images, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.stock_main, p.stock_sub, p.min_stock, p.is_parent, p.parent_sku,
         CASE
           WHEN p.image_url IS NOT NULL AND TRIM(p.image_url) NOT IN ('', 'undefined', 'null') THEN TRIM(p.image_url)
           ELSE COALESCE(
@@ -168,9 +168,9 @@ async function handleProducts(request, env, cors) {
             const stmts = [];
 
             for (const p of items) {
-                stmts.push(env.DB.prepare(`
-                    INSERT INTO products (sku, product_name, parent_sku, description, video_url, cost_invoice, cost_real, is_combo, combo_items, image_url, stock, min_stock)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+stmts.push(env.DB.prepare(`
+                    INSERT INTO products (sku, product_name, parent_sku, description, video_url, cost_invoice, cost_real, is_combo, combo_items, image_url, stock, stock_main, stock_sub, min_stock)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(sku) DO UPDATE SET 
                         product_name = CASE WHEN excluded.product_name != '' THEN excluded.product_name ELSE products.product_name END,
                         parent_sku = CASE WHEN excluded.parent_sku IS NOT NULL THEN excluded.parent_sku ELSE products.parent_sku END,
@@ -182,6 +182,8 @@ async function handleProducts(request, env, cors) {
                         combo_items = CASE WHEN excluded.combo_items IS NOT NULL THEN excluded.combo_items ELSE products.combo_items END,
                         image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END,
                         stock = excluded.stock,
+                        stock_main = excluded.stock_main,
+                        stock_sub = excluded.stock_sub,
                         min_stock = excluded.min_stock
                 `).bind(
                     String(p.sku), 
@@ -195,6 +197,8 @@ async function handleProducts(request, env, cors) {
                     p.combo_items ? String(p.combo_items) : null, 
                     p.image_url ? String(p.image_url) : "", 
                     Number(p.stock) || 0, 
+                    Number(p.stock_main) || 0, 
+                    Number(p.stock_sub) || 0, 
                     Number(p.min_stock) || 5
                 ));
             }
@@ -218,8 +222,8 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
     const b = await request.json();
     console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Giá Vốn HĐ:", b.cost_invoice, "| Giá Thực:", b.cost_real);
     await env.DB.prepare(`
-      INSERT INTO products (sku, product_name, description, video_url, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, min_stock)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (sku, product_name, description, video_url, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, stock_main, stock_sub, min_stock)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(sku) DO UPDATE SET
         product_name = excluded.product_name,
         description = CASE WHEN excluded.description != '' THEN excluded.description ELSE products.description END,
@@ -231,12 +235,17 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
         combo_qty = excluded.combo_qty,
         image_url = CASE WHEN excluded.image_url != '' THEN excluded.image_url ELSE products.image_url END,
         stock = excluded.stock,
+        stock_main = excluded.stock_main,
+        stock_sub = excluded.stock_sub,
         min_stock = excluded.min_stock
     `).bind(
       b.sku, b.product_name || "", b.description || "", b.video_url || "", 
       b.cost_invoice || 0, b.cost_real || 0,
       b.is_combo || 0, b.combo_items || null, b.combo_qty || 1, b.image_url || "",
-      b.stock !== undefined ? b.stock : 0, b.min_stock !== undefined ? b.min_stock : 5
+      b.stock !== undefined ? b.stock : 0, 
+      b.stock_main !== undefined ? b.stock_main : 0,
+      b.stock_sub !== undefined ? b.stock_sub : 0,
+      b.min_stock !== undefined ? b.min_stock : 5
     ).run();
     return Response.json({ status: "ok" }, { headers: cors });
   }

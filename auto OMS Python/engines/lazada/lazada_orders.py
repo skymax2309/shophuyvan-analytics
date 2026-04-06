@@ -142,16 +142,40 @@ class LazadaOrderScraper:
                 item_data = item_res.json()
                 
                 items_list = []
+                shipping_provider = "Chưa rõ"
+                tracking_number = ""
+                
                 if item_data.get("code") == "0":
-                    for it in item_data.get("data", []):
+                    order_items_raw = item_data.get("data", [])
+                    # Lấy ĐVVC và Mã vận đơn từ sản phẩm đầu tiên của đơn hàng
+                    if order_items_raw:
+                        shipping_provider = order_items_raw[0].get('shipment_provider', 'Lazada Shipping')
+                        tracking_number = order_items_raw[0].get('tracking_code', '')
+
+                    for it in order_items_raw:
                         items_list.append({
                             "sku": it.get('sku', ''),
                             "product_name": it.get('name', ''),
-                            "quantity": 1, # API Lazada trả 1 dòng cho 1 sản phẩm
+                            "quantity": 1, 
                             "price": float(it.get('item_price', 0))
                         })
 
                 # Gộp thành Order chuẩn mực cho Đám mây
+                standard_order = {
+                    "order_id": order_id,
+                    "shop": shop_name,
+                    "platform": "lazada",
+                    "order_date": o.get('created_at', '')[:19].replace('T', ' '),
+                    "customer_name": o.get('customer_first_name', 'Khách Lazada'),
+                    "shipping_fee": float(o.get('shipping_fee', 0)),
+                    "order_total": float(o.get('price', 0)),
+                    "shipping_provider": shipping_provider, # <-- Thêm Đơn vị vận chuyển
+                    "tracking_number": tracking_number,     # <-- Thêm Mã vận đơn
+                    "oms_status": oms_status,
+                    "order_type": "return" if raw_status == 'returned' else ("cancel" if raw_status == 'canceled' else "normal"),
+                    "shipping_status": raw_status,
+                    "items": items_list
+                }
                 standard_order = {
                     "order_id": order_id,
                     "shop": shop_name,
