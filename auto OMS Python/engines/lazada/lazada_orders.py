@@ -22,7 +22,7 @@ class LazadaOrderScraper:
         """Hỏi Server Cloudflare xem Shop này đã cấp quyền API (Token) chưa?"""
         import requests
         try:
-            res = requests.get(f"{self.SERVER_URL}/shops", timeout=10)
+            res = requests.get(f"{self.SERVER_URL}/shops/tokens", timeout=10)
             if res.status_code == 200:
                 shops = res.json()
                 for shop in shops:

@@ -249,6 +249,18 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         }
       }
 
+      // ── CỔNG VIP: Dành riêng cho Bot Python lấy Token ─────────────────
+      if (url.pathname === "/api/shops/tokens" && request.method === "GET") {
+        try {
+          // Trả về full thông tin bảo mật (chỉ Bot Python gọi vào đây)
+          const { results } = await env.DB.prepare("SELECT shop_name, platform, user_name, api_shop_id, access_token, refresh_token FROM shops").all()
+          return Response.json(results, { headers: cors })
+        } catch (e) {
+          console.error("[API TOKENS] Lỗi:", e.message)
+          return Response.json({ error: e.message }, { status: 500, headers: cors })
+        }
+      }
+
       // [API ĐỒNG BỘ] Cập nhật danh sách Shop từ Tool Python (Source of Truth)
       if (url.pathname === "/api/shops/sync" && request.method === "POST") {
         try {
