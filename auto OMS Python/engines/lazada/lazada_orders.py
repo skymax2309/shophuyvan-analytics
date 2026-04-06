@@ -162,7 +162,7 @@ class LazadaOrderScraper:
                             "price": float(it.get('item_price', 0))
                         })
 
-                # Gộp thành Order chuẩn mực cho Đám mây (CHỈ GIỮ LẠI KHỐI NÀY)
+                # Gộp thành Order chuẩn mực cho Đám mây (Đã đổi tên cột vận chuyển)
                 standard_order = {
                     "order_id": order_id,
                     "shop": shop_name,
@@ -171,7 +171,7 @@ class LazadaOrderScraper:
                     "customer_name": o.get('customer_first_name', 'Khách Lazada'),
                     "shipping_fee": float(o.get('shipping_fee', 0)),
                     "order_total": float(o.get('price', 0)),
-                    "shipping_provider": shipping_provider, 
+                    "shipping_carrier": shipping_provider, # <-- Đổi từ shipping_provider sang shipping_carrier
                     "tracking_number": tracking_number,     
                     "oms_status": oms_status,
                     "order_type": "return" if raw_status == 'returned' else ("cancel" if raw_status == 'canceled' else "normal"),

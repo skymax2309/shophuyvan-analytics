@@ -80,7 +80,9 @@ export default {
           url.pathname === "/api/products/shopee-import" ||
           url.pathname === "/api/products/group-parent" ||
           url.pathname === "/api/products/ungroup-parent" ||
-          url.pathname === "/api/products/bulk-import")
+          url.pathname === "/api/products/bulk-import" ||
+          url.pathname === "/api/products/shops-warehouse-list" ||
+          url.pathname === "/api/products/update-shop-warehouse")
         return handleProducts(request, env, cors)
 
       if (url.pathname === "/api/sync-variations/bulk" && request.method === "DELETE")
