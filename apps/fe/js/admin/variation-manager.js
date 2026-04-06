@@ -182,14 +182,17 @@ window.renderVariations = function(page = 1) {
                       <strong style="color:#2563eb; font-size:14px;">📦 ${stockStr}</strong>
                   </div>
                   <div style="flex: 0 0 160px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;" onclick="event.stopPropagation()">
-                      ${v.map_status === 'MAPPED' ? `
+                          ${v.map_status === 'MAPPED' ? `
                           <div style="font-size:11px; margin-bottom:4px;">${mappedHtml}</div>
                           <div style="display:flex; gap:6px; width:100%;">
                               <button onclick="resetVarMap(${v.id})" style="flex:1; padding:4px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">✕ Hủy Map</button>
                               <button onclick="openEditVarModal(${v.id})" style="flex:1; padding:4px; background:#fef3c7; color:#d97706; border:1px solid #fde047; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">✏️ Sửa SP</button>
                           </div>
                       ` : `
-                          <button onclick="openQuickMapModal('${v.id}', '${escapeHtml(v.platform_sku)}')" style="width:100%; padding:4px 10px; background:#3b82f6; color:white; border:none; border-radius:6px; font-size:11px; cursor:pointer; font-weight:bold; box-shadow:0 1px 2px rgba(37,99,235,0.2);">🔗 MAP Nhanh</button>
+                          <div style="display:flex; gap:6px; width:100%; margin-bottom:4px;">
+                              <button onclick="openQuickMapModal('${v.id}', '${escapeHtml(v.platform_sku)}')" style="flex:1; padding:4px 0; background:#3b82f6; color:white; border:none; border-radius:6px; font-size:10px; cursor:pointer; font-weight:bold;">🔗 Map</button>
+                              <button onclick="copyToInternalSku(${v.id})" style="flex:1; padding:4px 0; background:#10b981; color:white; border:none; border-radius:6px; font-size:10px; cursor:pointer; font-weight:bold;" title="Tạo SKU nội bộ và Map tự động">➕ Copy NB</button>
+                          </div>
                           <div style="display:flex; gap:6px; width:100%;">
                               <button onclick="ignoreVar(${v.id})" style="flex:1; padding:4px 0; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:4px; font-size:10px; cursor:pointer; font-weight:600">🚫 Bỏ qua</button>
                               <button onclick="openEditVarModal(${v.id})" style="flex:1; padding:4px 0; background:#f59e0b; color:white; border:none; border-radius:4px; font-size:10px; cursor:pointer; font-weight:600">✏️ Sửa SP</button>
@@ -373,6 +376,69 @@ window.ignoreVar = async function(id) {
   });
   showToast('🚫 Đã bỏ qua variation này');
   loadVariations();
+}
+
+// 🌟 COPY SẢN PHẨM SÀN VỀ KHO NỘI BỘ VÀ MAP TỰ ĐỘNG
+window.copyToInternalSku = async function(id) {
+    const v = allVariations.find(item => item.id == id);
+    if (!v) return;
+
+    // Đề xuất mã SKU nội bộ mặc định từ mã sàn (Nếu không có mã sàn thì lấy ID)
+    const defaultSku = (v.platform_sku && String(v.platform_sku).trim() !== 'null' && String(v.platform_sku).trim() !== '') 
+                        ? String(v.platform_sku).trim() 
+                        : ('SKU_' + v.platform.toUpperCase() + '_' + v.id);
+                        
+    const newSku = prompt("Xác nhận mã SKU Nội Bộ sẽ tạo mới trong kho:", defaultSku);
+    if (!newSku || newSku.trim() === '') return;
+
+    showToast("⏳ Đang copy về kho và Map tự động...", false);
+
+    try {
+        // 1. Bắn API tạo Sản phẩm Nội bộ
+        let fullName = v.product_name || '';
+        if (v.variation_name && String(v.variation_name).trim() !== 'null' && String(v.variation_name).trim() !== '') {
+            fullName += ' - ' + v.variation_name;
+        }
+        
+        const prodPayload = {
+            sku: newSku.trim(),
+            product_name: fullName.trim(),
+            cost_invoice: 0,
+            cost_real: 0,
+            image_url: v.image_url || '',
+            stock: parseInt(v.stock) || 0
+        };
+        
+        const resCreate = await fetch(API + "/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(prodPayload)
+        });
+        
+        if (!resCreate.ok) throw new Error("Mã SKU này đã tồn tại trong kho nội bộ! Vui lòng chọn mã khác.");
+
+        // 2. Tự động Map mã sàn với SKU nội bộ vừa tạo
+        const resMap = await fetch(API + '/api/sync-variations', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                id: v.id, 
+                internal_sku: newSku.trim(), 
+                mapped_items: JSON.stringify([{sku: newSku.trim(), qty: 1}]) 
+            })
+        });
+
+        if (!resMap.ok) throw new Error("Copy về kho thành công nhưng bị Lỗi khi Map!");
+
+        showToast(`✅ Đã copy về kho và Map thành công mã: ${newSku.trim()}`);
+        loadVariations();
+        
+        // Nếu hàm loadSkus có tồn tại trên trang, tải lại luôn data kho
+        if (typeof window.loadSkus === 'function') window.loadSkus();
+        
+    } catch (err) {
+        showToast("❌ Lỗi: " + err.message, true);
+    }
 }
 
 // 🌟 TÍNH NĂNG MỚI: TỰ ĐỘNG BIẾN TOÀN BỘ MÃ CŨ THÀNH SKU NỘI BỘ

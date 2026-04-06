@@ -8,132 +8,179 @@ class LazadaOrderScraper:
     def __init__(self, log_callback, parser: LazadaOrderParser):
         self.log = log_callback
         self.parser = parser
+        # --- CẤU HÌNH API LAZADA & SERVER ---
+        self.LAZADA_APP_KEY = "135731"
+        self.LAZADA_SECRET = "UHMS2CUNhAspEYgNMYZ1ywytbHhCx1wK"
+        self.SERVER_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"
+        # ------------------------------------
         self.base_url = "https://sellercenter.lazada.vn/apps/order/list"
-        self.tabs_to_scrape = [
-            {"name": "Chờ đóng gói", "url": f"{self.base_url}?status=topack"},
-            {"name": "Chờ bàn giao", "url": f"{self.base_url}?status=toshiparrangeshipment"},
-            {"name": "Đang giao", "url": f"{self.base_url}?status=shipping"},
-            {"name": "Đã giao", "url": f"{self.base_url}?status=success"},
-            {"name": "Giao thất bại", "url": f"{self.base_url}?status=failed"},
-            {"name": "Đã hủy", "url": f"{self.base_url}?status=canceled"},
-            {"name": "Trả hàng", "url": f"{self.base_url}?status=returned"}
-        ]
+
+    # ==========================================
+    # CÔNG CỤ API: LẤY TOKEN VÀ CHỮ KÝ
+    # ==========================================
+    def _get_api_token(self, shop_name):
+        """Hỏi Server Cloudflare xem Shop này đã cấp quyền API (Token) chưa?"""
+        import requests
+        try:
+            res = requests.get(f"{self.SERVER_URL}/shops", timeout=10)
+            if res.status_code == 200:
+                shops = res.json()
+                for shop in shops:
+                    # Dò theo username hoặc tên shop
+                    if shop.get('platform') == 'lazada' and (shop.get('user_name') == shop_name or shop.get('shop_name') == shop_name):
+                        if shop.get('access_token'):
+                            return shop['access_token']
+        except Exception as e:
+            self.log(f"   ⚠️ Lỗi lấy Token từ Server: {e}")
+        return None
+
+    def _generate_lazada_sign(self, api_path, params):
+        """Thuật toán băm chữ ký chuẩn Lazada"""
+        import hmac, hashlib
+        sorted_params = sorted(params.items())
+        sign_string = api_path
+        for k, v in sorted_params: sign_string += f"{k}{v}"
+        return hmac.new(self.LAZADA_SECRET.encode('utf-8'), sign_string.encode('utf-8'), hashlib.sha256).hexdigest().upper()
+    # ==========================================
 
     async def scrape_new_orders(self, page, shop_name="", mode="all"):
-        # Khởi tạo Sổ đen chuẩn hóa MD5 cho Lazada
-        cache_file = f"cache_orders_lazada_{shop_name}.json"
+        self.log("-------------------------------------------------")
+        self.log(f"🚀 [LAZADA API REALTIME] Khởi động động cơ API cho Shop: {shop_name}...")
+
+        # 1. LẤY TOKEN TỪ SERVER
+        access_token = self._get_api_token(shop_name)
+        if not access_token:
+            self.log(f"❌ Shop {shop_name} chưa được cấp quyền API (Không có Token).")
+            self.log(f"👉 Vui lòng lên Website OMS bấm 'Kết nối Lazada' cho shop này!")
+            return []
+
+        # 2. KHỞI TẠO SỔ ĐEN (Cache MD5)
+        cache_file = f"cache_orders_lazada_api_{shop_name}.json"
         cached_final_orders = {}
         try:
             if os.path.exists(cache_file):
-                with open(cache_file, "r") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        cached_final_orders = {str(k): str(v) for k, v in data.items() if isinstance(v, str)}
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached_final_orders = json.load(f)
         except: pass
 
-        newly_completed = {}
-        all_orders = []
-        self.log("-------------------------------------------------")
-        if mode == "new_only":
-            self.log(f"🚀 [LAZADA RADAR] Khởi động TỐC ĐỘ CAO (Chỉ quét 'Chờ đóng gói & Chờ bàn giao') cho Shop: {shop_name}...")
-            target_tabs = [t for t in self.tabs_to_scrape if t["name"] in ["Chờ đóng gói", "Chờ bàn giao"]]
-        elif mode == "status_only":
-            self.log(f"🚀 [LAZADA RADAR] Khởi động QUÉT HÀNH TRÌNH cho Shop: {shop_name}...")
-            target_tabs = [t for t in self.tabs_to_scrape if t["name"] in ["Đang giao", "Đã giao", "Giao thất bại", "Đã hủy", "Trả hàng"]]
-        else:
-            self.log(f"🚀 [LAZADA RADAR] Khởi động chiến dịch quét đơn cho Shop: {shop_name}...")
-            target_tabs = self.tabs_to_scrape
+        # 3. GỌI API LẤY ĐƠN TỔNG QUAN
+        from datetime import datetime, timedelta
+        import time, requests, json, hashlib
 
-        for tab in target_tabs:
-            tab_name = tab["name"]
-            tab_url = tab["url"]
-            self.log(f"[*] Đang càn quét cứ điểm: Tab '{tab_name}'...")
-            try:
-                await page.goto(tab_url, timeout=60000)
-                await asyncio.sleep(5) 
+        # Lấy đơn có sự thay đổi trong 15 ngày gần nhất
+        created_after = (datetime.now() - timedelta(days=15)).isoformat(timespec='seconds') + "+07:00"
+        
+        params = {
+            "created_after": created_after,
+            "sort_direction": "DESC",
+            "limit": "100", # Lấy 100 đơn mới nhất mỗi lần quét
+            "app_key": self.LAZADA_APP_KEY,
+            "timestamp": str(int(time.time() * 1000)),
+            "sign_method": "sha256",
+            "access_token": access_token
+        }
+        params["sign"] = self._generate_lazada_sign("/orders/get", params)
 
-                try:
-                    popups = await page.locator("button.next-dialog-close, button:has-text('Đóng'), button.close-btn").all()
-                    for popup in popups:
-                        if await popup.is_visible(): await popup.click()
-                except: pass
-
-                # --- 🌟 MỞ KHÓA BỘ LỌC NGÀY TẠO ĐƠN (Theo đúng UI bạn gửi) ---
-                if tab['name'] != "Trả hàng":
-                    try:
-                        self.log("   ⚙️ Đang ép Lazada hiển thị 'Đơn hàng tạo mới nhất' để bắt ngày chuẩn...")
-                        # Tiêm Javascript tìm ô Lọc và Click mở nó ra
-                        changed = await page.evaluate('''() => {
-                            let dropdowns = Array.from(document.querySelectorAll('.next-select-inner, .next-select'));
-                            let target = dropdowns.find(d => d.textContent.includes('Đơn hàng tạo') || d.textContent.includes('Đã cập nhật'));
-                            
-                            // Nếu đang không ở chế độ "Tạo mới nhất" thì click mở Menu
-                            if (target && !target.textContent.includes('Đơn hàng tạo mới nhất')) {
-                                target.click(); 
-                                return true;
-                            }
-                            return false;
-                        }''')
-                        
-                        if changed:
-                            await asyncio.sleep(1.5) # Chờ Menu thả xuống
-                            # Tìm và bấm chính xác vào dòng chữ "Đơn hàng tạo mới nhất"
-                            await page.evaluate('''() => {
-                                let items = Array.from(document.querySelectorAll('li.next-menu-item'));
-                                let option = items.find(i => i.textContent.trim() === 'Đơn hàng tạo mới nhất');
-                                if (option) option.click();
-                            }''')
-                            self.log("   ⏳ Đã đổi bộ lọc, chờ Lazada tải lại danh sách đơn (5 giây)...")
-                            await asyncio.sleep(5)
-                    except Exception as e:
-                        pass
-                # ----------------------------------------------------------------
-
-                # Cuộn trang để Lazada load đủ HTML
-                for _ in range(3):
-                    await page.mouse.wheel(0, 1500)
-                    await asyncio.sleep(1.5)
+        try:
+            self.log("⚡ Đang kết nối siêu tốc đến máy chủ Lazada...")
+            res = requests.get(f"https://api.lazada.vn/rest/orders/get", params=params, timeout=20)
+            data = res.json()
+            
+            if data.get("code") != "0":
+                self.log(f"❌ API Lazada từ chối: {data.get('message')}")
+                return []
                 
-                html_content = await page.evaluate("document.body.innerHTML")
-                parsed_orders = self.parser.parse_order_list(html_content, current_tab=tab_name, shop_name=shop_name)
+            orders_data = data.get("data", {}).get("orders", [])
+            self.log(f"✅ Tải thành công {len(orders_data)} đơn hàng thô (Mất chưa tới 1 giây).")
+            
+            valid_orders = []
+            newly_completed = {}
+            
+            # Bộ từ điển dịch trạng thái Lazada -> OMS
+            status_map = {
+                'pending': 'PENDING',
+                'ready_to_ship': 'PACKING',
+                'shipped': 'HANDED_OVER',
+                'delivered': 'COMPLETED',
+                'canceled': 'CANCELLED_TRANSIT',
+                'returned': 'RETURN_REFUND',
+                'failed': 'FAILED_DELIVERY'
+            }
+
+            for o in orders_data:
+                order_id = str(o.get('order_id'))
+                raw_status = o.get('statuses', ['pending'])[0]
+                oms_status = status_map.get(raw_status, 'PENDING')
                 
-                if parsed_orders:
-                    valid_orders = []
-                    for order_obj in parsed_orders:
-                        # --- CƠ CHẾ CHỮA LÀNH DỮ LIỆU (MD5) ---
-                        hash_data = order_obj.copy()
-                        del hash_data['oms_updated_at']
-                        order_signature = hashlib.md5(json.dumps(hash_data, sort_keys=True).encode('utf-8')).hexdigest()
-
-                        order_id = order_obj['order_id']
-                        if order_id in cached_final_orders and cached_final_orders[order_id] == order_signature:
-                            self.log(f"👁️ [ĐÃ QUÉT] {order_id} | Ngày: {order_obj['order_date']} | {order_obj['oms_status']} -> (Bỏ qua)")
-                            continue
-                            
-                        self.log(f"🚀 [CẬP NHẬT] {order_id} | Ngày: {order_obj['order_date']} | {order_obj['oms_status']} -> (Mới/Sửa)")
-                        order_obj['_signature'] = order_signature
-                        valid_orders.append(order_obj)
-
-                    self.log(f"   ✅ Đã bóc tách và lọc xong {len(valid_orders)} đơn mới tại Tab '{tab_name}'.")
-                    all_orders.extend(valid_orders)
-                else:
-                    self.log(f"   -> Không có đơn nào ở Tab '{tab_name}'.")
-
-            except Exception as e:
-                self.log(f"   ❌ Lỗi khi quét Tab '{tab_name}': {e}")
-
-        # Cập nhật các đơn mới vào Sổ đen
-        for o in all_orders:
-            if '_signature' in o:
-                newly_completed[o['order_id']] = o['_signature']
-                del o['_signature']
+                # Tạo obj cơ bản để check Hash MD5
+                base_obj = {
+                    "order_id": order_id,
+                    "oms_status": oms_status,
+                    "shipping_status": raw_status,
+                    "order_total": float(o.get('price', 0))
+                }
                 
-        if newly_completed:
-            cached_final_orders.update(newly_completed)
-            with open(cache_file, "w") as f:
-                json.dump(cached_final_orders, f, indent=4)
-            self.log(f"💾 CẬP NHẬT SỔ ĐEN LAZADA: Đã ghi nhận/cập nhật {len(newly_completed)} đơn!")
+                order_signature = hashlib.md5(json.dumps(base_obj, sort_keys=True).encode('utf-8')).hexdigest()
                 
-        self.log("-------------------------------------------------")
-        self.log(f"🎉 HOÀN TẤT QUÉT LAZADA! Tổng thu hoạch: {len(all_orders)} đơn hàng.")
-        return all_orders
+                # Nếu đơn hàng KHÔNG có gì thay đổi -> Bỏ qua ngay lập tức
+                if order_id in cached_final_orders and cached_final_orders[order_id] == order_signature:
+                    continue
+
+                self.log(f"🚀 [XỬ LÝ API] {order_id} | {oms_status} -> Đang chọc API lấy chi tiết SKU...")
+                
+                # 4. GỌI API LẤY CHI TIẾT SẢN PHẨM (Chỉ gọi cho đơn mới/thay đổi)
+                item_params = {
+                    "order_id": order_id,
+                    "app_key": self.LAZADA_APP_KEY,
+                    "timestamp": str(int(time.time() * 1000)),
+                    "sign_method": "sha256",
+                    "access_token": access_token
+                }
+                item_params["sign"] = self._generate_lazada_sign("/order/items/get", item_params)
+                
+                item_res = requests.get("https://api.lazada.vn/rest/order/items/get", params=item_params, timeout=10)
+                item_data = item_res.json()
+                
+                items_list = []
+                if item_data.get("code") == "0":
+                    for it in item_data.get("data", []):
+                        items_list.append({
+                            "sku": it.get('sku', ''),
+                            "product_name": it.get('name', ''),
+                            "quantity": 1, # API Lazada trả 1 dòng cho 1 sản phẩm
+                            "price": float(it.get('item_price', 0))
+                        })
+
+                # Gộp thành Order chuẩn mực cho Đám mây
+                standard_order = {
+                    "order_id": order_id,
+                    "shop": shop_name,
+                    "platform": "lazada",
+                    "order_date": o.get('created_at', '')[:19].replace('T', ' '),
+                    "customer_name": o.get('customer_first_name', 'Khách Lazada'),
+                    "shipping_fee": float(o.get('shipping_fee', 0)),
+                    "order_total": float(o.get('price', 0)),
+                    "oms_status": oms_status,
+                    "order_type": "return" if raw_status == 'returned' else ("cancel" if raw_status == 'canceled' else "normal"),
+                    "shipping_status": raw_status,
+                    "items": items_list
+                }
+                
+                valid_orders.append(standard_order)
+                newly_completed[order_id] = order_signature
+                await asyncio.sleep(0.2) # Nghỉ xíu tránh bị Sàn khóa mõm vì gọi quá nhanh
+
+            # Ghi vào Sổ đen
+            if newly_completed:
+                cached_final_orders.update(newly_completed)
+                with open(cache_file, "w", encoding="utf-8") as f:
+                    json.dump(cached_final_orders, f, indent=4, ensure_ascii=False)
+                self.log(f"💾 Đã ghi sổ đen (MD5) cho {len(newly_completed)} đơn.")
+            
+            self.log(f"🎉 HOÀN TẤT! Đã xào nấu thành công {len(valid_orders)} đơn hàng mới/cập nhật.")
+            self.log("-------------------------------------------------")
+            return valid_orders
+
+        except Exception as e:
+            self.log(f"❌ [CRITICAL ERROR] Lỗi hệ thống khi chạy API: {e}")
+            return []
