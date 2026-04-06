@@ -63,7 +63,9 @@ window.saveSku = async function() {
   const name = document.getElementById("s_name").value.trim();
   const cinv = parseFloat(document.getElementById("s_cost_inv").value) || 0;
   const creal = parseFloat(document.getElementById("s_cost_real").value) || 0;
-  const stock = parseInt(document.getElementById("s_stock").value) || 0;
+const stock_main = parseInt(document.getElementById("s_stock_main").value) || 0;
+  const stock_sub = parseInt(document.getElementById("s_stock_sub").value) || 0;
+  const stock = stock_main + stock_sub;
   let finalImg = document.getElementById("s_old_img").value;
   const isCombo = document.getElementById('s_is_combo') ? document.getElementById('s_is_combo').checked : false;
   const applyAllCost = document.getElementById("s_apply_all_cost") ? document.getElementById("s_apply_all_cost").checked : false;
@@ -79,7 +81,7 @@ window.saveSku = async function() {
               if (cSku) comboItems.push({ sku: cSku, qty: parseInt(row.querySelector('.combo-qty-input').value) || 1 });
           });
       }
-      await fetch(API + "/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock, is_combo: isCombo ? 1 : 0, combo_items: isCombo ? JSON.stringify(comboItems) : null }) });
+      await fetch(API + "/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock, stock_main: stock_main, stock_sub: stock_sub, is_combo: isCombo ? 1 : 0, combo_items: isCombo ? JSON.stringify(comboItems) : null }) });
 
       if (applyAllCost && window.allSkus) {
           const currentItem = window.allSkus.find(x => x.sku === sku);
@@ -99,8 +101,10 @@ window.editSkuFromBtn = function(btn) { editSku(btn.dataset.sku, decodeURICompon
 
 window.editSku = function(sku, name, cinv, creal, stock, img) {
   document.getElementById("s_sku").value = sku; document.getElementById("s_name").value = name;
-  document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_cost_real").value = creal; document.getElementById("s_stock").value = stock || 0;
+document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_cost_real").value = creal; document.getElementById("s_stock").value = stock || 0;
   const p = window.allSkus ? window.allSkus.find(s => s.sku === sku) : null;
+  if(document.getElementById("s_stock_main")) document.getElementById("s_stock_main").value = (p ? p.stock_main : 0) || 0;
+  if(document.getElementById("s_stock_sub")) document.getElementById("s_stock_sub").value = (p ? p.stock_sub : 0) || 0;
   const isComboCb = document.getElementById('s_is_combo');
   if (isComboCb) { isComboCb.checked = (p && p.is_combo == 1); toggleComboUI(isComboCb.checked); document.getElementById('combo-items-list').innerHTML = ''; if (isComboCb.checked && p && p.combo_items) JSON.parse(p.combo_items).forEach(i => addComboItemRow(i.sku, i.qty)); }
   window.scrollTo({ top: 0, behavior: "smooth" }); showToast("✏️ Đang sửa: " + sku);
@@ -113,7 +117,9 @@ window.editParentSku = function(safeSku) {
     document.getElementById("s_sku").value = p.sku; document.getElementById("s_name").value = p.product_name || "";
     let cinv = p.cost_invoice || 0; let creal = p.cost_real || 0;
     if (cinv === 0 && creal === 0 && p.children && p.children.length > 0) { cinv = p.children[0].cost_invoice || 0; creal = p.children[0].cost_real || 0; }
-    document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_cost_real").value = creal; document.getElementById("s_stock").value = p.stock || 0;
+document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_cost_real").value = creal; document.getElementById("s_stock").value = p.stock || 0;
+    if(document.getElementById("s_stock_main")) document.getElementById("s_stock_main").value = p.stock_main || 0;
+    if(document.getElementById("s_stock_sub")) document.getElementById("s_stock_sub").value = p.stock_sub || 0;
     if (document.getElementById("s_apply_all_cost")) document.getElementById("s_apply_all_cost").checked = true;
     const isComboCb = document.getElementById('s_is_combo');
     if (isComboCb) { isComboCb.checked = (p.is_combo == 1); toggleComboUI(isComboCb.checked); document.getElementById('combo-items-list').innerHTML = ''; if (isComboCb.checked && p.combo_items) JSON.parse(p.combo_items).forEach(i => addComboItemRow(i.sku, i.qty)); }

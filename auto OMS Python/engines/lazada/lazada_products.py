@@ -1,149 +1,153 @@
 import asyncio
 import os
-import shutil
+import json
+import time
+import hmac
+import hashlib
+import requests
 
 class LazadaProducts:
     def __init__(self, log_func, auth):
         self.log = log_func
         self.auth = auth
+        # --- CẤU HÌNH API LAZADA & SERVER ---
+        self.LAZADA_APP_KEY = "135731"
+        self.LAZADA_SECRET = "UHMS2CUNhAspEYgNMYZ1ywytbHhCx1wK"
+        self.SERVER_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"
+
+    # ==========================================
+    # CÔNG CỤ API: LẤY TOKEN VÀ CHỮ KÝ
+    # ==========================================
+    def _get_api_token(self, shop_name):
+        try:
+            res = requests.get(f"{self.SERVER_URL}/shops/tokens", timeout=10)
+            if res.status_code == 200:
+                for shop in res.json():
+                    if shop.get('platform') == 'lazada' and (shop.get('user_name') == shop_name or shop.get('shop_name') == shop_name):
+                        return shop.get('access_token')
+        except Exception as e:
+            self.log(f"   ⚠️ Lỗi lấy Token từ Server: {e}")
+        return None
+
+    def _generate_lazada_sign(self, api_path, params):
+        sorted_params = sorted(params.items())
+        sign_string = api_path
+        for k, v in sorted_params: sign_string += f"{k}{v}"
+        return hmac.new(self.LAZADA_SECRET.encode('utf-8'), sign_string.encode('utf-8'), hashlib.sha256).hexdigest().upper()
 
     async def run(self, page, shop):
-        # BỌC THÉP: Lấy định danh chuẩn
         shop_id = shop.get('user_name', shop.get('ten_shop', 'Unnamed'))
-        safe_shop_name = shop_id.replace('/', '_')
-        self.log(f"🤖 Bắt đầu tự động tải 3 file Excel LAZADA cho shop: {shop_id}")
-        
-        # 1. Kiểm tra đăng nhập
-        if not await self.auth.check_and_login(page, shop): 
+        self.log("-------------------------------------------------")
+        self.log(f"🚀 [LAZADA API REALTIME] Khởi động động cơ SẢN PHẨM & TỒN KHO cho: {shop_id}")
+
+        # 1. MÓC CHÌA KHÓA TỪ ĐÁM MÂY
+        access_token = self._get_api_token(shop_id)
+        if not access_token:
+            self.log(f"❌ Shop {shop_id} chưa kết nối API. Vui lòng cấp quyền trên Website!")
             return
 
-        # 2. Vào thẳng trang Quản lý Sản Phẩm
-        self.log("👉 Đang truy cập Kênh Người Bán Lazada...")
-        await page.goto("https://sellercenter.lazada.vn/apps/product/list?tab=online_product", wait_until="commit")
-        await asyncio.sleep(5)
+        all_products = []
+        offset = 0
+        limit = 50 # Sức chứa tối đa 1 lần gọi API Lazada
 
-        report_types = [
-            "Thông tin cơ bản",
-            "Số lượng và Giá bán",
-            "Ảnh biến thể sản phẩm"
-        ]
-
-        # ĐỌC THƯ MỤC LƯU TỪ CẤU HÌNH GIAO DIỆN CỦA BẠN
-        base_dir = shop.get('thu_muc_luu', '').strip()
-        
-        # Fallback: Nếu bạn chưa cấu hình trên UI, tự động lưu vào thư mục gốc của code
-        if not base_dir or not os.path.exists(base_dir):
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            
-        self.log(f"📁 Thư mục đích: {base_dir}")
-
+        # 2. VÉT SẠCH KHO DỮ LIỆU LAZADA
         try:
-            self.log("👉 Đang mở bảng điều khiển Xuất Dữ Liệu...")
-            await page.locator("button:has-text('Xuất dữ liệu'), span:has-text('Xuất dữ liệu')").first.click()
-            await asyncio.sleep(2)
-            await page.locator("text='Xuất toàn bộ'").first.click()
-            await asyncio.sleep(4)
-        except Exception as e:
-            self.log(f"❌ Lỗi không thể mở Menu Xuất dữ liệu: {e}")
-            return
+            while True:
+                self.log(f"⚡ Đang kéo dữ liệu từ mốc {offset}...")
+                params = {
+                    "filter": "all", # Kéo tất cả sản phẩm
+                    "limit": str(limit),
+                    "offset": str(offset),
+                    "app_key": self.LAZADA_APP_KEY,
+                    "timestamp": str(int(time.time() * 1000)),
+                    "sign_method": "sha256",
+                    "access_token": access_token
+                }
+                params["sign"] = self._generate_lazada_sign("/products/get", params)
 
-        # VÒNG LẶP XỬ LÝ 3 FILE
-        for i, report_name in enumerate(report_types):
-            self.log(f"==========================================")
-            self.log(f"🚀 BẮT ĐẦU TẢI FILE {i+1}/3: [{report_name}]")
-            
-            try:
-                # Nếu không phải file đầu, bấm chọn loại báo cáo
-                if i > 0:
-                    self.log(f"👉 Chọn loại báo cáo: {report_name}")
-                    await page.locator(f"span.label:has-text('{report_name}'), span:has-text('{report_name}')").first.click(force=True)
-                    await asyncio.sleep(1)
+                res = requests.get("https://api.lazada.vn/rest/products/get", params=params, timeout=20)
+                data = res.json()
 
-                # Bấm Xuất File
-                await page.locator("button:has-text('Xuất file Excel'), span.next-btn-helper:has-text('Xuất file Excel')").first.click(force=True)
-                self.log(f"👉 Đã bóp cò! Lazada đang hiển thị vòng xoay phần trăm (%)...")
-                await asyncio.sleep(2) 
+                if data.get("code") != "0":
+                    self.log(f"❌ API Lazada từ chối: {data.get('message')}")
+                    break
 
-                # Vòng lặp kiên nhẫn chờ Pop-up Loading quay xong 100%
-                btn_dl = None
-                for wait_time in range(100): 
-                    # Bắt đúng chữ "Tải về Tập Tin" hoặc "tải về liên kết" như trong ảnh bạn gửi
-                    btn_dl = page.locator("a:has-text('Tải về Tập Tin'), a:has-text('tải về liên kết')").first
+                products = data.get("data", {}).get("products", [])
+                if not products:
+                    break # Hết sản phẩm thì thoát vòng lặp
+
+                all_products.extend(products)
+                if len(products) < limit:
+                    break # Đã đến trang cuối cùng
                     
-                    if await btn_dl.is_visible():
-                        self.log(f"✅ Lazada đã load 100% và tạo xong file [{report_name}]!")
-                        break
-                        
-                    if wait_time % 5 == 0:
-                        self.log(f"⏳ Vẫn đang xoay vòng Loading, vui lòng chờ...")
-                    await asyncio.sleep(3)
+                offset += limit
+                await asyncio.sleep(0.5)
 
-                if not btn_dl or not await btn_dl.is_visible():
-                    self.log(f"❌ Lỗi Timeout: Chờ quá 5 phút không thấy chữ 'Tải về Tập Tin'. Bỏ qua file này.")
-                    if i < len(report_types) - 1:
-                        self.log("👉 Bấm Quay lại để cứu vãn file tiếp theo...")
-                        await page.locator("text='Quay lại trang Xuất dữ liệu'").first.click(force=True)
-                        await asyncio.sleep(4)
-                    continue
+            self.log(f"✅ Đã tải thần tốc {len(all_products)} sản phẩm gốc!")
 
-                self.log(f"⏳ Đang kích hoạt Tải file [{report_name}] về máy...")
-                await btn_dl.scroll_into_view_if_needed()
-                await asyncio.sleep(1)
+            # 3. NHÀO NẶN DATA CHUẨN (ÉP KHUÔN OMS)
+            standardized_list = []
+            for p in all_products:
+                item_id = str(p.get("item_id", ""))
+                name = p.get("attributes", {}).get("name", "Không có tên")
+                desc = p.get("attributes", {}).get("short_description", "")
+                images = p.get("images", [])
+                
+                valid_variations = []
+                for sku in p.get("skus", []):
+                    qty = int(sku.get("quantity", 0))
+                    price = float(sku.get("price", 0))
+                    special_price = float(sku.get("special_price", 0)) if sku.get("special_price") else 0
+                    seller_sku = sku.get("SellerSku", "Mặc_định")
+                    v_img = sku.get("Images", [""])[0] if sku.get("Images") else ""
 
-                try:
-                    async with page.expect_download(timeout=60000) as dl_info:
-                        await btn_dl.click()
-                    dl = await dl_info.value
-                except Exception as click_err:
-                    self.log(f"⚠️ Click thường hụt, dùng JS ép tải... ({str(click_err)[:30]})")
-                    async with page.expect_download(timeout=60000) as dl_info:
-                        await btn_dl.evaluate("el => el.click()")
-                    dl = await dl_info.value
+                    valid_variations.append({
+                        "variation_name": seller_sku, 
+                        "sku": seller_sku,
+                        "price": price,
+                        "discount_price": special_price,
+                        "stock": qty,
+                        "variation_image": v_img
+                    })
 
-                # Lưu file (Ép tên chuẩn)
-                file_name = f"{safe_shop_name}_lazada_{i+1}.xlsx"
-                file_path = os.path.join(base_dir, file_name)
-                await dl.save_as(file_path)
-                self.log(f"🎉 Đã lưu thành công: {file_name}")
+                # BỌC THÉP: Dọn rác, chỉ giữ sản phẩm có tổng tồn kho > 0
+                total_stock = sum(v["stock"] for v in valid_variations)
+                if total_stock > 0:
+                    standardized_list.append({
+                        "item_id": item_id,
+                        "product_name": name,
+                        "description": desc,
+                        "images": images,
+                        "variations": valid_variations
+                    })
 
-                # Hoàn thành 1 file thì bấm chữ "< Quay lại trang Xuất dữ liệu" ở góc trên bên trái
-                if i < len(report_types) - 1:
-                    self.log("👉 Đang bấm '< Quay lại trang Xuất dữ liệu' để làm file tiếp theo...")
-                    await page.locator("text='Quay lại trang Xuất dữ liệu'").first.click(force=True)
-                    await asyncio.sleep(4)
+            self.log(f"🧹 Đã lọc rác xong. Còn lại {len(standardized_list)} SP hợp lệ (Có tồn kho).")
 
-            except Exception as e:
-                self.log(f"❌ Lỗi trong quá trình xử lý file [{report_name}]: {e}")
-                # Kịch bản thoát hiểm
-                if i < len(report_types) - 1:
-                    try:
-                        await page.locator("text='Quay lại trang Xuất dữ liệu'").first.click(force=True)
-                        await asyncio.sleep(4)
-                    except: pass
+            # 4. BƠM THẲNG VÀO TRẠM TRUNG CHUYỂN (BỎ QUA UTILS)
+            try:
+                import sys
+                # Đảm bảo Python nhận diện được thư mục gốc để import ProductCoreHub
+                root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                if root_dir not in sys.path:
+                    sys.path.append(root_dir)
+                    
+                from engines.product_core_hub import ProductCoreHub
+                
+                hub = ProductCoreHub(self.log)
+                chunk_size = 40
+                for i in range(0, len(standardized_list), chunk_size):
+                    chunk = standardized_list[i:i + chunk_size]
+                    self.log(f"⏳ Đang đẩy lô {i//chunk_size + 1} ({len(chunk)} SP) vào Trạm trung chuyển (Hub)...")
+                    hub.sync_products(shop_id, "lazada", chunk)
+                    
+                self.log("🎉 HOÀN TẤT ĐỒNG BỘ TỒN KHO LAZADA LÊN MÂY!")
+                self.log("-------------------------------------------------")
+                
+            except ImportError:
+                self.log("❌ LỖI HỆ THỐNG: Không thể kết nối với ProductCoreHub.")
 
-        self.log("==========================================")
-        self.log("🏆 HOÀN TẤT BƯỚC 1: ĐÃ KÉO THÀNH CÔNG 3 FILE LAZADA VỀ MÁY!")
-
-        # BƯỚC 2: XÀO NẤU VÀ ĐỒNG BỘ LÊN WEBSITE OMS
-        try:
-            from utils import process_lazada_excel_and_sync
-            
-            # Chỉ định đúng tên 3 file vừa lưu để đẩy vào bếp
-            file_paths = {
-                'basic': os.path.join(base_dir, f"{safe_shop_name}_lazada_1.xlsx"),
-                'sales': os.path.join(base_dir, f"{safe_shop_name}_lazada_2.xlsx"),
-                'media': os.path.join(base_dir, f"{safe_shop_name}_lazada_3.xlsx")
-            }
-            
-            # Kiểm tra xem đủ 3 file trên ổ cứng chưa rồi mới chạy
-            if all(os.path.exists(p) for p in file_paths.values()):
-                self.log(f"👉 Chuẩn bị đưa 3 file Lazada của {shop_id} vào hệ thống bóc tách...")
-                # ÉP truyền shop_id (user_name) vào hàm Sync
-                process_lazada_excel_and_sync(shop_id, file_paths, self.log)
-            else:
-                self.log("⚠️ Cảnh báo: File bị mất tích! Không đủ 3 file Excel trong thư mục để tiến hành xào nấu.")
         except Exception as e:
-            self.log(f"❌ Lỗi hệ thống khi kích hoạt mảng đồng bộ Lazada: {e}")
+            self.log(f"❌ [CRITICAL ERROR] Lỗi hệ thống khi chạy API Sản phẩm: {e}")
 
 # ==========================================
     # TÍNH NĂNG CHỜ KẾT NỐI: ĐẨY TỒN KHO LÊN SÀN

@@ -111,7 +111,10 @@
         <div class="field"><label>Link Video (Shopee/Youtube)</label><input id="s_video_url" placeholder="https://..."></div>
         <div class="field"><label>Vốn hóa đơn (đ)</label><input type="number" id="s_cost_inv" placeholder="0" step="100"></div>
         <div class="field"><label>Vốn thực tế (đ)</label><input type="number" id="s_cost_real" placeholder="0" step="100"></div>
-        <div class="field"><label>📦 Tồn kho thực tế</label><input type="number" id="s_stock" placeholder="0" value="0"></div>
+        
+        <div class="field"><label>📦 Kho Bình Tân</label><input type="number" id="s_stock_main" placeholder="0" value="0" oninput="document.getElementById('s_stock').value = (parseInt(this.value)||0) + (parseInt(document.getElementById('s_stock_sub').value)||0)"></div>
+        <div class="field"><label>📦 Kho Phụ</label><input type="number" id="s_stock_sub" placeholder="0" value="0" oninput="document.getElementById('s_stock').value = (parseInt(this.value)||0) + (parseInt(document.getElementById('s_stock_main').value)||0)"></div>
+        <div class="field"><label>📦 Tổng Tồn Kho</label><input type="number" id="s_stock" placeholder="0" value="0" readonly style="background:#f1f5f9; color:#16a34a; font-weight:bold;"></div>
       </div>
       <div style="margin-top:12px; background:#eff6ff; border:1px dashed #93c5fd; padding:10px 12px; border-radius:8px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:700; color:#1e40af;">

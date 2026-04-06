@@ -33,7 +33,10 @@
                     └── invoice-manager.js
                     └── main.js
                     └── purchase-manager.js
-                    └── sku-manager.js
+                    └── sku-bulk.js
+                    └── sku-core.js
+                    └── sku-form.js
+                    └── sku-modals.js
                     └── variation-manager.js
                 ├── components/
                     └── ChartRenderer.js
@@ -74,6 +77,7 @@
             ├── src/
                 └── index.js
                 ├── handlers/
+                    └── auth.js
                     └── report-parsers.js
                 ├── routes/
                     └── dashboard.js
@@ -89,6 +93,7 @@
     ├── auto OMS Python/
         └── ai_helper_tool.py
         └── basic_chihuy1984.xlsx
+        └── cache_orders_lazada_api_kinhdoanhonlinegiasoc@gmail.com.json
         └── cache_orders_lazada_kinhdoanhonlinegiasoc@gmail.com.json
         └── cache_orders_shopee_chihuy1984.json
         └── cache_orders_shopee_chihuy2309.json
@@ -98,10 +103,13 @@
         └── cau truc thu muc OMS python.txt
         └── config.py
         └── debug_payload_lazada.json
+        └── debug_payload_lazada_orders.json
+        └── debug_payload_lazada_products.json
         └── debug_payload_tiktok.json
         └── debug_shopee.py
         └── lay_token_lazada.py
         └── lay_token_shopee.py
+        └── lazada_test_api.py
         └── main.py
         └── media_chihuy1984.xlsx
         └── oms_clean_unmapped_orders.py
@@ -255,8 +263,21 @@
             └── 260405282B4NU2.pdf
             └── 260405284RF70K.pdf
             └── 2604052AKNSP88.pdf
+            └── 2604052BVAJV98.pdf
+            └── 2604052DM8M4V4.pdf
+            └── 2604052FTYNM12.pdf
+            └── 2604052FU5CQDG.pdf
+            └── 2604052GM0QMCT.pdf
             └── 2604052GTAWVMP.pdf
+            └── 2604052HDSPV52.pdf
+            └── 2604052J4RYTCF.pdf
+            └── 2604052J71G07D.pdf
+            └── 2604052NTA96XA.pdf
+            └── 2604052QT60B19.pdf
+            └── 2604052QWC20H2.pdf
+            └── 2604052QYS8M5B.pdf
             └── 2604052XAK0BT6.pdf
+            └── 2604052YQM15HE.pdf
             └── 2604052YW0NP8Y.pdf
             └── 26040631SQ8F4N.pdf
             └── 26040633UKUAHN.pdf
