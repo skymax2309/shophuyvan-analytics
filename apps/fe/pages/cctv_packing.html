@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trạm Đóng Gói Thông Minh - OMS</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: #101010; color: white; 
+            text-align: center; margin: 0; padding: 20px; 
+        }
+        h2 { color: #00CED1; font-weight: bold; margin-bottom: 5px; }
+        p.subtitle { color: #AAAAAA; font-style: italic; font-size: 13px; margin-top: 0; }
+        
+        #reader { 
+            width: 100%; max-width: 500px; margin: 0 auto; 
+            border-radius: 12px; overflow: hidden; 
+            border: 2px solid #333; background: #000;
+        }
+        
+        .status-box { 
+            margin: 20px auto; max-width: 500px; padding: 15px; 
+            background: #1a1a1a; border-radius: 10px; 
+            border: 1px solid #333; transition: border-color 0.3s;
+        }
+        .status-box.recording { border-color: #ff4757; box-shadow: 0 0 15px rgba(255, 71, 87, 0.2); }
+        .status-box.success { border-color: #00FF88; }
+        
+        .order-id { font-size: 28px; color: #555; font-weight: bold; margin: 10px 0; word-break: break-all; }
+        .order-id.active { color: #00FF88; }
+        
+        .record-indicator { display: none; color: #ff4757; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        
+        .log-box { 
+            max-width: 500px; margin: 20px auto; text-align: left; 
+            font-family: 'Consolas', monospace; font-size: 11px; 
+            color: #00FF88; background: #0A0A0A; padding: 10px; 
+            border-radius: 8px; height: 100px; overflow-y: auto; 
+        }
+    </style>
+</head>
+<body>
+
+    <h2>📡 TRẠM MẮT THẦN ĐÓNG GÓI</h2>
+    <p class="subtitle">Đưa mã vận đơn vào khung hình để tự động ghi hình</p>
+
+    <div id="reader"></div>
+
+    <div class="status-box" id="status-container">
+        <div style="font-size: 14px; color: #888;">TRẠNG THÁI LUỒNG QUAY:</div>
+        <div class="order-id" id="current-order">SẴN SÀNG QUÉT MÃ</div>
+        <div class="record-indicator" id="record-status">🔴 <span class="blink">ĐANG GHI HÌNH...</span></div>
+    </div>
+
+    <div class="log-box" id="dev-log">
+        [*] Khởi động trạm đóng gói...<br>
+    </div>
+
+    <script>
+        // -----------------------------------------------------------------
+        // ⚠️ CẤU HÌNH QUAN TRỌNG: Thay đổi IP này thành IP máy tính chạy Python
+        // Ví dụ: "http://192.168.1.15:5000/upload-video"
+        // -----------------------------------------------------------------
+        const PYTHON_SERVER_URL = "http://192.168.1.X:5000/upload-video"; 
+        
+        let currentOrderId = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let cameraStream = null;
+
+        function devLog(msg) {
+            const logBox = document.getElementById('dev-log');
+            const time = new Date().toLocaleTimeString();
+            logBox.innerHTML += `[${time}] ${msg}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // 1. Xin quyền Camera để Quay phim (Chạy ẩn phía sau)
+        async function initRecordingStream() {
+            try {
+                // Ưu tiên camera sau, giới hạn độ phân giải để file siêu nhẹ
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment", width: 1280, height: 720 }, 
+                    audio: false // Kho không thu âm để giữ bảo mật và giảm dung lượng
+                });
+                
+                // Ép chuẩn WebM, bitrate siêu nhẹ (khoảng 800kbps)
+                const options = { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 800000 };
+                mediaRecorder = new MediaRecorder(cameraStream, options);
+
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = async function() {
+                    const savedOrderId = currentOrderId; 
+                    if (recordedChunks.length > 0 && savedOrderId && savedOrderId !== "STOP_PACKING") {
+                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                        devLog(`Đóng gói video đơn [${savedOrderId}], chuẩn bị bắn sang Local...`);
+                        uploadVideoToLocalServer(blob, savedOrderId);
+                        recordedChunks = []; // Dọn kho để quay tiếp
+                    }
+                };
+                devLog("✅ Đã kết nối luồng MediaRecorder song song.");
+            } catch (err) {
+                devLog(`❌ Lỗi Camera: ${err.message}`);
+                alert("Vui lòng cấp quyền Camera cho trình duyệt!");
+            }
+        }
+
+        // 2. Giao hàng về tuyến sau (Gửi file sang Python)
+        async function uploadVideoToLocalServer(blob, orderId) {
+            const formData = new FormData();
+            formData.append('video', blob, `${orderId}.webm`);
+            formData.append('order_id', orderId);
+
+            try {
+                const res = await fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData });
+                if (res.ok) {
+                    devLog(`✅ Bắn thành công video [${orderId}] sang Server nội bộ!`);
+                } else {
+                    devLog(`⚠️ Trạm nội bộ từ chối nhận file [${orderId}].`);
+                }
+            } catch (err) {
+                devLog(`❌ Đứt kết nối với Server nội bộ (Kiểm tra lại IP).`);
+            }
+        }
+
+        // 3. Logic "Chém video" khi tít mã mới
+        function onScanSuccess(decodedText, decodedResult) {
+            // Chống spam: Nếu mã cũ vừa quét thì bỏ qua
+            if (decodedText === currentOrderId) return;
+            
+            devLog(`⚡ Tít mã thành công: ${decodedText}`);
+
+            // Cắt video đơn cũ (nếu đang quay)
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop(); 
+            }
+
+            currentOrderId = decodedText;
+            const uiOrder = document.getElementById('current-order');
+            const uiStatusBox = document.getElementById('status-container');
+            const uiRecordIndic = document.getElementById('record-status');
+
+            uiOrder.innerText = currentOrderId;
+
+            // Xử lý mã lệnh ĐẶC BIỆT: Dừng toàn bộ
+            if (decodedText === "STOP_PACKING") {
+                uiOrder.className = "order-id";
+                uiOrder.style.color = "#ff4757";
+                uiStatusBox.className = "status-box";
+                uiRecordIndic.style.display = "none";
+                devLog("🛑 Lệnh Dừng: Trạm đã đóng cửa.");
+                return;
+            }
+
+            // Kích hoạt ngay video cho đơn mới (sau 500ms để kịp lưu video cũ)
+            setTimeout(() => {
+                if (mediaRecorder && mediaRecorder.state === "inactive") {
+                    mediaRecorder.start();
+                    uiOrder.className = "order-id active";
+                    uiOrder.style.color = ""; // Xóa inline color
+                    uiStatusBox.className = "status-box recording";
+                    uiRecordIndic.style.display = "block";
+                    devLog(`🔴 Đang ghi hình cho đơn: ${currentOrderId}`);
+                }
+            }, 500);
+        }
+
+        // Khởi động Động cơ Quét QR siêu tốc
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", { fps: 15, qrbox: {width: 250, height: 250} }, false
+        );
+        html5QrcodeScanner.render(onScanSuccess);
+        
+        // Khởi động động cơ Quay phim ẩn
+        initRecordingStream();
+
+    </script>
+</body>
+</html>
