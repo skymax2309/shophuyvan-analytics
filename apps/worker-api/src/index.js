@@ -74,15 +74,28 @@ export default {
       }
 
 // ── Products ──────────────────────────────────────────────────
+      // ── [TÁCH RIÊNG] Shops & Warehouse — tránh fall-through vào handler products ──
+      if (url.pathname === "/api/products/shops-warehouse-list" && request.method === "GET") {
+        const { results } = await env.DB.prepare(
+          `SELECT id, shop_name, platform, COALESCE(warehouse_source, 'main') as warehouse_source FROM shops ORDER BY platform, shop_name`
+        ).all();
+        return Response.json(results, { headers: cors });
+      }
+
+      if (url.pathname === "/api/products/update-shop-warehouse" && request.method === "POST") {
+        const reqBody = await request.json();
+        await env.DB.prepare(`UPDATE shops SET warehouse_source = ? WHERE id = ?`)
+          .bind(reqBody.warehouse_source, reqBody.shop_id).run();
+        return Response.json({ status: "ok" }, { headers: cors });
+      }
+
       if (url.pathname === "/api/products" || 
           url.pathname === "/api/products/promo-prices" || 
           url.pathname === "/api/products/update-promo-prices" ||
           url.pathname === "/api/products/shopee-import" ||
           url.pathname === "/api/products/group-parent" ||
           url.pathname === "/api/products/ungroup-parent" ||
-          url.pathname === "/api/products/bulk-import" ||
-          url.pathname === "/api/products/shops-warehouse-list" ||
-          url.pathname === "/api/products/update-shop-warehouse")
+          url.pathname === "/api/products/bulk-import")
         return handleProducts(request, env, cors)
 
       if (url.pathname === "/api/sync-variations/bulk" && request.method === "DELETE")

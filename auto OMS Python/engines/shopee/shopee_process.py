@@ -107,7 +107,17 @@ class ShopeeOrderProcessor:
                 # ====================================================
                 # PHẦN B: TỰ ĐỘNG TẢI PHIẾU GIAO HÀNG (PDF)
                 # ====================================================
-                print_btn = page.locator("button:has-text('In phiếu giao')").first
+                # 🌟 MẮT THẦN ĐA TRÒNG: Bắt nút In Phiếu Giao mọi địa hình
+                print_btn = page.locator(
+                    "button:has-text('In phiếu giao'), "
+                    "button.eds-button--primary:has-text('In phiếu giao'), "
+                    ".shopee-button:has-text('In phiếu giao'), "
+                    "//button[contains(., 'In phiếu giao')]"
+                ).first
+                
+                # Bơm thêm 1 giây tĩnh tâm để phòng hờ hiệu ứng mờ nhạt (fade-in) của Shopee
+                await asyncio.sleep(1) 
+                
                 if await print_btn.is_visible():
                     self.log(f"🖨️ Bắt đầu tải Phiếu Giao Hàng PDF...")
                     
