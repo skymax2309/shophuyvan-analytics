@@ -1,14 +1,16 @@
 window.unmappedVarsCache = [];
 window.currentQuickMapSku = "";
 
-window.openQuickMapModal = async function(sku) {
-    window.currentQuickMapSku = sku;
-    document.getElementById('quickMapTargetSku').textContent = sku;
+window.openQuickMapModal = async function(varId, platformSku) {
+    window.currentVarId = varId;
+    document.getElementById('quickMapTargetSku').textContent = platformSku || varId;
     document.getElementById('quickMapSearch').value = '';
     document.getElementById('quickMapModal').style.display = 'flex';
-    document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#888;">⏳ Đang tải toàn bộ dữ liệu mã sàn...</div>';
+    document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#888;">⏳ Đang tải danh sách SKU nội bộ...</div>';
     try {
-        window.unmappedVarsCache = await fetch(API + "/api/sync-variations").then(r => r.json()); renderQuickMapList();
+        const res = await fetch(API + "/api/products").then(r => r.json());
+        window.unmappedVarsCache = Array.isArray(res) ? res : (res.data || []);
+        renderQuickMapList();
     } catch(e) { document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#ef4444;">❌ Lỗi tải dữ liệu.</div>'; }
 }
 
@@ -17,26 +19,31 @@ window.closeQuickMapModal = function() { document.getElementById('quickMapModal'
 window.renderQuickMapList = function() {
     const kw = document.getElementById('quickMapSearch').value.toLowerCase().trim();
     const listEl = document.getElementById('quickMapList');
-    const filtered = window.unmappedVarsCache.filter(v => (v.platform_sku && v.platform_sku.toLowerCase().includes(kw)) || (v.product_name && v.product_name.toLowerCase().includes(kw)) || (v.variation_name && v.variation_name.toLowerCase().includes(kw)) || (v.internal_sku && v.internal_sku.toLowerCase().includes(kw)));
+    const filtered = window.unmappedVarsCache.filter(v =>
+        (v.sku && v.sku.toLowerCase().includes(kw)) ||
+        (v.product_name && v.product_name.toLowerCase().includes(kw))
+    );
     const displayList = filtered.slice(0, 100);
 
-    if (!displayList.length) return listEl.innerHTML = '<div style="text-align:center; padding:30px; color:#888;">Không tìm thấy.</div>';
+    if (!displayList.length) return listEl.innerHTML = '<div style="text-align:center; padding:30px; color:#888;">Không tìm thấy SKU nội bộ.</div>';
 
-    listEl.innerHTML = displayList.map(v => {
-        const statusTag = v.map_status === 'MAPPED' ? `<span style="background:#dcfce7; color:#15803d; padding:2px 6px; border-radius:4px; font-weight:bold;">✅ Đã map với: ${escapeHtml(v.internal_sku)}</span>` : `<span style="background:#fef3c7; color:#b45309; padding:2px 6px; border-radius:4px; font-weight:bold;">⚠️ Chưa map</span>`;
-        return `
-        <div onclick="if(confirm('Chắc chắn muốn Map mã sàn này vào ${window.currentQuickMapSku}?${v.map_status === 'MAPPED' ? '\\n\\n⚠️ CẢNH BÁO: Mã này ĐANG MAP với [' + v.internal_sku + ']. Nối lại sẽ ghi đè!' : ''}')) executeQuickMap(${v.id}, '${window.currentQuickMapSku}')" style="display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; transition:all 0.2s; background:white;">
-            <img src="${v.image_url || 'https://placehold.co/60'}" style="width:45px; height:45px; border-radius:6px; object-fit:cover;">
+    listEl.innerHTML = displayList.map(p => `
+        <div onclick="executeQuickMap(window.currentVarId, '${p.sku}')"
+             style="display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #e2e8f0; border-radius:8px; cursor:pointer; transition:all 0.2s; background:white;"
+             onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='white'">
+            <img src="${p.image_url || 'https://placehold.co/60'}" style="width:45px; height:45px; border-radius:6px; object-fit:cover;">
             <div style="flex:1; min-width:0;">
-                <div style="font-size:13px; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(v.product_name)} ${v.variation_name ? '- ' + escapeHtml(v.variation_name) : ''}</div>
-                <div style="font-size:11px; margin-top:4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;"><span>🏪 ${escapeHtml(v.shop)}</span><span style="font-family:monospace; font-weight:bold;">🏷️ ${escapeHtml(v.platform_sku)}</span>${statusTag}</div>
+                <div style="font-size:13px; font-weight:700; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(p.product_name)}</div>
+                <div style="font-size:12px; margin-top:4px; font-family:monospace; font-weight:bold; color:#2563eb;">🏷️ ${escapeHtml(p.sku)}</div>
+                <div style="font-size:11px; color:#64748b;">Tồn: ${p.stock || 0}</div>
             </div>
             <div style="color:#2563eb; font-weight:800; font-size:20px;">+</div>
         </div>`
-    }).join('');
+    ).join('');
 }
 
 window.executeQuickMap = async function(varId, internalSku) {
+    if (!confirm(`Map variation này → SKU nội bộ: ${internalSku}?`)) return;
     try {
         document.getElementById('quickMapList').innerHTML = '<div style="text-align:center; padding:30px; color:#2563eb; font-weight:bold;">⏳ Đang nối mã...</div>';
         const res = await fetch(API + "/api/sync-variations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: varId, internal_sku: internalSku, mapped_items: JSON.stringify([{sku: internalSku, qty: 1}]) }) });
