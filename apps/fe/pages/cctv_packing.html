@@ -65,7 +65,49 @@
         // ⚠️ CẤU HÌNH QUAN TRỌNG: Thay đổi IP này thành IP máy tính chạy Python
         // Ví dụ: "http://192.168.1.15:5000/upload-video"
         // -----------------------------------------------------------------
-        const PYTHON_SERVER_URL = "http://192.168.1.18:5000/upload-video""; 
+        // -----------------------------------------------------------------
+        // CỖ MÁY DÒ ĐƯỜNG TỰ ĐỘNG (ZERO-TOUCH)
+        // -----------------------------------------------------------------
+        // URL của hệ thống Cloudflare Worker của bạn
+        const API_BASE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"; 
+        let PYTHON_SERVER_URL = null; // Sẽ được tự động điền
+
+        let currentOrderId = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let cameraStream = null;
+
+        function devLog(msg) {
+            const logBox = document.getElementById('dev-log');
+            const time = new Date().toLocaleTimeString();
+            logBox.innerHTML += `[${time}] ${msg}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // Tự động lên mây lấy tọa độ Ngrok khi vừa mở Web
+        async function fetchServerCoordinates() {
+            try {
+                devLog("⏳ Đang dò tìm Trạm nội bộ (PC)...");
+                const res = await fetch(`${API_BASE_URL}/cctv-config`);
+                const data = await res.json();
+                
+                if (data.ngrok_url) {
+                    PYTHON_SERVER_URL = `${data.ngrok_url}/upload-video`;
+                    devLog(`✅ Đã khóa mục tiêu: ${data.ngrok_url}`);
+                    // Chỉ khi lấy được tọa độ mới cho bật Camera
+                    initRecordingStream(); 
+                } else {
+                    devLog("❌ Trạm PC chưa mở Ngrok hoặc chưa báo cáo tọa độ!");
+                    document.getElementById('current-order').innerText = "LỖI KẾT NỐI PC";
+                }
+            } catch (err) {
+                devLog("❌ Không thể kết nối với Đám mây Server!");
+            }
+        }
+
+        // Thay đổi chỗ khởi động ở cuối file HTML:
+        // Thay vì gọi initRecordingStream(); ngay lập tức, ta gọi hàm dò đường trước:
+        fetchServerCoordinates();
         
         let currentOrderId = null;
         let mediaRecorder = null;

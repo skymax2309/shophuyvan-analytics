@@ -544,6 +544,31 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         }
         return new Response(object.body, { headers })
       }
+	  
+	  // ── API MỚI: TRẠM ĐÓNG GÓI TỰ ĐỘNG (CCTV NGROK URL) ──────────
+      if (url.pathname === "/api/cctv-config") {
+        if (request.method === "POST") {
+          // 1. Dành cho Bot Python: Gửi link Ngrok mới lên để lưu lại
+          const body = await request.json()
+          const { ngrok_url } = body
+          if (!ngrok_url) return Response.json({ error: "Missing ngrok_url" }, { status: 400, headers: cors })
+
+          // Tận dụng bảng _cf_KV để lưu link, ghi đè nếu đã tồn tại
+          await env.DB.prepare(`
+            INSERT INTO _cf_KV (key, value) 
+            VALUES ('cctv_ngrok_url', ?) 
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+          `).bind(ngrok_url).run()
+
+          return Response.json({ status: "ok", message: "Đã cập nhật tọa độ Trạm Đóng Gói!" }, { headers: cors })
+        }
+
+        if (request.method === "GET") {
+          // 2. Dành cho iPad: Lên xin link Ngrok hiện tại để kết nối
+          const config = await env.DB.prepare(`SELECT value FROM _cf_KV WHERE key = 'cctv_ngrok_url'`).first()
+          return Response.json({ ngrok_url: config?.value || null }, { headers: cors })
+        }
+      }
 
       return new Response("Not found", { status: 404, headers: cors })
 
