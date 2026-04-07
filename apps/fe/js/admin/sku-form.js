@@ -5,30 +5,44 @@ window.recalcComboCost = function() {
     let hasValidItems = false;
 
     document.querySelectorAll('.combo-item-row').forEach(row => {
-        let cSku = row.querySelector('.combo-sku-input').value.trim();
-        if (cSku.includes(' - ')) cSku = cSku.split(' - ')[0].trim();
+        let rawInput = row.querySelector('.combo-sku-input').value.trim();
+        let cSku = rawInput;
+        
+        // Bóc tách đa dạng các loại dấu gạch ngang nếu chọn từ Datalist
+        if (cSku.includes('—')) cSku = cSku.split('—')[0].trim();
+        else if (cSku.includes(' - ')) cSku = cSku.split(' - ')[0].trim();
+        
         const cQty = parseInt(row.querySelector('.combo-qty-input').value) || 1;
         
-        if (cSku && window.allSkus) {
-            const item = window.allSkus.find(s => s.sku === cSku);
+        if (rawInput && window.allSkus) {
+            // NÂNG CẤP DÒ MÌN: Tìm theo SKU trước, nếu không ra thì tìm theo Tên Sản Phẩm nguyên gốc (rawInput)
+            const item = window.allSkus.find(s => 
+                (s.sku && s.sku.toLowerCase() === cSku.toLowerCase()) || 
+                (s.product_name && s.product_name.toLowerCase() === rawInput.toLowerCase())
+            );
+            
+            console.log(`[COMBO LOG] 🔍 Đang dò chuỗi: "${rawInput}" | Tách mã: "${cSku}" -> Kết quả:`, item ? `✅ Bắt trúng! (Tồn Chính: ${item.stock_main}, Tồn Phụ: ${item.stock_sub})` : '❌ KHÔNG TÌM THẤY TRONG DB');
+
             if (item) { 
                 hasValidItems = true;
                 totalInv += (parseFloat(item.cost_invoice) || 0) * cQty; 
                 totalReal += (parseFloat(item.cost_real) || 0) * cQty; 
                 
-                // Thuật toán Nút thắt cổ chai: Tính tồn kho theo từng kho
+                // Thuật toán Nút thắt cổ chai
                 const availableMain = Math.floor((parseInt(item.stock_main) || 0) / cQty);
                 const availableSub = Math.floor((parseInt(item.stock_sub) || 0) / cQty);
+                
                 if (availableMain < minStockMain) minStockMain = availableMain;
                 if (availableSub < minStockSub) minStockSub = availableSub;
             }
         }
     });
     
+    console.log(`[COMBO LOG] 📊 Tổng kết tính toán -> Hợp lệ: ${hasValidItems} | Tồn Combo Chính (Min): ${minStockMain} | Tồn Combo Phụ (Min): ${minStockSub}`);
+    
     document.getElementById('s_cost_inv').value = totalInv; 
     document.getElementById('s_cost_real').value = totalReal;
     
-    // Đổ kết quả tính toán tự động ra ô nhập Tồn kho
     if (hasValidItems) {
         const finalMain = minStockMain === Infinity ? 0 : minStockMain;
         const finalSub = minStockSub === Infinity ? 0 : minStockSub;

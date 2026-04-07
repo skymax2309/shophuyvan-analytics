@@ -158,9 +158,8 @@ export default {
           })
           return uploadReport(fakeRequest, env, cors)
         }
-      } // <--- ĐÂY LÀ DẤU NGOẶC QUAN TRỌNG ĐỂ ĐÓNG KHỐI LỆNH if (url.pathname === "/api/auto-import-trigger") BỊ THIẾU
 
-      // ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
+        // ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
         if (ext === "pdf") {
           const fileName = file_key.split("/").pop()
           const arrayBuffer = await object.arrayBuffer()
