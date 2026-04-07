@@ -15,11 +15,18 @@ window.recalcComboCost = function() {
         const cQty = parseInt(row.querySelector('.combo-qty-input').value) || 1;
         
         if (rawInput && window.allSkus) {
-            // NÂNG CẤP DÒ MÌN: Tìm theo SKU trước, nếu không ra thì tìm theo Tên Sản Phẩm nguyên gốc (rawInput)
-            const item = window.allSkus.find(s => 
-                (s.sku && s.sku.toLowerCase() === cSku.toLowerCase()) || 
-                (s.product_name && s.product_name.toLowerCase() === rawInput.toLowerCase())
-            );
+            // NÂNG CẤP DÒ MÌN V2: Tìm kiếm đa điểm để tránh lỗi tồn kho về 0
+            const item = window.allSkus.find(s => {
+                const searchSku = cSku.toLowerCase();
+                const searchName = rawInput.toLowerCase();
+                return (s.sku && s.sku.toLowerCase() === searchSku) || 
+                       (s.product_name && s.product_name.toLowerCase() === searchName) ||
+                       (s.product_name && s.product_name.toLowerCase() === searchSku);
+            });
+            
+            if (!item) {
+                console.warn(`[COMBO WARNING] ⚠️ Không tìm thấy thành phần: "${rawInput}". Vui lòng kiểm tra lại SKU hoặc Tên trong danh sách sản phẩm.`);
+            }
             
             console.log(`[COMBO LOG] 🔍 Đang dò chuỗi: "${rawInput}" | Tách mã: "${cSku}" -> Kết quả:`, item ? `✅ Bắt trúng! (Tồn Chính: ${item.stock_main}, Tồn Phụ: ${item.stock_sub})` : '❌ KHÔNG TÌM THẤY TRONG DB');
 
