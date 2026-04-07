@@ -24,10 +24,20 @@
         @keyframes blinker { 50% { opacity: 0; } }
         
         /* Khung Log: Tự động co giãn chiếm phần trống còn lại */
-        .log-box { max-width: 600px; width: 100%; margin: 0 auto; text-align: left; font-size: 12px; color: #00FF88; background: #0A0A0A; padding: 10px; border-radius: 8px; flex-grow: 1; overflow-y: auto; box-sizing: border-box; }
+.log-box { max-width: 600px; width: 100%; margin: 0 auto; text-align: left; font-size: 12px; color: #00FF88; background: #0A0A0A; padding: 10px; border-radius: 8px; flex-grow: 1; overflow-y: auto; box-sizing: border-box; }
+        
+        /* Lớp phủ mở khóa âm thanh Apple */
+        #unlock-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .unlock-btn { background: #00FF88; color: #000; font-size: 20px; font-weight: bold; padding: 20px 40px; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px rgba(0, 255, 136, 0.5); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
+    <div id="unlock-overlay">
+        <button class="unlock-btn" onclick="unlockAppleAudio()">🔓 CHẠM VÀO ĐÂY ĐỂ BẮT ĐẦU</button>
+        <p style="color: #aaa; margin-top: 20px; text-align: center; font-size: 14px; padding: 0 20px;">* Apple iOS yêu cầu phải chạm vào màn hình 1 lần <br>để cho phép phát tiếng kêu "Tít".</p>
+    </div>
+
     <h2>📡 TRẠM MẮT THẦN ĐÓNG GÓI</h2>
     <div id="reader"></div>
     <div class="status-box" id="status-container">
@@ -42,37 +52,76 @@
         let currentOrderId = null;
         let mediaRecorder = null;
         let recordedChunks = [];
-        let cameraStream = null;
+let cameraStream = null;
+        let audioCtx = null;
+
+        // --- TRỊ BỆNH TẮT TIẾNG: HÀM MỞ KHÓA AUDIO APPLE ---
+        function unlockAppleAudio() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                
+                // Phát thử 1 đoạn âm thanh siêu nhỏ (im lặng) để "thông nòng"
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                gain.gain.value = 0; // Tắt tiếng
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(0);
+                osc.stop(0.1);
+
+                // Giấu lớp phủ đi
+                document.getElementById('unlock-overlay').style.display = 'none';
+                devLog("✅ Đã mở khóa âm thanh Apple!");
+                
+                // Khởi động hệ thống quét và kết nối Đám mây
+                startSystem();
+            } catch (e) {
+                devLog("❌ Lỗi mở khóa âm thanh: " + e.message);
+            }
+        }
 
         // --- CỖ MÁY TẠO ÂM THANH "TÍT" CHUYÊN NGHIỆP ---
         function playBeep() {
+            if (!audioCtx) return;
             try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) return;
-                const ctx = new AudioContext();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
                 osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.type = "square"; // Tạo âm thanh dứt khoát như máy quét mã
-                osc.frequency.setValueAtTime(880, ctx.currentTime); 
-                gain.gain.setValueAtTime(0.1, ctx.currentTime); 
+                gain.connect(audioCtx.destination);
+                osc.type = "square"; 
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime); 
                 osc.start();
-                osc.stop(ctx.currentTime + 0.15); // Tiếng tít vang 0.15 giây
+                osc.stop(audioCtx.currentTime + 0.15); 
             } catch (err) { devLog("⚠️ Không phát được âm thanh"); }
         }
 
-        // --- HACK: ÉP KHÓA FULLSCREEN TRÊN IOS ---
-        function preventIOSFullscreen() {
-            const videos = document.getElementsByTagName('video');
-            for (let i = 0; i < videos.length; i++) {
-                videos[i].setAttribute('playsinline', 'true');
-                videos[i].setAttribute('webkit-playsinline', 'true');
-                videos[i].muted = true;
-            }
+        // --- TRỊ BỆNH FULLSCREEN: KẺ SĂN MỒI MUTATION OBSERVER ---
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.addedNodes.forEach((node) => {
+                    // Chộp cổ thẻ video ngay khi nó vừa được thư viện sinh ra
+                    if (node.tagName === 'VIDEO') {
+                        lockVideoNode(node);
+                    } else if (node.querySelectorAll) {
+                        const videos = node.querySelectorAll('video');
+                        videos.forEach(lockVideoNode);
+                    }
+                });
+            });
+        });
+
+        function lockVideoNode(video) {
+            video.setAttribute('playsinline', 'true');
+            video.setAttribute('webkit-playsinline', 'true');
+            video.muted = true;
+            devLog("🔒 Đã khóa cứng Camera, chống Fullscreen!");
         }
-        // Quét liên tục mỗi 1 giây để khóa cổ mọi video mọc ra
-        setInterval(preventIOSFullscreen, 1000); 
+
+        // Tung lưới bắt đầu rình rập toàn bộ trang web
+        observer.observe(document.body, { childList: true, subtree: true });
 
         function devLog(msg) {
             const logBox = document.getElementById('dev-log');
@@ -138,8 +187,12 @@
             }, 500);
         }
 
-        new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 }, false).render(onScanSuccess);
-        fetchServerCoordinates();
+    function startSystem() {
+            devLog("🚀 Bắt đầu nổ máy Trạm Đóng Gói...");
+            new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 }, false).render(onScanSuccess);
+            fetchServerCoordinates();
+        }
+        // (Lưu ý: Không tự chạy code nữa. Đợi Kỹ sư trưởng bấm nút "MỞ KHÓA" thì startSystem mới được gọi)
     </script>
 </body>
 </html>
