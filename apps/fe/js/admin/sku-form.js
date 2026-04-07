@@ -184,3 +184,60 @@ document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_c
 }
 
 window.deleteSku = async function(sku) { if (confirm("Xóa SKU " + sku + "?")) { await fetch(API + "/api/products/" + sku, { method: "DELETE" }); showToast("🗑️ Đã xóa"); loadSkus(); } }
+
+// Tính năng sửa tồn kho trực tiếp tại dòng (Inline Edit)
+window.inlineUpdateStock = async function(sku, value, type) {
+    console.log(`[INLINE LOG] 🚀 Bắt đầu cập nhật SKU: ${sku} | Loại: ${type} | Giá trị: ${value}`);
+    
+    // Tìm sản phẩm trong bộ nhớ cache
+    const item = window.allSkus.find(s => s.sku === sku);
+    if (!item) {
+        console.error(`[INLINE LOG] ❌ Không tìm thấy SKU ${sku} trong cache.`);
+        return showToast("Lỗi: Không tìm thấy SKU", true);
+    }
+
+    // Chuẩn bị dữ liệu để gửi lên Server (Dò mìn dữ liệu cũ)
+    let stock_main = type === 'main' ? parseInt(value) : (item.stock_main || 0);
+    let stock_sub = type === 'sub' ? parseInt(value) : (item.stock_sub || 0);
+    
+    try {
+        console.log(`[INLINE LOG] 🛠️ Đang gửi yêu cầu lên Server cho SKU ${sku}...`);
+        
+        const res = await fetch(API + "/api/products", { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ 
+                sku: item.sku, 
+                product_name: item.product_name, 
+                cost_invoice: item.cost_invoice || 0, 
+                cost_real: item.cost_real || 0, 
+                image_url: item.image_url || "", 
+                stock: stock_main + stock_sub, 
+                stock_main: stock_main, 
+                stock_sub: stock_sub,
+                is_combo: item.is_combo || 0,
+                combo_items: item.combo_items || null
+            }) 
+        });
+
+        if (res.ok) {
+            console.log(`[INLINE LOG] ✅ Server báo thành công cho SKU ${sku}`);
+            showToast(`✅ Đã cập nhật tồn ${type === 'main' ? 'chính' : 'phụ'}: ${sku}`);
+            
+            // Cập nhật lại cache tại chỗ để không cần load lại toàn bộ trang
+            item.stock_main = stock_main;
+            item.stock_sub = stock_sub;
+            item.stock = stock_main + stock_sub;
+            
+            // Nếu là sản phẩm cha, cần tính toán lại tổng tồn hiển thị ở Card cha (tùy chọn)
+            // loadSkus(); // Chỉ gọi nếu muốn đồng bộ toàn bộ giao diện ngay lập tức
+        } else {
+            const errText = await res.text();
+            console.error(`[INLINE LOG] ❌ Lỗi Server: ${errText}`);
+            showToast("❌ Lỗi Server khi lưu!", true);
+        }
+    } catch (e) {
+        console.error(`[INLINE LOG] ❌ Lỗi kết nối: ${e.message}`);
+        showToast("❌ Lỗi mạng, không thể lưu!", true);
+    }
+}

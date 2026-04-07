@@ -82,7 +82,9 @@ window.generateRowHtml = function(p) {
         const childrenHtml = p.children.map(c => {
             const cValidImg = c.image_url && c.image_url !== "undefined" && c.image_url.trim() !== "";
             const cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
-            return tplChild.replace(/{{c_sku}}/g, c.sku).replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại")).replace(/{{c_img_url}}/g, cImgUrl).replace(/{{c_cost}}/g, Math.round(c.cost_real || 0).toLocaleString('vi-VN') + 'đ').replace(/{{c_stock}}/g, c.stock || 0).replace(/{{c_enc_name}}/g, encodeURIComponent(c.product_name || "")).replace(/{{c_raw_inv}}/g, c.cost_invoice || 0).replace(/{{c_raw_real}}/g, c.cost_real || 0).replace(/{{c_raw_stock}}/g, c.stock || 0).replace(/{{c_img}}/g, c.image_url || "").replace(/{{c_mapped_badge}}/g, genBadge(c.sku, c.mapped_shops));
+            return tplChild.replace(/{{c_sku}}/g, c.sku).replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại")).replace(/{{c_img_url}}/g, cImgUrl).replace(/{{c_cost}}/g, Math.round(c.cost_real || 0).toLocaleString('vi-VN') + 'đ').replace(/{{c_stock}}/g, c.stock || 0).replace(/{{c_enc_name}}/g, encodeURIComponent(c.product_name || "")).replace(/{{c_raw_inv}}/g, c.cost_invoice || 0).replace(/{{c_raw_real}}/g, c.cost_real || 0).replace(/{{c_raw_stock}}/g, c.stock || 0)
+.replace(/{{c_raw_stock_main}}/g, c.stock_main || 0)
+.replace(/{{c_raw_stock_sub}}/g, c.stock_sub || 0).replace(/{{c_img}}/g, c.image_url || "").replace(/{{c_mapped_badge}}/g, genBadge(c.sku, c.mapped_shops));
         }).join('');
         html = html.replace(/{{children_list}}/g, childrenHtml).replace(/{{show_toggle}}/g, 'block');
     } else {

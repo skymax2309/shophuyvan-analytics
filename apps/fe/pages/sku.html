@@ -62,10 +62,20 @@
             <div style="font-size:10px; color:#94a3b8; font-weight:600; text-transform:uppercase;">Giá vốn</div>
             <div style="font-size:14px; font-weight:700; color:#7c3aed;">{{c_cost}}</div>
         </div>
-        <div class="responsive-stock" style="text-align:center; min-width:70px; background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:6px 10px;">
-            <div style="font-size:10px; color:#3b82f6; font-weight:600; text-transform:uppercase;">Tồn kho</div>
-            <div style="font-size:16px; font-weight:800; color:#1d4ed8;">{{c_stock}}</div>
-        </div>
+<div class="responsive-stock-inline" style="display:flex; gap:4px; text-align:center;">
+    <div style="background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:4px 8px;">
+        <div style="font-size:9px; color:#3b82f6; font-weight:700;">CHÍNH</div>
+        <input type="number" value="{{c_raw_stock_main}}" 
+               onchange="inlineUpdateStock('{{c_sku}}', this.value, 'main')" 
+               style="width:50px; border:none; background:transparent; text-align:center; font-size:14px; font-weight:800; color:#1d4ed8; outline:none;">
+    </div>
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:4px 8px;">
+        <div style="font-size:9px; color:#64748b; font-weight:700;">PHỤ</div>
+        <input type="number" value="{{c_raw_stock_sub}}" 
+               onchange="inlineUpdateStock('{{c_sku}}', this.value, 'sub')" 
+               style="width:50px; border:none; background:transparent; text-align:center; font-size:14px; font-weight:800; color:#475569; outline:none;">
+    </div>
+</div>
         <div class="responsive-actions-child" style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-start; min-width:100%;">
             <button class="btn-map" onclick="openQuickMapModal('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">🔗 Map</button>
             <button class="btn-edit" data-sku="{{c_sku}}" data-name="{{c_enc_name}}" data-cinv="{{c_raw_inv}}" data-creal="{{c_raw_real}}" data-stock="{{c_raw_stock}}" data-img="{{c_img}}" onclick="editSkuFromBtn(this); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#fefce8; color:#ca8a04; border:1px solid #fde68a; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">✏️ Sửa</button>
