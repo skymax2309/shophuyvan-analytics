@@ -545,45 +545,33 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
         return new Response(object.body, { headers })
       }
 	  
-	  // ── API MỚI: TRẠM ĐÓNG GÓI TỰ ĐỘNG (CCTV NGROK URL) ──────────
+	  // ── API MỚI: TRẠM ĐÓNG GÓI ZERO-TOUCH (CLOUDFLARE TUNNEL) ──────────
       if (url.pathname === "/api/cctv-config") {
         if (request.method === "POST") {
-          // 1. Dành cho Bot Python: Gửi link Ngrok mới lên để lưu lại
-          const body = await request.json()
-          const { ngrok_url } = body
-          if (!ngrok_url) return Response.json({ error: "Missing ngrok_url" }, { status: 400, headers: cors })
-
-          // Tận dụng bảng _cf_KV để lưu link, ghi đè nếu đã tồn tại
+          // Bot Python báo cáo tọa độ lên
+          const body = await request.json();
+          // Hỗ trợ cả 2 biến ngrok_url và url để tương thích ngược
+          const tunnelUrl = body.ngrok_url || body.url; 
+          
+          if (!tunnelUrl) return Response.json({ error: "Missing url" }, { status: 400, headers: cors });
+          
+          // Lưu tọa độ vào DB
           await env.DB.prepare(`
             INSERT INTO _cf_KV (key, value) 
-            VALUES ('cctv_ngrok_url', ?) 
+            VALUES ('cctv_url', ?) 
             ON CONFLICT(key) DO UPDATE SET value=excluded.value
-          `).bind(ngrok_url).run()
-
-          return Response.json({ status: "ok", message: "Đã cập nhật tọa độ Trạm Đóng Gói!" }, { headers: cors })
+          `).bind(tunnelUrl).run();
+          
+          return Response.json({ status: "ok" }, { headers: cors });
         }
 
         if (request.method === "GET") {
-          // 2. Dành cho iPad: Lên xin link Ngrok hiện tại để kết nối
-          const config = await env.DB.prepare(`SELECT value FROM _cf_KV WHERE key = 'cctv_ngrok_url'`).first()
-          return Response.json({ ngrok_url: config?.value || null }, { headers: cors })
+          // iPad xin tọa độ
+          const config = await env.DB.prepare("SELECT value FROM _cf_KV WHERE key = 'cctv_url'").first();
+          // Trả về biến 'url' chuẩn để file HTML của iPad đọc được
+          return Response.json({ url: config?.value || null }, { headers: cors });
         }
       }
-	  
-	  // ── API MỚI: TRẠM ĐÓNG GÓI (CCTV TUNNEL URL) ──────────
-      if (url.pathname === "/api/cctv-config") {
-        if (request.method === "POST") {
-          const { ngrok_url } = await request.json() // Ta giữ tên biến ngrok_url cho đồng bộ web cũ
-          if (!ngrok_url) return Response.json({ error: "Missing url" }, { status: 400, headers: cors })
-          await env.DB.prepare("INSERT INTO _cf_KV (key, value) VALUES ('cctv_url', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(ngrok_url).run()
-          return Response.json({ status: "ok" }, { headers: cors })
-        }
-        if (request.method === "GET") {
-          const config = await env.DB.prepare("SELECT value FROM _cf_KV WHERE key = 'cctv_url'").first()
-          return Response.json({ url: config?.value || null }, { headers: cors })
-        }
-      }
-
       return new Response("Not found", { status: 404, headers: cors })
 
     } catch (e) {

@@ -6,68 +6,31 @@
     <title>Trạm Đóng Gói Thông Minh - OMS</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #101010; color: white; 
-            text-align: center; margin: 0; padding: 20px; 
-        }
-        h2 { color: #00CED1; font-weight: bold; margin-bottom: 5px; }
-        p.subtitle { color: #AAAAAA; font-style: italic; font-size: 13px; margin-top: 0; }
-        
-        #reader { 
-            width: 100%; max-width: 500px; margin: 0 auto; 
-            border-radius: 12px; overflow: hidden; 
-            border: 2px solid #333; background: #000;
-        }
-        
-        .status-box { 
-            margin: 20px auto; max-width: 500px; padding: 15px; 
-            background: #1a1a1a; border-radius: 10px; 
-            border: 1px solid #333; transition: border-color 0.3s;
-        }
+        body { font-family: 'Segoe UI', sans-serif; background: #101010; color: white; text-align: center; margin: 0; padding: 20px; }
+        h2 { color: #00CED1; margin-bottom: 5px; }
+        #reader { width: 100%; max-width: 500px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 2px solid #333; background: #000; }
+        .status-box { margin: 20px auto; max-width: 500px; padding: 15px; background: #1a1a1a; border-radius: 10px; border: 1px solid #333; }
         .status-box.recording { border-color: #ff4757; box-shadow: 0 0 15px rgba(255, 71, 87, 0.2); }
-        .status-box.success { border-color: #00FF88; }
-        
-        .order-id { font-size: 28px; color: #555; font-weight: bold; margin: 10px 0; word-break: break-all; }
+        .order-id { font-size: 28px; color: #555; font-weight: bold; margin: 10px 0; }
         .order-id.active { color: #00FF88; }
-        
-        .record-indicator { display: none; color: #ff4757; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        .record-indicator { display: none; color: #ff4757; font-weight: bold; font-size: 16px; }
         .blink { animation: blinker 1s linear infinite; }
         @keyframes blinker { 50% { opacity: 0; } }
-        
-        .log-box { 
-            max-width: 500px; margin: 20px auto; text-align: left; 
-            font-family: 'Consolas', monospace; font-size: 11px; 
-            color: #00FF88; background: #0A0A0A; padding: 10px; 
-            border-radius: 8px; height: 100px; overflow-y: auto; 
-        }
+        .log-box { max-width: 500px; margin: 20px auto; text-align: left; font-size: 11px; color: #00FF88; background: #0A0A0A; padding: 10px; border-radius: 8px; height: 100px; overflow-y: auto; }
     </style>
 </head>
 <body>
-
     <h2>📡 TRẠM MẮT THẦN ĐÓNG GÓI</h2>
-    <p class="subtitle">Đưa mã vận đơn vào khung hình để tự động ghi hình</p>
-
     <div id="reader"></div>
-
     <div class="status-box" id="status-container">
-        <div style="font-size: 14px; color: #888;">TRẠNG THÁI LUỒNG QUAY:</div>
-        <div class="order-id" id="current-order">ĐANG TÌM PC...</div>
+        <div id="current-order" class="order-id">ĐANG DÒ TÌM PC...</div>
         <div class="record-indicator" id="record-status">🔴 <span class="blink">ĐANG GHI HÌNH...</span></div>
     </div>
-
-    <div class="log-box" id="dev-log">
-        [*] Khởi động trạm đóng gói...<br>
-    </div>
+    <div class="log-box" id="dev-log">[*] Khởi động trạm...<br></div>
 
     <script>
-        // -----------------------------------------------------------------
-        // CỖ MÁY DÒ ĐƯỜNG TỰ ĐỘNG (ZERO-TOUCH CLOUDFLARE)
-        // -----------------------------------------------------------------
         const API_BASE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"; 
         let PYTHON_SERVER_URL = null; 
-
-        // Khai báo biến TOÀN CỤC (Chỉ 1 lần duy nhất)
         let currentOrderId = null;
         let mediaRecorder = null;
         let recordedChunks = [];
@@ -75,131 +38,61 @@
 
         function devLog(msg) {
             const logBox = document.getElementById('dev-log');
-            const time = new Date().toLocaleTimeString();
-            logBox.innerHTML += `[${time}] ${msg}<br>`;
+            logBox.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // Tự động lên mây lấy tọa độ Cloudflare Tunnel
         async function fetchServerCoordinates() {
             try {
-                devLog("⏳ Đang dò tìm Trạm PC qua Cloudflare...");
+                devLog("⏳ Đang lấy tọa độ từ Cloudflare...");
                 const res = await fetch(`${API_BASE_URL}/cctv-config`);
                 const data = await res.json();
-                
                 if (data.url) {
                     PYTHON_SERVER_URL = `${data.url}/upload-video`;
-                    devLog(`✅ Đã thông hầm Cloudflare!`);
+                    devLog(`✅ Đã thông hầm: ${data.url}`);
                     document.getElementById('current-order').innerText = "SẴN SÀNG QUÉT MÃ";
-                    // Chỉ khi lấy được link PC thì mới xin quyền Camera quay ngầm
                     initRecordingStream(); 
                 } else {
-                    devLog("❌ Trạm PC chưa mở hầm!");
-                    document.getElementById('current-order').innerText = "LỖI: PC CHƯA BẬT";
+                    devLog("❌ PC chưa báo cáo tọa độ!");
                 }
-            } catch (err) {
-                devLog("❌ Lỗi kết nối Đám mây Cloudflare!");
-                document.getElementById('current-order').innerText = "LỖI MẠNG";
-            }
+            } catch (err) { devLog("❌ Lỗi kết nối Đám mây Cloudflare!"); }
         }
 
-        // Xin quyền Camera để Quay phim (Chạy ẩn phía sau)
         async function initRecordingStream() {
             try {
-                cameraStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment", width: 1280, height: 720 }, 
-                    audio: false 
-                });
-                
-                const options = { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 800000 };
-                mediaRecorder = new MediaRecorder(cameraStream, options);
-
-                mediaRecorder.ondataavailable = function(e) {
-                    if (e.data.size > 0) recordedChunks.push(e.data);
-                };
-
-                mediaRecorder.onstop = async function() {
-                    const savedOrderId = currentOrderId; 
-                    if (recordedChunks.length > 0 && savedOrderId && savedOrderId !== "STOP_PACKING") {
-                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                        devLog(`📦 Gói video [${savedOrderId}], đang bắn về PC...`);
-                        uploadVideoToLocalServer(blob, savedOrderId);
-                        recordedChunks = []; 
+                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+                mediaRecorder = new MediaRecorder(cameraStream, { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 800000 });
+                mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                mediaRecorder.onstop = async () => {
+                    if (recordedChunks.length > 0 && currentOrderId && currentOrderId !== "STOP_PACKING") {
+                        const formData = new FormData();
+                        formData.append('video', new Blob(recordedChunks, { type: 'video/webm' }), `${currentOrderId}.webm`);
+                        formData.append('order_id', currentOrderId);
+                        devLog(`📦 Gửi video đơn ${currentOrderId} về PC...`);
+                        fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData }).catch(() => devLog("❌ Lỗi gửi video!"));
+                        recordedChunks = [];
                     }
                 };
-                devLog("✅ Luồng quay ngầm đã sẵn sàng.");
-            } catch (err) {
-                devLog(`❌ Lỗi Camera: ${err.message}`);
-                alert("Vui lòng cấp quyền Camera cho trình duyệt!");
-            }
+            } catch (err) { alert("Cần quyền Camera!"); }
         }
 
-        // Gửi file sang Python PC
-        async function uploadVideoToLocalServer(blob, orderId) {
-            const formData = new FormData();
-            formData.append('video', blob, `${orderId}.webm`);
-            formData.append('order_id', orderId);
-
-            try {
-                const res = await fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData });
-                if (res.ok) {
-                    devLog(`✅ Bắn xong video [${orderId}] về PC!`);
-                } else {
-                    devLog(`⚠️ PC từ chối nhận file [${orderId}].`);
-                }
-            } catch (err) {
-                devLog(`❌ Đứt kết nối với PC (Hầm Cloudflare sập).`);
-            }
-        }
-
-        // Logic "Chém video" khi tít mã mới
-        function onScanSuccess(decodedText, decodedResult) {
-            if (decodedText === currentOrderId) return; // Chống tít đúp
-            
-            devLog(`⚡ Tít mã: ${decodedText}`);
-
-            // Cắt video đơn cũ
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-                mediaRecorder.stop(); 
-            }
-
+        function onScanSuccess(decodedText) {
+            if (decodedText === currentOrderId) return;
+            if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
             currentOrderId = decodedText;
-            const uiOrder = document.getElementById('current-order');
-            const uiStatusBox = document.getElementById('status-container');
-            const uiRecordIndic = document.getElementById('record-status');
-
-            uiOrder.innerText = currentOrderId;
-
-            if (decodedText === "STOP_PACKING") {
-                uiOrder.className = "order-id";
-                uiOrder.style.color = "#ff4757";
-                uiStatusBox.className = "status-box";
-                uiRecordIndic.style.display = "none";
-                devLog("🛑 Lệnh Dừng quay phim.");
-                return;
-            }
-
+            document.getElementById('current-order').innerText = currentOrderId;
+            if (decodedText === "STOP_PACKING") return;
             setTimeout(() => {
                 if (mediaRecorder && mediaRecorder.state === "inactive") {
                     mediaRecorder.start();
-                    uiOrder.className = "order-id active";
-                    uiOrder.style.color = ""; 
-                    uiStatusBox.className = "status-box recording";
-                    uiRecordIndic.style.display = "block";
-                    devLog(`🔴 Đang ghi hình: ${currentOrderId}`);
+                    document.getElementById('status-container').className = "status-box recording";
+                    document.getElementById('record-status').style.display = "block";
                 }
             }, 500);
         }
 
-        // 1. Khởi động Quét QR ngay lập tức
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader", { fps: 15, qrbox: {width: 250, height: 250} }, false
-        );
-        html5QrcodeScanner.render(onScanSuccess);
-        
-        // 2. Chạy kịch bản lấy tọa độ PC (Lấy xong sẽ tự bật camera quay ngầm)
+        new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 }, false).render(onScanSuccess);
         fetchServerCoordinates();
-
     </script>
 </body>
 </html>
