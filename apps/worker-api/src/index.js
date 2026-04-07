@@ -560,7 +560,7 @@ export default {
           
           // Lưu tọa độ vào DB
           await env.DB.prepare(`
-            INSERT INTO _cf_KV (key, value) 
+            INSERT INTO app_config (key, value) 
             VALUES ('cctv_url', ?) 
             ON CONFLICT(key) DO UPDATE SET value=excluded.value
           `).bind(tunnelUrl).run();
@@ -570,7 +570,7 @@ export default {
 
         if (request.method === "GET") {
           // iPad xin tọa độ
-          const config = await env.DB.prepare("SELECT value FROM _cf_KV WHERE key = 'cctv_url'").first();
+          const config = await env.DB.prepare("SELECT value FROM app_config WHERE key = 'cctv_url'").first();
           // Trả về biến 'url' chuẩn để file HTML của iPad đọc được
           return Response.json({ url: config?.value || null }, { headers: cors });
         }
