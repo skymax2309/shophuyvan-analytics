@@ -7,12 +7,12 @@ async function handleProducts(request, env, cors) {
   // ==========================================
   // [BỌC THÉP] LẤY DANH SÁCH SHOP & CÀI ĐẶT KHO (ĐẶT TRÊN CÙNG ĐỂ NÉ HỐ ĐEN)
   // ==========================================
-  if (request.method === "GET" && url.pathname.endsWith("/shops-warehouse-list")) {
+  if (request.method === "GET" && (url.pathname.endsWith("/shops-warehouse-list") || url.searchParams.get("action") === "shops-warehouse-list")) {
       const { results } = await env.DB.prepare(`SELECT id, shop_name, platform, COALESCE(warehouse_source, 'main') as warehouse_source FROM shops ORDER BY platform, shop_name`).all();
       return Response.json(results, { headers: cors });
   }
 
-  if (request.method === "POST" && url.pathname.endsWith("/update-shop-warehouse")) {
+  if (request.method === "POST" && (url.pathname.endsWith("/update-shop-warehouse") || url.searchParams.get("action") === "update-shop-warehouse")) {
       const reqBody = await request.json();
       await env.DB.prepare(`UPDATE shops SET warehouse_source = ? WHERE id = ?`).bind(reqBody.warehouse_source, reqBody.shop_id).run();
       return Response.json({ status: "ok" }, { headers: cors });
