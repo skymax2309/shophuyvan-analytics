@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════
 // PRODUCTS
 // ════════════════════════════════════════════════════════════════════
-async function handleProducts(request, env, cors) {
+export async function handleProducts(request, env, cors) {
   const url = new URL(request.url);
 
 
@@ -276,7 +276,7 @@ const sku = path.split('/').pop();
 //        tiktok_ads / 5 / pct
 //        packaging / 3000 / fixed
 // ════════════════════════════════════════════════════════════════════
-async function handleCostSettings(request, env, cors) {
+export async function handleCostSettings(request, env, cors) {
 
   if (request.method === "GET") {
     const rows = await env.DB.prepare(`
@@ -317,7 +317,7 @@ async function handleCostSettings(request, env, cors) {
 // ════════════════════════════════════════════════════════════════════
 // PRODUCT VARIATIONS — Map SKU Shopee → Internal SKU
 // ════════════════════════════════════════════════════════════════════
-async function handleVariations(request, env, cors) {
+export async function handleCostSettings(request, env, cors) {
 
   // GET: Lấy danh sách variations (có filter map_status, shop)
   if (request.method === 'GET') {
@@ -582,6 +582,3 @@ async function handleVariations(request, env, cors) {
   }
 }
 
-
-
-export { handleProducts, handleCostSettings, handleVariations }
