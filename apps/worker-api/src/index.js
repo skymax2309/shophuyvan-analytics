@@ -569,6 +569,20 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
           return Response.json({ ngrok_url: config?.value || null }, { headers: cors })
         }
       }
+	  
+	  // ── API MỚI: TRẠM ĐÓNG GÓI (CCTV TUNNEL URL) ──────────
+      if (url.pathname === "/api/cctv-config") {
+        if (request.method === "POST") {
+          const { ngrok_url } = await request.json() // Ta giữ tên biến ngrok_url cho đồng bộ web cũ
+          if (!ngrok_url) return Response.json({ error: "Missing url" }, { status: 400, headers: cors })
+          await env.DB.prepare("INSERT INTO _cf_KV (key, value) VALUES ('cctv_url', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(ngrok_url).run()
+          return Response.json({ status: "ok" }, { headers: cors })
+        }
+        if (request.method === "GET") {
+          const config = await env.DB.prepare("SELECT value FROM _cf_KV WHERE key = 'cctv_url'").first()
+          return Response.json({ url: config?.value || null }, { headers: cors })
+        }
+      }
 
       return new Response("Not found", { status: 404, headers: cors })
 

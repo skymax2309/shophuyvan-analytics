@@ -87,21 +87,19 @@
         // Tự động lên mây lấy tọa độ Ngrok khi vừa mở Web
         async function fetchServerCoordinates() {
             try {
-                devLog("⏳ Đang dò tìm Trạm nội bộ (PC)...");
+                devLog("⏳ Đang dò tìm Trạm PC qua Cloudflare...");
                 const res = await fetch(`${API_BASE_URL}/cctv-config`);
                 const data = await res.json();
                 
-                if (data.ngrok_url) {
-                    PYTHON_SERVER_URL = `${data.ngrok_url}/upload-video`;
-                    devLog(`✅ Đã khóa mục tiêu: ${data.ngrok_url}`);
-                    // Chỉ khi lấy được tọa độ mới cho bật Camera
+                if (data.url) {
+                    PYTHON_SERVER_URL = `${data.url}/upload-video`;
+                    devLog(`✅ Đã thông hầm Cloudflare: ${data.url}`);
                     initRecordingStream(); 
                 } else {
-                    devLog("❌ Trạm PC chưa mở Ngrok hoặc chưa báo cáo tọa độ!");
-                    document.getElementById('current-order').innerText = "LỖI KẾT NỐI PC";
+                    devLog("❌ Trạm PC chưa mở hầm!");
                 }
             } catch (err) {
-                devLog("❌ Không thể kết nối với Đám mây Server!");
+                devLog("❌ Lỗi kết nối Cloudflare!");
             }
         }
 
