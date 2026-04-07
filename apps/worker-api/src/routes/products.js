@@ -318,7 +318,7 @@ export async function handleCostSettings(request, env, cors) {
 // ════════════════════════════════════════════════════════════════════
 // PRODUCT VARIATIONS — Map SKU Shopee → Internal SKU
 // ════════════════════════════════════════════════════════════════════
-export async function handleCostSettings(request, env, cors) {
+export async function handleVariations(request, env, cors) {
 
   // GET: Lấy danh sách variations (có filter map_status, shop)
   if (request.method === 'GET') {
