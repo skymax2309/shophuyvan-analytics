@@ -1,6 +1,9 @@
 window.loadShopWarehouses = async function() {
     try {
+        console.log("🚀 [FRONTEND] Đang gọi API lấy danh sách Cửa hàng & Phân kho...");
         const res = await fetch(API + "/api/products/shops-warehouse-list").then(r => r.json());
+        console.log("📦 [FRONTEND] Dữ liệu Server trả về:", res); // Gắn log để kiểm tra data
+        
         const tbody = document.getElementById("shop-warehouse-list");
         if (!tbody) return;
         

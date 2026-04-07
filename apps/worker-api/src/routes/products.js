@@ -66,7 +66,8 @@ async function handleProducts(request, env, cors) {
   // ==========================================
   // CÁC API CŨ CỦA PRODUCTS GỐC
   // ==========================================
-  if (request.method === "GET") {
+  // BỌC THÉP: Chỉ bắt đúng đường dẫn gốc /api/products, tuyệt đối không nuốt nhầm API khác
+  if (request.method === "GET" && (url.pathname === "/api/products" || url.pathname === "/api/products/")) {
     const search = url.searchParams.get("search");
     let cond = "";
     let params = [];
