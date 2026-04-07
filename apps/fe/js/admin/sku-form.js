@@ -107,6 +107,7 @@ document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_c
   if(document.getElementById("s_stock_sub")) document.getElementById("s_stock_sub").value = (p ? p.stock_sub : 0) || 0;
   const isComboCb = document.getElementById('s_is_combo');
   if (isComboCb) { isComboCb.checked = (p && p.is_combo == 1); toggleComboUI(isComboCb.checked); document.getElementById('combo-items-list').innerHTML = ''; if (isComboCb.checked && p && p.combo_items) JSON.parse(p.combo_items).forEach(i => addComboItemRow(i.sku, i.qty)); }
+  if (typeof setFormMode === 'function') setFormMode('single', sku);
   window.scrollTo({ top: 0, behavior: "smooth" }); showToast("✏️ Đang sửa: " + sku);
 }
 
@@ -123,6 +124,8 @@ document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_c
     if (document.getElementById("s_apply_all_cost")) document.getElementById("s_apply_all_cost").checked = true;
     const isComboCb = document.getElementById('s_is_combo');
     if (isComboCb) { isComboCb.checked = (p.is_combo == 1); toggleComboUI(isComboCb.checked); document.getElementById('combo-items-list').innerHTML = ''; if (isComboCb.checked && p.combo_items) JSON.parse(p.combo_items).forEach(i => addComboItemRow(i.sku, i.qty)); }
+    const hasChildren = p.children && p.children.length > 0;
+    if (typeof setFormMode === 'function') setFormMode(hasChildren ? 'parent' : 'single', p.sku);
     window.scrollTo({ top: 0, behavior: "smooth" }); showToast("✏️ Đang sửa: " + p.sku);
 }
 

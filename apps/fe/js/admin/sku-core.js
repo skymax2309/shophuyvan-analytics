@@ -20,8 +20,16 @@ window.buildSkuTree = function(flatData) {
 window.toggleChildRow = function(safeSku) {
     const el = document.getElementById('vars-' + safeSku);
     const icon = document.getElementById('icon-' + safeSku);
-    if (el.style.display === 'none') { el.style.display = 'block'; icon.style.transform = 'rotate(180deg)'; } 
-    else { el.style.display = 'none'; icon.style.transform = 'rotate(0deg)'; }
+    const label = document.getElementById('toggle-label-' + safeSku);
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+        if (icon) icon.style.transform = 'rotate(180deg)';
+        if (label) label.textContent = 'Ẩn phân loại';
+    } else {
+        el.style.display = 'none';
+        if (icon) icon.style.transform = 'rotate(0deg)';
+        if (label) label.textContent = 'Xem phân loại';
+    }
 }
 
 window.escapeHtml = function(unsafe) {
