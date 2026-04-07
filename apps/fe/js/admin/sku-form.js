@@ -1,29 +1,69 @@
 window.recalcComboCost = function() {
     if (!document.getElementById('s_is_combo').checked) return;
     let totalInv = 0, totalReal = 0;
+    let minStockMain = Infinity, minStockSub = Infinity;
+    let hasValidItems = false;
+
     document.querySelectorAll('.combo-item-row').forEach(row => {
         let cSku = row.querySelector('.combo-sku-input').value.trim();
         if (cSku.includes(' - ')) cSku = cSku.split(' - ')[0].trim();
         const cQty = parseInt(row.querySelector('.combo-qty-input').value) || 1;
+        
         if (cSku && window.allSkus) {
             const item = window.allSkus.find(s => s.sku === cSku);
-            if (item) { totalInv += (parseFloat(item.cost_invoice) || 0) * cQty; totalReal += (parseFloat(item.cost_real) || 0) * cQty; }
+            if (item) { 
+                hasValidItems = true;
+                totalInv += (parseFloat(item.cost_invoice) || 0) * cQty; 
+                totalReal += (parseFloat(item.cost_real) || 0) * cQty; 
+                
+                // Thuật toán Nút thắt cổ chai: Tính tồn kho theo từng kho
+                const availableMain = Math.floor((parseInt(item.stock_main) || 0) / cQty);
+                const availableSub = Math.floor((parseInt(item.stock_sub) || 0) / cQty);
+                if (availableMain < minStockMain) minStockMain = availableMain;
+                if (availableSub < minStockSub) minStockSub = availableSub;
+            }
         }
     });
-    document.getElementById('s_cost_inv').value = totalInv; document.getElementById('s_cost_real').value = totalReal;
+    
+    document.getElementById('s_cost_inv').value = totalInv; 
+    document.getElementById('s_cost_real').value = totalReal;
+    
+    // Đổ kết quả tính toán tự động ra ô nhập Tồn kho
+    if (hasValidItems) {
+        const finalMain = minStockMain === Infinity ? 0 : minStockMain;
+        const finalSub = minStockSub === Infinity ? 0 : minStockSub;
+        if(document.getElementById('s_stock_main')) document.getElementById('s_stock_main').value = finalMain;
+        if(document.getElementById('s_stock_sub')) document.getElementById('s_stock_sub').value = finalSub;
+        if(document.getElementById('s_stock')) document.getElementById('s_stock').value = finalMain + finalSub;
+    } else {
+        if(document.getElementById('s_stock_main')) document.getElementById('s_stock_main').value = 0;
+        if(document.getElementById('s_stock_sub')) document.getElementById('s_stock_sub').value = 0;
+        if(document.getElementById('s_stock')) document.getElementById('s_stock').value = 0;
+    }
 }
 
 window.toggleComboUI = function(show) {
     document.getElementById('combo-ui-wrapper').style.display = show ? 'block' : 'none';
-    const invInput = document.getElementById('s_cost_inv'); const realInput = document.getElementById('s_cost_real');
+    const invInput = document.getElementById('s_cost_inv'); 
+    const realInput = document.getElementById('s_cost_real');
+    const stockMainInput = document.getElementById('s_stock_main');
+    const stockSubInput = document.getElementById('s_stock_sub');
+    
     if (show) {
+        // Khóa luôn cả ô nhập giá và ô nhập tồn kho
         invInput.readOnly = true; invInput.style.background = '#f1f5f9';
         realInput.readOnly = true; realInput.style.background = '#f1f5f9';
+        if (stockMainInput) { stockMainInput.readOnly = true; stockMainInput.style.background = '#f1f5f9'; }
+        if (stockSubInput) { stockSubInput.readOnly = true; stockSubInput.style.background = '#f1f5f9'; }
+        
         if (document.getElementById('combo-items-list').children.length === 0) addComboItemRow();
         recalcComboCost();
     } else {
+        // Mở khóa khi bỏ tick Combo
         invInput.readOnly = false; invInput.style.background = 'white';
         realInput.readOnly = false; realInput.style.background = 'white';
+        if (stockMainInput) { stockMainInput.readOnly = false; stockMainInput.style.background = 'white'; }
+        if (stockSubInput) { stockSubInput.readOnly = false; stockSubInput.style.background = 'white'; }
     }
 }
 
