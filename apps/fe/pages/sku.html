@@ -293,31 +293,29 @@
       const badge = document.getElementById('s_mode_badge');
       const resetBtn = document.getElementById('btnResetForm');
       const notice = document.getElementById('parent-mode-notice');
-      const costInv = document.getElementById('field-cost-inv');
-      const costReal = document.getElementById('field-cost-real');
       const stockWrap = document.getElementById('stock-fields-wrap');
       const applyAll = document.getElementById('s_apply_all_cost')?.closest('div[style*="eff6ff"]');
+      const modeSkuLabel = document.getElementById('s_mode_sku_label');
+      const isParentModeInput = document.getElementById('s_is_parent_mode');
 
-      // Luôn hiện badge khi đang sửa
+      // BỌC THÉP: Luôn kiểm tra thẻ có tồn tại không trước khi can thiệp giao diện
       if (skuLabel) {
-        badge.style.display = 'inline-flex';
-        document.getElementById('s_mode_sku_label').textContent = skuLabel;
-        resetBtn.style.display = 'inline-block';
+        if (badge) badge.style.display = 'inline-flex';
+        if (modeSkuLabel) modeSkuLabel.textContent = skuLabel;
+        if (resetBtn) resetBtn.style.display = 'inline-block';
       } else {
-        badge.style.display = 'none';
-        resetBtn.style.display = 'none';
+        if (badge) badge.style.display = 'none';
+        if (resetBtn) resetBtn.style.display = 'none';
       }
 
-      document.getElementById('s_is_parent_mode').value = isParent ? '1' : '0';
+      if (isParentModeInput) isParentModeInput.value = isParent ? '1' : '0';
 
       if (isParent) {
-        // SP cha có variant: ẩn stock (từng variant tự quản), giữ giá vốn để áp dụng tất cả
-        notice.style.display = 'block';
+        if (notice) notice.style.display = 'block';
         if (stockWrap) stockWrap.style.display = 'none';
         if (applyAll) applyAll.style.display = 'block';
       } else {
-        // SKU đơn hoặc variant con: hiện tất cả
-        notice.style.display = 'none';
+        if (notice) notice.style.display = 'none';
         if (stockWrap) stockWrap.style.display = 'grid';
         if (applyAll) applyAll.style.display = 'block';
       }
