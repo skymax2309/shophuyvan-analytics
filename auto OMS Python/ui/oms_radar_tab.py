@@ -97,35 +97,57 @@ class OMSRadarTab(ctk.CTkFrame):
                             
                             # Xử lý an toàn chuỗi payload (Chống sập do NoneType)
                             payload_raw = job.get('payload')
-                            if not payload_raw: payload_raw = '{}' # Nếu rỗng hoặc null thì ép thành ngoặc nhọn
+                            if not payload_raw: payload_raw = '[]' 
                             
                             try:
                                 payload = json.loads(payload_raw) if isinstance(payload_raw, str) else payload_raw
-                                if not isinstance(payload, dict):
-                                    payload = {} # Ép kiểu lần 2 cho chắc ăn
                             except:
-                                payload = {}
+                                payload = []
                             
                             # Khóa Lệnh lại để tránh chạy trùng 2 lần
                             requests.patch(f"{api_jobs}/{job_id}", json={"status": "processing"}, timeout=10)
                             
                             # ── BỘ ĐIỀU PHỐI (TASK ROUTER) ──
                             if task_type == 'print_label':
-                                order_ids = payload.get('order_ids', [])
+                                # THÁO NÚT THẮT 0 ĐƠN: Xử lý linh hoạt cả List và Dict
+                                if isinstance(payload, list):
+                                    order_ids = payload
+                                elif isinstance(payload, dict):
+                                    order_ids = payload.get('order_ids', [])
+                                else:
+                                    order_ids = []
+                                
                                 job_shop = job.get('shop_name', '')
                                 job_platform = job.get('platform', 'shopee').lower()
                                 
                                 self.so_log_msg(f"🖨️ [RADAR] Nhận lệnh Chuẩn bị hàng: {len(order_ids)} đơn của Shop {job_shop}!")
                                 
-                                # Ghi giấy nhớ riêng cho từng Shop (Tránh đè file khi nhiều Shop cùng chạy)
+                                # Ghi giấy nhớ riêng cho từng Shop 
                                 temp_file = f"temp_print_jobs_{job_shop}.json"
                                 with open(temp_file, "w") as f:
                                     json.dump(order_ids, f)
                                     
-                                # Định vị chính xác Profile của Shop đó để mở Chrome
                                 shop_data = next((s for s in self.app.DANH_SACH_SHOP if s.get("ten_shop") == job_shop), None)
-                                if shop_data and hasattr(self.legacy_engine, 'playwright_order_job'):
-                                    asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "process"))
+                                
+                                # THÁO NÚT THẮT CHROME: Luồng Độc lập cho Lazada API
+                                if job_platform == 'lazada':
+                                    self.so_log_msg("⚡ [RADAR] Kích hoạt luồng In API siêu tốc cho Lazada (Bỏ qua Chrome)...")
+                                    try:
+                                        # Tìm và nạp động cơ API Lazada
+                                        import sys, os
+                                        try:
+                                            from lazada_process import LazadaOrderProcessor
+                                        except ImportError:
+                                            from engines.lazada.lazada_process import LazadaOrderProcessor
+                                            
+                                        lz_processor = LazadaOrderProcessor(self.so_log_msg)
+                                        asyncio.run(lz_processor.process_confirmed_orders(None, job_shop))
+                                    except Exception as err:
+                                        self.so_log_msg(f"❌ Lỗi kích hoạt API Lazada: {err}")
+                                else:
+                                    # Các sàn Shopee/TikTok vẫn giữ nguyên luồng Chrome cũ
+                                    if shop_data and hasattr(self.legacy_engine, 'playwright_order_job'):
+                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "process"))
 
                             elif task_type == 'scrape_orders':
                                 self.so_log_msg("⚡ [RADAR] Nhận lệnh từ Web: KÉO ĐƠN MỚI TỐC ĐỘ CAO!")

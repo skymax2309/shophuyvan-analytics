@@ -37,7 +37,10 @@
                     └── sku-core.js
                     └── sku-form.js
                     └── sku-modals.js
-                    └── variation-manager.js
+                    └── var-actions.js
+                    └── var-core.js
+                    └── var-modals.js
+                    └── var-shops.js
                 ├── components/
                     └── ChartRenderer.js
                     └── DateRangePicker.js
@@ -94,7 +97,6 @@
         └── ai_helper_tool.py
         └── basic_chihuy1984.xlsx
         └── cache_orders_lazada_api_kinhdoanhonlinegiasoc@gmail.com.json
-        └── cache_orders_lazada_kinhdoanhonlinegiasoc@gmail.com.json
         └── cache_orders_shopee_chihuy1984.json
         └── cache_orders_shopee_chihuy2309.json
         └── cache_orders_shopee_khogiadungcona.json
@@ -119,6 +121,7 @@
         └── tao_link_shopee.py
         └── Tem_API_2604052FTYNM12.pdf
         └── test_api_shopee.py
+        └── test_lazada_shipping_auto.py
         └── test_promo_web.py
         └── test_shopee_excel.py
         └── test_tai_pdf_shopee.py

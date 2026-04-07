@@ -1,9 +1,19 @@
+function escapeHtml(str) {
+    if (!str) return '—';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 window.loadShopWarehouses = async function() {
     try {
         console.log("🚀 [FRONTEND] Đang gọi API lấy danh sách Cửa hàng & Phân kho...");
         const res = await fetch(API + "/api/products/shops-warehouse-list").then(r => r.json());
         console.log("📦 [FRONTEND] Dữ liệu Server trả về:", res); // Gắn log để kiểm tra data
         
+        console.log("🔎 [DEBUG] Mẫu dữ liệu đầu tiên:", res[0]);
         const tbody = document.getElementById("shop-warehouse-list");
         if (!tbody) return;
         
@@ -14,8 +24,8 @@ window.loadShopWarehouses = async function() {
 
         tbody.innerHTML = res.map(shop => `
             <tr style="border-bottom:1px solid #f1f5f9; transition:0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-                <td style="padding:12px;"><span style="background:#e2e8f0; color:#334155; font-weight:800; font-size:11px; padding:4px 8px; border-radius:6px; text-transform:uppercase;">${escapeHtml(shop.platform)}</span></td>
-                <td style="padding:12px; font-weight:700; color:#0f172a; font-size:15px;">${escapeHtml(shop.shop_name)}</td>
+<td style="padding:12px;"><span style="background:#e2e8f0; color:#334155; font-weight:800; font-size:11px; padding:4px 8px; border-radius:6px; text-transform:uppercase;">${escapeHtml(shop.platform || shop.Platform || '(không rõ sàn)')}</span></td>
+                <td style="padding:12px; font-weight:700; color:#0f172a; font-size:15px;">${escapeHtml(shop.shop_name || shop.shopName || '(không rõ tên shop)')}</td>
                 <td style="padding:12px;">
                     <select onchange="updateShopWarehouse(${shop.id}, this.value)" style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; font-size:13px; cursor:pointer; font-weight:700; color:#1e40af; background:#eff6ff;">
                         <option value="main" ${shop.warehouse_source === 'main' || !shop.warehouse_source ? 'selected' : ''}>📦 KHO CHÍNH (Bình Tân)</option>
