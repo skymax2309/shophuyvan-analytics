@@ -52,7 +52,7 @@
 
     <div class="status-box" id="status-container">
         <div style="font-size: 14px; color: #888;">TRẠNG THÁI LUỒNG QUAY:</div>
-        <div class="order-id" id="current-order">SẴN SÀNG QUÉT MÃ</div>
+        <div class="order-id" id="current-order">ĐANG TÌM PC...</div>
         <div class="record-indicator" id="record-status">🔴 <span class="blink">ĐANG GHI HÌNH...</span></div>
     </div>
 
@@ -62,16 +62,12 @@
 
     <script>
         // -----------------------------------------------------------------
-        // ⚠️ CẤU HÌNH QUAN TRỌNG: Thay đổi IP này thành IP máy tính chạy Python
-        // Ví dụ: "http://192.168.1.15:5000/upload-video"
+        // CỖ MÁY DÒ ĐƯỜNG TỰ ĐỘNG (ZERO-TOUCH CLOUDFLARE)
         // -----------------------------------------------------------------
-        // -----------------------------------------------------------------
-        // CỖ MÁY DÒ ĐƯỜNG TỰ ĐỘNG (ZERO-TOUCH)
-        // -----------------------------------------------------------------
-        // URL của hệ thống Cloudflare Worker của bạn
         const API_BASE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"; 
-        let PYTHON_SERVER_URL = null; // Sẽ được tự động điền
+        let PYTHON_SERVER_URL = null; 
 
+        // Khai báo biến TOÀN CỤC (Chỉ 1 lần duy nhất)
         let currentOrderId = null;
         let mediaRecorder = null;
         let recordedChunks = [];
@@ -84,7 +80,7 @@
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        // Tự động lên mây lấy tọa độ Ngrok khi vừa mở Web
+        // Tự động lên mây lấy tọa độ Cloudflare Tunnel
         async function fetchServerCoordinates() {
             try {
                 devLog("⏳ Đang dò tìm Trạm PC qua Cloudflare...");
@@ -93,42 +89,28 @@
                 
                 if (data.url) {
                     PYTHON_SERVER_URL = `${data.url}/upload-video`;
-                    devLog(`✅ Đã thông hầm Cloudflare: ${data.url}`);
+                    devLog(`✅ Đã thông hầm Cloudflare!`);
+                    document.getElementById('current-order').innerText = "SẴN SÀNG QUÉT MÃ";
+                    // Chỉ khi lấy được link PC thì mới xin quyền Camera quay ngầm
                     initRecordingStream(); 
                 } else {
                     devLog("❌ Trạm PC chưa mở hầm!");
+                    document.getElementById('current-order').innerText = "LỖI: PC CHƯA BẬT";
                 }
             } catch (err) {
-                devLog("❌ Lỗi kết nối Cloudflare!");
+                devLog("❌ Lỗi kết nối Đám mây Cloudflare!");
+                document.getElementById('current-order').innerText = "LỖI MẠNG";
             }
         }
 
-        // Thay đổi chỗ khởi động ở cuối file HTML:
-        // Thay vì gọi initRecordingStream(); ngay lập tức, ta gọi hàm dò đường trước:
-        fetchServerCoordinates();
-        
-        let currentOrderId = null;
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let cameraStream = null;
-
-        function devLog(msg) {
-            const logBox = document.getElementById('dev-log');
-            const time = new Date().toLocaleTimeString();
-            logBox.innerHTML += `[${time}] ${msg}<br>`;
-            logBox.scrollTop = logBox.scrollHeight;
-        }
-
-        // 1. Xin quyền Camera để Quay phim (Chạy ẩn phía sau)
+        // Xin quyền Camera để Quay phim (Chạy ẩn phía sau)
         async function initRecordingStream() {
             try {
-                // Ưu tiên camera sau, giới hạn độ phân giải để file siêu nhẹ
                 cameraStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: "environment", width: 1280, height: 720 }, 
-                    audio: false // Kho không thu âm để giữ bảo mật và giảm dung lượng
+                    audio: false 
                 });
                 
-                // Ép chuẩn WebM, bitrate siêu nhẹ (khoảng 800kbps)
                 const options = { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 800000 };
                 mediaRecorder = new MediaRecorder(cameraStream, options);
 
@@ -140,19 +122,19 @@
                     const savedOrderId = currentOrderId; 
                     if (recordedChunks.length > 0 && savedOrderId && savedOrderId !== "STOP_PACKING") {
                         const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                        devLog(`Đóng gói video đơn [${savedOrderId}], chuẩn bị bắn sang Local...`);
+                        devLog(`📦 Gói video [${savedOrderId}], đang bắn về PC...`);
                         uploadVideoToLocalServer(blob, savedOrderId);
-                        recordedChunks = []; // Dọn kho để quay tiếp
+                        recordedChunks = []; 
                     }
                 };
-                devLog("✅ Đã kết nối luồng MediaRecorder song song.");
+                devLog("✅ Luồng quay ngầm đã sẵn sàng.");
             } catch (err) {
                 devLog(`❌ Lỗi Camera: ${err.message}`);
                 alert("Vui lòng cấp quyền Camera cho trình duyệt!");
             }
         }
 
-        // 2. Giao hàng về tuyến sau (Gửi file sang Python)
+        // Gửi file sang Python PC
         async function uploadVideoToLocalServer(blob, orderId) {
             const formData = new FormData();
             formData.append('video', blob, `${orderId}.webm`);
@@ -161,23 +143,22 @@
             try {
                 const res = await fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData });
                 if (res.ok) {
-                    devLog(`✅ Bắn thành công video [${orderId}] sang Server nội bộ!`);
+                    devLog(`✅ Bắn xong video [${orderId}] về PC!`);
                 } else {
-                    devLog(`⚠️ Trạm nội bộ từ chối nhận file [${orderId}].`);
+                    devLog(`⚠️ PC từ chối nhận file [${orderId}].`);
                 }
             } catch (err) {
-                devLog(`❌ Đứt kết nối với Server nội bộ (Kiểm tra lại IP).`);
+                devLog(`❌ Đứt kết nối với PC (Hầm Cloudflare sập).`);
             }
         }
 
-        // 3. Logic "Chém video" khi tít mã mới
+        // Logic "Chém video" khi tít mã mới
         function onScanSuccess(decodedText, decodedResult) {
-            // Chống spam: Nếu mã cũ vừa quét thì bỏ qua
-            if (decodedText === currentOrderId) return;
+            if (decodedText === currentOrderId) return; // Chống tít đúp
             
-            devLog(`⚡ Tít mã thành công: ${decodedText}`);
+            devLog(`⚡ Tít mã: ${decodedText}`);
 
-            // Cắt video đơn cũ (nếu đang quay)
+            // Cắt video đơn cũ
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop(); 
             }
@@ -189,37 +170,35 @@
 
             uiOrder.innerText = currentOrderId;
 
-            // Xử lý mã lệnh ĐẶC BIỆT: Dừng toàn bộ
             if (decodedText === "STOP_PACKING") {
                 uiOrder.className = "order-id";
                 uiOrder.style.color = "#ff4757";
                 uiStatusBox.className = "status-box";
                 uiRecordIndic.style.display = "none";
-                devLog("🛑 Lệnh Dừng: Trạm đã đóng cửa.");
+                devLog("🛑 Lệnh Dừng quay phim.");
                 return;
             }
 
-            // Kích hoạt ngay video cho đơn mới (sau 500ms để kịp lưu video cũ)
             setTimeout(() => {
                 if (mediaRecorder && mediaRecorder.state === "inactive") {
                     mediaRecorder.start();
                     uiOrder.className = "order-id active";
-                    uiOrder.style.color = ""; // Xóa inline color
+                    uiOrder.style.color = ""; 
                     uiStatusBox.className = "status-box recording";
                     uiRecordIndic.style.display = "block";
-                    devLog(`🔴 Đang ghi hình cho đơn: ${currentOrderId}`);
+                    devLog(`🔴 Đang ghi hình: ${currentOrderId}`);
                 }
             }, 500);
         }
 
-        // Khởi động Động cơ Quét QR siêu tốc
+        // 1. Khởi động Quét QR ngay lập tức
         const html5QrcodeScanner = new Html5QrcodeScanner(
             "reader", { fps: 15, qrbox: {width: 250, height: 250} }, false
         );
         html5QrcodeScanner.render(onScanSuccess);
         
-        // Khởi động động cơ Quay phim ẩn
-        initRecordingStream();
+        // 2. Chạy kịch bản lấy tọa độ PC (Lấy xong sẽ tự bật camera quay ngầm)
+        fetchServerCoordinates();
 
     </script>
 </body>
