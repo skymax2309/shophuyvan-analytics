@@ -545,8 +545,12 @@ export default {
         return new Response(object.body, { headers })
       }
 	  
-	  // ── API MỚI: TRẠM ĐÓNG GÓI ZERO-TOUCH (CLOUDFLARE TUNNEL) ──────────
+// ── API MỚI: TRẠM ĐÓNG GÓI ZERO-TOUCH (CLOUDFLARE TUNNEL) ──────────
       if (url.pathname === "/api/cctv-config") {
+        
+        // [BỌC THÉP TỰ ĐỘNG]: Tự động tạo bảng lưu trữ nếu chưa có để trị dứt điểm lỗi sập Data 500
+        await env.DB.prepare(`CREATE TABLE IF NOT EXISTS _cf_KV (key TEXT PRIMARY KEY, value TEXT)`).run();
+
         if (request.method === "POST") {
           // Bot Python báo cáo tọa độ lên
           const body = await request.json();
