@@ -263,10 +263,11 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
       await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...skus).run();
       return Response.json({ status: "ok", count: skus.length }, { headers: cors });
     }
-const sku = path.split('/').pop();
-        await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run();
-        return Response.json({ status: "ok" }, { headers: cors });
-      }
+    const sku = path.split('/').pop();
+    await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run();
+    return Response.json({ status: "ok" }, { headers: cors });
+  }
+}
 
 
 // ════════════════════════════════════════════════════════════════════
