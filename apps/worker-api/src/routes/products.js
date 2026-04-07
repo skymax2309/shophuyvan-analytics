@@ -1,6 +1,7 @@
 // ════════════════════════════════════════════════════════════════════
 // PRODUCTS
 // ════════════════════════════════════════════════════════════════════
+export {}; // ESM marker — bắt buộc để esbuild nhận dạng đúng module format
 async function handleProducts(request, env, cors) {
   const url = new URL(request.url);
 
