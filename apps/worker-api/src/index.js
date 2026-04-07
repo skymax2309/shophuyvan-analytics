@@ -140,7 +140,7 @@ export default {
 // ── NHÁNH 1: Excel đơn hàng ──────────────────────────────────
         // Bot đã parse Excel + gửi JSON lên /api/import-orders-v2 trực tiếp
         // Ở đây chỉ cần lưu file vào platform_reports để hiện trên trang báo cáo
-if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
+        if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
           const buffer = await object.arrayBuffer()
           const fileName = file_key.split("/").pop()
 
@@ -158,8 +158,9 @@ if (ext === "xlsx" || ext === "xls" || report_type === "orders") {
           })
           return uploadReport(fakeRequest, env, cors)
         }
+      } // <--- ĐÂY LÀ DẤU NGOẶC QUAN TRỌNG ĐỂ ĐÓNG KHỐI LỆNH if (url.pathname === "/api/auto-import-trigger") BỊ THIẾU
 
-// ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
+      // ── NHÁNH 2: PDF Doanh Thu / Hóa Đơn / ADS ──────────────────
         if (ext === "pdf") {
           const fileName = file_key.split("/").pop()
           const arrayBuffer = await object.arrayBuffer()
