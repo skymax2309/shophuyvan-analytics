@@ -362,8 +362,21 @@ export async function handleVariations(request, env, cors) {
     
     // Tự động chuyển đổi định dạng từ Bot (products) sang định dạng của API (variations)
     const variations = body.variations || []
+    const draftStmts = []; // 🌟 MỚI: Mảng chứa lệnh lưu nháp Bài đăng
     if (body.products) {
       for (const p of body.products) {
+         // 🌟 MỚI: Giấu toàn bộ "Bài Đăng" (Mô tả, Ảnh, Video) vào app_config làm bộ nhớ tạm
+         const draftKey = `draft_${body.platform || 'shopee'}_${p.item_id}`;
+         const draftValue = JSON.stringify({
+             description: p.description || '',
+             images: p.images || [],
+             video_url: p.video_url || ''
+         });
+         draftStmts.push(env.DB.prepare(`
+             INSERT INTO app_config (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value
+         `).bind(draftKey, draftValue));
+
          const p_img = p.images && p.images.length > 0 ? p.images[0] : '';
          for (const v of (p.variations || [])) {
             variations.push({
@@ -477,9 +490,16 @@ export async function handleVariations(request, env, cors) {
       synced++
     }
 
-    // Batch insert theo 50
+// Batch insert theo 50
     for (let i = 0; i < stmts.length; i += 50) {
       await env.DB.batch(stmts.slice(i, i + 50))
+    }
+    
+    // 🌟 MỚI: Chạy lệnh lưu nháp Bài đăng
+    if (draftStmts.length > 0) {
+        for (let i = 0; i < draftStmts.length; i += 50) {
+            await env.DB.batch(draftStmts.slice(i, i + 50));
+        }
     }
 
     return Response.json({ status: 'ok', synced, auto_mapped: autoMapped }, { headers: cors })
@@ -569,14 +589,16 @@ export async function handleVariations(request, env, cors) {
 // ==========================================
   // 🌟 [SHIPXANH CLONE] API SAO CHÉP VỀ KHO (Tạo SKU Nội Bộ từ SKU Sàn)
   // ==========================================
+  // ==========================================
+  // 🌟 [SHIPXANH CLONE] API SAO CHÉP VỀ KHO (Tạo Bài Đăng Gốc & Phân Loại)
+  // ==========================================
   if (request.method === 'POST' && url.pathname.endsWith('/copy-to-warehouse')) {
     try {
         const { ids } = await request.json();
         if (!ids || !ids.length) return Response.json({ error: 'Không có ID nào được chọn' }, { status: 400, headers: cors });
 
-        console.log(`[API COPY TO WAREHOUSE] Bắt đầu sao chép ${ids.length} sản phẩm về kho tổng...`);
+        console.log(`[API COPY TO WAREHOUSE] Bắt đầu tạo Bài Đăng cho ${ids.length} phân loại...`);
 
-        // Lấy thông tin các biến thể đang 'UNMAPPED'
         const placeholders = ids.map(() => '?').join(',');
         const query = `SELECT * FROM product_variations WHERE id IN (${placeholders}) AND map_status = 'UNMAPPED'`;
         const variations = await env.DB.prepare(query).bind(...ids).all();
@@ -584,46 +606,86 @@ export async function handleVariations(request, env, cors) {
         let copied = 0;
         const stmts = [];
         
+        // 1. Gom nhóm các Phân loại lại theo Bài Đăng (platform_item_id)
+        const parentGroups = {};
         for (const v of variations.results) {
-          // Bọc thép: Tạo mã SKU an toàn, nếu sàn trống thì tự phát sinh
-          const newInternalSku = (v.platform_sku && v.platform_sku.trim() !== '') 
-                ? v.platform_sku.toUpperCase().replace(/\s+/g, '_') 
-                : `SKU_AUTO_${v.platform}_${v.id}`;
-          
-          const finalName = v.variation_name && v.variation_name !== 'Mặc định' 
-                ? `${v.product_name} - ${v.variation_name}` 
-                : v.product_name;
+            if (!parentGroups[v.platform_item_id]) {
+                parentGroups[v.platform_item_id] = {
+                    platform: v.platform,
+                    product_name: v.product_name,
+                    image_url: v.image_url,
+                    variations: []
+                };
+            }
+            parentGroups[v.platform_item_id].variations.push(v);
+        }
 
-          // 1. Tạo sản phẩm mới trong Kho Tổng (Bảng products)
-          stmts.push(env.DB.prepare(`
-            INSERT INTO products (sku, product_name, cost_invoice, cost_real, image_url, stock)
-            VALUES (?, ?, 0, 0, ?, ?)
-            ON CONFLICT(sku) DO NOTHING
-          `).bind(newInternalSku, finalName, v.image_url || "", v.stock || 0));
+        // 2. Móc dữ liệu DRAFT (Mô tả, Ảnh, Video) từ bộ nhớ tạm ra
+        const draftKeys = Object.keys(parentGroups).map(id => `draft_${parentGroups[id].platform}_${id}`);
+        let draftData = {};
+        if (draftKeys.length > 0) {
+            const draftPlaceholders = draftKeys.map(() => '?').join(',');
+            const drafts = await env.DB.prepare(`SELECT key, value FROM app_config WHERE key IN (${draftPlaceholders})`).bind(...draftKeys).all();
+            drafts.results.forEach(d => { draftData[d.key] = JSON.parse(d.value); });
+        }
 
-          // 2. Chuyển trạng thái sang MAPPED và liên kết với SKU vừa tạo
-          stmts.push(env.DB.prepare(`
-            UPDATE product_variations 
-            SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now')
-            WHERE id = ?
-          `).bind(newInternalSku, v.id));
+        // 3. Tiến hành Khai sinh Bài Đăng & Móc nối Phân Loại
+        for (const item_id in parentGroups) {
+            const group = parentGroups[item_id];
+            const draftKey = `draft_${group.platform}_${item_id}`;
+            const draft = draftData[draftKey] || { description: '', images: [], video_url: '' };
+            
+            // Khai sinh BÀI ĐĂNG GỐC (Sản phẩm Cha) - Dùng mã P_ + Item_ID của sàn
+            const parentSku = `P_${group.platform.toUpperCase()}_${item_id}`;
+            stmts.push(env.DB.prepare(`
+                INSERT INTO products (sku, product_name, is_parent, description, images, video_url, image_url, stock, cost_invoice, cost_real)
+                VALUES (?, ?, 1, ?, ?, ?, ?, 0, 0, 0)
+                ON CONFLICT(sku) DO NOTHING
+            `).bind(
+                parentSku, group.product_name, draft.description, 
+                JSON.stringify(draft.images), draft.video_url, 
+                group.image_url || (draft.images[0] || ''), 
+            ));
 
-          // 3. Ghi vào từ điển sku_alias để sau này auto-map
-          if (v.platform_sku && v.platform_sku.trim() !== '') {
-              stmts.push(env.DB.prepare(`
-                  INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)
-                  ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku
-              `).bind(v.platform_sku, newInternalSku));
-          }
+            // Tạo Phân Loại Con & Gắn vào Cha
+            for (const v of group.variations) {
+                // Ưu tiên lấy mã SKU của sàn làm SKU Nội bộ, nếu trống thì tự đẻ mã
+                const childSku = (v.platform_sku && v.platform_sku.trim() !== '') 
+                    ? v.platform_sku.toUpperCase().replace(/\s+/g, '_') 
+                    : `S_${v.id}`;
+                
+                // Thêm Phân loại con (Cột parent_sku = parentSku)
+                stmts.push(env.DB.prepare(`
+                    INSERT INTO products (sku, product_name, parent_sku, image_url, stock, cost_invoice, cost_real)
+                    VALUES (?, ?, ?, ?, ?, 0, 0)
+                    ON CONFLICT(sku) DO UPDATE SET parent_sku = excluded.parent_sku
+                `).bind(
+                    childSku, 
+                    v.variation_name && v.variation_name !== 'Mặc định' ? v.variation_name : group.product_name, 
+                    parentSku, 
+                    v.image_url || '', 
+                    v.stock || 0
+                ));
 
-          copied++;
+                // Map vào CSDL Variations (Đổi trạng thái sang MAPPED)
+                stmts.push(env.DB.prepare(`
+                    UPDATE product_variations SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now') WHERE id = ?
+                `).bind(childSku, v.id));
+
+                // Dạy cho AI nhớ quy tắc Map này
+                if (v.platform_sku && v.platform_sku.trim() !== '') {
+                    stmts.push(env.DB.prepare(`
+                        INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)
+                        ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku
+                    `).bind(v.platform_sku, childSku));
+                }
+                copied++;
+            }
         }
 
         // Chạy Batch an toàn
         if (stmts.length > 0) {
-            for (let i = 0; i < stmts.length; i += 40) {
-                await env.DB.batch(stmts.slice(i, i + 40));
-            }
+            for (let i = 0; i < stmts.length; i += 40) { await env.DB.batch(stmts.slice(i, i + 40)); }
         }
         return Response.json({ status: 'ok', copied }, { headers: cors });
     } catch (error) {
