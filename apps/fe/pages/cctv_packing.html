@@ -111,8 +111,10 @@ let cameraStream = null;
                 const res = await fetch(`${API_BASE_URL}/cctv-config`);
                 const data = await res.json();
                 if (data.url) {
-                    PYTHON_SERVER_URL = `${data.url}/upload-video`;
-                    devLog(`✅ Đã thông hầm: ${data.url}`);
+                    // Cắt bỏ dấu gạch chéo dư thừa ở cuối URL nếu có
+                    const cleanUrl = data.url.replace(/\/$/, "");
+                    PYTHON_SERVER_URL = `${cleanUrl}/upload-video`;
+                    devLog(`✅ Đã thông hầm: ${cleanUrl}`);
                     document.getElementById('current-order').innerText = "SẴN SÀNG QUÉT MÃ";
                     initRecordingStream(); 
                 } else {
@@ -142,7 +144,14 @@ function initRecordingStream() {
                             formData.append('video', new Blob(recordedChunks, { type: 'video/webm' }), `${orderToUpload}.webm`);
                             formData.append('order_id', orderToUpload);
                             devLog(`📦 Đang bắn video đơn ${orderToUpload} về PC...`);
-                            fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData }).catch(() => devLog("❌ Lỗi bắn video!"));
+                            
+                            // Gài bộ bắt lỗi chi tiết để bắt quả tang Server Python
+                            fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData })
+                            .then(res => {
+                                if (!res.ok) throw new Error("HTTP " + res.status);
+                                devLog(`✅ Đã hạ cánh an toàn đơn ${orderToUpload} vào PC!`);
+                            })
+                            .catch(err => devLog(`❌ Lỗi bắn video: ${err.message}`));
                         }
                         // LUÔN LUÔN dọn dẹp RAM sau khi lưu xong, bất kể là lỗi hay thành công
                         recordedChunks = [];
@@ -193,7 +202,17 @@ function initRecordingStream() {
 
     function startSystem() {
             devLog("🚀 Bắt đầu nổ máy Trạm Đóng Gói...");
-            new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 }, false).render(onScanSuccess);
+            
+            // [KIẾN TRÚC MỚI]: Bịt mắt QR Code, chỉ cho đọc Mã vạch (CODE_128 / CODE_39)
+            const formats = [ Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39 ];
+            
+            // Bóp khung quét thành hình CHỮ NHẬT để nhắm trúng mã vận đơn Shopee
+            new Html5QrcodeScanner("reader", { 
+                fps: 15, 
+                qrbox: { width: 300, height: 100 },
+                formatsToSupport: formats
+            }, false).render(onScanSuccess);
+            
             fetchServerCoordinates();
         }
         // (Lưu ý: Không tự chạy code nữa. Đợi Kỹ sư trưởng bấm nút "MỞ KHÓA" thì startSystem mới được gọi)
