@@ -121,27 +121,31 @@ let cameraStream = null;
             } catch (err) { devLog("❌ Lỗi kết nối Đám mây Cloudflare!"); }
         }
 
-        function initRecordingStream() {
-            // [KIẾN TRÚC MỚI]: Bắt cóc luồng video của máy quét thay vì mở 2 camera chồng lên nhau
+function initRecordingStream() {
+            // [KIẾN TRÚC MỚI]: Bắt cóc luồng video của máy quét
             const videoEl = document.querySelector('video');
             if (videoEl && videoEl.srcObject) {
                 try {
-                    // Ép thêm thuộc tính chống Fullscreen cho chắc ăn
                     videoEl.setAttribute('playsinline', 'true');
                     videoEl.setAttribute('webkit-playsinline', 'true');
                     
                     cameraStream = videoEl.srcObject;
                     mediaRecorder = new MediaRecorder(cameraStream, { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 800000 });
                     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                    
                     mediaRecorder.onstop = async () => {
-                        if (recordedChunks.length > 0 && currentOrderId && currentOrderId !== "STOP_PACKING") {
+                        // Lấy mác tên đơn hàng đã được gắn cố định lúc bấm máy (Không lấy currentOrderId vì nó có thể đã đổi)
+                        const orderToUpload = mediaRecorder.customOrderId; 
+
+                        if (recordedChunks.length > 0 && orderToUpload && orderToUpload !== "STOP_PACKING") {
                             const formData = new FormData();
-                            formData.append('video', new Blob(recordedChunks, { type: 'video/webm' }), `${currentOrderId}.webm`);
-                            formData.append('order_id', currentOrderId);
-                            devLog(`📦 Đang bắn video đơn ${currentOrderId} về PC...`);
+                            formData.append('video', new Blob(recordedChunks, { type: 'video/webm' }), `${orderToUpload}.webm`);
+                            formData.append('order_id', orderToUpload);
+                            devLog(`📦 Đang bắn video đơn ${orderToUpload} về PC...`);
                             fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData }).catch(() => devLog("❌ Lỗi bắn video!"));
-                            recordedChunks = [];
                         }
+                        // LUÔN LUÔN dọn dẹp RAM sau khi lưu xong, bất kể là lỗi hay thành công
+                        recordedChunks = [];
                     };
                     devLog("✅ Đã móc nối thành công Camera vào Động cơ Ghi hình!");
                 } catch (err) {
@@ -149,27 +153,37 @@ let cameraStream = null;
                 }
             } else {
                 devLog("⏳ Đang đợi Camera khởi động để móc nối...");
-                setTimeout(initRecordingStream, 1500); // Rình rập thử lại sau 1.5 giây
+                setTimeout(initRecordingStream, 1500); 
             }
         }
 
         function onScanSuccess(decodedText) {
             if (decodedText === currentOrderId) return;
             
-            playBeep(); // 🔊 Phát tiếng TÍT ngay lập tức
+            playBeep();
             devLog(`⚡ Bắt được mã: ${decodedText}`);
 
-            if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+            // 1. DỪNG CAMERA: Ép lưu video của đơn hàng CŨ ngay lập tức
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop(); 
+            }
+            
+            // 2. Cập nhật giao diện sang mã MỚI
             currentOrderId = decodedText;
             document.getElementById('current-order').innerText = currentOrderId;
             
+            // 3. NẾU LÀ LỆNH DỪNG ĐÓNG GÓI -> Tắt giao diện quay và nghỉ
             if (decodedText === "STOP_PACKING") {
                 document.getElementById('status-container').className = "status-box";
                 document.getElementById('record-status').style.display = "none";
                 return;
             }
+            
+            // 4. NẾU LÀ ĐƠN MỚI -> Đợi 500ms cho băng hình cũ lưu xong rồi bấm máy quay đơn mới
             setTimeout(() => {
                 if (mediaRecorder && mediaRecorder.state === "inactive") {
+                    // Gắn mác tên đơn hàng MỚI vào thẳng máy quay để lúc Stop không bị nhầm
+                    mediaRecorder.customOrderId = currentOrderId; 
                     mediaRecorder.start();
                     document.getElementById('status-container').className = "status-box recording";
                     document.getElementById('record-status').style.display = "block";
