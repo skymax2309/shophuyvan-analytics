@@ -291,14 +291,17 @@ window.saveFullArticle = async function(parentSku) {
     const rows = container.querySelectorAll('.child-row');
 
     try {
-        // 1. Lưu Tên Bài Đăng Gốc (Cha)
+// 1. Lưu Tên Bài Đăng Gốc và Ảnh Cha
         const parentObj = window.allSkus.find(s => s.sku === parentSku);
         if (parentObj) {
-            console.log(`[OMS LOG] 🛠️ Đang cập nhật Tên Cha...`);
+            const parentImgEl = document.getElementById(`img-${parentSku}`);
+            const parentImgData = parentImgEl ? parentImgEl.src : parentObj.image_url;
+            
+            console.log(`[OMS LOG] 🛠️ Đang cập nhật Tên và Ảnh Cha...`);
             await fetch(API + "/api/products", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...parentObj, product_name: articleName })
+                body: JSON.stringify({ ...parentObj, product_name: articleName, image_url: parentImgData })
             });
         }
 
@@ -310,17 +313,27 @@ window.saveFullArticle = async function(parentSku) {
             const cInv = row.querySelector('.inline-child-inv').value;
             const cReal = row.querySelector('.inline-child-cost').value;
             const cMain = row.querySelector('input[onchange*="main"]').value;
-            const cSub = row.querySelector('input[onchange*="sub"]').value;
-
+const cSub = row.querySelector('input[onchange*="sub"]').value;
+            
+            // Dò mìn lấy dữ liệu ảnh của phân loại con
+            const cImgEl = document.getElementById(`img-${cSku}`);
+            let cImgData = cImgEl ? cImgEl.src : "";
+            // Bỏ qua nếu là ảnh placeholder mặc định
+            if(cImgData.includes("placehold.co") || cImgData.includes("No+Image")) cImgData = ""; 
+            
             console.log(`[OMS LOG] 🛠️ Đang đồng bộ SKU: ${cSku} | Tên: ${cName} | HĐ: ${cInv} | Thực: ${cReal}`);
             
+            const childOldObj = window.allSkus.find(s => s.sku === cSku) || {};
+
             await fetch(API + "/api/products", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    ...childOldObj,
                     sku: cSku,
                     product_name: cName,
                     parent_sku: parentSku,
+                    image_url: cImgData || childOldObj.image_url || "",
                     cost_invoice: parseFloat(cInv) || 0,
                     cost_real: parseFloat(cReal) || 0,
                     stock_main: parseInt(cMain) || 0,

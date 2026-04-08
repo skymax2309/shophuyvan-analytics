@@ -61,7 +61,11 @@
         <div onclick="event.stopPropagation()">
             <input type="checkbox" class="sku-chk" data-sku="{{c_sku}}" onchange="updateSkuBulkDeleteUI()" style="transform:scale(1.1); cursor:pointer;">
         </div>
-        <img src="{{c_img_url}}" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0;">
+        <div style="position:relative; cursor:pointer; flex-shrink:0;" onclick="document.getElementById('file-{{c_sku}}').click()">
+            <img src="{{c_img_url}}" id="img-{{c_sku}}" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc;">
+            <input type="file" id="file-{{c_sku}}" style="display:none" accept="image/*" onchange="previewImgInline('{{c_sku}}', this)">
+            <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.6); color:white; font-size:8px; width:100%; text-align:center; border-radius:0 0 8px 8px; padding:2px 0;">ĐỔI ẢNH</div>
+        </div>
         <div class="responsive-info" style="flex:1; min-width:150px;">
             <div style="font-size:11px; color:#94a3b8; font-weight:700;">TÊN PHÂN LOẠI:</div>
 <input type="text" value="{{c_name}}" class="inline-child-name" data-sku="{{c_sku}}"
