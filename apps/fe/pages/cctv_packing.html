@@ -203,13 +203,17 @@ function initRecordingStream() {
     function startSystem() {
             devLog("🚀 Bắt đầu nổ máy Trạm Đóng Gói...");
             
-            // [KIẾN TRÚC MỚI]: Bịt mắt QR Code, chỉ cho đọc Mã vạch (CODE_128 / CODE_39)
-            const formats = [ Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39 ];
+            // [MỞ RỘNG TẦM NHÌN]: Thêm định dạng 1D dự phòng và nới rộng khung chữ nhật
+            const formats = [ 
+                Html5QrcodeSupportedFormats.CODE_128, 
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.CODE_93,
+                Html5QrcodeSupportedFormats.EAN_13
+            ];
             
-            // Bóp khung quét thành hình CHỮ NHẬT để nhắm trúng mã vận đơn Shopee
             new Html5QrcodeScanner("reader", { 
-                fps: 15, 
-                qrbox: { width: 300, height: 100 },
+                fps: 10, // Hạ FPS xuống một chút để iPad có thêm thời gian lấy nét hình ảnh
+                qrbox: { width: 450, height: 200 }, // Nới rộng khung quét ra để ôm trọn vẹn cái mã vạch dài
                 formatsToSupport: formats
             }, false).render(onScanSuccess);
             
