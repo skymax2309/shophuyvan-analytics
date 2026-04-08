@@ -540,8 +540,27 @@
   
   /* Cho phép cuộn bảng dữ liệu trên màn nhỏ */
   .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-}
-/* Chỉnh Menu con trên Mobile để nó nối tiếp vào hàng vuốt ngang */
+  
+  /* Bẻ ngang Menu con chỉ áp dụng trên Mobile */
   .sidebar { align-items: center; }
-  .sidebar-sub-menu { flex-direction: row; margin: 0; padding-left: 8px; border-left: 2px solid var(--border); gap: 4px; }
+  .sidebar-sub-menu { flex-direction: row !important; margin: 0 0 0 8px; padding-left: 8px; border-left: 2px solid var(--border); gap: 4px; }
   .sub-tab { padding: 6px 12px; flex-shrink: 0; white-space: nowrap; }
+} /* <-- ĐÓNG NGOẶC ĐÚNG CHỖ CHO GIAO DIỆN MOBILE */
+
+/* ── MENU CON TRONG SIDEBAR (MẶC ĐỊNH MÁY TÍNH XẾP DỌC) ── */
+.sidebar-sub-menu {
+  display: flex; 
+  flex-direction: column !important; /* Ép buộc xếp dọc trên Máy tính */
+  gap: 4px;
+  margin: 4px 0 12px 24px; /* Thụt lề vào trong */
+  padding-left: 12px;
+  border-left: 2px solid var(--border); /* Đường kẻ nhánh cây */
+}
+.sub-tab {
+  padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  color: var(--muted); cursor: pointer; transition: all 0.2s ease;
+  display: flex; align-items: center; gap: 8px;
+}
+.sub-tab:hover { color: var(--text); background: var(--surface2); }
+.sub-tab.active { color: var(--accent); font-weight: 600; background: rgba(59,130,246,0.1); }
+.sub-tab-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }

@@ -47,6 +47,9 @@
     
     <div class="status-box" id="status-container">
         <div id="current-order" class="order-id">ĐANG DÒ TÌM PC...</div>
+        
+        <button id="btn-unlock-cloudflare" onclick="unlockCloudflare()" style="display: none; margin-top: 15px; padding: 12px; background: #00CED1; color: black; border: none; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(0,206,209,0.4); animation: pulse 1.5s infinite;">🔗 BƯỚC 1: BẤM VÀO ĐÂY ĐỂ XÁC NHẬN MẠNG</button>
+        
         <div class="record-indicator" id="record-status">🔴 <span class="blink">ĐANG GHI HÌNH...</span></div>
         <button id="btn-stop-packing" onclick="manualStop()" style="display: none; margin-top: 15px; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(255,71,87,0.3);">🛑 KẾT THÚC ĐÓNG GÓI</button>
     </div>
@@ -138,8 +141,28 @@ let cameraStream = null;
                     const cleanUrl = data.url.replace(/\/$/, "");
                     PYTHON_SERVER_URL = `${cleanUrl}/upload-video`;
                     devLog(`✅ Đã thông hầm: ${cleanUrl}`);
-                    document.getElementById('current-order').innerText = "SẴN SÀNG QUÉT MÃ";
+                    
+                    // Hiện nút bắt Kỹ sư trưởng phá tường lửa
+                    document.getElementById('btn-unlock-cloudflare').style.display = "block";
+                    document.getElementById('current-order').innerText = "ĐỢI XÁC NHẬN MẠNG...";
                     initRecordingStream(); 
+                } else {
+                    devLog("❌ PC chưa báo cáo tọa độ!");
+                }
+            } catch (err) { devLog("❌ Lỗi kết nối Đám mây Cloudflare!"); }
+        }
+
+        // --- HÀM VƯỢT TƯỜNG LỬA CLOUDFLARE ---
+        function unlockCloudflare() {
+            // Mở link gốc ra một tab riêng để người dùng tự bấm chữ "I Acknowledge"
+            const baseTunnelUrl = PYTHON_SERVER_URL.replace("/upload-video", "");
+            window.open(baseTunnelUrl, "_blank");
+            
+            // Giấu nút đi và bật chế độ sẵn sàng
+            document.getElementById('btn-unlock-cloudflare').style.display = "none";
+            document.getElementById('current-order').innerText = "SẴN SÀNG QUÉT MÃ";
+            devLog("🔓 Đã xác nhận. Hãy quay lại tab này và quét mã!");
+        }
                 } else {
                     devLog("❌ PC chưa báo cáo tọa độ!");
                 }
@@ -168,11 +191,18 @@ function initRecordingStream() {
                             formData.append('order_id', orderToUpload);
                             devLog(`📦 Đang bắn video đơn ${orderToUpload} về PC...`);
                             
-                            // [BỌC THÉP] Ép Safari phải báo cáo kết quả hạ cánh rõ ràng
+                            // [LỘT MẶT NẠ CLOUDFLARE] Đọc ruột gói tin xem PC trả lời hay Cloudflare lừa đảo
                             fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData })
                             .then(async res => {
-                                if (res.ok) {
-                                    devLog(`✅ [${orderToUpload}] Đã chui lọt vào PC thành công!`);
+                                const responseText = await res.text();
+                                
+                                // Bắt quả tang tường lửa Cloudflare
+                                if (responseText.includes("trycloudflare") || responseText.includes("Cloudflare")) {
+                                    devLog(`❌ [${orderToUpload}] BỊ CLOUDFLARE CHẶN! Vui lòng bấm nút "XÁC NHẬN MẠNG" ở trên!`);
+                                    document.getElementById('btn-unlock-cloudflare').style.display = "block";
+                                } 
+                                else if (res.ok) {
+                                    devLog(`✅ [${orderToUpload}] Hạ cánh an toàn vào PC!`);
                                 } else {
                                     devLog(`❌ [${orderToUpload}] PC TỪ CHỐI (Mã lỗi: ${res.status})`);
                                 }
