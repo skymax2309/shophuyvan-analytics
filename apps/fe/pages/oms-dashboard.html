@@ -13,39 +13,87 @@
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="topbar-left">
-    <div class="topbar-logo">OMS<span>.huyvan</span></div>
-    <a href="profit-dashboard.html">← Dashboard</a>
-    <a href="admin-products.html">📦 Sản phẩm</a>
-    <a href="cctv_packing.html" style="color: #00CED1; font-weight: bold; margin-left: 10px;">🎥 Trạm Quét Mã</a>
-    <a href="dashboard_video.html" style="color: #00FF88; font-weight: bold; margin-left: 5px;">🎞️ Kho Video</a>
-    
-    <button class="btn btn-ghost" onclick="document.getElementById('apiAuthModal').style.display='flex'" style="border: 1px dashed var(--blue); color: var(--blue); margin-left: 15px; font-weight: bold;">
-      🔌 Kết nối API Sàn (VIP)
+    <button class="mobile-menu-btn" onclick="document.getElementById('topNavMenu').classList.toggle('open')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12h18M3 6h18M3 18h18"></path></svg>
     </button>
+    <div class="topbar-logo">OMS<span>.huyvan</span></div>
+    
+    <div class="top-nav-links" id="topNavMenu">
+      <a href="profit-dashboard.html">← Dashboard</a>
+      <a href="admin-products.html">📦 Sản phẩm</a>
+      <a href="cctv_packing.html" class="nav-vip-link">🎥 Trạm Quét Mã</a>
+      <a href="dashboard_video.html" class="nav-vip-link2">🎞️ Kho Video</a>
+      
+      <button class="btn btn-ghost nav-api-btn" onclick="document.getElementById('apiAuthModal').style.display='flex'">
+        🔌 Kết nối API Sàn (VIP)
+      </button>
+    </div>
   </div>
+  
   <div class="topbar-right" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
     <span id="lastSync" style="font-size:11px;color:var(--muted); display: none;">Chưa đồng bộ</span>
     
-    <button class="btn-sync" onclick="triggerBotStatus()" style="background-color: #8b5cf6; border-color: #7c3aed;">
+    <button class="btn-sync" onclick="triggerBotStatus()" style="background-color: #8b5cf6; border-color: #7c3aed;" title="Cập nhật Hành trình">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-      <span class="hide-on-mobile">Cập nhật Hành trình</span>
+      <span class="hide-on-mobile">Cập nhật</span>
     </button>
 
-    <button class="btn-sync" onclick="triggerBotScrape()" style="background-color: #3b82f6; border-color: #2563eb;">
+    <button class="btn-sync" onclick="triggerBotScrape()" style="background-color: #3b82f6; border-color: #2563eb;" title="Kéo Đơn Mới">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      <span class="hide-on-mobile">Kéo Đơn Mới</span>
+      <span class="hide-on-mobile">Kéo Đơn</span>
     </button>
 
-    <button class="btn-sync" onclick="syncOrders()">
+    <button class="btn-sync" onclick="syncOrders()" title="Làm mới">
       <svg id="syncIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
       <span class="hide-on-mobile">Làm mới</span>
     </button>
   </div>
 
   <style>
-    @media (max-width: 600px) {
+    /* Mặc định Máy tính */
+    .mobile-menu-btn { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 4px; align-items: center; justify-content: center; }
+    .top-nav-links { display: flex; align-items: center; gap: 12px; }
+    .nav-vip-link { color: #00CED1 !important; font-weight: bold; margin-left: 10px; }
+    .nav-vip-link2 { color: #00FF88 !important; font-weight: bold; margin-left: 5px; }
+    .nav-api-btn { border: 1px dashed var(--accent) !important; color: var(--accent) !important; font-weight: bold; }
+    
+    @media (min-width: 769px) {
+      .mobile-menu-btn { display: none !important; }
+    }
+
+    /* Giao diện Điện thoại */
+    @media (max-width: 768px) {
       .hide-on-mobile { display: none; }
-      .topbar-right button { padding: 6px 10px; }
+      .topbar-right button { padding: 6px 8px; }
+      
+      /* Kích hoạt nút Hamburger */
+      .mobile-menu-btn { display: block !important; margin-right: 8px; }
+      
+      /* Biến Menu ngang thành Popup thả xuống */
+      .top-nav-links {
+        display: none; /* Ẩn mặc định */
+        position: absolute;
+        top: 52px; /* Nằm ngay dưới topbar */
+        left: 0;
+        width: 260px;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        border-bottom-right-radius: 12px;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+        gap: 12px;
+        box-shadow: 4px 10px 24px rgba(0,0,0,0.6);
+        z-index: 999;
+      }
+      .top-nav-links.open { display: flex; animation: slideDown 0.2s ease; }
+      
+      /* Định dạng lại các nút bên trong Menu để dễ bấm bằng ngón tay */
+      .top-nav-links a { margin: 0 !important; width: 100%; padding: 12px 14px !important; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); }
+      .nav-api-btn { margin: 0 !important; width: 100%; text-align: left; padding: 12px 14px !important; display: block; }
+      
+      @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     }
   </style>
 </div>
@@ -76,13 +124,13 @@
     <div class="status-tab" id="tab-RETURN" onclick="switchMainTab('RETURN')">
         Hoàn Hàng <span class="badge" id="cnt-RETURN">0</span>
     </div>
-  </div><div id="sub-tabs-bar" class="sub-tabs-container" style="display: none;"></div>
+  </div><
   <!-- /sidebar -->
 
   <!-- MAIN -->
 <div class="main">
 
-    <div id="sub-tabs-bar" class="sub-tabs-container" style="display: none;"></div>
+    
 
     <div class="toolbar">
       <div class="toolbar-actions">
