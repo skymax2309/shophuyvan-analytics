@@ -540,9 +540,29 @@
   }
   .sub-tab { padding: 6px 12px; flex-shrink: 0; white-space: nowrap; }
 
-  /* Bẻ khung bộ lọc và Thanh công cụ */
-  .toolbar { overflow-x: auto; white-space: nowrap; padding-bottom: 10px; }
-  .toolbar-actions { display: inline-flex; }
+  /* ── THANH CÔNG CỤ (NÚT BẤM) CHUẨN SHIPXANH ── */
+  .toolbar { 
+    padding: 10px;
+    overflow-x: auto; 
+    white-space: nowrap;
+    scrollbar-width: none; /* Ẩn thanh cuộn trên Firefox */
+  }
+  .toolbar::-webkit-scrollbar { display: none; } /* Ẩn thanh cuộn trên Chrome/Safari */
+  
+  .toolbar-actions { 
+    display: flex !important; 
+    flex-wrap: nowrap !important; /* Ép tuyệt đối các nút nằm trên 1 hàng ngang */
+    gap: 8px; 
+    width: max-content; /* Giãn khung vô hạn để có không gian vuốt */
+  }
+  
+  .toolbar-actions .btn { 
+    flex-shrink: 0; /* Không cho phép bóp méo nút khi màn hình hẹp */
+    padding: 8px 14px; 
+    border-radius: 6px; /* Bo góc nhẹ chuẩn App */
+  }
+  
+  .toolbar .divider { display: none; } /* Ẩn các vạch gạch dọc cho gọn màn hình */
   .filterbar { flex-wrap: wrap; }
   .filter-input, .filter-select { flex: 1 1 40%; margin-bottom: 5px; }
   
