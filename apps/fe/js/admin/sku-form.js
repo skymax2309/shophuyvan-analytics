@@ -258,23 +258,42 @@ window.previewImgInline = function(sku, input) {
     }
 }
 
-// [OMS CORE] THÊM PHÂN LOẠI MỚI
-window.addNewVarQuick = function(parentSku) {
-    const newSku = prompt(`Nhập mã SKU mới cho bài đăng ${parentSku}:`);
-    if (!newSku) return;
+// [OMS CORE] THÊM PHÂN LOẠI MỚI (TẠO TRỰC TIẾP VÀO BÀI ĐĂNG)
+window.addNewVarQuick = async function(parentSku) {
+    const newSku = prompt(`Nhập mã SKU (Phân loại) mới cho bài đăng:`);
+    if (!newSku || newSku.trim() === "") return;
 
-    // Hiện lại form thêm ở đầu trang để người dùng có chỗ nhập liệu
-    const cardForm = document.querySelector('.card[style*="display: none"]');
-    if(cardForm) cardForm.style.display = 'block'; 
-    
-    document.getElementById('s_sku').value = newSku;
-    document.getElementById('s_name').value = "Phân loại mới";
-    
-    // Set form mode là single nhưng neo mã parent lại để khi lưu không bị văng
-    if (typeof setFormMode === 'function') setFormMode('single', parentSku);
-    
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    showToast("📝 Hãy nhập thông tin phân loại mới ở form phía trên!");
+    console.log(`[OMS LOG] ➕ Đang tạo phân loại mới [${newSku}] cho Cha [${parentSku}]`);
+    showToast("⏳ Đang tạo phân loại mới...");
+
+    try {
+        // Tạo ngay một phân loại gắn chặt với Cha đẩy thẳng lên Server
+        const res = await fetch(API + "/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                sku: newSku.trim(),
+                product_name: "Tên phân loại mới",
+                parent_sku: parentSku, // Chốt cứng vào bài đăng này, không bao giờ bị lạc
+                cost_invoice: 0,
+                cost_real: 0,
+                stock_main: 0,
+                stock_sub: 0,
+                stock: 0,
+                image_url: ""
+            })
+        });
+
+        if (res.ok) {
+            showToast("✅ Đã thêm! Hãy sửa thông tin ở dòng mới vừa hiện ra.");
+            loadSkus(); // Tải lại bảng, dòng phân loại mới sẽ hiện ra ngay lập tức
+        } else {
+            showToast("❌ Lỗi Server khi tạo phân loại!", true);
+        }
+    } catch (e) {
+        console.error(`[OMS LOG] ❌ Lỗi tạo phân loại: ${e.message}`);
+        showToast("❌ Lỗi mạng!", true);
+    }
 }
 
 // [OMS CORE] LƯU TOÀN BỘ BÀI ĐĂNG (DÒ MÌN 100%)
