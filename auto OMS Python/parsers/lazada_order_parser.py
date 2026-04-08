@@ -17,17 +17,17 @@ class LazadaOrderParser:
             return 0.0
 
     def _map_oms_status(self, lazada_status):
-        """Ánh xạ trạng thái Lazada sang chuẩn hệ thống OMS"""
+        """Ánh xạ trạng thái Lazada sang chuẩn hệ thống OMS (Chuẩn ShipXanh)"""
         status_map = {
-            "Chờ đóng gói": "PENDING",         # Đưa vào mục: Chờ xác nhận
-            "Chờ bàn giao": "CONFIRMED",       # Đưa vào mục: Đã xác nhận (Theo oms-main.js)
-            "Đang giao": "SHIPPING",
+            "Chờ đóng gói": "LOGISTICS_PENDING_ARRANGE",
+            "Chờ bàn giao": "LOGISTICS_PACKAGED",
+            "Đang giao": "SHIPPED",
             "Đã giao": "COMPLETED",
-            "Giao thất bại": "FAILED_DELIVERY",
-            "Đã hủy": "CANCELLED_TRANSIT",
-            "Trả hàng": "RETURN_REFUND"
+            "Giao thất bại": "LOGISTICS_IN_RETURN",
+            "Đã hủy": "CANCELLED",
+            "Trả hàng": "RETURN"
         }
-        return status_map.get(lazada_status, "PENDING")
+        return status_map.get(lazada_status, "LOGISTICS_PENDING_ARRANGE")
 
     # Đã thêm tham số shop_name để nhận tên shop từ UI
     def parse_order_list(self, html_content, current_tab="Chờ xử lý", shop_name="Lazada Shop"):

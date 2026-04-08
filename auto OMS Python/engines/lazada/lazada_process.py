@@ -113,8 +113,8 @@ class LazadaOrderProcessor:
                     # Hoặc nếu là URL PDF thì tải về. Đa số API Lazada trả về HTML bọc trong JSON.
                     self.log(f"   ✅ Đã lấy được dữ liệu Phiếu in từ Lazada API.")
                     
-                    # Đồng bộ trạng thái PACKING lên Server
-                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "PACKING"})
+                    # Đồng bộ trạng thái PACKING lên Server (Chuẩn ShipXanh)
+                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "LOGISTICS_PACKAGED"})
                     
                     # Đẩy "nội dung phiếu" lên R2 (Lưu dạng .html để Web xem trực tiếp cho nét)
                     upload_url = f"{self.api_url}/upload?file=labels/{order_id}.html&token=huyvan_secret_2026"

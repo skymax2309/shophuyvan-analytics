@@ -96,21 +96,21 @@ class LazadaOrderScraper:
             valid_orders = []
             newly_completed = {}
             
-            # Bộ từ điển dịch trạng thái Lazada -> OMS
+            # Bộ từ điển dịch trạng thái Lazada -> OMS (Chuẩn ShipXanh)
             status_map = {
-                'pending': 'PENDING',
-                'ready_to_ship': 'PACKING',
-                'shipped': 'HANDED_OVER',
+                'pending': 'LOGISTICS_PENDING_ARRANGE',
+                'ready_to_ship': 'LOGISTICS_PACKAGED',
+                'shipped': 'SHIPPED',
                 'delivered': 'COMPLETED',
-                'canceled': 'CANCELLED_TRANSIT',
-                'returned': 'RETURN_REFUND',
-                'failed': 'FAILED_DELIVERY'
+                'canceled': 'CANCELLED',
+                'returned': 'RETURN',
+                'failed': 'LOGISTICS_IN_RETURN'
             }
 
             for o in orders_data:
                 order_id = str(o.get('order_id'))
                 raw_status = o.get('statuses', ['pending'])[0]
-                oms_status = status_map.get(raw_status, 'PENDING')
+                oms_status = status_map.get(raw_status, 'LOGISTICS_PENDING_ARRANGE')
                 
                 # Tạo obj cơ bản để check Hash MD5
                 base_obj = {

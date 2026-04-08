@@ -271,8 +271,8 @@ export async function triggerBotStatus() {
 }
 
 // Bơm thẳng các hàm này ra Window để các nút bấm (onclick) trên HTML gọi được
-Object.assign(window, {
-  deleteErrorOrders, markConfirmed, markPrepare, markPacked, markHandedOver,
+ Object.assign(window, {
+  deleteErrorOrders, markPrepare, markPacked,
   markCancelledTransit, markFailedDelivery, markReturnRefund,
   archiveOldOrders, recalcAllCosts, triggerBotScrape, triggerBotStatus
 });

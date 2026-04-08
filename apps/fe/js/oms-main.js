@@ -138,7 +138,7 @@ export function onCheck() {
   const selInfo = document.getElementById('selInfo')
   if (selInfo) selInfo.innerHTML = n > 0 ? `Đã chọn <span>${n}</span> đơn` : 'Chưa chọn đơn nào'
   const has = n > 0
-  ;['btnConfirm','btnPrepare','btnPacked','btnHandedOver',
+  ;['btnPrepare','btnPacked',
     'btnPickList','btnCancelTransit','btnFailed','btnReturn','btnDeleteOrders', 'btnBatchPrint'].forEach(id => {
     const el = document.getElementById(id)
     if (el) el.disabled = !has
