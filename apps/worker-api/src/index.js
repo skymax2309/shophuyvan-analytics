@@ -547,6 +547,23 @@ export default {
         return new Response(object.body, { headers })
       }
 	  
+// ── BẢNG TỌA ĐỘ TRẠM PC (HẦM TUNNEL) ──────────
+      if (url.pathname === "/api/cctv-config") {
+        if (request.method === "POST") {
+          const body = await request.json();
+          const tunnelUrl = body.ngrok_url || body.url; 
+          if (!tunnelUrl) return Response.json({ error: "Missing url" }, { status: 400, headers: cors });
+          // Ghi tọa độ PC vào Database
+          await env.DB.prepare(`INSERT INTO app_config (key, value) VALUES ('cctv_url', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).bind(tunnelUrl).run();
+          return Response.json({ status: "ok" }, { headers: cors });
+        }
+        if (request.method === "GET") {
+          // Trả tọa độ cho iPhone/iPad
+          const config = await env.DB.prepare("SELECT value FROM app_config WHERE key = 'cctv_url'").first();
+          return Response.json({ url: config?.value || null }, { headers: cors });
+        }
+      }
+
 // ── API MỚI: TRẠM MẮT THẦN LÊN MÂY (R2 + D1) ──────────
       // 1. Nhận Video chuẩn MP4 từ PC và lưu vào R2
       if (url.pathname === "/api/cctv/upload" && request.method === "POST") {
