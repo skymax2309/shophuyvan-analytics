@@ -47,8 +47,23 @@
     <div class="log-box" id="dev-log">[*] Khởi động trạm...<br></div>
 
     <script>
+        <script>
+        // --- BỌC THÉP CẤP ĐỘ NHÂN (CORE HACK): TRỊ DỨT ĐIỂM FULLSCREEN IOS ---
+        // Can thiệp thẳng vào hàm tạo thẻ HTML gốc của trình duyệt
+        const originalCreateElement = document.createElement.bind(document);
+        document.createElement = function(tagName) {
+            const el = originalCreateElement(tagName);
+            if (tagName.toLowerCase() === 'video') {
+                // Đóng dấu chống Fullscreen ngay từ khi thẻ video "chào đời", chưa kịp lên màn hình
+                el.setAttribute('playsinline', '');
+                el.setAttribute('webkit-playsinline', '');
+                el.muted = true;
+            }
+            return el;
+        };
+
         const API_BASE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"; 
-        let PYTHON_SERVER_URL = null; 
+        let PYTHON_SERVER_URL = null;
         let currentOrderId = null;
         let mediaRecorder = null;
         let recordedChunks = [];
@@ -97,31 +112,6 @@ let cameraStream = null;
                 osc.stop(audioCtx.currentTime + 0.15); 
             } catch (err) { devLog("⚠️ Không phát được âm thanh"); }
         }
-
-        // --- TRỊ BỆNH FULLSCREEN: KẺ SĂN MỒI MUTATION OBSERVER ---
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                mutation.addedNodes.forEach((node) => {
-                    // Chộp cổ thẻ video ngay khi nó vừa được thư viện sinh ra
-                    if (node.tagName === 'VIDEO') {
-                        lockVideoNode(node);
-                    } else if (node.querySelectorAll) {
-                        const videos = node.querySelectorAll('video');
-                        videos.forEach(lockVideoNode);
-                    }
-                });
-            });
-        });
-
-        function lockVideoNode(video) {
-            video.setAttribute('playsinline', 'true');
-            video.setAttribute('webkit-playsinline', 'true');
-            video.muted = true;
-            devLog("🔒 Đã khóa cứng Camera, chống Fullscreen!");
-        }
-
-        // Tung lưới bắt đầu rình rập toàn bộ trang web
-        observer.observe(document.body, { childList: true, subtree: true });
 
         function devLog(msg) {
             const logBox = document.getElementById('dev-log');
