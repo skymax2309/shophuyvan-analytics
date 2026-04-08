@@ -208,13 +208,34 @@ export function renderSummary(omsCache, totalOrders) {
 export async function updateBadges() {
   try {
     const badges = await fetch(API + '/api/orders/badges').then(r => r.json());
-    // Khai báo các mã chuẩn ShipXanh
-    const keys = [
-      'ALL', 'UNPAID', 'PENDING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'RETURN'
-    ];
+    
+    // Thuật toán "Gom Bi": Cộng dồn số lượng Tầng 2 lên Tầng 1
+    const pendingCount = (badges['LOGISTICS_PENDING_ARRANGE'] || 0) +
+                         (badges['LOGISTICS_REQUEST_CREATED'] || 0) +
+                         (badges['LOGISTICS_PACKAGED'] || 0) +
+                         (badges['ADVANCE_FULFILMENT'] || 0);
+                         
+    const returnCount = (badges['LOGISTICS_IN_RETURN'] || 0) +
+                        (badges['LOGISTICS_RETURNED_BY_SHIPPER'] || 0) +
+                        (badges['LOGISTICS_RETURN_PACKAGE_RECEIVED'] || 0) +
+                        (badges['LOGISTICS_LOST'] || 0) +
+                        (badges['RETURN'] || 0);
+
+    // Bảng điều phối cuối cùng
+    const finalCounts = {
+      'ALL': badges['ALL'] || 0,
+      'UNPAID': badges['UNPAID'] || 0,
+      'PENDING': pendingCount,
+      'SHIPPED': badges['SHIPPED'] || 0,
+      'COMPLETED': badges['COMPLETED'] || 0,
+      'CANCELLED': badges['CANCELLED'] || 0,
+      'RETURN': returnCount
+    };
+
+    const keys = ['ALL', 'UNPAID', 'PENDING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'RETURN'];
     keys.forEach(k => {
       const el = document.getElementById('cnt-' + k);
-      if (el) el.textContent = badges[k] || 0;
+      if (el) el.textContent = finalCounts[k] || 0;
     });
   } catch (e) {
     console.error("Lỗi lấy dữ liệu đếm số tổng:", e);

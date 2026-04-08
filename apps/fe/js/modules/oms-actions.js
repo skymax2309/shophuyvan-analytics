@@ -63,7 +63,7 @@ export async function markConfirmed() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Xác nhận ${ids.length} đơn hàng?`)) return;
-  await patchOmsStatus(ids, 'CONFIRMED');
+  await patchOmsStatus(ids, 'LOGISTICS_REQUEST_CREATED');
   showToast(`✅ Đã xác nhận ${ids.length} đơn`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -114,7 +114,7 @@ export async function markPacked() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Xác nhận đã đóng gói xong ${ids.length} đơn?`)) return;
-  await patchOmsStatus(ids, 'PACKED');
+  await patchOmsStatus(ids, 'LOGISTICS_PACKAGED');
   showToast(`📦 Đã đóng gói xong ${ids.length} đơn`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -124,7 +124,7 @@ export async function markHandedOver() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Xác nhận đã giao ${ids.length} đơn cho shipper?`)) return;
-  await patchOmsStatus(ids, 'HANDED_OVER');
+  await patchOmsStatus(ids, 'SHIPPED');
   showToast(`🚚 Đã giao ${ids.length} đơn cho shipper`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -134,7 +134,7 @@ export async function markCancelledTransit() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Đánh dấu ${ids.length} đơn bị hủy trong quá trình vận chuyển?`)) return;
-  await patchOmsStatus(ids, 'CANCELLED_TRANSIT');
+  await patchOmsStatus(ids, 'CANCELLED');
   showToast(`✗ Đã đánh dấu ${ids.length} đơn hủy khi vận chuyển`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -144,7 +144,7 @@ export async function markFailedDelivery() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Đánh dấu ${ids.length} đơn giao không thành công?`)) return;
-  await patchOmsStatus(ids, 'FAILED_DELIVERY');
+  await patchOmsStatus(ids, 'LOGISTICS_IN_RETURN');
   showToast(`⚠️ Đã đánh dấu ${ids.length} đơn giao thất bại`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -154,7 +154,7 @@ export async function markReturnRefund() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Đánh dấu ${ids.length} đơn trả hàng hoàn tiền?`)) return;
-  await patchOmsStatus(ids, 'RETURN_REFUND');
+  await patchOmsStatus(ids, 'RETURN');
   showToast(`↩ Đã đánh dấu ${ids.length} đơn trả hàng`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
