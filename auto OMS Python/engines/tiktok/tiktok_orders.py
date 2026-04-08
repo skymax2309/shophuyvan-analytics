@@ -2,11 +2,18 @@ import asyncio
 import re
 import math
 import os
+import sys # <-- Thêm thư viện sys
 import json
 import hashlib
 from datetime import datetime
-from parsers.tiktok_order_parser import TiktokOrderParser
 
+# Bơm đường dẫn gốc vào bộ nhớ của Python (Lùi lại 2 cấp thư mục)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
+
+from parsers.tiktok_order_parser import TiktokOrderParser
 class TiktokOrderScraper:
     def __init__(self, log_callback, parser: TiktokOrderParser):
         self.log = log_callback
@@ -197,16 +204,18 @@ class TiktokOrderScraper:
                                 revenue_numeric = float(re.sub(r'[^\d.]', '', str(total_price).replace('.', '')))
                             except: pass
 
-                        # Map trạng thái chuẩn OMS
-                        oms_st = "PENDING"
+                        # Map trạng thái chuẩn OMS (CHUẨN SHIPXANH MỚI)
+                        oms_st = "LOGISTICS_PENDING_ARRANGE"
                         if tab_name == "Cần gửi": 
-                            oms_st = "PENDING" # <--- Ép về PENDING để đẩy vào mục: Chờ xác nhận
+                            oms_st = "LOGISTICS_PENDING_ARRANGE" # -> Chưa Xử Lý
                         elif tab_name == "Đã gửi": 
-                            oms_st = "SHIPPING"
-                        elif tab_name == "Đã hoàn tất": oms_st = "COMPLETED"
-                        elif tab_name == "Đã hủy": oms_st = "CANCELLED_TRANSIT"
-                        elif tab_name == "Giao không thành công": oms_st = "FAILED_DELIVERY"
-
+                            oms_st = "SHIPPED" # -> Đang Giao
+                        elif tab_name == "Đã hoàn tất": 
+                            oms_st = "COMPLETED" # -> Đã Giao
+                        elif tab_name == "Đã hủy": 
+                            oms_st = "CANCELLED" # -> Đã Huỷ
+                        elif tab_name == "Giao không thành công": 
+                            oms_st = "LOGISTICS_IN_RETURN" # -> Đang Hoàn
                         # Chuẩn hóa danh sách sản phẩm theo D1 (ĐỒNG BỘ XUẤT KÉP NHƯ SHOPEE)
                         formatted_items = []
                         for it in items:

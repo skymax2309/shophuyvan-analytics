@@ -67,7 +67,9 @@
             ├── pages/
                 └── admin-products.html
                 └── admin-purchase.html
+                └── cctv_packing.html
                 └── cost-settings.html
+                └── dashboard_video.html
                 └── import-sku-tool.html
                 └── oms-dashboard.html
                 └── profit-dashboard.html
@@ -90,6 +92,7 @@
                     └── products.js
                     └── purchase.js
                     └── reports.js
+                    └── shops.js
                 ├── utils/
                     └── db.js
                     └── filters.js
@@ -103,6 +106,7 @@
         └── cache_orders_shopee_phambich2312.json
         └── cache_orders_tiktok_0909128999.json
         └── cau truc thu muc OMS python.txt
+        └── cctv_local_server.py
         └── config.py
         └── debug_payload_lazada.json
         └── debug_payload_lazada_orders.json
@@ -114,6 +118,7 @@
         └── lazada_test_api.py
         └── main.py
         └── media_chihuy1984.xlsx
+        └── nhat_ky_tram.txt
         └── oms_clean_unmapped_orders.py
         └── sales_chihuy1984.xlsx
         └── sync_shopee.py
@@ -125,6 +130,7 @@
         └── test_promo_web.py
         └── test_shopee_excel.py
         └── test_tai_pdf_shopee.py
+        └── tunnel.log
         └── utils.py
         ├── data/
             └── shops.json
@@ -289,6 +295,9 @@
             └── 2604063NAKWJ0B.pdf
             └── 2604063UANCD89.pdf
             └── 26040640QV5ENJ.pdf
+            └── 2604075HV5456J.pdf
+            └── 2604075JH3MFEK.pdf
+            └── 2604076MHHQ871.pdf
         ├── profiles/
             ├── Huy Vân Store Q.Bình Tân/
                 └── first_party_sets.db
@@ -1174,6 +1183,18 @@
                     └── data_2
                     └── data_3
                     └── index
+        ├── temp_videos/
+            └── 1548238272381_raw.webm
+            └── 22518286_raw.webm
+            └── 5772106116132_raw.webm
+            └── 854134114880_raw.webm
+            └── 861556184996.mp4
+            └── SPXVN061641923423_raw.webm
+            └── SPXVN066329941104_raw.webm
+            └── SPXVN069324675003_raw.webm
+            └── SPXVN069868872864_raw.webm
+            └── VN2627664499913.mp4
+            └── VN268579718765C_raw.webm
         ├── ui/
             └── auto_run_tab.py
             └── login_tab.py

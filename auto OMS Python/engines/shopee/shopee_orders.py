@@ -10,8 +10,242 @@ class ShopeeOrderScraper:
     def __init__(self, log_callback, parser):
         self.log = log_callback
         self.parser = parser
+        self.SERVER_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"
+
+    def _get_api_token(self, shop_name):
+        import requests
+        try:
+            # BẢN DỊCH: TÊN SHOP -> MÃ SHOP ID 
+            shopee_id_map = {
+                "chihuy2309": "166563639"
+            }
+            target = str(shop_name).strip().lower()
+            mapped_id = shopee_id_map.get(target, "")
+            
+            res = requests.get(f"{self.SERVER_URL}/shops/tokens", timeout=10)
+            if res.status_code == 200:
+                for shop in res.json():
+                    if shop.get('platform') == 'shopee':
+                        # Dùng 'or ""' để ép kiểu an toàn khi Server trả về null
+                        db_user = str(shop.get('user_name') or "").strip().lower()
+                        db_shop = str(shop.get('shop_name') or "").strip().lower()
+                        
+                        if target in [db_user, db_shop] or (mapped_id and mapped_id in [db_user, db_shop]):
+                            token = shop.get('access_token')
+                            if token:  # CHỐT CHẶN: Chỉ trả về nếu có Token thật!
+                                return token
+        except Exception as e:
+            self.log(f"   ⚠️ Lỗi lấy Token từ Server: {e}")
+        return None
 
     async def scrape_new_orders(self, page, limits=None, shop_name="default", mode="all"):
+        # 🌟 TẠO NGÃ BA CHUYỂN LUỒNG (HYBRID)
+        token = self._get_api_token(shop_name)
+        if token:
+            self.log("-------------------------------------------------")
+            self.log(f"⚡ [SHOPEE VIP] Shop '{shop_name}' ĐÃ CÓ TOKEN API!")
+            self.log("🚀 Kích hoạt luồng API SIÊU TỐC (Bỏ qua Trình duyệt Chrome)...")
+            return await self.scrape_by_api(token, shop_name, limits, mode)
+        else:
+            self.log("-------------------------------------------------")
+            self.log(f"🐌 [SHOPEE THƯỜNG] Shop '{shop_name}' chưa có Token API.")
+            self.log("🚀 Kích hoạt luồng Cào dữ liệu bằng Trình duyệt Chrome...")
+            return await self.scrape_by_browser(page, limits, shop_name, mode)
+
+    def _sign_shopee_api(self, path, access_token, shop_id):
+        """Hàm tự động tính toán Chữ ký bảo mật (Sign) chuẩn Shopee v2"""
+        import time
+        import hmac
+        import hashlib
+        
+        partner_id = "2013730"
+        partner_key = "shpk66746e4845745341714d6b63656a5a6c7049524b7444486c4a686c4d4a4d"
+        timestamp = int(time.time())
+        
+        # Công thức tạo chữ ký Shopee: partner_id + api_path + timestamp + access_token + shop_id
+        base_string = f"{partner_id}{path}{timestamp}{access_token}{shop_id}"
+        sign = hmac.new(partner_key.encode('utf-8'), base_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        
+        url = f"https://partner.shopeemobile.com{path}?partner_id={partner_id}&timestamp={timestamp}&access_token={access_token}&shop_id={shop_id}&sign={sign}"
+        return url
+
+    async def scrape_by_api(self, token, shop_name, limits, mode):
+        import time
+        import requests
+        import json
+        import os
+        from datetime import datetime
+
+        # BẢN DỊCH: TÊN SHOP -> MÃ SHOP ID (Shopee bắt buộc dùng Mã ID để gọi API)
+        shopee_id_map = {
+            "chihuy2309": 166563639
+        }
+        target = str(shop_name).strip().lower()
+        shop_id = shopee_id_map.get(target)
+        
+        if not shop_id:
+            self.log(f"   ❌ Lỗi: Không tìm thấy Shop ID cho shop '{shop_name}'. Kéo API thất bại.")
+            return []
+
+        # Shopee yêu cầu truyền khoảng thời gian (Mình set quét 15 ngày gần nhất)
+        time_to = int(time.time())
+        time_from = time_to - 15 * 86400 
+        
+        all_order_sns = []
+        cursor = ""
+        path_list = "/api/v2/order/get_order_list"
+        
+        self.log(f"   📡 Bắt đầu gọi Shopee API kéo danh sách đơn (15 ngày qua)...")
+        while True:
+            url_list = self._sign_shopee_api(path_list, token, shop_id)
+            url_list += f"&time_range_field=update_time&time_from={time_from}&time_to={time_to}&page_size=50&cursor={cursor}"
+            
+            try:
+                res = requests.get(url_list, timeout=15)
+                data = res.json()
+                if data.get("error"):
+                    self.log(f"   ⚠️ Lỗi Shopee API: {data.get('message')}")
+                    break
+                    
+                orders = data.get("response", {}).get("order_list", [])
+                for o in orders:
+                    all_order_sns.append(o["order_sn"])
+                    
+                # Phân trang
+                if not data.get("response", {}).get("more"): break
+                cursor = data.get("response", {}).get("next_cursor")
+                if not cursor: break
+            except Exception as e:
+                self.log(f"   ⚠️ Lỗi mạng gọi API list: {e}")
+                break
+                
+        if not all_order_sns:
+            self.log("   ✅ Không có đơn hàng nào trong 15 ngày qua trên API Shopee.")
+            return []
+            
+        self.log(f"   📦 Lấy thành công {len(all_order_sns)} đơn. Đang chọc API lấy Chi Tiết Sản Phẩm...")
+        
+        path_detail = "/api/v2/order/get_order_detail"
+        valid_orders = []
+        cache_file = f"cache_orders_shopee_{shop_name}.json"
+        
+        cached_final_orders = {}
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r") as f:
+                    cached_final_orders = json.load(f)
+            except: pass
+            
+        newly_completed = {}
+        
+        for i in range(0, len(all_order_sns), 50):
+            chunk = all_order_sns[i:i+50]
+            url_detail = self._sign_shopee_api(path_detail, token, shop_id)
+            sn_str = ",".join(chunk)
+            
+            # 🌟 NÂNG CẤP YÊU CẦU: Xin thêm Tên Khách Hàng, ĐVVC Thực tế (shipping_carrier) & Phương thức (checkout_shipping_carrier)
+            url_detail += f"&order_sn_list={sn_str}&response_optional_fields=item_list,recipient_address,buyer_username,shipping_carrier,checkout_shipping_carrier"
+            
+            try:
+                res = requests.get(url_detail, timeout=15)
+                data = res.json()
+                order_list = data.get("response", {}).get("order_list", [])
+                
+                for o in order_list:
+                    order_sn = o.get("order_sn")
+                    raw_status = o.get("order_status")
+                    update_time = str(o.get("update_time", ""))
+                    
+                    if cached_final_orders.get(order_sn) == update_time: continue 
+                        
+                    # 🌟 FIX STATUS: Bổ sung TO_CONFIRM_RECEIVE (Là trạng thái Đang giao của Shopee)
+                    oms_st = "LOGISTICS_PENDING_ARRANGE"
+                    if raw_status == "READY_TO_SHIP": oms_st = "LOGISTICS_PENDING_ARRANGE"
+                    elif raw_status == "PROCESSED": oms_st = "LOGISTICS_REQUEST_CREATED"
+                    elif raw_status in ["SHIPPED", "TO_CONFIRM_RECEIVE"]: oms_st = "SHIPPED"
+                    elif raw_status == "COMPLETED": oms_st = "COMPLETED"
+                    elif raw_status == "CANCELLED": oms_st = "CANCELLED"
+                    elif raw_status in ["TO_RETURN", "IN_CANCEL"]: oms_st = "LOGISTICS_IN_RETURN"
+                    elif raw_status == "UNPAID": continue
+                    
+                    # 🌟 FIX TÊN KHÁCH & ĐVVC
+                    buyer_name = o.get("buyer_username") or o.get("recipient_address", {}).get("name", "Khách Shopee")
+                    
+                    carrier_api = str(o.get("shipping_carrier") or "").strip()
+                    checkout_api = str(o.get("checkout_shipping_carrier") or "").strip()
+                    
+                    # Ưu tiên ĐVVC thực tế, nếu rỗng thì lấy Kênh vận chuyển
+                    carrier = carrier_api if carrier_api else checkout_api
+                    
+                    # Chuẩn hóa nếu API chỉ trả về Kênh vận chuyển chung chung
+                    if carrier.lower() == "nhanh" or carrier == "Standard": 
+                        carrier = "SPX Express - Nhanh"
+                    elif carrier.lower() == "hỏa tốc" or carrier == "Instant": 
+                        carrier = "SPX Express - Hỏa Tốc"
+                    elif carrier.lower() == "tiết kiệm" or carrier == "Economy":
+                        carrier = "SPX Express - Tiết Kiệm"
+                    elif not carrier: 
+                        carrier = "SPX Express"
+                    
+                    items_list = []
+                    total_rev = 0
+                    for it in o.get("item_list", []):
+                        price = float(it.get("model_discounted_price") or it.get("item_price") or 0)
+                        qty = int(it.get("model_quantity_purchased", 1))
+                        total_rev += price * qty
+                        
+                        # 🌟 FIX ẢNH: Giải mã Hash Code thành Link Ảnh thật
+                        img_id = it.get("image_info", {}).get("image_url", "")
+                        img_url = f"https://cf.shopee.vn/file/{img_id}" if img_id and not str(img_id).startswith("http") else img_id
+                        
+                        var_name = it.get("model_name", "")
+                        items_list.append({
+                            "sku": it.get("model_sku") or it.get("item_sku", ""),
+                            "variation_name": var_name,
+                            "clean_variation": var_name,
+                            "product_name": it.get("item_name", "Sản phẩm Shopee"), # Fix lỗi móp form HTML
+                            "qty": qty, # Chuẩn lại Key qty
+                            "image_url": img_url # Chuẩn lại Key image_url
+                        })
+                        
+                    # 🌟 FIX DOANH THU: Nếu API giấu Total Amount, tự động tính tổng tiền các SP
+                    revenue_numeric = float(o.get("total_amount") or 0)
+                    if revenue_numeric == 0:
+                        revenue_numeric = total_rev
+                        
+                    date_str = datetime.fromtimestamp(o.get("create_time")).strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    valid_orders.append({
+                        "order_id": order_sn,
+                        "shop": shop_name,  # <-- Đổi "shop_name" thành "shop" cho khớp chuẩn Database
+                        "platform": "shopee",
+                        "customer_name": buyer_name,
+                        "order_date": date_str,
+                        "revenue": revenue_numeric,
+                        "raw_revenue": revenue_numeric,
+                        "shipping_carrier": carrier,
+                        "tracking_number": o.get("tracking_no", ""),
+                        "oms_status": oms_st,
+                        "order_type": "normal",
+                        "shipping_status": raw_status,
+                        "items": items_list
+                    })
+                    newly_completed[order_sn] = update_time
+                    
+            except Exception as e:
+                self.log(f"   ⚠️ Lỗi lấy chi tiết đơn: {e}")
+                
+        # Lưu Sổ Đen
+        if newly_completed:
+            cached_final_orders.update(newly_completed)
+            with open(cache_file, "w") as f:
+                json.dump(cached_final_orders, f, indent=4)
+            self.log(f"   💾 SỔ ĐEN: Đã lưu vết {len(newly_completed)} đơn để giám sát tốc độ cao.")
+            
+        self.log(f"   🎉 HOÀN TẤT KÉO API! Đã nhặt được {len(valid_orders)} đơn hàng (Mới/Vừa Cập Nhật).")
+        return valid_orders
+
+    async def scrape_by_browser(self, page, limits=None, shop_name="default", mode="all"):
         if not limits:
             limits = {"new": 100, "shipping": 50, "done": 20}
             

@@ -115,20 +115,25 @@
           <select id="var_filter_shop" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="renderVariations()">
             <option value="">🛒 Tất cả Shop</option>
           </select>
-          <select id="var_filter_status" style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px" onchange="renderVariations()">
-            <option value="">Trạng thái Map</option>
-            <option value="UNMAPPED">⚠️ Chưa map</option>
-            <option value="MAPPED">✅ Đã map</option>
-            <option value="IGNORED">🚫 Bỏ qua</option>
-          </select>
+          <input type="hidden" id="var_filter_status" value="">
           
           <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..." oninput="renderVariations()"
             style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:220px">
           
+          <button id="btnBulkCopyToWarehouse" style="display:none; background:#10b981; color:white; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 2px 4px rgba(16,185,129,0.2);" onclick="copySelectedToWarehouse()">
+            📥 Sao chép về Kho Tổng (<span id="selectedCopyCount">0</span>)
+          </button>
+
           <button id="btnBulkDeleteVar" style="display:none; background:#ef4444; color:white; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:600; cursor:pointer" onclick="bulkDeleteVariations()">
             🗑️ Xóa (<span id="selectedVarCount">0</span>)
           </button>
         </div>
+      </div>
+
+      <div style="display:flex; gap:16px; margin-bottom:16px; border-bottom:1px solid #e2e8f0;">
+        <button class="shipxanh-tab active" onclick="switchShipXanhTab('', this)" style="padding:10px 16px; border:none; background:none; font-size:14px; font-weight:700; color:#2563eb; border-bottom:2px solid #2563eb; cursor:pointer;">📦 Tất cả sản phẩm</button>
+        <button class="shipxanh-tab" onclick="switchShipXanhTab('UNMAPPED', this)" style="padding:10px 16px; border:none; background:none; font-size:14px; font-weight:600; color:#64748b; border-bottom:2px solid transparent; cursor:pointer;">⚠️ Chưa liên kết SKU</button>
+        <button class="shipxanh-tab" onclick="switchShipXanhTab('MAPPED', this)" style="padding:10px 16px; border:none; background:none; font-size:14px; font-weight:600; color:#64748b; border-bottom:2px solid transparent; cursor:pointer;">✅ Đã liên kết SKU</button>
       </div>
 
       <div id="var-list-wrapper">

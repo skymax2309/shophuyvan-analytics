@@ -140,7 +140,8 @@ class SyncOrderTab(ctk.CTkFrame):
         import json
         import os
         
-        api_orders = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/orders?oms_status=CONFIRMED&platform=shopee&limit=50"
+        # Đã cập nhật mã CONFIRMED sang LOGISTICS_REQUEST_CREATED (Chuẩn ShipXanh)
+        api_orders = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/orders?oms_status=LOGISTICS_REQUEST_CREATED&platform=shopee&limit=50"
         api_jobs = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/jobs"
         
         while self.is_auto_running:
@@ -329,18 +330,52 @@ class SyncOrderTab(ctk.CTkFrame):
                 platform = shop.get('platform', '').lower()
                 if platform not in ['shopee', 'tiktok', 'lazada']: return
 
-                # Đăng nhập linh hoạt theo sàn
-                if platform == 'shopee':
-                    from engines.shopee.shopee_auth import ShopeeAuth
-                    auth = ShopeeAuth(self.so_log_msg)
-                elif platform == 'tiktok':
-                    from engines.tiktok.tiktok_auth import TikTokAuth
-                    auth = TikTokAuth(self.so_log_msg)
-                elif platform == 'lazada':
-                    from engines.lazada.lazada_auth import LazadaAuth
-                    auth = LazadaAuth(self.so_log_msg)
+                # 🌟 [NGÃ BA THÔNG MINH] KIỂM TRA QUYỀN VIP (API TOKEN) CHO MỌI SÀN
+                import requests
+                api_vip = False
+                try:
+                    # BẢN DỊCH: TÊN SHOP -> MÃ SHOP ID (Do Shopee API trả về mã số)
+                    shopee_id_map = {
+                        "chihuy2309": "166563639"
+                    }
                     
-                is_logged = await auth.check_and_login(page, shop)
+                    res_tokens = requests.get("https://huyvan-worker-api.nghiemchihuy.workers.dev/api/shops/tokens", timeout=5)
+                    if res_tokens.status_code == 200:
+                        for s_token in res_tokens.json():
+                            if s_token.get('platform') == platform:
+                                # Dùng 'or ""' để nếu JSON là null thì nó không bị lỗi thành chữ "None"
+                                db_user = str(s_token.get('user_name') or "").strip().lower()
+                                db_shop = str(s_token.get('shop_name') or "").strip().lower()
+                                target_user = str(shop.get('user_name') or "").strip().lower()
+                                target_shop = str(shop.get('ten_shop') or "").strip().lower()
+                                
+                                # Lấy Mã ID nếu có trong bản dịch
+                                mapped_id = shopee_id_map.get(target_user, shopee_id_map.get(target_shop, ""))
+                                
+                                if target_user in [db_user, db_shop] or target_shop in [db_user, db_shop] or (mapped_id and mapped_id in [db_user, db_shop]):
+                                    if s_token.get('access_token'):
+                                        api_vip = True
+                                        break
+                except: pass
+
+                is_logged = True
+                if api_vip:
+                    self.so_log_msg(f"⚡ [{platform.upper()} VIP] Shop đã có Token API, ĐẶC CÁCH bỏ qua kiểm tra đăng nhập Chrome!")
+                else:
+                    # Đăng nhập linh hoạt theo sàn (Luồng cào thường)
+                    if platform == 'shopee':
+                        from engines.shopee.shopee_auth import ShopeeAuth
+                        auth = ShopeeAuth(self.so_log_msg)
+                        is_logged = await auth.check_and_login(page, shop)
+                    elif platform == 'tiktok':
+                        from engines.tiktok.tiktok_auth import TikTokAuth
+                        auth = TikTokAuth(self.so_log_msg)
+                        is_logged = await auth.check_and_login(page, shop)
+                    elif platform == 'lazada':
+                        from engines.lazada.lazada_auth import LazadaAuth
+                        auth = LazadaAuth(self.so_log_msg)
+                        is_logged = await auth.check_and_login(page, shop)
+                        
                 if not is_logged:
                     self.so_log_msg(f"❌ Không thể đăng nhập vào {platform.upper()}!")
                     return

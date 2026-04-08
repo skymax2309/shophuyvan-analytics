@@ -245,11 +245,11 @@ def process_and_sync_files(shop_name, file_paths, log_func):
         v_img = var_media_map.get(search_key, "")
         
         products_dict[p_id]["variations"].append({
-            "variation_name": str(row.get('variation_value', '')).strip(),
+            "variation_name": vname,
             "sku": var_sku if var_sku != 'nan' else '',
             "price": float(price) if price.replace('.', '', 1).isdigit() else 0,
             "stock": int(stock) if float(stock).is_integer() else 0,
-            "variation_image": var_image if var_image != 'nan' else ""
+            "variation_image": v_img if v_img != 'nan' else ""
         })
 
     # --- 🌟 BỌC THÉP TỔNG TỒN KHO: LỌC BỎ SẢN PHẨM CHẾT (TỒN = 0) ---

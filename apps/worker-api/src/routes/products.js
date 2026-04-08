@@ -566,6 +566,72 @@ export async function handleVariations(request, env, cors) {
     return Response.json({ status: 'ok' }, { headers: cors })
   }
 
+// ==========================================
+  // 🌟 [SHIPXANH CLONE] API SAO CHÉP VỀ KHO (Tạo SKU Nội Bộ từ SKU Sàn)
+  // ==========================================
+  if (request.method === 'POST' && url.pathname.endsWith('/copy-to-warehouse')) {
+    try {
+        const { ids } = await request.json();
+        if (!ids || !ids.length) return Response.json({ error: 'Không có ID nào được chọn' }, { status: 400, headers: cors });
+
+        console.log(`[API COPY TO WAREHOUSE] Bắt đầu sao chép ${ids.length} sản phẩm về kho tổng...`);
+
+        // Lấy thông tin các biến thể đang 'UNMAPPED'
+        const placeholders = ids.map(() => '?').join(',');
+        const query = `SELECT * FROM product_variations WHERE id IN (${placeholders}) AND map_status = 'UNMAPPED'`;
+        const variations = await env.DB.prepare(query).bind(...ids).all();
+
+        let copied = 0;
+        const stmts = [];
+        
+        for (const v of variations.results) {
+          // Bọc thép: Tạo mã SKU an toàn, nếu sàn trống thì tự phát sinh
+          const newInternalSku = (v.platform_sku && v.platform_sku.trim() !== '') 
+                ? v.platform_sku.toUpperCase().replace(/\s+/g, '_') 
+                : `SKU_AUTO_${v.platform}_${v.id}`;
+          
+          const finalName = v.variation_name && v.variation_name !== 'Mặc định' 
+                ? `${v.product_name} - ${v.variation_name}` 
+                : v.product_name;
+
+          // 1. Tạo sản phẩm mới trong Kho Tổng (Bảng products)
+          stmts.push(env.DB.prepare(`
+            INSERT INTO products (sku, product_name, cost_invoice, cost_real, image_url, stock)
+            VALUES (?, ?, 0, 0, ?, ?)
+            ON CONFLICT(sku) DO NOTHING
+          `).bind(newInternalSku, finalName, v.image_url || "", v.stock || 0));
+
+          // 2. Chuyển trạng thái sang MAPPED và liên kết với SKU vừa tạo
+          stmts.push(env.DB.prepare(`
+            UPDATE product_variations 
+            SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now')
+            WHERE id = ?
+          `).bind(newInternalSku, v.id));
+
+          // 3. Ghi vào từ điển sku_alias để sau này auto-map
+          if (v.platform_sku && v.platform_sku.trim() !== '') {
+              stmts.push(env.DB.prepare(`
+                  INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)
+                  ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku
+              `).bind(v.platform_sku, newInternalSku));
+          }
+
+          copied++;
+        }
+
+        // Chạy Batch an toàn
+        if (stmts.length > 0) {
+            for (let i = 0; i < stmts.length; i += 40) {
+                await env.DB.batch(stmts.slice(i, i + 40));
+            }
+        }
+        return Response.json({ status: 'ok', copied }, { headers: cors });
+    } catch (error) {
+        console.error("Lỗi Copy to Warehouse:", error.message);
+        return Response.json({ success: false, error: error.message }, { status: 500, headers: cors });
+    }
+  }
+
   // ── THÊM MỚI: XỬ LÝ DELETE CHO VARIATIONS (Xóa hàng loạt) ──
   if (request.method === 'DELETE') {
     const url = new URL(request.url);

@@ -5,6 +5,18 @@ class TiktokOrderParser:
     def __init__(self, log_callback):
         self.log = log_callback
 
+    def _map_oms_status(self, tiktok_status):
+        """Ánh xạ trạng thái TikTok sang chuẩn hệ thống OMS (Chuẩn ShipXanh)"""
+        status_map = {
+            "Cần gửi": "LOGISTICS_PENDING_ARRANGE",
+            "Đã gửi": "SHIPPED",
+            "Đã hoàn tất": "COMPLETED",
+            "Đã hủy": "CANCELLED",
+            "Giao không thành công": "LOGISTICS_IN_RETURN",
+            "Trả hàng": "RETURN"
+        }
+        return status_map.get(tiktok_status, "LOGISTICS_PENDING_ARRANGE")
+
     def parse_order_list(self, html_content, current_tab="Cần gửi"):
         """
         Mổ xẻ cục HTML của TikTok để lôi ra các thông tin cốt lõi
@@ -119,6 +131,7 @@ class TiktokOrderParser:
                     "total_price": total_price,
                     "carrier": carrier,
                     "status": status,
+                    "oms_status": self._map_oms_status(current_tab), # <--- Ép chuẩn ShipXanh
                     "tab_source": current_tab,
                     "tracking_number": "", 
                     "items": [{

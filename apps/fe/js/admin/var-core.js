@@ -196,3 +196,87 @@ window.switchTab = function(tab) {
   if (tab === 'variations' && (!window.allVariations || window.allVariations.length === 0)) window.loadVariations();
   if (tab === 'shops' && typeof window.loadShopWarehouses === 'function') window.loadShopWarehouses();
 }
+
+// ==========================================
+// 🌟 GIAO DIỆN SHIPXANH & SAO CHÉP VỀ KHO TỔNG
+// ==========================================
+window.switchShipXanhTab = function(status, btnElement) {
+    // 1. Cập nhật CSS cho các Tab
+    document.querySelectorAll('.shipxanh-tab').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.color = '#64748b';
+        btn.style.borderBottom = '2px solid transparent';
+        btn.style.fontWeight = '600';
+    });
+    btnElement.classList.add('active');
+    btnElement.style.color = '#2563eb';
+    btnElement.style.borderBottom = '2px solid #2563eb';
+    btnElement.style.fontWeight = '700';
+
+    // 2. Gán biến trạng thái và tải lại bảng
+    document.getElementById('var_filter_status').value = status;
+    window.renderVariations(1);
+    
+    // 3. Reset nút thao tác hàng loạt
+    const btnCopy = document.getElementById('btnBulkCopyToWarehouse');
+    if(btnCopy) btnCopy.style.display = 'none';
+}
+
+// Hàm theo dõi việc click vào ô Checkbox để hiện nút Sao Chép
+window.updateShipXanhButtonsUI = function() {
+    const checkedBoxes = document.querySelectorAll('.var-checkbox:checked');
+    const btnCopy = document.getElementById('btnBulkCopyToWarehouse');
+    const countSpan = document.getElementById('selectedCopyCount');
+    
+    if (checkedBoxes.length > 0) {
+        if(btnCopy) btnCopy.style.display = 'inline-block';
+        if(countSpan) countSpan.textContent = checkedBoxes.length;
+    } else {
+        if(btnCopy) btnCopy.style.display = 'none';
+    }
+}
+
+// Lắng nghe sự kiện click checkbox toàn cục (Hỗ trợ tốt việc check lẻ)
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('var-checkbox') || e.target.id === 'selectAllVarChk') {
+        setTimeout(window.updateShipXanhButtonsUI, 50);
+    }
+});
+
+// Hàm Bơm Data lên Cloudflare API
+window.copySelectedToWarehouse = async function() {
+    const checked = document.querySelectorAll('.var-checkbox:checked');
+    if (checked.length === 0) return;
+    
+    const ids = Array.from(checked).map(cb => cb.getAttribute('data-id'));
+    if (!confirm(`Tạo SKU nội bộ và sao chép ${ids.length} sản phẩm này về Kho Tổng?`)) return;
+
+    const btn = document.getElementById('btnBulkCopyToWarehouse');
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '⏳ Đang xử lý...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch(API + '/api/products/copy-to-warehouse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids })
+        });
+        
+        const data = await res.json();
+        if (data.status === 'ok') {
+            showToast(`✅ Đã khai sinh thành công ${data.copied} SKU nội bộ mới!`);
+            // Reset UI và tải lại danh sách
+            btn.style.display = 'none';
+            document.querySelectorAll('.var-checkbox:checked').forEach(cb => cb.checked = false);
+            await loadVariations(); 
+        } else {
+            showToast('❌ Lỗi: ' + (data.error || 'Server từ chối'), true);
+        }
+    } catch (err) {
+        showToast('❌ Đứt cáp/Lỗi mạng: ' + err.message, true);
+    } finally {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+    }
+}

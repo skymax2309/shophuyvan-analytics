@@ -192,11 +192,11 @@ class TikTokOrderProcessor:
                     
                     await new_page.close()
 
-                    # Báo cáo Server cập nhật lên "Đang đóng gói"
+                    # Báo cáo Server cập nhật lên "Đã đóng gói" (Chuẩn ShipXanh)
                     try:
-                        res = requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "PACKING"})
+                        res = requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "LOGISTICS_PACKAGED"})
                         if res.status_code == 200:
-                            self.log(f"🔄 Đã đồng bộ trạng thái về Web thành 'Đang đóng gói'.")
+                            self.log(f"🔄 Đã đồng bộ trạng thái về Web thành 'Đã đóng gói'.")
                     except: pass
 
             except Exception as e:

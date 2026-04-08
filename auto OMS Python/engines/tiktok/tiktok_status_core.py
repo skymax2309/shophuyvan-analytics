@@ -63,16 +63,16 @@ class TikTokStatusCore:
                         continue
                     order_id = id_match.group(1)
                     
-                    # 🌟 Bắt mốc trạng thái tương ứng trong từng khối
+                    # 🌟 Bắt mốc trạng thái tương ứng trong từng khối (CHUẨN SHIPXANH MỚI)
                     oms_st = None
                     if "Đã hoàn tất" in block:
                         oms_st = "COMPLETED"
                     elif "Đã gửi" in block or "Đang giao" in block or "Đang trung chuyển" in block or "Đã giao hàng" in block:
-                        oms_st = "HANDED_OVER"
+                        oms_st = "SHIPPED"
                     elif "Đã hủy" in block:
-                        oms_st = "CANCELLED_TRANSIT"
+                        oms_st = "CANCELLED"
                     elif "Giao không thành công" in block or "Giao thất bại" in block:
-                        oms_st = "FAILED_DELIVERY"
+                        oms_st = "LOGISTICS_IN_RETURN"
                         
                     # Bắn API Server
                     if oms_st:

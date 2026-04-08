@@ -19,8 +19,8 @@ class ShopeeStatusCore:
         try:
             # 1. Gọi API xin Server danh sách TẤT CẢ các đơn đang trong luồng xử lý
             orders = []
-            # Bao gồm: Chờ xác nhận, Đã xác nhận, Đang đóng gói, Đã đóng gói, Đã giao shipper
-            statuses_to_check = ["PENDING", "CONFIRMED", "PACKING", "PACKED", "HANDED_OVER"] 
+            # Bao gồm: Chờ xử lý, Đã xử lý, Đã đóng gói, Đang giao
+            statuses_to_check = ["LOGISTICS_PENDING_ARRANGE", "LOGISTICS_REQUEST_CREATED", "LOGISTICS_PACKAGED", "SHIPPED"]
             for st in statuses_to_check:
                 res = requests.get(f"{self.api_get}?oms_status={st}&shop={shop_name}&limit=50")
                 if res.status_code == 200:
@@ -84,15 +84,15 @@ class ShopeeStatusCore:
                         
                         # Nhóm 1: Hủy ngang
                         if "đã hủy" in st_lower or "hủy bởi" in st_lower or shopee_status == "Hủy":
-                            new_oms = "CANCELLED_TRANSIT"
+                            new_oms = "CANCELLED"
                             order_type = "cancel"
                         # Nhóm 2: Giao thất bại
                         elif "không thành công" in st_lower or "thất bại" in st_lower:
-                            new_oms = "FAILED_DELIVERY"
+                            new_oms = "LOGISTICS_IN_RETURN"
                             order_type = "cancel"
                         # Nhóm 3: Trả hàng / Hoàn tiền
                         elif "trả hàng" in st_lower or "hoàn tiền" in st_lower:
-                            new_oms = "RETURN_REFUND"
+                            new_oms = "RETURN"
                             order_type = "return"
                         # Nhóm 4: Giao khách thành công (Chốt sổ)
                         elif "giao hàng thành công" in st_lower or "đã nhận được hàng" in st_lower or ("đã giao" in st_lower and "đơn vị vận chuyển" not in st_lower and "đvvc" not in st_lower):
@@ -100,11 +100,11 @@ class ShopeeStatusCore:
                             order_type = "normal"
                         # Nhóm 5: Đang giao / Đã đưa Shipper
                         elif "đang giao" in st_lower or "đã lấy hàng" in st_lower or "đến bưu cục" in st_lower or ("đã giao" in st_lower and ("đơn vị vận chuyển" in st_lower or "đvvc" in st_lower)):
-                            new_oms = "HANDED_OVER"
+                            new_oms = "SHIPPED"
                             order_type = "normal"
                         # Nhóm 6: Chờ lấy hàng
                         elif "chờ lấy hàng" in st_lower or "đang chuẩn bị" in st_lower:
-                            new_oms = "PENDING"
+                            new_oms = "LOGISTICS_PENDING_ARRANGE"
                             order_type = "normal"
                             
                         # 3.4 Báo cáo Server: GỬI khi đổi trạng thái HOẶC có thêm mã vận đơn mới!

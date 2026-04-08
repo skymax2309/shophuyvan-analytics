@@ -18,25 +18,25 @@ class ShopeeOrderParser:
             return 0.0
 
     def _map_oms_status(self, shopee_status):
-        """Ánh xạ trạng thái Shopee sang chuẩn hệ thống OMS"""
+        """Ánh xạ trạng thái Shopee sang chuẩn hệ thống OMS (Chuẩn ShipXanh)"""
         status_map = {
             # Từ khóa gốc của sàn
             "Hoàn thành": "COMPLETED",
-            "Đã hủy": "CANCELLED_TRANSIT",
-            "Trả hàng/Hoàn tiền": "RETURN_REFUND",
-            "Đang giao": "SHIPPING",
-            "Chờ xác nhận": "PENDING",
-            "Chờ lấy hàng": "TO_SHIP",
-            "Chưa xử lý": "PENDING",     # <--- Bổ sung dòng này
-            "Đã xử lý": "PROCESSED",
+            "Đã hủy": "CANCELLED",
+            "Trả hàng/Hoàn tiền": "RETURN",
+            "Đang giao": "SHIPPED",
+            "Chờ xác nhận": "LOGISTICS_PENDING_ARRANGE",
+            "Chờ lấy hàng": "SHIPPED",
+            "Chưa xử lý": "LOGISTICS_PENDING_ARRANGE",
+            "Đã xử lý": "LOGISTICS_REQUEST_CREATED",
             
             # Bổ sung map theo Tên Tab (Shopee Orders)
             "Đã giao": "COMPLETED",
-            "Đơn Hủy": "CANCELLED_TRANSIT",
-            "Trả hàng": "RETURN_REFUND",
-            "Hủy & Trả hàng": "RETURN_REFUND"  # <--- Bổ sung dòng này
+            "Đơn Hủy": "CANCELLED",
+            "Trả hàng": "RETURN",
+            "Hủy & Trả hàng": "RETURN"
         }
-        return status_map.get(shopee_status.strip(), "PENDING")
+        return status_map.get(shopee_status.strip(), "LOGISTICS_PENDING_ARRANGE")
 
     def parse_order_list(self, html_content, cached_ids=None):
         if cached_ids is None:

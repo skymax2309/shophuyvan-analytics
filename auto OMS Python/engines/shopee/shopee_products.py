@@ -11,8 +11,8 @@ class ShopeeProducts:
     def __init__(self, log_func, auth):
         self.log = log_func
         self.auth = auth
-        # Endpoint hứng log trên Cloudflare Worker (Quy tắc 14)
-        self.api_log_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/logs" 
+        # Endpoint hứng log trên Cloudflare Worker (Bổ sung Token)
+        self.api_log_url = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/logs?token=huyvan_secret_2026" 
 
     def log_and_send(self, message, is_error=False, shop_name="System"):
         """Gắn log chi tiết trên UI và tự động gửi lên server nếu là lỗi (Quy tắc 14 & 15)"""
@@ -29,13 +29,33 @@ class ShopeeProducts:
                     "error_message": full_msg,
                     "traceback": traceback.format_exc()
                 }).encode('utf-8')
-                req = urllib.request.Request(self.api_log_url, data=data,
-                    headers={'Content-Type': 'application/json'}, method='POST')
+                
+                # Bổ sung User-Agent để tránh bị Cloudflare chặn
+                headers = {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                }
+                req = urllib.request.Request(self.api_log_url, data=data, headers=headers, method='POST')
                 urllib.request.urlopen(req, timeout=10)
             except Exception as e:
                 self.log(f"⚠️ Không thể gửi log lên server: {str(e)}")
 
     async def tai_va_dong_bo_san_pham_excel(self, page, shop):
+        # 🌟 NGÃ BA THÔNG MINH: KIỂM TRA QUYỀN VIP TRƯỚC KHI QUYẾT ĐỊNH TẢI EXCEL
+        shop_name = shop.get('ten_shop', '')
+        token = self._get_api_token(shop_name)
+        if token:
+            shopee_id_map = { "chihuy2309": 166563639 }
+            shop_id = shopee_id_map.get(str(shop_name).strip().lower())
+            if shop_id:
+                self.log("-------------------------------------------------")
+                self.log(f"⚡ [SHOPEE VIP] Shop '{shop_name}' ĐÃ CÓ TOKEN API!")
+                self.log("🚀 Bỏ qua việc tải 3 file Excel chậm chạp, kích hoạt luồng Đồng bộ API SIÊU TỐC...")
+                return await self.sync_by_api(token, shop_id, shop_name)
+
+        # NẾU KHÔNG CÓ TOKEN API -> CHẠY LUỒNG TẢI EXCEL CŨ BẰNG CHROME
+        self.log("-------------------------------------------------")
+        self.log(f"🐌 [SHOPEE THƯỜNG] Shop chưa có Token API. Tiến hành tải file Excel...")
         try:
             self.log(f"🤖 Bắt đầu tự động tải file Excel cho shop: {shop['ten_shop']}")
             await page.goto("https://banhang.shopee.vn/portal/product-mass/mass-update/download", wait_until="commit")
@@ -116,22 +136,183 @@ class ShopeeProducts:
 
             self.log("🎉 Đã cào thành công 3 file từ Shopee. Bắt đầu ghép nối dữ liệu...")
             
-            # Gọi hàm xử lý và bắn lên Web từ file utils
-            from utils import process_and_sync_files
+            # Gọi hàm xử lý và bắn lên Web từ file utils (Đã xóa import thừa gây lỗi)
             process_and_sync_files(shop['ten_shop'], downloaded_paths, self.log)
             
         except Exception as e:
-            self.log_and_send(f"Lỗi khi tải file Excel sản phẩm", is_error=True, shop_name=shop['ten_shop'])
+            self.log_and_send(f"Lỗi khi tải file Excel sản phẩm: {e}", is_error=True, shop_name=shop['ten_shop'])
+
+    # ==========================================
+    # CÔNG CỤ API: LẤY TOKEN VÀ CHỮ KÝ SHOPEE
+    # ==========================================
+    def _get_api_token(self, shop_name):
+        import requests
+        try:
+            shopee_id_map = { "chihuy2309": 166563639 }
+            target = str(shop_name).strip().lower()
+            mapped_id = shopee_id_map.get(target, "")
+            res = requests.get("https://huyvan-worker-api.nghiemchihuy.workers.dev/api/shops/tokens", timeout=10)
+            if res.status_code == 200:
+                for shop in res.json():
+                    if shop.get('platform') == 'shopee':
+                        db_user = str(shop.get('user_name') or "").strip().lower()
+                        db_shop = str(shop.get('shop_name') or "").strip().lower()
+                        if target in [db_user, db_shop] or (mapped_id and str(mapped_id) in [db_user, db_shop]):
+                            token = shop.get('access_token')
+                            if token: return token
+        except: pass
+        return None
+
+    def _sign_shopee_api(self, path, access_token, shop_id):
+        import time, hmac, hashlib
+        partner_id = "2013730"
+        partner_key = "shpk66746e4845745341714d6b63656a5a6c7049524b7444486c4a686c4d4a4d"
+        timestamp = int(time.time())
+        base_string = f"{partner_id}{path}{timestamp}{access_token}{shop_id}"
+        sign = hmac.new(partner_key.encode('utf-8'), base_string.encode('utf-8'), hashlib.sha256).hexdigest()
+        return f"https://partner.shopeemobile.com{path}?partner_id={partner_id}&timestamp={timestamp}&access_token={access_token}&shop_id={shop_id}&sign={sign}"
 
     async def sync_shopee_products(self, danh_sach_shop, chosen_shop_name):
-        """
-        Đồng bộ sản phẩm Shopee — vào từng trang chi tiết để lấy:
-        - Tất cả hình ảnh sản phẩm
-        - Tên sản phẩm, mô tả
-        - Tên phân loại, hình ảnh phân loại, SKU phân loại, tồn kho, giá
-        Delay 5s/sản phẩm để an toàn.
-        """
-        import json, urllib.request
+        """Ngã ba Đồng bộ SP: Có Token -> Dùng API | Không Token -> Dùng Playwright"""
+        # 1. KIỂM TRA XEM CÓ THỂ CHẠY BẰNG API ĐƯỢC KHÔNG?
+        token = self._get_api_token(chosen_shop_name)
+        if token:
+            shopee_id_map = { "chihuy2309": 166563639 }
+            shop_id = shopee_id_map.get(str(chosen_shop_name).strip().lower())
+            if shop_id:
+                self.log("-------------------------------------------------")
+                self.log(f"⚡ [SHOPEE VIP] Shop '{chosen_shop_name}' ĐÃ CÓ TOKEN API!")
+                self.log("🚀 Kích hoạt luồng Đồng bộ Sản phẩm & TỒN KHO bằng API...")
+                return await self.sync_by_api(token, shop_id, chosen_shop_name)
+                
+        self.log("-------------------------------------------------")
+        self.log(f"🐌 [SHOPEE THƯỜNG] Chạy luồng Đồng bộ Sản phẩm bằng Chrome...")
+        return await self.sync_by_browser(danh_sach_shop, chosen_shop_name)
+    # ==========================================
+    # LUỒNG 1: QUÉT SẢN PHẨM & TỒN KHO BẰNG API
+    # ==========================================
+    async def sync_by_api(self, token, shop_id, shop_name):
+        import requests
+        self.log(f"📡 Đang tải danh sách ID Sản phẩm từ Shopee...")
+        
+        all_item_ids = []
+        offset = 0
+        
+        # 1. Lấy danh sách ID Sản phẩm
+        while True:
+            url_list = self._sign_shopee_api("/api/v2/product/get_item_list", token, shop_id)
+            res_list = requests.get(f"{url_list}&offset={offset}&page_size=50&item_status=NORMAL").json()
+            
+            items = res_list.get("response", {}).get("item", [])
+            for it in items: all_item_ids.append(str(it["item_id"]))
+            
+            if not res_list.get("response", {}).get("has_next_page"): break
+            offset += 50
+            
+        self.log(f"✅ Tìm thấy {len(all_item_ids)} sản phẩm. Đang chọc API lấy Chi tiết & Tồn kho...")
+        
+        all_products_data = []
+        
+        # 2. Xử lý từng cục 50 sản phẩm
+        for i in range(0, len(all_item_ids), 50):
+            chunk = all_item_ids[i:i+50]
+            chunk_str = ",".join(chunk)
+            
+            # API lấy Tên & Hình ảnh
+            url_base = self._sign_shopee_api("/api/v2/product/get_item_base_info", token, shop_id)
+            res_base = requests.get(f"{url_base}&item_id_list={chunk_str}").json()
+            base_items = res_base.get("response", {}).get("item_list", [])
+            
+            # API lấy Phân loại, Giá, Mã SKU và TỒN KHO
+            url_model = self._sign_shopee_api("/api/v2/product/get_model_list", token, shop_id)
+            res_model = requests.get(f"{url_model}&item_id_list={chunk_str}").json()
+            model_items = res_model.get("response", {}).get("tier_variation", [])
+            
+            # Ghép nối dữ liệu
+            for base in base_items:
+                item_id = str(base["item_id"])
+                product_name = base.get("item_name", "")
+                
+                # Giải mã Hash ảnh Shopee
+                images = []
+                for img_hash in base.get("image", {}).get("image_id_list", []):
+                    images.append(f"https://cf.shopee.vn/file/{img_hash}")
+                    
+                variations = []
+                
+                # Tìm data tồn kho của item này
+                matching_models = next((m for m in model_items if str(m["item_id"]) == item_id), None)
+                
+                if matching_models and matching_models.get("model"):
+                    # Có phân loại
+                    tier_names = matching_models.get("tier_variation", [])
+                    models = matching_models.get("model", [])
+                    
+                    for m in models:
+                        # Ghép tên phân loại (Ví dụ: Đỏ, Size L)
+                        var_name_parts = []
+                        for idx, tier_idx in enumerate(m.get("tier_index", [])):
+                            if idx < len(tier_names):
+                                opt_list = tier_names[idx].get("option_list", [])
+                                if tier_idx < len(opt_list):
+                                    var_name_parts.append(opt_list[tier_idx].get("option", ""))
+                        
+                        v_name = " - ".join(var_name_parts)
+                        sku = m.get("model_sku", "") or f"SP_{item_id}_{m['model_id']}"
+                        
+                        # 🌟 LẤY ĐƯỢC TỒN KHO CHÍNH XÁC 100% TỪ DATABASE SHOPEE
+                        stock_info = m.get("stock_info", [])
+                        stock = stock_info[0].get("normal_stock", 0) if stock_info else 0
+                        price = m.get("price_info", [{}])[0].get("current_price", 0)
+                        
+                        variations.append({
+                            "variation_name": v_name,
+                            "sku": sku,
+                            "price": price,
+                            "stock": stock,
+                            "variation_image": "" # API Model ko trả về ảnh var, lấy ảnh chính bù vào web sau
+                        })
+                else:
+                    # Sản phẩm mặc định (Không phân loại)
+                    sku = base.get("item_sku", "") or f"SP_{item_id}_macdinh"
+                    variations.append({
+                        "variation_name": "Mặc định",
+                        "sku": sku,
+                        "price": 0, # Giá SP ko phân loại ko quan trọng với OMS
+                        "stock": 999,
+                        "variation_image": ""
+                    })
+
+                all_products_data.append({
+                    "item_id": item_id,
+                    "product_name": product_name,
+                    "description": base.get("description", ""),
+                    "images": images,
+                    "variations": variations,
+                    "shop": shop_name,
+                    "platform": "shopee"
+                })
+                
+            self.log(f"   🔄 Đã bóc tách xong {len(all_products_data)}/{len(all_item_ids)} sản phẩm...")
+            await asyncio.sleep(0.5)
+
+        # 3. Gửi Lên Hub của Website
+        if all_products_data:
+            self.log(f"📤 Đang đẩy {len(all_products_data)} Sản phẩm & Tồn kho lên Website...")
+            import sys, os
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            try:
+                from engines.product_core_hub import ProductCoreHub
+                hub = ProductCoreHub(self.log)
+                hub.sync_products(shop_name, "shopee", all_products_data)
+                self.log(f"🎉 HOÀN TẤT ĐỒNG BỘ SẢN PHẨM & TỒN KHO BẰNG API!")
+            except Exception as e:
+                self.log(f"❌ Lỗi đẩy Hub: {e}")
+
+    # ==========================================
+    # LUỒNG 2: ĐỒNG BỘ BẰNG TRÌNH DUYỆT (CHROME)
+    # ==========================================
+    async def sync_by_browser(self, danh_sach_shop, chosen_shop_name):
 
         chosen = chosen_shop_name
         shops_to_run = [s for s in danh_sach_shop
