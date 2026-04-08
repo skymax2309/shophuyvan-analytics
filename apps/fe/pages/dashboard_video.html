@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KHO VIDEO TRÊN MÂY - OMS</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; text-align: center; }
+        h2 { color: #00CED1; background: #1a1a1a; padding: 15px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .search-box { margin: 20px auto; max-width: 600px; display: flex; gap: 10px; }
+        input { flex: 1; padding: 15px; font-size: 18px; border: 2px solid #ccc; border-radius: 8px; outline: none; transition: border 0.3s; }
+        input:focus { border-color: #00CED1; }
+        button { padding: 15px 25px; font-size: 18px; background: #00CED1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #00a8a8; }
+        .grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-top: 30px; }
+        .card { background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px; text-align: left; }
+        .order-id { font-size: 20px; font-weight: bold; color: #333; margin-bottom: 5px; }
+        .time { font-size: 14px; color: #888; margin-bottom: 15px; }
+        .status { display: inline-block; padding: 5px 10px; background: #e0ffe0; color: #00aa00; font-size: 12px; font-weight: bold; border-radius: 4px; margin-bottom: 10px; }
+        video { width: 100%; border-radius: 8px; background: #000; outline: none; }
+    </style>
+</head>
+<body>
+
+    <h2>☁️ KHO CHỨA VIDEO ĐÓNG GÓI - CLOUDFLARE R2</h2>
+    
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Tít mã vạch hoặc gõ mã vận đơn vào đây..." onkeyup="if(event.key === 'Enter') fetchVideos()">
+        <button onclick="fetchVideos()">Tìm Kiếm</button>
+    </div>
+
+    <div class="grid" id="videoGrid">
+        <p style="color: #666; font-size: 18px;">Đang tải dữ liệu từ Đám mây...</p>
+    </div>
+
+    <script>
+        const API_BASE = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api";
+
+        async function fetchVideos() {
+            const searchObj = document.getElementById("searchInput").value.trim();
+            const grid = document.getElementById("videoGrid");
+            grid.innerHTML = "<p style='color: #666; font-size: 18px;'>⏳ Đang chọc vào D1 và R2...</p>";
+
+            try {
+                // Gọi API lấy danh sách Sổ tay từ D1
+                const response = await fetch(`${API_BASE}/cctv/videos?search=${searchObj}`);
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    grid.innerHTML = `<p style='color: red; font-size: 18px;'>❌ Không tìm thấy video nào cho đơn "${searchObj}"</p>`;
+                    return;
+                }
+
+                grid.innerHTML = "";
+                data.forEach(item => {
+                    // Lấy link video trực tiếp từ API đọc file của bạn
+                    const videoLink = `${API_BASE}/file/${encodeURIComponent(item.video_url)}`;
+                    const timeString = new Date(item.created_at).toLocaleString('vi-VN');
+
+                    const card = `
+                        <div class="card">
+                            <div class="status">✔ ĐÃ ĐÓNG GÓI (PACKED)</div>
+                            <div class="order-id">Mã: ${item.order_id}</div>
+                            <div class="time">🕒 Quét lúc: ${timeString}</div>
+                            <video controls preload="none">
+                                <source src="${videoLink}" type="video/mp4">
+                                Trình duyệt không hỗ trợ video.
+                            </video>
+                            <a href="${videoLink}" download="HuyVan_${item.order_id}.mp4" style="display: block; margin-top: 10px; text-align: center; text-decoration: none; color: #007bff; font-weight: bold;">📥 Tải Video gửi Sàn</a>
+                        </div>
+                    `;
+                    grid.innerHTML += card;
+                });
+            } catch (error) {
+                grid.innerHTML = `<p style='color: red;'>Lỗi kết nối mạng: ${error.message}</p>`;
+            }
+        }
+
+        // Tự động tải 50 video mới nhất khi vừa mở trang
+        fetchVideos();
+    </script>
+</body>
+</html>

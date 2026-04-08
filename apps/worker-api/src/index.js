@@ -536,6 +536,8 @@ export default {
         let cType = "image/jpeg"
         if (fileName.toLowerCase().endsWith(".png")) cType = "image/png"
         if (fileName.toLowerCase().endsWith(".webp")) cType = "image/webp"
+        if (fileName.toLowerCase().endsWith(".webm")) cType = "video/webm"
+        if (fileName.toLowerCase().endsWith(".mp4")) cType = "video/mp4"
 
         const headers = {
           ...cors,
@@ -545,34 +547,64 @@ export default {
         return new Response(object.body, { headers })
       }
 	  
-// ── API MỚI: TRẠM ĐÓNG GÓI ZERO-TOUCH (CLOUDFLARE TUNNEL) ──────────
-      if (url.pathname === "/api/cctv-config") {
-        
-        
+// ── API MỚI: TRẠM MẮT THẦN LÊN MÂY (R2 + D1) ──────────
+      // 1. Nhận Video chuẩn MP4 từ PC và lưu vào R2
+      if (url.pathname === "/api/cctv/upload" && request.method === "POST") {
+        try {
+          const formData = await request.formData();
+          const orderId = formData.get("order_id");
+          const videoFile = formData.get("video");
 
-        if (request.method === "POST") {
-          // Bot Python báo cáo tọa độ lên
-          const body = await request.json();
-          // Hỗ trợ cả 2 biến ngrok_url và url để tương thích ngược
-          const tunnelUrl = body.ngrok_url || body.url; 
+          if (!orderId || !videoFile) {
+            return Response.json({ error: "Missing data" }, { status: 400, headers: cors });
+          }
+
+          // Trích xuất đuôi file chuẩn do PC gửi lên (MP4)
+          const originalName = videoFile.name || "video.mp4";
+          const ext = originalName.split('.').pop();
           
-          if (!tunnelUrl) return Response.json({ error: "Missing url" }, { status: 400, headers: cors });
-          
-          // Lưu tọa độ vào DB
+          const timestamp = Date.now();
+          const fileName = `packing_videos/${orderId}_${timestamp}.${ext}`;
+          const videoBuffer = await videoFile.arrayBuffer();
+
+          // Lưu vào Kho R2
+          await env.STORAGE.put(fileName, videoBuffer);
+
+          // Ghi sổ Video D1
           await env.DB.prepare(`
-            INSERT INTO app_config (key, value) 
-            VALUES ('cctv_url', ?) 
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value
-          `).bind(tunnelUrl).run();
-          
-          return Response.json({ status: "ok" }, { headers: cors });
-        }
+            INSERT INTO packing_videos (order_id, video_url) 
+            VALUES (?, ?)
+          `).bind(orderId, fileName).run();
 
-        if (request.method === "GET") {
-          // iPad xin tọa độ
-          const config = await env.DB.prepare("SELECT value FROM app_config WHERE key = 'cctv_url'").first();
-          // Trả về biến 'url' chuẩn để file HTML của iPad đọc được
-          return Response.json({ url: config?.value || null }, { headers: cors });
+          // [QUAN TRỌNG]: Tự động chuyển trạng thái đơn hàng thành "ĐÃ ĐÓNG GÓI" (PACKED)
+          await env.DB.prepare(`
+            UPDATE orders_v2 
+            SET oms_status = 'PACKED', oms_updated_at = datetime('now', '+7 hours') 
+            WHERE order_id = ? AND oms_status = 'PENDING'
+          `).bind(orderId).run();
+
+          return Response.json({ status: "ok", fileName }, { headers: cors });
+        } catch (err) {
+          return Response.json({ error: err.message }, { status: 500, headers: cors });
+        }
+      }
+
+      // 2. Tra cứu Video theo Mã Vận Đơn
+      if (url.pathname === "/api/cctv/videos" && request.method === "GET") {
+        try {
+          const search = url.searchParams.get("search") || "";
+          let query = "SELECT * FROM packing_videos ORDER BY created_at DESC LIMIT 50";
+          let params = [];
+
+          if (search) {
+            query = "SELECT * FROM packing_videos WHERE order_id LIKE ? ORDER BY created_at DESC LIMIT 50";
+            params = [`%${search}%`];
+          }
+
+          const { results } = await env.DB.prepare(query).bind(...params).all();
+          return Response.json(results, { headers: cors });
+        } catch (err) {
+          return Response.json({ error: err.message }, { status: 500, headers: cors });
         }
       }
       return new Response("Not found", { status: 404, headers: cors })

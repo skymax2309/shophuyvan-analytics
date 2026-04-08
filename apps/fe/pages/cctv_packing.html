@@ -48,6 +48,7 @@
     <div class="status-box" id="status-container">
         <div id="current-order" class="order-id">ĐANG DÒ TÌM PC...</div>
         <div class="record-indicator" id="record-status">🔴 <span class="blink">ĐANG GHI HÌNH...</span></div>
+        <button id="btn-stop-packing" onclick="manualStop()" style="display: none; margin-top: 15px; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(255,71,87,0.3);">🛑 KẾT THÚC ĐÓNG GÓI</button>
     </div>
     <div class="log-box" id="dev-log">[*] Khởi động trạm...<br></div>
 
@@ -101,7 +102,23 @@ let cameraStream = null;
                 gain.gain.setValueAtTime(0.1, audioCtx.currentTime); 
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.15); 
-            } catch (err) { devLog("⚠️ Không phát được âm thanh"); }
+       } catch (err) { devLog("⚠️ Không phát được âm thanh"); }
+        }
+
+        // --- HÀM BẤM NÚT DỪNG KHẨN CẤP ---
+        function manualStop() {
+            playBeep();
+            devLog("🛑 Bấm nút: Đã ra lệnh Dừng Đóng Gói!");
+            
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop(); // Ép lưu nốt đoạn video hiện tại
+            }
+            
+            currentOrderId = "STOP_PACKING";
+            document.getElementById('current-order').innerText = "ĐÃ DỪNG GHI HÌNH";
+            document.getElementById('status-container').className = "status-box";
+            document.getElementById('record-status').style.display = "none";
+            document.getElementById('btn-stop-packing').style.display = "none";
         }
 
         function devLog(msg) {
@@ -186,21 +203,22 @@ function initRecordingStream() {
             currentOrderId = decodedText;
             document.getElementById('current-order').innerText = currentOrderId;
             
-            // 3. NẾU LÀ LỆNH DỪNG ĐÓNG GÓI -> Tắt giao diện quay và nghỉ
+// 3. NẾU LÀ LỆNH DỪNG ĐÓNG GÓI -> Tắt giao diện quay và nghỉ
             if (decodedText === "STOP_PACKING") {
                 document.getElementById('status-container').className = "status-box";
                 document.getElementById('record-status').style.display = "none";
+                document.getElementById('btn-stop-packing').style.display = "none"; // Ẩn nút
                 return;
             }
             
             // 4. NẾU LÀ ĐƠN MỚI -> Đợi 500ms cho băng hình cũ lưu xong rồi bấm máy quay đơn mới
             setTimeout(() => {
                 if (mediaRecorder && mediaRecorder.state === "inactive") {
-                    // Gắn mác tên đơn hàng MỚI vào thẳng máy quay để lúc Stop không bị nhầm
                     mediaRecorder.customOrderId = currentOrderId; 
                     mediaRecorder.start();
                     document.getElementById('status-container').className = "status-box recording";
                     document.getElementById('record-status').style.display = "block";
+                    document.getElementById('btn-stop-packing').style.display = "block"; // Hiện nút
                 }
             }, 500);
         }
