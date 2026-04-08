@@ -24,12 +24,31 @@ const LAZADA = {
 export async function handleAuth(request, env, url) {
   console.log(`[AUTH-LOG] Đang xử lý route: ${url.pathname}`);
 
-  // 1. Tạo Link Ủy Quyền Shopee
+  // 1. Tạo Link Ủy Quyền Shopee (Đã bọc thép & Gắn Log)
   if (url.pathname === "/api/auth/shopee/url") {
     const path = "/api/v2/shop/auth_partner";
     const ts = Math.floor(Date.now() / 1000);
-    const sign = await signHMAC(SHOPEE.KEY, `${SHOPEE.PID}${path}${ts}`);
-    return Response.redirect(`https://partner.shopeemobile.com${path}?partner_id=${SHOPEE.PID}&timestamp=${ts}&sign=${sign}&redirect=${encodeURIComponent(SHOPEE.REDIRECT)}`, 302);
+    
+    // Ép kiểu chuẩn để không bị dính dấu cách ẩn
+    const cleanPID = String(SHOPEE.PID).trim();
+    const cleanKey = String(SHOPEE.KEY).trim();
+    const baseString = `${cleanPID}${path}${ts}`;
+    
+    console.log(`[SHOPEE-DEBUG] --- BẮT ĐẦU TẠO LINK ---`);
+    console.log(`[SHOPEE-DEBUG] Partner ID: '${cleanPID}'`);
+    console.log(`[SHOPEE-DEBUG] Secret Key (6 ký tự cuối): '${cleanKey.slice(-6)}'`);
+    console.log(`[SHOPEE-DEBUG] Chuỗi BaseString đem băm: '${baseString}'`);
+    
+    const sign = await signHMAC(cleanKey, baseString);
+    console.log(`[SHOPEE-DEBUG] Chữ ký tạo ra: '${sign}'`);
+
+    // [CHÚ Ý MÔI TRƯỜNG]: Đổi thành 'partner.test-stable.shopeemobile.com' nếu App chưa duyệt Live
+    const host = "partner.shopeemobile.com"; 
+    
+    const redirectUrl = `https://${host}${path}?partner_id=${cleanPID}&timestamp=${ts}&sign=${sign}&redirect=${encodeURIComponent(SHOPEE.REDIRECT)}`;
+    console.log(`[SHOPEE-DEBUG] Link bắn sang Shopee: ${redirectUrl}`);
+    
+    return Response.redirect(redirectUrl, 302);
   }
 
   // 2. Tạo Link Ủy Quyền Lazada
@@ -37,7 +56,7 @@ export async function handleAuth(request, env, url) {
     return Response.redirect(`https://auth.lazada.com/oauth/authorize?response_type=code&force_auth=true&redirect_uri=${encodeURIComponent(LAZADA.REDIRECT)}&client_id=${LAZADA.APP_KEY}`, 302);
   }
 
-  // 3. Callback Shopee: Đúc Token & Lưu Database
+// 3. Callback Shopee: Đúc Token & Lưu Database
   if (url.pathname === "/channels/shopee/callback") {
     const code = url.searchParams.get("code");
     const shop_id = url.searchParams.get("shop_id");
@@ -45,9 +64,17 @@ export async function handleAuth(request, env, url) {
 
     const path = "/api/v2/auth/token/get";
     const ts = Math.floor(Date.now() / 1000);
-    const sign = await signHMAC(SHOPEE.KEY, `${SHOPEE.PID}${path}${ts}`);
+    const cleanPID = String(SHOPEE.PID).trim();
+    const cleanKey = String(SHOPEE.KEY).trim();
+    
+    const baseString = `${cleanPID}${path}${ts}`;
+    const sign = await signHMAC(cleanKey, baseString);
+    
+    console.log(`[SHOPEE-DEBUG-STEP2] BaseString: '${baseString}' | Sign: '${sign}'`);
 
-    const res = await fetch(`https://partner.shopeemobile.com${path}?partner_id=${SHOPEE.PID}&timestamp=${ts}&sign=${sign}`, {
+    const host = "partner.shopeemobile.com"; // Đổi thành partner.test-stable.shopeemobile.com nếu App Test
+
+    const res = await fetch(`https://${host}${path}?partner_id=${cleanPID}&timestamp=${ts}&sign=${sign}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, shop_id: parseInt(shop_id), partner_id: SHOPEE.PID })
     });
