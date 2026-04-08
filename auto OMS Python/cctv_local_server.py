@@ -73,7 +73,8 @@ def start_tunnel_and_report():
     log_file = "tunnel.log"
     if os.path.exists(log_file): os.remove(log_file)
     
-    cmd = f'cloudflared.exe tunnel --url http://localhost:5000'
+    # [NÉ ĐỤNG HÀNG] Chuyển nhà sang cổng 5055
+    cmd = f'cloudflared.exe tunnel --url http://localhost:5055'
     with open(log_file, "wb") as f:
         subprocess.Popen(cmd, stdout=f, stderr=f, shell=True)
 
@@ -165,4 +166,4 @@ if __name__ == '__main__':
     setup_ffmpeg()
     setup_cloudflared()
     threading.Thread(target=start_tunnel_and_report, daemon=True).start()
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    app.run(host='0.0.0.0', port=5055, threaded=True)

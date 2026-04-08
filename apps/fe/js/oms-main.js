@@ -220,20 +220,19 @@ export async function printBatchLabels() {
 // Mở lại cổng xuất khẩu cho các file HTML gọi đến
 export { fmt, fmtDate, showToast, copyText, closeModal };
 
-// [CORE LOGIC] CHUYỂN ĐỔI TAB 2 TẦNG (SUB-MENU TRONG SIDEBAR)
+// [CORE LOGIC] CHUYỂN ĐỔI TAB 2 TẦNG (TÍCH HỢP ĐỒNG BỘ DESKTOP & MOBILE)
 window.switchMainTab = function(mainStatus) {
     console.log(`[OMS LOG] 👆 Chuyển Tab Tầng 1: ${mainStatus}`);
     currentStatus = mainStatus;
 
-    // 1. Dọn dẹp: Xóa các menu con cũ đang mở
+    // Dọn dẹp Menu Cây trên Desktop
     document.querySelectorAll('.sidebar-sub-menu').forEach(el => el.remove());
 
-    // 2. Cập nhật UI Tab Tầng 1
+    // Cập nhật UI Tab Tầng 1
     document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
     const activeTab = document.getElementById('tab-' + mainStatus);
     if(activeTab) activeTab.classList.add('active');
 
-    // 3. Cấu hình Tab con
     const subConfig = {
         'PENDING': [
             { id: 'LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' },
@@ -249,29 +248,43 @@ window.switchMainTab = function(mainStatus) {
         ]
     };
 
-    // 4. Nếu Tab cha có Tab con -> Tạo và chèn ngay bên dưới Tab cha
-    if (subConfig[mainStatus] && activeTab) {
-        const subMenu = document.createElement('div');
-        subMenu.className = 'sidebar-sub-menu';
-        subMenu.innerHTML = subConfig[mainStatus].map((s, index) => 
-            `<div class="sub-tab ${index===0?'active':''}" onclick="switchSubTab('${s.id}', this)">
-                <span class="sub-tab-dot"></span>${s.label}
-             </div>`
-        ).join('');
-        
-        // Chèn vào HTML ngay sau Tab Cha
-        activeTab.insertAdjacentElement('afterend', subMenu);
+    const subBar = document.getElementById('sub-tabs-bar'); // Vùng chứa Tầng 2 trên Mobile
+
+    if (subConfig[mainStatus]) {
+        // 1. Sinh Tầng 2 dạng "Thò Thụt" cho Máy tính
+        if (activeTab) {
+            const subMenu = document.createElement('div');
+            subMenu.className = 'sidebar-sub-menu';
+            subMenu.innerHTML = subConfig[mainStatus].map((s, index) => 
+                `<div class="sub-tab ${index===0?'active':''}" data-sub="${s.id}" onclick="switchSubTab('${s.id}')">
+                    <span class="sub-tab-dot"></span>${s.label}
+                 </div>`
+            ).join('');
+            activeTab.insertAdjacentElement('afterend', subMenu);
+        }
+
+        // 2. Sinh Tầng 2 dạng "Thanh Vuốt Ngang" cho Điện thoại
+        if (subBar) {
+            subBar.style.display = 'flex';
+            subBar.innerHTML = subConfig[mainStatus].map((s, index) => 
+                `<div class="sub-tab ${index===0?'active':''}" data-sub="${s.id}" onclick="switchSubTab('${s.id}')">${s.label}</div>`
+            ).join('');
+        }
+
         currentStatus = subConfig[mainStatus][0].id;
+    } else {
+        if (subBar) subBar.style.display = 'none';
     }
 
     loadOrders(1);
 };
 
-window.switchSubTab = function(subStatus, el) {
+window.switchSubTab = function(subStatus) {
     console.log(`[OMS LOG] 👆 Chọn Tab con: ${subStatus}`);
     currentStatus = subStatus;
+    // Đồng bộ highlight cho cả Desktop và Mobile cùng lúc
     document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
+    document.querySelectorAll(`.sub-tab[data-sub="${subStatus}"]`).forEach(t => t.classList.add('active'));
     loadOrders(1);
 };
 

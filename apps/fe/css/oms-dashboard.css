@@ -513,58 +513,53 @@
 .sub-tab-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0;}
 
 /* =========================================
-   TỐI ƯU GIAO DIỆN MOBILE (CHUẨN SHIPXANH & DARK THEME)
+   TỐI ƯU GIAO DIỆN MOBILE 3 TẦNG (CHUẨN SHIPXANH)
    ========================================= */
+/* Mặc định Máy tính: Giấu Tầng 2 ngang đi */
+.sub-tabs-container { display: none !important; }
+
 @media (max-width: 768px) {
   .layout { flex-direction: column; height: auto; }
   
-  /* SIDEBAR MOBILE - TẦNG 1 & 2 (Cuộn ngang - Đã xóa nền trắng) */
+  /* Mặc định Điện thoại: Giấu Menu Cây thò thụt đi */
+  .sidebar-sub-menu { display: none !important; }
+  
+  /* ── TẦNG 1: SIDEBAR MAIN TABS ── */
   .sidebar { 
     width: 100%; display: flex; flex-direction: row; align-items: center;
-    overflow-x: auto; white-space: nowrap; padding: 8px 10px; border-right: none; 
-    border-bottom: 1px solid var(--border); 
-    background: var(--surface); /* TRẢ LẠI MÀU NỀN TỐI CHUẨN */
+    overflow-x: auto; white-space: nowrap; padding: 10px 10px 5px 10px; 
+    border-right: none; border-bottom: none; 
+    background: var(--surface);
     scrollbar-width: none; position: sticky; top: 0; z-index: 10;
   }
   .sidebar::-webkit-scrollbar { display: none; }
-  
   .sidebar-label { display: none; } 
   .status-tab { margin-right: 8px; margin-bottom: 0; padding: 8px 12px; flex-shrink: 0; border: 1px solid var(--border); }
   .status-tab.active { border-color: var(--accent); background: rgba(59,130,246,.12); }
   
-  /* Bẻ ngang Menu con nối tiếp vào Tab cha trên Mobile */
-  .sidebar-sub-menu { 
-    flex-direction: row !important; 
-    margin: 0 8px 0 0; padding-left: 8px; 
-    border-left: 2px solid var(--border); gap: 6px; 
+  /* ── TẦNG 2: SUB-TABS CHI TIẾT ── */
+  .sub-tabs-container {
+    display: flex !important;
+    overflow-x: auto; white-space: nowrap;
+    background: var(--bg); padding: 8px 12px 10px 12px; 
+    border-bottom: 1px solid var(--border);
+    gap: 8px; scrollbar-width: none; width: 100%; flex-shrink: 0;
   }
-  .sub-tab { padding: 6px 12px; flex-shrink: 0; white-space: nowrap; }
+  .sub-tabs-container::-webkit-scrollbar { display: none; }
+  .sub-tabs-container .sub-tab { padding: 6px 14px; border-radius: 20px; font-size: 12px; border-color: transparent; }
+  .sub-tabs-container .sub-tab.active { border-color: var(--accent); }
 
-  /* ── THANH CÔNG CỤ (NÚT BẤM) CHUẨN SHIPXANH ── */
+  /* ── TẦNG 3: TOOLBAR (NÚT BẤM) ── */
   .toolbar { 
-    padding: 10px;
-    overflow-x: auto; 
-    white-space: nowrap;
-    scrollbar-width: none; /* Ẩn thanh cuộn trên Firefox */
+    padding: 10px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; 
   }
-  .toolbar::-webkit-scrollbar { display: none; } /* Ẩn thanh cuộn trên Chrome/Safari */
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar-actions { display: flex !important; flex-wrap: nowrap !important; gap: 8px; width: max-content; }
+  .toolbar-actions .btn { flex-shrink: 0; padding: 8px 14px; border-radius: 6px; }
+  .toolbar .divider { display: none; }
   
-  .toolbar-actions { 
-    display: flex !important; 
-    flex-wrap: nowrap !important; /* Ép tuyệt đối các nút nằm trên 1 hàng ngang */
-    gap: 8px; 
-    width: max-content; /* Giãn khung vô hạn để có không gian vuốt */
-  }
-  
-  .toolbar-actions .btn { 
-    flex-shrink: 0; /* Không cho phép bóp méo nút khi màn hình hẹp */
-    padding: 8px 14px; 
-    border-radius: 6px; /* Bo góc nhẹ chuẩn App */
-  }
-  
-  .toolbar .divider { display: none; } /* Ẩn các vạch gạch dọc cho gọn màn hình */
+  /* Bẻ khung bộ lọc */
   .filterbar { flex-wrap: wrap; }
   .filter-input, .filter-select { flex: 1 1 40%; margin-bottom: 5px; }
-  
   .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
