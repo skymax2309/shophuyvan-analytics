@@ -220,18 +220,20 @@ export async function printBatchLabels() {
 // Mở lại cổng xuất khẩu cho các file HTML gọi đến
 export { fmt, fmtDate, showToast, copyText, closeModal };
 
-// [CORE LOGIC] CHUYỂN ĐỔI TAB 2 TẦNG CHUẨN SHIPXANH
+// [CORE LOGIC] CHUYỂN ĐỔI TAB 2 TẦNG (SUB-MENU TRONG SIDEBAR)
 window.switchMainTab = function(mainStatus) {
     console.log(`[OMS LOG] 👆 Chuyển Tab Tầng 1: ${mainStatus}`);
     currentStatus = mainStatus;
-    
-    // Cập nhật UI Tab Tầng 1
-    document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
-    document.getElementById('tab-' + mainStatus).classList.add('active');
 
-    const subBar = document.getElementById('sub-tabs-bar');
-    
-    // Cấu hình Sub-Tabs theo Logic ShipXanh
+    // 1. Dọn dẹp: Xóa các menu con cũ đang mở
+    document.querySelectorAll('.sidebar-sub-menu').forEach(el => el.remove());
+
+    // 2. Cập nhật UI Tab Tầng 1
+    document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+    const activeTab = document.getElementById('tab-' + mainStatus);
+    if(activeTab) activeTab.classList.add('active');
+
+    // 3. Cấu hình Tab con
     const subConfig = {
         'PENDING': [
             { id: 'LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' },
@@ -247,22 +249,26 @@ window.switchMainTab = function(mainStatus) {
         ]
     };
 
-    if (subConfig[mainStatus]) {
-        subBar.style.display = 'flex';
-        subBar.innerHTML = subConfig[mainStatus].map((s, index) => 
-            `<div class="sub-tab ${index===0?'active':''}" onclick="switchSubTab('${s.id}', this)">${s.label}</div>`
+    // 4. Nếu Tab cha có Tab con -> Tạo và chèn ngay bên dưới Tab cha
+    if (subConfig[mainStatus] && activeTab) {
+        const subMenu = document.createElement('div');
+        subMenu.className = 'sidebar-sub-menu';
+        subMenu.innerHTML = subConfig[mainStatus].map((s, index) => 
+            `<div class="sub-tab ${index===0?'active':''}" onclick="switchSubTab('${s.id}', this)">
+                <span class="sub-tab-dot"></span>${s.label}
+             </div>`
         ).join('');
-        // Mặc định chọn sub-tab đầu tiên
+        
+        // Chèn vào HTML ngay sau Tab Cha
+        activeTab.insertAdjacentElement('afterend', subMenu);
         currentStatus = subConfig[mainStatus][0].id;
-    } else {
-        subBar.style.display = 'none';
     }
 
     loadOrders(1);
 };
 
 window.switchSubTab = function(subStatus, el) {
-    console.log(`[OMS LOG] 👆 Chuyển Tab Tầng 2: ${subStatus}`);
+    console.log(`[OMS LOG] 👆 Chọn Tab con: ${subStatus}`);
     currentStatus = subStatus;
     document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');

@@ -110,11 +110,17 @@ def log_it(msg):
 
 @app.route('/upload-video', methods=['POST', 'OPTIONS'])
 def receive_video():
+    # [RA ĐA TẦM XA]: Ghi nhận bất kỳ thứ gì va chạm vào PC
+    log_it(f"\n📡 [RA ĐA] Có tín hiệu gõ cửa từ Đám mây! (Method: {request.method})")
+    
     if request.method == 'OPTIONS':
         return jsonify({"status": "ok"}), 200
         
     order_id = request.form.get('order_id')
     video_file = request.files.get('video')
+    
+    log_it(f"   -> Mã đơn PC nhặt được: {order_id}")
+    log_it(f"   -> Băng hình PC nhặt được: {'CÓ' if video_file else 'TRỐNG RỖNG'}")
     
     if order_id and video_file:
         raw_path = os.path.join(TEMP_DIR, f"{order_id}_raw.webm")

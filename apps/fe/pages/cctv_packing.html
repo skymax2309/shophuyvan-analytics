@@ -127,10 +127,11 @@ let cameraStream = null;
             logBox.scrollTop = logBox.scrollHeight;
         }
 
-        async function fetchServerCoordinates() {
+         async function fetchServerCoordinates() {
             try {
                 devLog("⏳ Đang lấy tọa độ từ Cloudflare...");
-                const res = await fetch(`${API_BASE_URL}/cctv-config`);
+                // [BỌC THÉP]: Ép Safari không được dùng bộ nhớ đệm (Cache) bằng cách nối đuôi mốc thời gian
+                const res = await fetch(`${API_BASE_URL}/cctv-config?t=` + new Date().getTime());
                 const data = await res.json();
                 if (data.url) {
                     // Cắt bỏ dấu gạch chéo dư thừa ở cuối URL nếu có
