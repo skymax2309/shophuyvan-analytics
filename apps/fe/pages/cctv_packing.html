@@ -133,11 +133,11 @@ let cameraStream = null;
          async function fetchServerCoordinates() {
             try {
                 devLog("⏳ Đang lấy tọa độ từ Cloudflare...");
-                // [BỌC THÉP]: Ép Safari không được dùng bộ nhớ đệm (Cache) bằng cách nối đuôi mốc thời gian
+                // [BỌC THÉP]: Ép Safari không được dùng bộ nhớ đệm (Cache)
                 const res = await fetch(`${API_BASE_URL}/cctv-config?t=` + new Date().getTime());
                 const data = await res.json();
+                
                 if (data.url) {
-                    // Cắt bỏ dấu gạch chéo dư thừa ở cuối URL nếu có
                     const cleanUrl = data.url.replace(/\/$/, "");
                     PYTHON_SERVER_URL = `${cleanUrl}/upload-video`;
                     devLog(`✅ Đã thông hầm: ${cleanUrl}`);
@@ -162,11 +162,6 @@ let cameraStream = null;
             document.getElementById('btn-unlock-cloudflare').style.display = "none";
             document.getElementById('current-order').innerText = "SẴN SÀNG QUÉT MÃ";
             devLog("🔓 Đã xác nhận. Hãy quay lại tab này và quét mã!");
-        }
-                } else {
-                    devLog("❌ PC chưa báo cáo tọa độ!");
-                }
-            } catch (err) { devLog("❌ Lỗi kết nối Đám mây Cloudflare!"); }
         }
 
 function initRecordingStream() {
