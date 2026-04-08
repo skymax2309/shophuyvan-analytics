@@ -35,7 +35,7 @@
         <div class="responsive-actions" style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
             <div style="display:flex; gap:6px;">
                 <button class="btn-view" onclick="openProductDetail('{{sku}}'); event.stopPropagation();" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; width:100%;">👁️ Xem</button>
-                <button class="btn-edit" onclick="editParentSku('{{safe_sku}}'); event.stopPropagation();" style="padding:6px 12px; background:#fefce8; color:#ca8a04; border:1px solid #fde68a; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; width:100%;">✏️ Sửa Tên/Ảnh</button>
+                <button class="btn-edit" onclick="document.getElementById('p-name-{{sku}}').focus();" style="padding:6px 12px; background:#fefce8; color:#ca8a04; border:1px solid #fde68a; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; width:100%;">✏️ Sửa </button>
             </div>
         </div>
     </div>
@@ -59,13 +59,17 @@
         </div>
         <img src="{{c_img_url}}" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0;">
         <div class="responsive-info" style="flex:1; min-width:150px;">
-            <div style="font-size:13px; font-weight:600; color:#334155;">↳ {{c_name}}</div>
+            <div style="font-size:11px; color:#94a3b8; font-weight:700;">TÊN PHÂN LOẠI:</div>
+<input type="text" value="{{c_name}}" class="inline-child-name" data-sku="{{c_sku}}"
+       style="width:100%; border:1px solid transparent; background:transparent; font-size:13px; font-weight:600; color:#334155; outline:none;"
+       onfocus="this.style.borderBottom='1px solid #3b82f6'">
             <div style="font-size:11px; color:#94a3b8; font-family:monospace; margin-top:2px;">Mã: {{c_sku}}</div>
             {{c_mapped_badge}}
         </div>
         <div class="responsive-cost" style="text-align:center; min-width:80px;">
             <div style="font-size:10px; color:#94a3b8; font-weight:600; text-transform:uppercase;">Giá vốn</div>
-            <div style="font-size:14px; font-weight:700; color:#7c3aed;">{{c_cost}}</div>
+            <input type="number" value="{{c_raw_real}}" class="inline-child-cost" data-sku="{{c_sku}}"
+       style="width:80px; border:1px solid #e2e8f0; border-radius:4px; text-align:center; font-size:14px; font-weight:700; color:#7c3aed; outline:none;">
         </div>
 <div class="responsive-stock-inline" style="display:flex; gap:4px; text-align:center;">
     <div style="background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:4px 8px;">
@@ -83,7 +87,7 @@
 </div>
         <div class="responsive-actions-child" style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-start; min-width:100%;">
             <button class="btn-map" onclick="openQuickMapModal('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">🔗 Map</button>
-            <button class="btn-edit" data-sku="{{c_sku}}" data-name="{{c_enc_name}}" data-cinv="{{c_raw_inv}}" data-creal="{{c_raw_real}}" data-stock="{{c_raw_stock}}" data-img="{{c_img}}" onclick="editSkuFromBtn(this); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#fefce8; color:#ca8a04; border:1px solid #fde68a; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">✏️ Sửa</button>
+            <button class="btn-edit" onclick="this.closest('.child-row').querySelector('.inline-child-name').focus();" style="flex:1; padding:6px 10px; background:#fefce8; color:#ca8a04; border:1px solid #fde68a; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">✏️ Sửa</button>
             <button class="btn-combo" onclick="makeCombo('{{c_sku}}', false); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#fdf4ff; color:#9333ea; border:1px solid #e9d5ff; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">📦 Ghép</button>
             <button class="btn-copy" onclick="duplicateSku('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">📑 Sao</button>
             <button class="btn-delete" onclick="deleteSku('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">🗑️ Xóa</button>

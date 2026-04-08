@@ -161,15 +161,15 @@ const stock_main = parseInt(document.getElementById("s_stock_main").value) || 0;
 window.editSkuFromBtn = function(btn) { editSku(btn.dataset.sku, decodeURIComponent(btn.dataset.name), btn.dataset.cinv, btn.dataset.creal, btn.dataset.stock, btn.dataset.img); }
 
 window.editSku = function(sku, name, cinv, creal, stock, img) {
-  document.getElementById("s_sku").value = sku; document.getElementById("s_name").value = name;
-document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_cost_real").value = creal; document.getElementById("s_stock").value = stock || 0;
+// ĐÃ VÔ HIỆU HÓA ĐIỀN LÊN ĐẦU TRANG - GIỜ SỬA TRỰC TIẾP TẠI CARD
+  console.log(`[OMS LOG] 🛠️ Đang tập trung sửa SKU: ${sku}. Hãy sửa trực tiếp tại bảng phân loại bên dưới.`);
   const p = window.allSkus ? window.allSkus.find(s => s.sku === sku) : null;
   if(document.getElementById("s_stock_main")) document.getElementById("s_stock_main").value = (p ? p.stock_main : 0) || 0;
   if(document.getElementById("s_stock_sub")) document.getElementById("s_stock_sub").value = (p ? p.stock_sub : 0) || 0;
   const isComboCb = document.getElementById('s_is_combo');
   if (isComboCb) { isComboCb.checked = (p && p.is_combo == 1); toggleComboUI(isComboCb.checked); document.getElementById('combo-items-list').innerHTML = ''; if (isComboCb.checked && p && p.combo_items) JSON.parse(p.combo_items).forEach(i => addComboItemRow(i.sku, i.qty)); }
   if (typeof setFormMode === 'function') setFormMode('single', sku);
-  window.scrollTo({ top: 0, behavior: "smooth" }); showToast("✏️ Đang sửa: " + sku);
+  showToast("✏️ Đang sửa: " + sku);
 }
 
 window.editParentSku = function(safeSku) {
@@ -187,7 +187,7 @@ document.getElementById("s_cost_inv").value = cinv; document.getElementById("s_c
     if (isComboCb) { isComboCb.checked = (p.is_combo == 1); toggleComboUI(isComboCb.checked); document.getElementById('combo-items-list').innerHTML = ''; if (isComboCb.checked && p.combo_items) JSON.parse(p.combo_items).forEach(i => addComboItemRow(i.sku, i.qty)); }
     const hasChildren = p.children && p.children.length > 0;
     if (typeof setFormMode === 'function') setFormMode(hasChildren ? 'parent' : 'single', p.sku);
-    window.scrollTo({ top: 0, behavior: "smooth" }); showToast("✏️ Đang sửa: " + p.sku);
+    showToast("✏️ Đang sửa: " + p.sku);
 }
 
 window.deleteSku = async function(sku) { if (confirm("Xóa SKU " + sku + "?")) { await fetch(API + "/api/products/" + sku, { method: "DELETE" }); showToast("🗑️ Đã xóa"); loadSkus(); } }
@@ -246,5 +246,55 @@ window.inlineUpdateStock = async function(sku, value, type) {
     } catch (e) {
         console.error(`[INLINE LOG] ❌ Lỗi kết nối: ${e.message}`);
         showToast("❌ Lỗi mạng, không thể lưu!", true);
+    }
+}
+
+window.saveFullArticle = async function(parentSku) {
+    console.log(`[OMS LOG] 🚀 Bắt đầu quét và lưu toàn bộ bài đăng: ${parentSku}`);
+    
+    // 1. Lấy tên bài đăng mới
+    const newParentName = document.getElementById(`p-name-${parentSku}`).value.trim();
+    
+    // 2. Tìm vùng chứa các phân loại con
+    const safeId = parentSku.replace(/[^a-zA-Z0-9]/g, "_");
+    const container = document.getElementById(`vars-${safeId}`);
+    const childRows = container.querySelectorAll('.child-row');
+    
+    showToast("⏳ Đang cập nhật bài đăng...");
+
+    try {
+        // Cập nhật từng SKU (bao gồm cả Cha và các Con)
+        // Dò mìn: Quét qua danh sách phân loại
+        for (let row of childRows) {
+            const cSku = row.querySelector('.inline-child-name').dataset.sku;
+            const cName = row.querySelector('.inline-child-name').value;
+            const cCost = row.querySelector('.inline-child-cost').value;
+            const cStockMain = row.querySelector('input[onchange*="main"]').value;
+            const cStockSub = row.querySelector('input[onchange*="sub"]').value;
+
+            console.log(`[OMS LOG] 🛠️ Đang lưu phân loại: ${cSku} | Tên: ${cName} | Vốn: ${cCost}`);
+            
+            // Gọi API lưu từng dòng (Đồng bộ theo hướng Core-Server)
+            await fetch(API + "/api/products", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sku: cSku,
+                    product_name: cName,
+                    parent_sku: parentSku, // Luôn gắn chặt vào bài gốc
+                    cost_real: parseFloat(cCost) || 0,
+                    stock_main: parseInt(cStockMain) || 0,
+                    stock_sub: parseInt(cStockSub) || 0,
+                    stock: (parseInt(cStockMain) || 0) + (parseInt(cStockSub) || 0)
+                })
+            });
+        }
+
+        console.log(`[OMS LOG] ✅ Đã lưu xong tất cả phân loại của bài ${parentSku}`);
+        showToast("✅ Cập nhật bài đăng thành công!");
+        loadSkus(); // Reload để cập nhật tổng tồn cha
+    } catch (e) {
+        console.error(`[OMS LOG] ❌ Lỗi lưu bài đăng: ${e.message}`);
+        showToast("❌ Lỗi khi lưu bài đăng!", true);
     }
 }
