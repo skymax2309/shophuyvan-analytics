@@ -61,16 +61,23 @@ export function renderTable(omsCache) {
     }[o.platform] || `<span class="plt-tag">${o.platform||'—'}</span>`
 
     const omsInfo = {
-      PENDING:           { icon: '🕐', label: 'Chờ xác nhận' },
-      CONFIRMED:         { icon: '✅', label: 'Đã xác nhận' },
-      PACKING:           { icon: '🗂️', label: 'Đang đóng gói' },
-      PACKED:            { icon: '📦', label: 'Đã đóng gói' },
-      HANDED_OVER:       { icon: '🚚', label: 'Giao shipper' },
-      COMPLETED:         { icon: '🏆', label: 'Hoàn thành' },
-      CANCELLED_TRANSIT: { icon: '✗',  label: 'Hủy vận chuyển' },
-      FAILED_DELIVERY:   { icon: '⚠️', label: 'Giao thất bại' },
-      RETURN_REFUND:     { icon: '↩',  label: 'Trả hàng' },
-    }[o.oms_status] || { icon: '🕐', label: o.oms_status || 'PENDING' }
+      // Nhóm 1: Trạng thái cốt lõi
+      UNPAID: { icon: '💳', label: 'Chờ Thanh Toán' },
+      SHIPPED: { icon: '🚚', label: 'Đang Giao' },
+      COMPLETED: { icon: '🏆', label: 'Đã Giao' },
+      CANCELLED: { icon: '✗', label: 'Đã Huỷ' },
+      RETURN: { icon: '↩', label: 'Hoàn Hàng' },
+      // Nhóm 2: Chờ Xử Lý (Tầng 2)
+      LOGISTICS_PENDING_ARRANGE: { icon: '🕐', label: 'Chưa Xử Lý' },
+      LOGISTICS_REQUEST_CREATED: { icon: '✅', label: 'Đã Xử Lý' },
+      LOGISTICS_PACKAGED: { icon: '📦', label: 'Đã Đóng Gói' },
+      ADVANCE_FULFILMENT: { icon: '⚡', label: 'Giao Nhanh' },
+      // Nhóm 3: Hoàn (Tầng 2)
+      LOGISTICS_IN_RETURN: { icon: '🔙', label: 'Đang Hoàn' },
+      LOGISTICS_RETURNED_BY_SHIPPER: { icon: '👤', label: 'Shipper Trả' },
+      LOGISTICS_RETURN_PACKAGE_RECEIVED: { icon: '📥', label: 'Đã Nhận Hoàn' },
+      LOGISTICS_LOST: { icon: '❓', label: 'Thất Lạc' }
+    }[o.oms_status] || { icon: '🏷️', label: o.oms_status || 'CHƯA RÕ' }
 
     const typeHtml = {
       normal: `<span class="type-normal">✓ Thành công</span>`,
@@ -201,10 +208,9 @@ export function renderSummary(omsCache, totalOrders) {
 export async function updateBadges() {
   try {
     const badges = await fetch(API + '/api/orders/badges').then(r => r.json());
+    // Khai báo các mã chuẩn ShipXanh
     const keys = [
-      'ALL', 'PENDING', 'CONFIRMED', 'PACKING', 'PACKED', 'HANDED_OVER', 'COMPLETED',
-      'CANCELLED_TRANSIT', 'FAILED_DELIVERY', 'RETURN_REFUND',
-      'normal', 'cancel', 'return', 'shopee', 'tiktok', 'lazada'
+      'ALL', 'UNPAID', 'PENDING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'RETURN'
     ];
     keys.forEach(k => {
       const el = document.getElementById('cnt-' + k);

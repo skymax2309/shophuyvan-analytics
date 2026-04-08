@@ -102,6 +102,12 @@ def start_tunnel_and_report():
         print("\n❌ LỖI: Không lấy được link Cloudflare Tunnel.")
 
 # --- LOGIC NÉN MP4 VÀ BẮN LÊN MÂY ---
+# --- HỆ THỐNG GHI LOG HỘP ĐEN CHỐNG CÂM ---
+def log_it(msg):
+    print(msg, flush=True) # Ép Windows in thẳng ra màn hình không được ngậm
+    with open("nhat_ky_tram.txt", "a", encoding="utf-8") as f:
+        f.write(f"{msg}\n")
+
 @app.route('/upload-video', methods=['POST', 'OPTIONS'])
 def receive_video():
     if request.method == 'OPTIONS':
@@ -114,43 +120,39 @@ def receive_video():
         raw_path = os.path.join(TEMP_DIR, f"{order_id}_raw.webm")
         mp4_path = os.path.join(TEMP_DIR, f"{order_id}.mp4")
         video_file.save(raw_path)
-        print(f"⚡ Đã nhận băng hình thô của Đơn: {order_id}")
+        
+        log_it(f"\n⚡ [{order_id}] ĐÃ NHẬN VIDEO TỪ IPAD! Kích hoạt lò nén...")
 
         def process_and_upload(o_id, raw, mp4):
             try:
-                print(f"[{o_id}] ⏳ Đang ép khung sang chuẩn MP4...")
-                
-                # Bắt quả tang bộ nén FFmpeg
                 if not os.path.exists("ffmpeg.exe"):
-                    print(f"[{o_id}] ❌ LỖI PC: Không tìm thấy file ffmpeg.exe trong thư mục!")
+                    log_it(f"❌ [{o_id}] LỖI: Không tìm thấy file ffmpeg.exe để nén!")
                     return
                     
+                # Ép khung và chụp lại toàn bộ câu chửi của FFmpeg nếu có lỗi
                 cmd = f'ffmpeg.exe -y -i "{raw}" -c:v libx264 -preset ultrafast -crf 28 -c:a aac "{mp4}"'
-                subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
                 
                 if not os.path.exists(mp4):
-                    print(f"[{o_id}] ❌ LỖI PC: Ép khung thất bại. File MP4 không được tạo ra!")
+                    log_it(f"❌ [{o_id}] LỖI ÉP KHUNG MP4. Báo cáo từ FFmpeg:\n{result.stderr[-300:]}")
                     return
 
-                print(f"[{o_id}] ☁️ Đang bắn MP4 lên kho Cloudflare R2...")
+                log_it(f"☁️ [{o_id}] Ép MP4 thành công! Đang bắn lên kho R2...")
                 with open(mp4, 'rb') as f:
                     files = {'video': (f"{o_id}.mp4", f, 'video/mp4')}
-                    data = {'order_id': o_id}
-                    # Ép thời gian chờ mạng lên 60 giây để tránh đứt gánh giữa đường
-                    res = requests.post(f"{SERVER_URL}/cctv/upload", data=data, files=files, timeout=60)
+                    res = requests.post(f"{SERVER_URL}/cctv/upload", data={'order_id': o_id}, files=files, timeout=60)
                     
                 if res.status_code == 200:
-                    print(f"[{o_id}] ✅ Gửi mây thành công! Đã tự cập nhật trạng thái PACKED.")
-                    os.remove(raw) # Dọn rác file thô sau khi thành công
+                    log_it(f"✅ [{o_id}] HOÀN HẢO! Đã lên mây và cập nhật trạng thái PACKED.")
+                    os.remove(raw) # Dọn rác
                 else:
-                    print(f"[{o_id}] ❌ LỖI MÂY (Mã {res.status_code}): {res.text}")
+                    log_it(f"❌ [{o_id}] LỖI TỪ ĐÁM MÂY (Mã {res.status_code}): {res.text}")
             except Exception as e:
-                print(f"[{o_id}] ❌ LỖI NGHIÊM TRỌNG TẠI PC: {str(e)}")
+                log_it(f"❌ [{o_id}] LỖI SẬP NGUỒN PC: {str(e)}")
 
-        # Cho chạy luồng ngầm để iPad trả kết quả ngay, PC tự cày cuốc
         threading.Thread(target=process_and_upload, args=(order_id, raw_path, mp4_path)).start()
-        
         return jsonify({"status": "ok"}), 200
+        
     return jsonify({"error": "missing"}), 400
 
 if __name__ == '__main__':
