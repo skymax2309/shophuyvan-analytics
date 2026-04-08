@@ -6,23 +6,6 @@
 <title>OMS — Quản lý Đơn Hàng</title>
 <link rel="stylesheet" href="../css/oms-dashboard.css">
 <style>
-/* BỌC THÉP GIAO DIỆN MOBILE */
-@media (max-width: 768px) {
-  .layout { flex-direction: column; height: auto; }
-  /* Biến Sidebar thành thanh cuộn ngang trên cùng */
-  .sidebar { width: 100%; display: flex; flex-direction: row; overflow-x: auto; white-space: nowrap; padding: 10px; border-right: none; border-bottom: 1px solid var(--border); }
-  .sidebar-label { display: none; } /* Ẩn chữ label cho gọn màn hình */
-  .status-tab { margin-right: 8px; margin-bottom: 0; padding: 8px 12px; flex-shrink: 0; }
-  /* Xử lý thanh công cụ nằm ngang cuộn được */
-  .toolbar { overflow-x: auto; white-space: nowrap; padding-bottom: 10px; }
-  .toolbar-actions { display: inline-flex; }
-  /* Bẻ khung bộ lọc */
-  .filterbar { flex-wrap: wrap; }
-  .filter-input, .filter-select { flex: 1 1 40%; margin-bottom: 5px; }
-  /* Cho phép vuốt ngang bảng đơn hàng thay vì bị bóp méo */
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table { min-width: 900px; } 
-}
 </style>
 </head>
 <body>
@@ -72,81 +55,29 @@
 
   <!-- SIDEBAR -->
   <div class="sidebar">
-    <div class="sidebar-label">TẤT CẢ</div>
-      <div class="status-tab active" id="tab-ALL" onclick="switchStatus('ALL')">
-        <div class="status-tab-left">📋 Tất cả đơn</div>
-        <span class="badge" id="cnt-ALL">0</span>
-      </div>
-
-      <div class="sidebar-label" style="margin-top:8px">QUY TRÌNH XỬ LÝ</div>
-      <div class="status-tab" id="tab-PENDING" onclick="switchStatus('PENDING')">
-        <div class="status-tab-left">🕐 Chờ xác nhận</div>
-        <span class="badge" id="cnt-PENDING">0</span>
-      </div>
-      <div class="status-tab" id="tab-CONFIRMED" onclick="switchStatus('CONFIRMED')">
-        <div class="status-tab-left">✅ Đã xác nhận</div>
-        <span class="badge" id="cnt-CONFIRMED">0</span>
-      </div>
-      <div class="status-tab" id="tab-PACKING" onclick="switchStatus('PACKING')">
-        <div class="status-tab-left">🗂️ Đang đóng gói</div>
-        <span class="badge" id="cnt-PACKING">0</span>
-      </div>
-      <div class="status-tab" id="tab-PACKED" onclick="switchStatus('PACKED')">
-        <div class="status-tab-left">📦 Đã đóng gói</div>
-        <span class="badge" id="cnt-PACKED">0</span>
-      </div>
-      <div class="status-tab" id="tab-HANDED_OVER" onclick="switchStatus('HANDED_OVER')">
-        <div class="status-tab-left">🚚 Giao cho shipper</div>
-        <span class="badge" id="cnt-HANDED_OVER">0</span>
-      </div>
-      <div class="status-tab" id="tab-COMPLETED" onclick="switchStatus('COMPLETED')">
-        <div class="status-tab-left" style="color:var(--green)">🏆 Hoàn thành</div>
-        <span class="badge" id="cnt-COMPLETED">0</span>
-      </div>
-
-      <div class="sidebar-label" style="margin-top:8px">VẤN ĐỀ</div>
-      <div class="status-tab" id="tab-CANCELLED_TRANSIT" onclick="switchStatus('CANCELLED_TRANSIT')">
-        <div class="status-tab-left" style="color:var(--red)">✗ Hủy khi vận chuyển</div>
-        <span class="badge" id="cnt-CANCELLED_TRANSIT">0</span>
-      </div>
-      <div class="status-tab" id="tab-FAILED_DELIVERY" onclick="switchStatus('FAILED_DELIVERY')">
-        <div class="status-tab-left" style="color:var(--orange)">⚠️ Giao không thành công</div>
-        <span class="badge" id="cnt-FAILED_DELIVERY">0</span>
-      </div>
-      <div class="status-tab" id="tab-RETURN_REFUND" onclick="switchStatus('RETURN_REFUND')">
-        <div class="status-tab-left" style="color:var(--yellow)">↩ Trả hàng hoàn tiền</div>
-        <span class="badge" id="cnt-RETURN_REFUND">0</span>
-      </div>
-
-      <div class="sidebar-label" style="margin-top:8px">LOẠI ĐƠN</div>
-      <div class="status-tab" id="tab-normal" onclick="switchType('normal')">
-        <div class="status-tab-left">✓ Thành công</div>
-        <span class="badge" id="cnt-normal">0</span>
-      </div>
-      <div class="status-tab" id="tab-cancel" onclick="switchType('cancel')">
-        <div class="status-tab-left">✗ Đã hủy</div>
-        <span class="badge" id="cnt-cancel">0</span>
-      </div>
-      <div class="status-tab" id="tab-return" onclick="switchType('return')">
-        <div class="status-tab-left">↩ Hoàn hàng</div>
-        <span class="badge" id="cnt-return">0</span>
-      </div>
-
-      <div class="sidebar-label" style="margin-top:8px">SÀN</div>
-      <div class="status-tab" id="tab-shopee" onclick="switchPlatform('shopee')">
-        <div class="status-tab-left">🛍 Shopee</div>
-        <span class="badge" id="cnt-shopee">0</span>
-      </div>
-      <div class="status-tab" id="tab-tiktok" onclick="switchPlatform('tiktok')">
-        <div class="status-tab-left">🎵 TikTok</div>
-        <span class="badge" id="cnt-tiktok">0</span>
-      </div>
-      <div class="status-tab" id="tab-lazada" onclick="switchPlatform('lazada')">
-        <div class="status-tab-left">🛒 Lazada</div>
-        <span class="badge" id="cnt-lazada">0</span>
-      </div>
-
-  </div><!-- /sidebar -->
+    <div class="status-tab active" id="tab-ALL" onclick="switchMainTab('ALL')">
+        Tất cả <span class="badge" id="cnt-ALL">0</span>
+    </div>
+    <div class="status-tab" id="tab-UNPAID" onclick="switchMainTab('UNPAID')">
+        Chờ Thanh Toán <span class="badge" id="cnt-UNPAID">0</span>
+    </div>
+    <div class="status-tab" id="tab-PENDING" onclick="switchMainTab('PENDING')">
+        Chờ Xử Lý <span class="badge" id="cnt-PENDING">0</span>
+    </div>
+    <div class="status-tab" id="tab-SHIPPED" onclick="switchMainTab('SHIPPED')">
+        Đang Giao <span class="badge" id="cnt-SHIPPED">0</span>
+    </div>
+    <div class="status-tab" id="tab-COMPLETED" onclick="switchMainTab('COMPLETED')">
+        Đã Giao <span class="badge" id="cnt-COMPLETED">0</span>
+    </div>
+    <div class="status-tab" id="tab-CANCELLED" onclick="switchMainTab('CANCELLED')">
+        Đã Huỷ <span class="badge" id="cnt-CANCELLED">0</span>
+    </div>
+    <div class="status-tab" id="tab-RETURN" onclick="switchMainTab('RETURN')">
+        Hoàn Hàng <span class="badge" id="cnt-RETURN">0</span>
+    </div>
+  </div><div id="sub-tabs-bar" class="sub-tabs-container" style="display: none;"></div>
+  <!-- /sidebar -->
 
   <!-- MAIN -->
   <div class="main">

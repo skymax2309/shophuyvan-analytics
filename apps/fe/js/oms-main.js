@@ -220,5 +220,54 @@ export async function printBatchLabels() {
 // Mở lại cổng xuất khẩu cho các file HTML gọi đến
 export { fmt, fmtDate, showToast, copyText, closeModal };
 
+// [CORE LOGIC] CHUYỂN ĐỔI TAB 2 TẦNG CHUẨN SHIPXANH
+window.switchMainTab = function(mainStatus) {
+    console.log(`[OMS LOG] 👆 Chuyển Tab Tầng 1: ${mainStatus}`);
+    currentStatus = mainStatus;
+    
+    // Cập nhật UI Tab Tầng 1
+    document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + mainStatus).classList.add('active');
+
+    const subBar = document.getElementById('sub-tabs-bar');
+    
+    // Cấu hình Sub-Tabs theo Logic ShipXanh
+    const subConfig = {
+        'PENDING': [
+            { id: 'LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' },
+            { id: 'LOGISTICS_REQUEST_CREATED', label: 'Đã Xử Lý' },
+            { id: 'LOGISTICS_PACKAGED', label: 'Đã Đóng Gói' },
+            { id: 'ADVANCE_FULFILMENT', label: 'Gói Sẵn Giao Nhanh' }
+        ],
+        'RETURN': [
+            { id: 'LOGISTICS_IN_RETURN', label: 'Đang Hoàn' },
+            { id: 'LOGISTICS_RETURNED_BY_SHIPPER', label: 'Shipper Đã Trả' },
+            { id: 'LOGISTICS_RETURN_PACKAGE_RECEIVED', label: 'Đã Nhận Đơn Hoàn' },
+            { id: 'LOGISTICS_LOST', label: 'Thất Lạc' }
+        ]
+    };
+
+    if (subConfig[mainStatus]) {
+        subBar.style.display = 'flex';
+        subBar.innerHTML = subConfig[mainStatus].map((s, index) => 
+            `<div class="sub-tab ${index===0?'active':''}" onclick="switchSubTab('${s.id}', this)">${s.label}</div>`
+        ).join('');
+        // Mặc định chọn sub-tab đầu tiên
+        currentStatus = subConfig[mainStatus][0].id;
+    } else {
+        subBar.style.display = 'none';
+    }
+
+    loadOrders(1);
+};
+
+window.switchSubTab = function(subStatus, el) {
+    console.log(`[OMS LOG] 👆 Chuyển Tab Tầng 2: ${subStatus}`);
+    currentStatus = subStatus;
+    document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    loadOrders(1);
+};
+
 // ── INIT ─────────────────────────────────────────────────────────────
 loadShopList()

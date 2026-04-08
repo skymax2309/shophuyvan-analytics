@@ -494,3 +494,46 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  
+  
+  /* =========================================
+   TỐI ƯU GIAO DIỆN MOBILE (CHUẨN SHIPXANH)
+   ========================================= */
+@media (max-width: 768px) {
+  .layout { flex-direction: column; height: auto; }
+  
+  /* SIDEBAR MOBILE - TẦNG 1 (Cuộn ngang) */
+  .sidebar { 
+    width: 100%; display: flex; flex-direction: row; overflow-x: auto; 
+    white-space: nowrap; padding: 5px 10px; border-right: none; 
+    border-bottom: 1px solid var(--border); background: #fff;
+    scrollbar-width: none; /* Ẩn scrollbar Firefox */
+    position: sticky; top: 0; z-index: 10;
+  }
+  .sidebar::-webkit-scrollbar { display: none; } /* Ẩn scrollbar Chrome/Safari */
+  
+  .sidebar-label { display: none; } /* Ẩn chữ label cho gọn màn hình */
+  .status-tab { margin-right: 8px; margin-bottom: 0; padding: 8px 12px; flex-shrink: 0; }
+  
+  /* TẦNG TAB 2 - CHI TIẾT (Cuộn ngang) */
+  .sub-tabs-container {
+    display: flex; overflow-x: auto; white-space: nowrap;
+    background: #f8fafc; padding: 8px 10px; border-bottom: 1px solid var(--border);
+    gap: 8px; scrollbar-width: none;
+  }
+  .sub-tabs-container::-webkit-scrollbar { display: none; }
+  .sub-tab {
+    padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    color: #64748b; background: #fff; border: 1px solid var(--border); cursor: pointer; flex-shrink: 0;
+  }
+  .sub-tab.active { color: var(--primary); border-color: var(--primary); background: #eff6ff; }
+
+  /* Bẻ khung bộ lọc và Thanh công cụ */
+  .toolbar { overflow-x: auto; white-space: nowrap; padding-bottom: 10px; }
+  .toolbar-actions { display: inline-flex; }
+  .filterbar { flex-wrap: wrap; }
+  .filter-input, .filter-select { flex: 1 1 40%; margin-bottom: 5px; }
+  
+  /* Cho phép cuộn bảng dữ liệu trên màn nhỏ */
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

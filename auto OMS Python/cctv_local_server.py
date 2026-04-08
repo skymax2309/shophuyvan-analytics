@@ -117,22 +117,35 @@ def receive_video():
         print(f"⚡ Đã nhận băng hình thô của Đơn: {order_id}")
 
         def process_and_upload(o_id, raw, mp4):
-            print(f"[{o_id}] ⏳ Đang ép khung sang chuẩn MP4...")
-            # Ép video mượt, nhẹ và chuẩn format của Shopee/TikTok
-            cmd = f'ffmpeg.exe -y -i "{raw}" -c:v libx264 -preset ultrafast -crf 28 -c:a aac "{mp4}"'
-            subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            
-            print(f"[{o_id}] ☁️ Đang bắn MP4 lên kho Cloudflare R2...")
-            with open(mp4, 'rb') as f:
-                files = {'video': (f"{o_id}.mp4", f, 'video/mp4')}
-                data = {'order_id': o_id}
-                res = requests.post(f"{SERVER_URL}/cctv/upload", data=data, files=files)
+            try:
+                print(f"[{o_id}] ⏳ Đang ép khung sang chuẩn MP4...")
                 
-            if res.status_code == 200:
-                print(f"[{o_id}] ✅ Gửi mây thành công! Đã tự động cập nhật trạng thái PACKED.")
-                os.remove(raw) # Dọn rác
-            else:
-                print(f"[{o_id}] ❌ Lỗi bắn mây: {res.text}")
+                # Bắt quả tang bộ nén FFmpeg
+                if not os.path.exists("ffmpeg.exe"):
+                    print(f"[{o_id}] ❌ LỖI PC: Không tìm thấy file ffmpeg.exe trong thư mục!")
+                    return
+                    
+                cmd = f'ffmpeg.exe -y -i "{raw}" -c:v libx264 -preset ultrafast -crf 28 -c:a aac "{mp4}"'
+                subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                if not os.path.exists(mp4):
+                    print(f"[{o_id}] ❌ LỖI PC: Ép khung thất bại. File MP4 không được tạo ra!")
+                    return
+
+                print(f"[{o_id}] ☁️ Đang bắn MP4 lên kho Cloudflare R2...")
+                with open(mp4, 'rb') as f:
+                    files = {'video': (f"{o_id}.mp4", f, 'video/mp4')}
+                    data = {'order_id': o_id}
+                    # Ép thời gian chờ mạng lên 60 giây để tránh đứt gánh giữa đường
+                    res = requests.post(f"{SERVER_URL}/cctv/upload", data=data, files=files, timeout=60)
+                    
+                if res.status_code == 200:
+                    print(f"[{o_id}] ✅ Gửi mây thành công! Đã tự cập nhật trạng thái PACKED.")
+                    os.remove(raw) # Dọn rác file thô sau khi thành công
+                else:
+                    print(f"[{o_id}] ❌ LỖI MÂY (Mã {res.status_code}): {res.text}")
+            except Exception as e:
+                print(f"[{o_id}] ❌ LỖI NGHIÊM TRỌNG TẠI PC: {str(e)}")
 
         # Cho chạy luồng ngầm để iPad trả kết quả ngay, PC tự cày cuốc
         threading.Thread(target=process_and_upload, args=(order_id, raw_path, mp4_path)).start()
