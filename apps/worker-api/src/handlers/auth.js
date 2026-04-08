@@ -11,7 +11,7 @@ async function signHMAC(keyStr, message) {
 // Cấu hình cố định
 const SHOPEE = {
   PID: 2013730,
-  KEY: "shpk66746e4845745341714d6b63656a5a6c7049524b7444486c4a686c4d4a4m",
+  KEY: "shpk66746e4845745341714d6b63656a5a6c7049524b7444486c4a686c4d4a4d",
   REDIRECT: "https://huyvan-worker-api.nghiemchihuy.workers.dev/channels/shopee/callback"
 };
 
