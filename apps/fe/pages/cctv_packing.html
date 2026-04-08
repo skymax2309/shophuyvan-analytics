@@ -167,13 +167,16 @@ function initRecordingStream() {
                             formData.append('order_id', orderToUpload);
                             devLog(`📦 Đang bắn video đơn ${orderToUpload} về PC...`);
                             
-                            // Gài bộ bắt lỗi chi tiết để bắt quả tang Server Python
+                            // [BỌC THÉP] Ép Safari phải báo cáo kết quả hạ cánh rõ ràng
                             fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData })
-                            .then(res => {
-                                if (!res.ok) throw new Error("HTTP " + res.status);
-                                devLog(`✅ Đã hạ cánh an toàn đơn ${orderToUpload} vào PC!`);
+                            .then(async res => {
+                                if (res.ok) {
+                                    devLog(`✅ [${orderToUpload}] Đã chui lọt vào PC thành công!`);
+                                } else {
+                                    devLog(`❌ [${orderToUpload}] PC TỪ CHỐI (Mã lỗi: ${res.status})`);
+                                }
                             })
-                            .catch(err => devLog(`❌ Lỗi bắn video: ${err.message}`));
+                            .catch(err => devLog(`❌ [${orderToUpload}] Đứt cáp mạng: ${err.message}`));
                         }
                         // LUÔN LUÔN dọn dẹp RAM sau khi lưu xong, bất kể là lỗi hay thành công
                         recordedChunks = [];
