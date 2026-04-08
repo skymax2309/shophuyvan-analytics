@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trạm Đóng Gói Thông Minh - OMS</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+<title>Trạm Đóng Gói Thông Minh - OMS</title>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
         /* Bố cục cố định, chống cuộn và co giãn lung tung trên thiết bị Apple */
         body { font-family: 'Segoe UI', sans-serif; background: #101010; color: white; text-align: center; margin: 0; padding: 10px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -39,7 +39,12 @@
     </div>
 
     <h2>📡 TRẠM MẮT THẦN ĐÓNG GÓI</h2>
-    <div id="reader"></div>
+    
+    <div id="reader" style="position: relative; height: 250px;">
+        <video id="video-preview" style="width: 100%; height: 100%; object-fit: cover;" playsinline webkit-playsinline muted autoplay></video>
+        <div style="position: absolute; top: 20%; left: 10%; width: 80%; height: 60%; border: 2px solid #00FF88; box-shadow: 0 0 0 4000px rgba(0,0,0,0.6); pointer-events: none; border-radius: 10px;"></div>
+    </div>
+    
     <div class="status-box" id="status-container">
         <div id="current-order" class="order-id">ĐANG DÒ TÌM PC...</div>
         <div class="record-indicator" id="record-status">🔴 <span class="blink">ĐANG GHI HÌNH...</span></div>
@@ -200,22 +205,23 @@ function initRecordingStream() {
             }, 500);
         }
 
-    function startSystem() {
-            devLog("🚀 Bắt đầu nổ máy Trạm Đóng Gói...");
+    let codeReader;
+        
+        function startSystem() {
+            devLog("🚀 Bắt đầu nổ máy với Động cơ lõi ZXing...");
+            codeReader = new ZXing.BrowserMultiFormatReader();
             
-            // [MỞ RỘNG TẦM NHÌN]: Thêm định dạng 1D dự phòng và nới rộng khung chữ nhật
-            const formats = [ 
-                Html5QrcodeSupportedFormats.CODE_128, 
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.CODE_93,
-                Html5QrcodeSupportedFormats.EAN_13
-            ];
-            
-            new Html5QrcodeScanner("reader", { 
-                fps: 10, // Hạ FPS xuống một chút để iPad có thêm thời gian lấy nét hình ảnh
-                qrbox: { width: 450, height: 200 }, // Nới rộng khung quét ra để ôm trọn vẹn cái mã vạch dài
-                formatsToSupport: formats
-            }, false).render(onScanSuccess);
+            // Ép iPad dùng Camera sau và đẩy lên độ phân giải HD để đọc mã vạch siêu nhạy
+            const constraints = { 
+                video: { facingMode: "environment", width: { ideal: 1280 } } 
+            };
+
+            // Bắn luồng camera vào thẻ video và bắt đầu soi mã liên tục
+            codeReader.decodeFromConstraints(constraints, 'video-preview', (result, err) => {
+                if (result) {
+                    onScanSuccess(result.getText());
+                }
+            });
             
             fetchServerCoordinates();
         }
