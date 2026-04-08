@@ -47,22 +47,7 @@
     <div class="log-box" id="dev-log">[*] Khởi động trạm...<br></div>
 
     <script>
-        <script>
-        // --- BỌC THÉP CẤP ĐỘ NHÂN (CORE HACK): TRỊ DỨT ĐIỂM FULLSCREEN IOS ---
-        // Can thiệp thẳng vào hàm tạo thẻ HTML gốc của trình duyệt
-        const originalCreateElement = document.createElement.bind(document);
-        document.createElement = function(tagName) {
-            const el = originalCreateElement(tagName);
-            if (tagName.toLowerCase() === 'video') {
-                // Đóng dấu chống Fullscreen ngay từ khi thẻ video "chào đời", chưa kịp lên màn hình
-                el.setAttribute('playsinline', '');
-                el.setAttribute('webkit-playsinline', '');
-                el.muted = true;
-            }
-            return el;
-        };
-
-        const API_BASE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"; 
+        const API_BASE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api";
         let PYTHON_SERVER_URL = null;
         let currentOrderId = null;
         let mediaRecorder = null;
@@ -72,28 +57,29 @@ let cameraStream = null;
 
         // --- TRỊ BỆNH TẮT TIẾNG: HÀM MỞ KHÓA AUDIO APPLE ---
         function unlockAppleAudio() {
+            // 1. Giấu lớp phủ NGAY LẬP TỨC để chắc chắn không bao giờ bị kẹt màn hình
+            document.getElementById('unlock-overlay').style.display = 'none';
+            
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContext();
-                
-                // Phát thử 1 đoạn âm thanh siêu nhỏ (im lặng) để "thông nòng"
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                gain.gain.value = 0; // Tắt tiếng
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start(0);
-                osc.stop(0.1);
-
-                // Giấu lớp phủ đi
-                document.getElementById('unlock-overlay').style.display = 'none';
-                devLog("✅ Đã mở khóa âm thanh Apple!");
-                
-                // Khởi động hệ thống quét và kết nối Đám mây
-                startSystem();
+                if (AudioContext) {
+                    audioCtx = new AudioContext();
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    gain.gain.value = 0; 
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(0);
+                    // Dùng thời gian tương đối tránh lỗi Safari
+                    osc.stop(audioCtx.currentTime + 0.1);
+                    devLog("✅ Đã sẵn sàng bộ cộng hưởng âm thanh!");
+                }
             } catch (e) {
-                devLog("❌ Lỗi mở khóa âm thanh: " + e.message);
+                devLog("⚠️ Bỏ qua âm thanh: Không hỗ trợ thiết bị này.");
             }
+            
+            // 2. Luôn luôn gọi khởi động hệ thống bất kể âm thanh có thành công hay không
+            startSystem();
         }
 
         // --- CỖ MÁY TẠO ÂM THANH "TÍT" CHUYÊN NGHIỆP ---
@@ -135,22 +121,36 @@ let cameraStream = null;
             } catch (err) { devLog("❌ Lỗi kết nối Đám mây Cloudflare!"); }
         }
 
-        async function initRecordingStream() {
-            try {
-                cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-                mediaRecorder = new MediaRecorder(cameraStream, { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 800000 });
-                mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
-                mediaRecorder.onstop = async () => {
-                    if (recordedChunks.length > 0 && currentOrderId && currentOrderId !== "STOP_PACKING") {
-                        const formData = new FormData();
-                        formData.append('video', new Blob(recordedChunks, { type: 'video/webm' }), `${currentOrderId}.webm`);
-                        formData.append('order_id', currentOrderId);
-                        devLog(`📦 Gửi video đơn ${currentOrderId} về PC...`);
-                        fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData }).catch(() => devLog("❌ Lỗi gửi video!"));
-                        recordedChunks = [];
-                    }
-                };
-            } catch (err) { alert("Cần quyền Camera!"); }
+        function initRecordingStream() {
+            // [KIẾN TRÚC MỚI]: Bắt cóc luồng video của máy quét thay vì mở 2 camera chồng lên nhau
+            const videoEl = document.querySelector('video');
+            if (videoEl && videoEl.srcObject) {
+                try {
+                    // Ép thêm thuộc tính chống Fullscreen cho chắc ăn
+                    videoEl.setAttribute('playsinline', 'true');
+                    videoEl.setAttribute('webkit-playsinline', 'true');
+                    
+                    cameraStream = videoEl.srcObject;
+                    mediaRecorder = new MediaRecorder(cameraStream, { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 800000 });
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                    mediaRecorder.onstop = async () => {
+                        if (recordedChunks.length > 0 && currentOrderId && currentOrderId !== "STOP_PACKING") {
+                            const formData = new FormData();
+                            formData.append('video', new Blob(recordedChunks, { type: 'video/webm' }), `${currentOrderId}.webm`);
+                            formData.append('order_id', currentOrderId);
+                            devLog(`📦 Đang bắn video đơn ${currentOrderId} về PC...`);
+                            fetch(PYTHON_SERVER_URL, { method: 'POST', body: formData }).catch(() => devLog("❌ Lỗi bắn video!"));
+                            recordedChunks = [];
+                        }
+                    };
+                    devLog("✅ Đã móc nối thành công Camera vào Động cơ Ghi hình!");
+                } catch (err) {
+                    devLog("❌ Lỗi tạo luồng ghi: " + err.message);
+                }
+            } else {
+                devLog("⏳ Đang đợi Camera khởi động để móc nối...");
+                setTimeout(initRecordingStream, 1500); // Rình rập thử lại sau 1.5 giây
+            }
         }
 
         function onScanSuccess(decodedText) {

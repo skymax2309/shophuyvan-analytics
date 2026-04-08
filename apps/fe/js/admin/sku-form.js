@@ -249,52 +249,91 @@ window.inlineUpdateStock = async function(sku, value, type) {
     }
 }
 
+// [OMS CORE] XEM TRƯỚC ẢNH
+window.previewImgInline = function(sku, input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => document.getElementById(`img-${sku}`).src = e.target.result;
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// [OMS CORE] THÊM PHÂN LOẠI MỚI
+window.addNewVarQuick = function(parentSku) {
+    const newSku = prompt(`Nhập mã SKU mới cho bài đăng ${parentSku}:`);
+    if (!newSku) return;
+
+    // Hiện lại form thêm ở đầu trang để người dùng có chỗ nhập liệu
+    const cardForm = document.querySelector('.card[style*="display: none"]');
+    if(cardForm) cardForm.style.display = 'block'; 
+    
+    document.getElementById('s_sku').value = newSku;
+    document.getElementById('s_name').value = "Phân loại mới";
+    
+    // Set form mode là single nhưng neo mã parent lại để khi lưu không bị văng
+    if (typeof setFormMode === 'function') setFormMode('single', parentSku);
+    
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    showToast("📝 Hãy nhập thông tin phân loại mới ở form phía trên!");
+}
+
+// [OMS CORE] LƯU TOÀN BỘ BÀI ĐĂNG (DÒ MÌN 100%)
 window.saveFullArticle = async function(parentSku) {
-    console.log(`[OMS LOG] 🚀 Bắt đầu quét và lưu toàn bộ bài đăng: ${parentSku}`);
-    
-    // 1. Lấy tên bài đăng mới
-    const newParentName = document.getElementById(`p-name-${parentSku}`).value.trim();
-    
-    // 2. Tìm vùng chứa các phân loại con
+    console.log(`[OMS LOG] 🚀 Bắt đầu quét dữ liệu toàn bộ bài đăng: ${parentSku}`);
+    showToast("⏳ Đang đồng bộ dữ liệu...");
+
+    const nameInput = document.getElementById(`p-name-${parentSku}`);
+    const articleName = nameInput ? nameInput.value.trim() : "";
     const safeId = parentSku.replace(/[^a-zA-Z0-9]/g, "_");
     const container = document.getElementById(`vars-${safeId}`);
-    const childRows = container.querySelectorAll('.child-row');
     
-    showToast("⏳ Đang cập nhật bài đăng...");
+    if (!container) return showToast("❌ Lỗi giao diện, không tìm thấy bảng phân loại", true);
+    const rows = container.querySelectorAll('.child-row');
 
     try {
-        // Cập nhật từng SKU (bao gồm cả Cha và các Con)
-        // Dò mìn: Quét qua danh sách phân loại
-        for (let row of childRows) {
-            const cSku = row.querySelector('.inline-child-name').dataset.sku;
-            const cName = row.querySelector('.inline-child-name').value;
-            const cCost = row.querySelector('.inline-child-cost').value;
-            const cStockMain = row.querySelector('input[onchange*="main"]').value;
-            const cStockSub = row.querySelector('input[onchange*="sub"]').value;
+        // 1. Lưu Tên Bài Đăng Gốc (Cha)
+        const parentObj = window.allSkus.find(s => s.sku === parentSku);
+        if (parentObj) {
+            console.log(`[OMS LOG] 🛠️ Đang cập nhật Tên Cha...`);
+            await fetch(API + "/api/products", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...parentObj, product_name: articleName })
+            });
+        }
 
-            console.log(`[OMS LOG] 🛠️ Đang lưu phân loại: ${cSku} | Tên: ${cName} | Vốn: ${cCost}`);
+        // 2. Quét và lưu từng phân loại con
+        for (let row of rows) {
+            const cName = row.querySelector('.inline-child-name').value;
+            const cSku = row.querySelector('.inline-child-name').dataset.sku;
+            // Dò lấy đúng ô Giá Hóa Đơn và Giá Thực
+            const cInv = row.querySelector('.inline-child-inv').value;
+            const cReal = row.querySelector('.inline-child-cost').value;
+            const cMain = row.querySelector('input[onchange*="main"]').value;
+            const cSub = row.querySelector('input[onchange*="sub"]').value;
+
+            console.log(`[OMS LOG] 🛠️ Đang đồng bộ SKU: ${cSku} | Tên: ${cName} | HĐ: ${cInv} | Thực: ${cReal}`);
             
-            // Gọi API lưu từng dòng (Đồng bộ theo hướng Core-Server)
             await fetch(API + "/api/products", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     sku: cSku,
                     product_name: cName,
-                    parent_sku: parentSku, // Luôn gắn chặt vào bài gốc
-                    cost_real: parseFloat(cCost) || 0,
-                    stock_main: parseInt(cStockMain) || 0,
-                    stock_sub: parseInt(cStockSub) || 0,
-                    stock: (parseInt(cStockMain) || 0) + (parseInt(cStockSub) || 0)
+                    parent_sku: parentSku,
+                    cost_invoice: parseFloat(cInv) || 0,
+                    cost_real: parseFloat(cReal) || 0,
+                    stock_main: parseInt(cMain) || 0,
+                    stock_sub: parseInt(cSub) || 0,
+                    stock: (parseInt(cMain)||0) + (parseInt(cSub)||0)
                 })
             });
         }
-
-        console.log(`[OMS LOG] ✅ Đã lưu xong tất cả phân loại của bài ${parentSku}`);
-        showToast("✅ Cập nhật bài đăng thành công!");
-        loadSkus(); // Reload để cập nhật tổng tồn cha
+        
+        showToast("✅ Đã lưu toàn bộ bài đăng và phân loại!");
+        loadSkus(); // Reload lại để cập nhật toàn bộ cache
     } catch (e) {
-        console.error(`[OMS LOG] ❌ Lỗi lưu bài đăng: ${e.message}`);
-        showToast("❌ Lỗi khi lưu bài đăng!", true);
+        console.error(`[OMS LOG] ❌ Lỗi lưu: ${e.message}`);
+        showToast("❌ Lỗi mạng hoặc Server khi lưu!", true);
     }
 }

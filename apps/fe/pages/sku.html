@@ -14,7 +14,11 @@
         <div style="padding-top:4px;" onclick="event.stopPropagation()">
             <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.2); cursor:pointer;">
         </div>
-        <img src="{{image}}" class="responsive-img-parent" style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:2px solid #e2e8f0; background:#f1f5f9; flex-shrink:0;">
+        <div style="position:relative; cursor:pointer; flex-shrink:0;" onclick="document.getElementById('file-{{sku}}').click()">
+            <img src="{{image}}" id="img-{{sku}}" class="responsive-img-parent" style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:2px solid #e2e8f0; background:#f1f5f9;">
+            <input type="file" id="file-{{sku}}" style="display:none" onchange="previewImgInline('{{sku}}', this)">
+            <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.5); color:white; font-size:9px; width:100%; text-align:center; border-radius:0 0 10px 10px;">ĐỔI ẢNH</div>
+        </div>
         <div class="responsive-info" style="flex:1; min-width:200px;">
     <div style="font-size:11px; color:#64748b; margin-bottom:4px; font-weight:700;">TÊN BÀI ĐĂNG:</div>
     <input type="text" value="{{name}}" id="p-name-{{sku}}" 
@@ -66,11 +70,18 @@
             <div style="font-size:11px; color:#94a3b8; font-family:monospace; margin-top:2px;">Mã: {{c_sku}}</div>
             {{c_mapped_badge}}
         </div>
-        <div class="responsive-cost" style="text-align:center; min-width:80px;">
-            <div style="font-size:10px; color:#94a3b8; font-weight:600; text-transform:uppercase;">Giá vốn</div>
-            <input type="number" value="{{c_raw_real}}" class="inline-child-cost" data-sku="{{c_sku}}"
-       style="width:80px; border:1px solid #e2e8f0; border-radius:4px; text-align:center; font-size:14px; font-weight:700; color:#7c3aed; outline:none;">
-        </div>
+        <div class="responsive-cost" style="display:flex; gap:10px; text-align:center;">
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:4px 8px;">
+        <div style="font-size:9px; color:#64748b; font-weight:700;">VỐN HĐ</div>
+        <input type="number" value="{{c_raw_inv}}" class="inline-child-inv" data-sku="{{c_sku}}"
+               style="width:70px; border:none; background:transparent; text-align:center; font-size:13px; font-weight:700; color:#64748b; outline:none;">
+    </div>
+    <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px; padding:4px 8px;">
+        <div style="font-size:9px; color:#7c3aed; font-weight:700;">VỐN THỰC</div>
+        <input type="number" value="{{c_raw_real}}" class="inline-child-cost" data-sku="{{c_sku}}"
+               style="width:70px; border:none; background:transparent; text-align:center; font-size:13px; font-weight:700; color:#7c3aed; outline:none;">
+    </div>
+</div>
 <div class="responsive-stock-inline" style="display:flex; gap:4px; text-align:center;">
     <div style="background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:4px 8px;">
         <div style="font-size:9px; color:#3b82f6; font-weight:700;">CHÍNH</div>
