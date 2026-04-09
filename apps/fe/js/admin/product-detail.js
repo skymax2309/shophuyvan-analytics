@@ -231,9 +231,9 @@ async function saveProduct() {
     const desc = document.getElementById('pd-desc').value;
     const videoUrl = document.getElementById('pd-video').value;
 
-    // 1. TẠO SP CHA TRƯỚC (NẾU CÓ NHIỀU PHÂN LOẠI)
+// 1. TẠO SP CHA TRƯỚC (NẾU CÓ NHIỀU PHÂN LOẠI)
     if (rows.length > 1 || currentSku) {
-        await fetch(API + '/api/products', {
+        let resParent = await fetch(API + '/api/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -242,6 +242,7 @@ async function saveProduct() {
                 is_parent: 1, stock: 0, cost_invoice: 0, cost_real: 0
             })
         });
+        if (!resParent.ok) throw new Error(await resParent.text()); // 🌟 Gắn bắt lỗi Server
     }
 
     // 2. LƯU TỪNG PHÂN LOẠI CON
@@ -253,13 +254,14 @@ async function saveProduct() {
       const stMain = parseInt(row.querySelector('.v-main').value) || 0;
       const stSub = parseInt(row.querySelector('.v-sub').value) || 0;
 
-      await fetch(API + '/api/products', {
+      let resChild = await fetch(API + '/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             sku: sku,
             parent_sku: rows.length > 1 ? parentSku : null,
-            product_name: rows.length > 1 ? varName : name,
+            product_name: name,                                     // 🌟 SỬA LẠI: Cột này LUÔN PHẢI LÀ tên SP cha
+            variation_name: rows.length > 1 ? varName : "Mặc định", // 🌟 THÊM MỚI: Cột này là tên phân loại mới đúng
             description: desc, video_url: videoUrl, image_url: vImg, images: JSON.stringify(extraImg),
             cost_invoice: parseFloat(row.querySelector('.v-inv').value) || 0,
             cost_real: parseFloat(row.querySelector('.v-real').value) || 0,
@@ -267,6 +269,7 @@ async function saveProduct() {
             is_parent: 0
         })
       });
+      if (!resChild.ok) throw new Error(`Lỗi lưu Phân loại [${sku}]: ` + await resChild.text()); // 🌟 Gắn bắt lỗi Server
     }
 
     showToast('✅ Đã lưu dữ liệu chuẩn luồng DB!');
