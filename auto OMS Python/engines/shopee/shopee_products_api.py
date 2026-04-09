@@ -32,7 +32,7 @@ class ShopeeProductsAPI:
             if res_list.get("error"):
                 self.log(f"❌ LỖI API SHOPEE: {res_list.get('message', res_list.get('error'))}")
                 self.log(f"🔍 Dữ liệu gốc: {res_list}")
-                break
+                return False # 🌟 ĐÃ SỬA: Báo động đỏ (False) ngay lập tức để Nhạc trưởng đánh thức Quản gia!
                 
             items = res_list.get("response", {}).get("item", [])
             if not items and offset == 0:
@@ -133,5 +133,9 @@ class ShopeeProductsAPI:
                 hub = ProductCoreHub(self.log)
                 hub.sync_products(shop_name, "shopee", all_products_data)
                 self.log(f"🎉 HOÀN TẤT ĐỒNG BỘ SẢN PHẨM & TỒN KHO BẰNG API!")
+                return True # 🌟 Báo cáo Nhạc trưởng: Chạy mượt mà, không cần gọi Quản gia!
             except Exception as e:
                 self.log(f"❌ Lỗi đẩy Hub: {e}")
+                return False
+                
+        return True # Trường hợp chạy mượt, API không lỗi nhưng shop thực sự có 0 sản phẩm

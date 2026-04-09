@@ -31,12 +31,14 @@ class ShopeeTokenCore:
                         db_shop = str(shop.get('shop_name') or "").strip().lower()
                         
                         if target in [db_user, db_shop] or (mapped_id and mapped_id in [db_user, db_shop]):
-                            return {
-                                "access_token": shop.get('access_token'),
-                                "refresh_token": shop.get('refresh_token'),
-                                "shop_id": mapped_id or str(shop.get('api_shop_id') or "")
-                            }
-                self.log(f"   ⚠️ Không tìm thấy cấu hình Token của shop '{shop_name}' trên Server.")
+                            # 🌟 [CHỐT CHẶN]: Bắt buộc phải có Token thì mới lấy. Nếu rỗng thì bỏ qua tìm dòng tiếp theo!
+                            if shop.get('access_token'):
+                                return {
+                                    "access_token": shop.get('access_token'),
+                                    "refresh_token": shop.get('refresh_token'),
+                                    "shop_id": mapped_id or str(shop.get('api_shop_id') or "")
+                                }
+                self.log(f"   ⚠️ Không tìm thấy Token của shop '{shop_name}' trên Server (Hoặc có dòng nhưng chưa kết nối API).")
             else:
                 self.log(f"   ❌ Server trả về lỗi khi lấy Token: {res.status_code} - {res.text}")
         except Exception as e:
