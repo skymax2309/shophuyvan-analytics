@@ -77,7 +77,8 @@ export default {
 // ── Products ──────────────────────────────────────────────────
       // ── Shops & Warehouse ─────────────────────────────────────────────
       if (url.pathname === "/api/products/shops-warehouse-list" ||
-          url.pathname === "/api/products/update-shop-warehouse")
+          url.pathname === "/api/products/update-shop-warehouse" ||
+          url.pathname === "/api/shops/force-refresh-token") // 🌟 Đã mở đường cho Web ép làm mới Token
         return handleShopsWarehouse(request, env, cors)
 
 // ── Products ──────────────────────────────────────────────────────
