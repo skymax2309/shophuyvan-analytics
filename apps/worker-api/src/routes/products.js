@@ -633,53 +633,69 @@ export async function handleVariations(request, env, cors) {
         for (const item_id in parentGroups) {
             const group = parentGroups[item_id];
             const draftKey = `draft_${group.platform}_${item_id}`;
-            const draft = draftData[draftKey] || { description: '', images: [], video_url: '' };
+            const draft = draftData[draftKey] || { description: '', images: [], video_url: '', parent_sku: '' };
             
-            // Khai sinh BÀI ĐĂNG GỐC (Sản phẩm Cha) - Dùng mã P_ + Item_ID của sàn
-            const parentSku = `P_${group.platform.toUpperCase()}_${item_id}`;
-            stmts.push(env.DB.prepare(`
-                INSERT INTO products (sku, product_name, is_parent, description, images, video_url, image_url, stock, cost_invoice, cost_real)
-                VALUES (?, ?, 1, ?, ?, ?, ?, 0, 0, 0)
-                ON CONFLICT(sku) DO NOTHING
-            `).bind(
-                parentSku, group.product_name, draft.description, 
-                JSON.stringify(draft.images), draft.video_url, 
-                group.image_url || (draft.images[0] || ''), 
-            ));
-
-            // Tạo Phân Loại Con & Gắn vào Cha
-            for (const v of group.variations) {
-                // Ưu tiên lấy mã SKU của sàn làm SKU Nội bộ, nếu trống thì tự đẻ mã
-                const childSku = (v.platform_sku && v.platform_sku.trim() !== '') 
-                    ? v.platform_sku.toUpperCase().replace(/\s+/g, '_') 
-                    : `S_${v.id}`;
+            // 🌟 TRƯỜNG HỢP 1: NẾU SẢN PHẨM CHỈ CÓ 1 PHÂN LOẠI (MẶC ĐỊNH)
+            // -> KHÔNG LÀM CHA CON GÌ HẾT, LƯU LUÔN LÀ 1 SẢN PHẨM ĐƠN ĐỘC LẬP BẰNG ĐÚNG MÃ SKU ĐÓ
+            if (group.variations.length === 1 && (!group.variations[0].variation_name || group.variations[0].variation_name === 'Mặc định')) {
+                const v = group.variations[0];
+                // Ưu tiên SKU của Phân loại (nếu có), không có thì lấy SKU Cha (nếu có), kẹt lắm mới lấy ID để khỏi sập data
+                const realSku = (v.platform_sku && v.platform_sku.trim() !== '') ? v.platform_sku.toUpperCase() : (draft.parent_sku ? draft.parent_sku.toUpperCase() : `SP_${item_id}`);
                 
-                // Thêm Phân loại con (Cột parent_sku = parentSku)
                 stmts.push(env.DB.prepare(`
-                    INSERT INTO products (sku, product_name, parent_sku, image_url, stock, cost_invoice, cost_real)
-                    VALUES (?, ?, ?, ?, ?, 0, 0)
-                    ON CONFLICT(sku) DO UPDATE SET parent_sku = excluded.parent_sku
+                    INSERT INTO products (sku, product_name, is_parent, description, images, video_url, image_url, stock, cost_invoice, cost_real)
+                    VALUES (?, ?, 0, ?, ?, ?, ?, ?, 0, 0)
+                    ON CONFLICT(sku) DO UPDATE SET stock = excluded.stock
                 `).bind(
-                    childSku, 
-                    v.variation_name && v.variation_name !== 'Mặc định' ? v.variation_name : group.product_name, 
-                    parentSku, 
-                    v.image_url || '', 
-                    v.stock || 0
+                    realSku, group.product_name, draft.description, 
+                    JSON.stringify(draft.images), draft.video_url, 
+                    group.image_url || (draft.images[0] || ''), v.stock || 0
                 ));
 
-                // Map vào CSDL Variations (Đổi trạng thái sang MAPPED)
-                stmts.push(env.DB.prepare(`
-                    UPDATE product_variations SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now') WHERE id = ?
-                `).bind(childSku, v.id));
-
-                // Dạy cho AI nhớ quy tắc Map này
+                stmts.push(env.DB.prepare(`UPDATE product_variations SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now') WHERE id = ?`).bind(realSku, v.id));
+                
                 if (v.platform_sku && v.platform_sku.trim() !== '') {
-                    stmts.push(env.DB.prepare(`
-                        INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)
-                        ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku
-                    `).bind(v.platform_sku, childSku));
+                    stmts.push(env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?) ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku`).bind(v.platform_sku, realSku));
                 }
                 copied++;
+            } 
+            // 🌟 TRƯỜNG HỢP 2: NẾU SẢN PHẨM CÓ TỪ 2 PHÂN LOẠI TRỞ LÊN
+            // -> LẤY ĐÚNG MÃ SP GỐC CỦA SHOPEE LÀM CHA, NẾU TRỐNG THÌ LẤY MÃ PHÂN LOẠI ĐẦU TIÊN CẮT ĐUÔI
+            else {
+                let parentSku = draft.parent_sku ? draft.parent_sku.toUpperCase() : '';
+                if (!parentSku) {
+                    const firstChildSku = group.variations[0].platform_sku || '';
+                    parentSku = firstChildSku.includes('-') ? firstChildSku.split('-')[0] : (firstChildSku || `P_${item_id}`);
+                }
+
+                stmts.push(env.DB.prepare(`
+                    INSERT INTO products (sku, product_name, is_parent, description, images, video_url, image_url, stock, cost_invoice, cost_real)
+                    VALUES (?, ?, 1, ?, ?, ?, ?, 0, 0, 0)
+                    ON CONFLICT(sku) DO NOTHING
+                `).bind(
+                    parentSku, group.product_name, draft.description, 
+                    JSON.stringify(draft.images), draft.video_url, 
+                    group.image_url || (draft.images[0] || '')
+                ));
+
+                for (const v of group.variations) {
+                    const childSku = (v.platform_sku && v.platform_sku.trim() !== '') ? v.platform_sku.toUpperCase() : `S_${v.id}`;
+                    
+                    stmts.push(env.DB.prepare(`
+                        INSERT INTO products (sku, product_name, parent_sku, image_url, stock, cost_invoice, cost_real)
+                        VALUES (?, ?, ?, ?, ?, 0, 0)
+                        ON CONFLICT(sku) DO UPDATE SET parent_sku = excluded.parent_sku, stock = excluded.stock
+                    `).bind(
+                        childSku, v.variation_name || group.product_name, parentSku, v.image_url || '', v.stock || 0
+                    ));
+
+                    stmts.push(env.DB.prepare(`UPDATE product_variations SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now') WHERE id = ?`).bind(childSku, v.id));
+                    
+                    if (v.platform_sku && v.platform_sku.trim() !== '') {
+                        stmts.push(env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?) ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku`).bind(v.platform_sku, childSku));
+                    }
+                    copied++;
+                }
             }
         }
 

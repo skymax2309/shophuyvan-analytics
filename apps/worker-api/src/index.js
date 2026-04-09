@@ -256,7 +256,7 @@ export default {
         }
       }
 
-      // ── CỔNG VIP: Dành riêng cho Bot Python lấy Token ─────────────────
+// ── CỔNG VIP: Dành riêng cho Bot Python lấy Token ─────────────────
       if (url.pathname === "/api/shops/tokens" && request.method === "GET") {
         try {
           // Trả về full thông tin bảo mật (chỉ Bot Python gọi vào đây)
@@ -265,6 +265,27 @@ export default {
         } catch (e) {
           console.error("[API TOKENS] Lỗi:", e.message)
           return Response.json({ error: e.message }, { status: 500, headers: cors })
+        }
+      }
+
+      // 🌟 [API MỚI] GHI NHẬN TOKEN MỚI TỪ LUỒNG AUTO REFRESH PYTHON
+      if (url.pathname === "/api/shops/update-tokens" && request.method === "POST") {
+        try {
+          const { shop_id, access_token, refresh_token } = await request.json();
+          if (!shop_id || !access_token) return Response.json({ error: "Missing data" }, { status: 400, headers: cors });
+          
+          // Cập nhật Token mới vào DB, cộng thêm 4 tiếng cho thời gian sống
+          await env.DB.prepare(`
+            UPDATE shops 
+            SET access_token = ?, refresh_token = COALESCE(?, refresh_token), token_expire_at = datetime('now', '+4 hours') 
+            WHERE api_shop_id = ? OR user_name = ? OR shop_name = ?
+          `).bind(access_token, refresh_token, String(shop_id), String(shop_id), String(shop_id)).run();
+          
+          console.log(`[API TOKENS] Đã cất Token mới an toàn vào Két sắt cho Shop ID: ${shop_id}`);
+          return Response.json({ status: "ok", message: "Đã lưu Token mới vào CSDL" }, { headers: cors });
+        } catch (e) {
+          console.error("[API UPDATE TOKENS] Lỗi:", e.message);
+          return Response.json({ error: e.message }, { status: 500, headers: cors });
         }
       }
 
