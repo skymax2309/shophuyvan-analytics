@@ -117,6 +117,7 @@ window.generateRowHtml = function(p) {
         const childrenHtml = p.children.map(c => {
             const cValidImg = c.image_url && c.image_url !== "undefined" && c.image_url.trim() !== "";
             const cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
+            const isCombo = c.is_combo == 1;
             return tplChild.replace(/{{c_sku}}/g, c.sku)
                 .replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại"))
                 .replace(/{{c_img_url}}/g, cImgUrl)
@@ -124,7 +125,11 @@ window.generateRowHtml = function(p) {
                 .replace(/{{c_raw_real}}/g, `<input type="number" class="inline-edit-input right v-real" value="${c.cost_real || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_real', this.value)">`)
                 .replace(/{{c_raw_stock_main}}/g, `<input type="number" class="inline-edit-input center" value="${c.stock_main || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`)
                 .replace(/{{c_raw_stock_sub}}/g, `<input type="number" class="inline-edit-input center" value="${c.stock_sub || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`)
-                .replace(/{{c_mapped_badge}}/g, genBadge(c.sku));
+                .replace(/{{c_mapped_badge}}/g, genBadge(c.sku))
+                .replace(/{{c_combo_bg}}/g, isCombo ? '#f3e8ff' : '#f8fafc')
+                .replace(/{{c_combo_color}}/g, isCombo ? '#7c3aed' : '#64748b')
+                .replace(/{{c_combo_border}}/g, isCombo ? '#d8b4fe' : '#e2e8f0')
+                .replace(/{{c_combo_text}}/g, isCombo ? 'Sửa Combo' : 'Tạo Combo');
         }).join('');
         html = html.replace(/{{children_list}}/g, childrenHtml).replace(/{{show_toggle}}/g, 'block');
     } else {
