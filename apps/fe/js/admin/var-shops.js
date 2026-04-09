@@ -22,9 +22,29 @@ window.loadShopWarehouses = async function() {
             return;
         }
 
-        tbody.innerHTML = res.map(shop => `
+        tbody.innerHTML = res.map(shop => {
+            let apiStatusHtml = '';
+            let btnHtml = '';
+            
+            if (!shop.token_expire_at) {
+                apiStatusHtml = `<span style="color:#94a3b8; font-weight:600; font-size:12px;">⚪ Chưa kết nối</span>`;
+                btnHtml = `<button disabled style="padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; background:#f8fafc; color:#cbd5e1; font-size:12px; cursor:not-allowed;">Làm mới</button>`;
+            } else {
+                const expireDate = new Date(shop.token_expire_at + 'Z'); 
+                const now = new Date();
+                
+                if (expireDate > now) {
+                    apiStatusHtml = `<span style="background:#dcfce7; color:#16a34a; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">✅ Đang hoạt động</span><div style="font-size:10px; color:#64748b; margin-top:4px;">Hết hạn: ${expireDate.toLocaleString('vi-VN')}</div>`;
+                    btnHtml = `<button onclick="forceRefreshShopToken(${shop.id}, '${shop.api_shop_id}', '${shop.refresh_token}')" style="padding:6px 12px; border-radius:6px; border:1px solid #bfdbfe; background:#eff6ff; color:#2563eb; font-size:12px; font-weight:700; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">🔄 Làm mới</button>`;
+                } else {
+                    apiStatusHtml = `<span style="background:#fee2e2; color:#dc2626; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px;">❌ Hết hạn Token</span><div style="font-size:10px; color:#ef4444; margin-top:4px;">Đã chết lúc: ${expireDate.toLocaleString('vi-VN')}</div>`;
+                    btnHtml = `<button onclick="forceRefreshShopToken(${shop.id}, '${shop.api_shop_id}', '${shop.refresh_token}')" style="padding:6px 12px; border-radius:6px; border:none; background:#ef4444; color:white; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 4px rgba(239,68,68,0.3);">⚡ Hồi sinh ngay</button>`;
+                }
+            }
+
+            return `
             <tr style="border-bottom:1px solid #f1f5f9; transition:0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-<td style="padding:12px;"><span style="background:#e2e8f0; color:#334155; font-weight:800; font-size:11px; padding:4px 8px; border-radius:6px; text-transform:uppercase;">${escapeHtml(shop.platform || shop.Platform || '(không rõ sàn)')}</span></td>
+                <td style="padding:12px;"><span style="background:#e2e8f0; color:#334155; font-weight:800; font-size:11px; padding:4px 8px; border-radius:6px; text-transform:uppercase;">${escapeHtml(shop.platform || shop.Platform || '(không rõ sàn)')}</span></td>
                 <td style="padding:12px; font-weight:700; color:#0f172a; font-size:15px;">${escapeHtml(shop.shop_name || shop.shopName || '(không rõ tên shop)')}</td>
                 <td style="padding:12px;">
                     <select onchange="updateShopWarehouse(${shop.id}, this.value)" style="padding:8px 12px; border-radius:6px; border:1px solid #cbd5e1; font-size:13px; cursor:pointer; font-weight:700; color:#1e40af; background:#eff6ff;">
@@ -32,9 +52,38 @@ window.loadShopWarehouses = async function() {
                         <option value="sub" ${shop.warehouse_source === 'sub' ? 'selected' : ''}>📦 KHO PHỤ</option>
                     </select>
                 </td>
+                <td style="padding:12px;">${apiStatusHtml}</td>
+                <td style="padding:12px; text-align:right;">${btnHtml}</td>
             </tr>
-        `).join('');
+        `}).join('');
     } catch (e) { showToast("❌ Lỗi tải danh sách kho!", true); }
+}
+
+// 🌟 HÀM MỚI: XỬ LÝ NÚT BẤM "HỒI SINH/LÀM MỚI TOKEN"
+window.forceRefreshShopToken = async function(shopId, apiShopId, refreshToken) {
+    if (!apiShopId || !refreshToken || refreshToken === 'null') {
+        showToast("❌ Cửa hàng này chưa từng kết nối API. Bác cần quét mã QR cấp quyền trước!", true);
+        return;
+    }
+    
+    showToast("⏳ Đang gọi Server Shopee xin Token mới...");
+    try {
+        const res = await fetch(API + "/api/shops/force-refresh-token", { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ shop_id: shopId, api_shop_id: apiShopId, refresh_token: refreshToken }) 
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+            showToast("🎉 " + data.message);
+            loadShopWarehouses(); 
+        } else {
+            showToast("❌ Lỗi Shopee: " + data.error, true);
+        }
+    } catch (e) { 
+        showToast("❌ Đứt cáp mạng: " + e.message, true); 
+    }
 }
 
 window.updateShopWarehouse = async function(shopId, source) {
