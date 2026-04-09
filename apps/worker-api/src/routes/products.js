@@ -216,19 +216,26 @@ stmts.push(env.DB.prepare(`
         }
       }
 
- // ==========================================
+// ==========================================
   // API POST GỐC (Lưu 1 sản phẩm thủ công)
   // ==========================================
 if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent") && !url.pathname.includes("/bulk-import")) {
     const b = await request.json();
     console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Giá Vốn HĐ:", b.cost_invoice, "| Giá Thực:", b.cost_real);
+    
+    // 🌟 CHỐT CHẶN: Ưu tiên lấy variation_name làm tên phân loại, nếu rỗng thì mới lấy product_name
+    const finalName = b.variation_name || b.product_name || "";
+
     await env.DB.prepare(`
-      INSERT INTO products (sku, product_name, description, video_url, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, stock_main, stock_sub, min_stock)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (sku, product_name, parent_sku, is_parent, description, video_url, images, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, stock_main, stock_sub, min_stock)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(sku) DO UPDATE SET
         product_name = excluded.product_name,
+        parent_sku = excluded.parent_sku,
+        is_parent = excluded.is_parent,
         description = CASE WHEN excluded.description != '' THEN excluded.description ELSE products.description END,
         video_url = CASE WHEN excluded.video_url != '' THEN excluded.video_url ELSE products.video_url END,
+        images = CASE WHEN excluded.images != '[]' THEN excluded.images ELSE products.images END,
         cost_invoice = excluded.cost_invoice,
         cost_real = excluded.cost_real,
         is_combo = excluded.is_combo,
@@ -240,7 +247,8 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
         stock_sub = excluded.stock_sub,
         min_stock = excluded.min_stock
     `).bind(
-      b.sku, b.product_name || "", b.description || "", b.video_url || "", 
+      b.sku, finalName, b.parent_sku || null, b.is_parent || 0,
+      b.description || "", b.video_url || "", b.images || "[]", 
       b.cost_invoice || 0, b.cost_real || 0,
       b.is_combo || 0, b.combo_items || null, b.combo_qty || 1, b.image_url || "",
       b.stock !== undefined ? b.stock : 0, 
@@ -250,7 +258,6 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
     ).run();
     return Response.json({ status: "ok" }, { headers: cors });
   }
-
   if (request.method === "DELETE") {
     const path = url.pathname;
     
