@@ -27,8 +27,17 @@ window.loadShopWarehouses = async function() {
             let btnHtml = '';
             
             if (!shop.token_expire_at) {
-                apiStatusHtml = `<span style="color:#94a3b8; font-weight:600; font-size:12px;">⚪ Chưa kết nối</span>`;
-                btnHtml = `<button disabled style="padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; background:#f8fafc; color:#cbd5e1; font-size:12px; cursor:not-allowed;">Làm mới</button>`;
+                apiStatusHtml = `<span style="color:#94a3b8; font-weight:600; font-size:12px;">⚪ Chưa kết nối API</span>`;
+                
+                // Tự động nhận diện sàn để gắn đúng link cấp quyền
+                const platformLower = (shop.platform || '').toLowerCase();
+                if (platformLower === 'shopee') {
+                    btnHtml = `<button onclick="window.location.href = API + '/api/auth/shopee/url'" style="padding:6px 12px; border-radius:6px; border:none; background:#f97316; color:white; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 4px rgba(249,115,22,0.3);">🔗 Cấp quyền</button>`;
+                } else if (platformLower === 'lazada') {
+                    btnHtml = `<button onclick="window.location.href = API + '/api/auth/lazada/url'" style="padding:6px 12px; border-radius:6px; border:none; background:#0ea5e9; color:white; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 4px rgba(14,165,233,0.3);">🔗 Cấp quyền</button>`;
+                } else {
+                    btnHtml = `<button disabled style="padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; background:#f8fafc; color:#cbd5e1; font-size:12px; cursor:not-allowed;">Không hỗ trợ</button>`;
+                }
             } else {
                 const expireDate = new Date(shop.token_expire_at + 'Z'); 
                 const now = new Date();
