@@ -120,119 +120,72 @@
   <!-- ===== THÔNG TIN CƠ BẢN ===== -->
   <div class="pd-section">
     <div class="pd-section-header" onclick="toggleSection(this)">
-      <h3>📋 Thông tin cơ bản</h3>
+      <h3>🛒 Phân Loại Hàng (Biến thể & Thiết lập hàng loạt)</h3>
       <span class="toggle-icon">▼</span>
     </div>
-    <div class="pd-section-body">
+    <div class="pd-section-body" style="background:#f8fafc; gap:16px;">
 
-      <!-- Tên sản phẩm -->
-      <div class="pd-field">
-        <label><span class="req">*</span> Tên sản phẩm</label>
-        <input type="text" id="pd-name" placeholder="Nhập tên sản phẩm...">
-      </div>
-
-      <!-- Mô tả sản phẩm -->
-      <div class="pd-field">
-        <label>Mô tả sản phẩm</label>
-        <textarea id="pd-desc" placeholder="Nhập mô tả chi tiết sản phẩm..."></textarea>
-      </div>
-
-      <!-- Hình ảnh sản phẩm -->
-      <div class="pd-field">
-        <label>Hình ảnh sản phẩm</label>
-        <div class="hint">Ảnh đầu tiên là ảnh đại diện chính. Tối đa 9 ảnh.</div>
-        <div class="img-gallery" id="img-gallery">
-          <div class="img-add-btn" onclick="document.getElementById('img-upload-input').click()">
-            <span>＋</span>Thêm ảnh
+      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
+        <h4 style="margin:0 0 12px 0; font-size:14px; color:#1e293b;">1. Nhóm Phân Loại (Nhấn Enter để thêm tùy chọn)</h4>
+        
+        <div style="background:#f1f5f9; padding:12px; border-radius:8px; border:1px dashed #cbd5e1; margin-bottom:12px;">
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+            <span style="font-weight:bold; font-size:13px; width:60px;">Nhóm 1:</span>
+            <input type="text" id="shopee-grp1-name" value="Màu sắc" oninput="generateShopeeMatrix()" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; width:200px; outline:none;">
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-left:70px; align-items:center;">
+            <div id="shopee-tags-1" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+            <input type="text" id="shopee-input-1" placeholder="+ Thêm (Nhấn Enter)" onkeypress="handleTagEnter(event, 1)" style="padding:4px 8px; border:1px dashed #94a3b8; border-radius:4px; font-size:12px; width:150px; background:transparent; outline:none;">
           </div>
         </div>
-        <input type="file" id="img-upload-input" accept="image/*" multiple style="display:none" onchange="handleImgUpload(this)">
-      </div>
 
-      <!-- Video sản phẩm -->
-      <div class="pd-field">
-        <label>Video sản phẩm (URL YouTube hoặc link mp4)</label>
-        <input type="url" id="pd-video" placeholder="https://youtube.com/watch?v=... hoặc https://...mp4" oninput="previewVideo(this.value)">
-        <div id="video-preview" style="margin-top:8px; display:none;">
-          <iframe id="video-iframe" style="width:100%; max-width:480px; height:270px; border-radius:8px; border:none;" allowfullscreen></iframe>
-          <video id="video-native" controls style="width:100%; max-width:480px; max-height:270px; border-radius:8px; display:none;"></video>
+        <div id="shopee-grp2-wrap" style="display:none; background:#f1f5f9; padding:12px; border-radius:8px; border:1px dashed #cbd5e1;">
+          <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+            <span style="font-weight:bold; font-size:13px; width:60px;">Nhóm 2:</span>
+            <input type="text" id="shopee-grp2-name" value="Kích thước" oninput="generateShopeeMatrix()" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; width:200px; outline:none;">
+            <button onclick="toggleGroup2(false)" style="border:none; background:transparent; color:#ef4444; cursor:pointer; font-size:12px; font-weight:bold;">✕ Xóa nhóm</button>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-left:70px; align-items:center;">
+            <div id="shopee-tags-2" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+            <input type="text" id="shopee-input-2" placeholder="+ Thêm (Nhấn Enter)" onkeypress="handleTagEnter(event, 2)" style="padding:4px 8px; border:1px dashed #94a3b8; border-radius:4px; font-size:12px; width:150px; background:transparent; outline:none;">
+          </div>
         </div>
+        <button id="btn-add-grp2" onclick="toggleGroup2(true)" style="margin-top:4px; padding:6px 12px; background:#fff; border:1px dashed #2563eb; color:#2563eb; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">+ Thêm nhóm phân loại 2</button>
       </div>
 
-    </div>
-  </div>
+      <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h4 style="margin:0 10px 0 0; font-size:14px; color:#1e293b;">2. Thiết lập hàng loạt:</h4>
+        <input type="number" id="bulk-inv" placeholder="Vốn HĐ (đ)" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; width:110px; font-size:13px; outline:none;">
+        <input type="number" id="bulk-real" placeholder="Vốn Thực (đ)" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; width:110px; font-size:13px; outline:none;">
+        <input type="number" id="bulk-main" placeholder="Kho BT" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; width:80px; font-size:13px; outline:none;">
+        <input type="number" id="bulk-sub" placeholder="Kho Phụ" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; width:80px; font-size:13px; outline:none;">
+        <button onclick="applyBulkValues()" style="padding:6px 16px; background:#2563eb; color:white; border:none; border-radius:6px; font-size:13px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(37,99,235,0.2);">⚡ Áp dụng tất cả</button>
+      </div>
 
-  <!-- ===== THÔNG TIN BÁN HÀNG (BẢNG PHÂN LOẠI) ===== -->
-  <div class="pd-section">
-    <div class="pd-section-header" onclick="toggleSection(this)">
-      <h3>🛒 Thông tin bán hàng — Bảng phân loại</h3>
-      <span class="toggle-icon">▼</span>
-    </div>
-    <div class="pd-section-body" style="padding:0; gap:0;">
-
-      <div class="var-table-wrap">
-        <table class="var-table">
-<thead>
+      <div class="var-table-wrap" style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+        <table class="var-table" style="width:100%;">
+          <thead style="background:#f1f5f9;">
             <tr>
               <th style="width:50px;">Ảnh</th>
-              <th>Tên phân loại</th>
-              <th class="center" style="width:110px;">Giá vốn HĐ</th>
-              <th class="center" style="width:110px;">Giá vốn thực</th>
-              <th class="center" style="width:90px;">Kho BT</th>
-              <th class="center" style="width:90px;">Kho Phụ</th>
-              <th class="center" style="width:80px;">Tổng tồn</th>
-              <th style="width:120px; min-width:120px;">Mã SKU</th>
-              <th style="width:80px;">Combo</th>
+              <th>Tên Phân Loại</th>
+              <th class="center" style="width:110px;">Vốn HĐ</th>
+              <th class="center" style="width:110px;">Vốn thực</th>
+              <th class="center" style="width:80px;">Kho BT</th>
+              <th class="center" style="width:80px;">Kho Phụ</th>
+              <th style="width:140px;">Mã SKU</th>
+              <th style="width:40px;"></th>
             </tr>
           </thead>
-          <tbody id="var-tbody">
+          <tbody id="var-tbody-shopee">
             </tbody>
         </table>
       </div>
 
-      <div style="display:flex; gap:24px; padding:14px 20px; background:#f8fafc; border-top:2px solid #e2e8f0; flex-wrap:wrap;">
-        <div style="text-align:center;">
-          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Tổng SKU</div>
-          <div style="font-size:20px; font-weight:900; color:#2563eb;" id="summary-sku-count">0</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Tổng tồn kho</div>
-          <div style="font-size:20px; font-weight:900; color:#16a34a;" id="summary-stock-total">0</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Vốn HĐ TB</div>
-          <div style="font-size:20px; font-weight:900; color:#475569;" id="summary-cost-inv">0đ</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Vốn Thực TB</div>
-          <div style="font-size:20px; font-weight:900; color:#7c3aed;" id="summary-cost-real">0đ</div>
-        </div>
-      </div>
-      
-      <div style="padding:12px 16px; border-top:1px dashed #e2e8f0;">
-        <button class="btn-add-var" onclick="if(typeof addNewVarQuick === 'function') addNewVarQuick(currentSku); else addVarRow()">➕ Thêm phân loại mới (Chỉ dùng khi cần)</button>
+      <div style="text-align:right; margin-top:8px;">
+        <button onclick="addFreeRow()" style="padding:6px 12px; background:transparent; border:1px solid #cbd5e1; color:#475569; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">+ Thêm dòng thủ công</button>
       </div>
 
     </div>
-  </div>
-  
-  <div class="pd-section" id="combo-manager-section" style="display:none; border-color:#bbf7d0;">
-      <div class="pd-section-header" style="background:#f0fdf4; border-bottom-color:#bbf7d0;">
-          <h3 style="color:#166534;">📦 Quản lý Thành phần Combo</h3>
-          <span style="font-size:12px; color:#16a34a; font-weight:bold;" id="combo-target-name">Đang xử lý: ...</span>
-      </div>
-      <div class="pd-section-body" style="background:#f0fdf4;">
-          <input type="hidden" id="current-combo-sku" value="">
-          <div id="combo-ui-wrapper">
-              <div style="font-size:13px; color:#166534; margin-bottom:8px; font-weight:600;">Thêm các SKU thành phần (Ví dụ: Khẩu trang + Nước rửa tay):</div>
-              <div id="combo-items-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
-              <div style="display:flex; gap:10px;">
-                  <button onclick="if(typeof addComboItemRow === 'function') addComboItemRow()" style="background:#22c55e; color:white; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">+ Thêm dòng SKU</button>
-                  <button onclick="document.getElementById('combo-manager-section').style.display='none'" style="background:#f1f5f9; color:#475569; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">Đóng bảng Combo</button>
-              </div>
-              <datalist id="all-sku-datalist"></datalist>
-          </div>
-      </div>
   </div>
 
   <!-- ===== ACTION BAR ===== -->
