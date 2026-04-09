@@ -65,23 +65,29 @@ window.switchSkuTab = function(tab) {
 window.generateRowHtml = function(p) {
     const tplParent = document.getElementById('tpl-parent-card').innerHTML;
     const tplChild = document.getElementById('tpl-child-row').innerHTML;
-    const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
+const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
     const validImg = p.image_url && p.image_url !== "undefined" && p.image_url.trim() !== "";
-    const imgUrl = validImg ? p.image_url.trim() : "https://placehold.co/80x80?text=No+Image";
+    let imgUrl = validImg ? p.image_url.trim() : "https://placehold.co/80x80?text=No+Image";
+    if (imgUrl.startsWith('blob:')) imgUrl = "https://placehold.co/80x80?text=Loi+Blob";
 
     // === GALLERY ảnh phụ ===
     let galleryHtml = '';
     try {
         const imgs = JSON.parse(p.images || '[]');
         if (Array.isArray(imgs) && imgs.length > 0) {
-            galleryHtml = imgs.map(url => `<img src="${escapeHtml(url)}" onclick="event.stopPropagation(); document.getElementById('img-${p.sku}').src=this.src" title="Nhấn để đặt làm ảnh đại diện">`).join('');
+            galleryHtml = imgs.map(url => {
+                const safeUrl = url.startsWith('blob:') ? "https://placehold.co/40x40?text=Loi" : escapeHtml(url);
+                return `<img src="${safeUrl}" onclick="event.stopPropagation(); document.getElementById('img-${p.sku}').src=this.src" title="Nhấn để đặt làm ảnh đại diện">`;
+            }).join('');
         }
     } catch(e) {}
 
     // === VIDEO nhúng ===
     let videoHtml = '';
     const vUrl = (p.video_url || '').trim();
-    if (vUrl) {
+    if (vUrl.startsWith('blob:')) {
+        videoHtml = `<div style="padding:10px; background:#fee2e2; color:#dc2626; border-radius:8px; font-size:11px; text-align:center;">Lỗi Video: Link cục bộ đã hết hạn</div>`;
+    } else if (vUrl) {
         let embedUrl = '';
         const ytMatch = vUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
         if (ytMatch) {
@@ -116,7 +122,8 @@ window.generateRowHtml = function(p) {
     if (p.children && p.children.length > 0) {
         const childrenHtml = p.children.map(c => {
             const cValidImg = c.image_url && c.image_url !== "undefined" && c.image_url.trim() !== "";
-            const cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
+            let cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
+            if (cImgUrl.startsWith('blob:')) cImgUrl = "https://placehold.co/40x40?text=Loi+Blob";
             const isCombo = c.is_combo == 1;
             
             let displayInv = c.cost_invoice || 0;
