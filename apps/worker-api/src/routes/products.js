@@ -681,7 +681,8 @@ export async function handleVariations(request, env, cors) {
                 stmts.push(env.DB.prepare(`UPDATE product_variations SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now') WHERE id = ?`).bind(realSku, v.id));
                 
                 if (v.platform_sku && v.platform_sku.trim() !== '') {
-                    stmts.push(env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?) ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku`).bind(v.platform_sku, realSku));
+                    stmts.push(env.DB.prepare(`DELETE FROM sku_alias WHERE platform_sku = ?`).bind(v.platform_sku));
+                    stmts.push(env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)`).bind(v.platform_sku, realSku));
                 }
                 copied++;
             } 
@@ -718,7 +719,8 @@ export async function handleVariations(request, env, cors) {
                     stmts.push(env.DB.prepare(`UPDATE product_variations SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now') WHERE id = ?`).bind(childSku, v.id));
                     
                     if (v.platform_sku && v.platform_sku.trim() !== '') {
-                        stmts.push(env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?) ON CONFLICT(platform_sku) DO UPDATE SET internal_sku = excluded.internal_sku`).bind(v.platform_sku, childSku));
+                        stmts.push(env.DB.prepare(`DELETE FROM sku_alias WHERE platform_sku = ?`).bind(v.platform_sku));
+                        stmts.push(env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)`).bind(v.platform_sku, childSku));
                     }
                     copied++;
                 }
