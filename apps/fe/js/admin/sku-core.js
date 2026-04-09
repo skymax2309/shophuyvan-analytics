@@ -118,13 +118,23 @@ window.generateRowHtml = function(p) {
             const cValidImg = c.image_url && c.image_url !== "undefined" && c.image_url.trim() !== "";
             const cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
             const isCombo = c.is_combo == 1;
+            
+            // Khóa mõm các ô nhập liệu nếu là Combo, hiện icon ổ khóa
+            const invHtml = isCombo ? `<div style="font-size:13px; font-weight:700; color:#94a3b8; padding:4px 6px; text-align:right;" title="Tự động tính từ thành phần">🔒 ${c.cost_invoice || 0}</div>` : `<input type="number" class="inline-edit-input right" value="${c.cost_invoice || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_invoice', this.value)">`;
+            
+            const realHtml = isCombo ? `<div style="font-size:13px; font-weight:700; color:#94a3b8; padding:4px 6px; text-align:right;" title="Tự động tính từ thành phần">🔒 ${c.cost_real || 0}</div>` : `<input type="number" class="inline-edit-input right v-real" value="${c.cost_real || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_real', this.value)">`;
+            
+            const stockMainHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${c.stock_main || 0}</div>` : `<input type="number" class="inline-edit-input center" value="${c.stock_main || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`;
+            
+            const stockSubHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${c.stock_sub || 0}</div>` : `<input type="number" class="inline-edit-input center" value="${c.stock_sub || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`;
+
             return tplChild.replace(/{{c_sku}}/g, c.sku)
                 .replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại"))
                 .replace(/{{c_img_url}}/g, cImgUrl)
-                .replace(/{{c_raw_inv}}/g, `<input type="number" class="inline-edit-input right" value="${c.cost_invoice || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_invoice', this.value)">`)
-                .replace(/{{c_raw_real}}/g, `<input type="number" class="inline-edit-input right v-real" value="${c.cost_real || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_real', this.value)">`)
-                .replace(/{{c_raw_stock_main}}/g, `<input type="number" class="inline-edit-input center" value="${c.stock_main || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`)
-                .replace(/{{c_raw_stock_sub}}/g, `<input type="number" class="inline-edit-input center" value="${c.stock_sub || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`)
+                .replace(/{{c_raw_inv}}/g, invHtml)
+                .replace(/{{c_raw_real}}/g, realHtml)
+                .replace(/{{c_raw_stock_main}}/g, stockMainHtml)
+                .replace(/{{c_raw_stock_sub}}/g, stockSubHtml)
                 .replace(/{{c_mapped_badge}}/g, genBadge(c.sku))
                 .replace(/{{c_combo_bg}}/g, isCombo ? '#f3e8ff' : '#f8fafc')
                 .replace(/{{c_combo_color}}/g, isCombo ? '#7c3aed' : '#64748b')
