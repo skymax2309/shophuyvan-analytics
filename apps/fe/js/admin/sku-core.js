@@ -99,22 +99,32 @@ window.generateRowHtml = function(p) {
     // === Mô tả ===
     const descText = (p.description || '').trim() || '<span style="color:#cbd5e1;font-style:italic;">Chưa có mô tả sản phẩm</span>';
 
-    const genBadge = (skuStr, mappedShops) => {
-        const btnQuickMap = `<button onclick="openQuickMapModal('${skuStr}')" style="background:#eff6ff;color:#2563eb;border:1px dashed #93c5fd;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:bold;cursor:pointer;margin-top:4px;">+ Map Shop</button>`;
-        if (mappedShops) return `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;">` + mappedShops.split(',').map(s => `<span style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;padding:2px 6px;border-radius:4px;font-size:10px;">🏷️ ${s.trim()}</span>`).join('') + btnQuickMap + `</div>`;
-        return `<div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center;"><span style="background:#fff7ed;color:#ea580c;border:1px solid #fdba74;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:bold;">⚠️ Chưa Map Shop Nào</span>` + btnQuickMap + `</div>`;
-    };
+    const genBadge = (skuStr) => `<div style="font-size:10px; color:#cbd5e1; margin-top:4px;">ID: ${skuStr}</div>`;
 
     const totalStock = (p.stock || 0) + (p.children ? p.children.reduce((sum, c) => sum + (c.stock || 0), 0) : 0);
-    let html = tplParent.replace(/{{safe_sku}}/g, safeSku).replace(/{{sku}}/g, p.sku).replace(/{{name}}/g, escapeHtml(p.product_name || "Sản phẩm")).replace(/{{image}}/g, imgUrl).replace(/{{mapped_badge}}/g, genBadge(p.sku, p.mapped_shops)).replace(/{{total_stock}}/g, totalStock);
+    let html = tplParent
+        .replace(/{{safe_sku}}/g, safeSku)
+        .replace(/{{sku}}/g, p.sku)
+        .replace(/{{name}}/g, escapeHtml(p.product_name || "Sản phẩm"))
+        .replace(/{{image}}/g, imgUrl)
+        .replace(/{{mapped_badge}}/g, genBadge(p.sku, p.mapped_shops))
+        .replace(/{{total_stock}}/g, totalStock)
+        .replace(/{{gallery_html}}/g, galleryHtml)
+        .replace(/{{video_html}}/g, videoHtml)
+        .replace(/{{desc_text}}/g, descText);
 
     if (p.children && p.children.length > 0) {
         const childrenHtml = p.children.map(c => {
             const cValidImg = c.image_url && c.image_url !== "undefined" && c.image_url.trim() !== "";
             const cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
-            return tplChild.replace(/{{c_sku}}/g, c.sku).replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại")).replace(/{{c_img_url}}/g, cImgUrl).replace(/{{c_cost}}/g, Math.round(c.cost_real || 0).toLocaleString('vi-VN') + 'đ').replace(/{{c_stock}}/g, c.stock || 0).replace(/{{c_enc_name}}/g, encodeURIComponent(c.product_name || "")).replace(/{{c_raw_inv}}/g, c.cost_invoice || 0).replace(/{{c_raw_real}}/g, c.cost_real || 0).replace(/{{c_raw_stock}}/g, c.stock || 0)
-.replace(/{{c_raw_stock_main}}/g, c.stock_main || 0)
-.replace(/{{c_raw_stock_sub}}/g, c.stock_sub || 0).replace(/{{c_img}}/g, c.image_url || "").replace(/{{c_mapped_badge}}/g, genBadge(c.sku, c.mapped_shops));
+            return tplChild.replace(/{{c_sku}}/g, c.sku)
+                .replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại"))
+                .replace(/{{c_img_url}}/g, cImgUrl)
+                .replace(/{{c_raw_inv}}/g, `<input type="number" class="inline-edit-input right" value="${c.cost_invoice || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_invoice', this.value)">`)
+                .replace(/{{c_raw_real}}/g, `<input type="number" class="inline-edit-input right v-real" value="${c.cost_real || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_real', this.value)">`)
+                .replace(/{{c_raw_stock_main}}/g, `<input type="number" class="inline-edit-input center" value="${c.stock_main || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`)
+                .replace(/{{c_raw_stock_sub}}/g, `<input type="number" class="inline-edit-input center" value="${c.stock_sub || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`)
+                .replace(/{{c_mapped_badge}}/g, genBadge(c.sku));
         }).join('');
         html = html.replace(/{{children_list}}/g, childrenHtml).replace(/{{show_toggle}}/g, 'block');
     } else {
@@ -177,4 +187,44 @@ window.renderSkuPagination = function(totalItems, totalPages) {
         <span style="padding:8px 16px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold;">Trang ${window.currentSkuPage} / ${totalPages}</span>
         <button onclick="renderSkuTables(${window.currentSkuPage + 1})" ${window.currentSkuPage === totalPages ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; font-weight:bold; background:${window.currentSkuPage === totalPages ? '#f8fafc' : 'white'}; color:${window.currentSkuPage === totalPages ? '#cbd5e1' : '#333'};">Trang sau ›</button>
     `;
+}
+
+// ===== HÀM DÒ MÌN: TỰ ĐỘNG CẬP NHẬT TRỰC TIẾP (INLINE SAVE) =====
+window.inlineUpdateProduct = async function(sku, field, value) {
+    console.log(`[Dò mìn] Đang cập nhật ${field} cho SKU: ${sku} với giá trị: ${value}`);
+    
+    try {
+        // 1. Tìm dữ liệu gốc để giữ lại các thông tin khác
+        const original = window.allSkus.find(s => s.sku === sku);
+        if (!original) throw new Error("Không tìm thấy dữ liệu gốc của SKU này");
+
+        // 2. Chuẩn bị Payload (Gói dữ liệu thực, không fallback)
+        const payload = { ...original };
+        payload[field] = (field.includes('cost') || field.includes('stock')) ? parseFloat(value) || 0 : value;
+        
+        // Tính lại tổng tồn nếu sửa kho
+        if (field === 'stock_main' || field === 'stock_sub') {
+            payload.stock = (parseFloat(payload.stock_main) || 0) + (parseFloat(payload.stock_sub) || 0);
+        }
+
+        // 3. Gửi lên Server
+        const res = await fetch(API + '/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("Server từ chối cập nhật");
+        
+        console.log(`[Dò mìn] ✅ Cập nhật thành công ${field} cho ${sku}`);
+        if (typeof showToast === 'function') showToast(`Đã lưu ${field} cho ${sku}`);
+        
+        // Cập nhật lại biến local để không bị render đè dữ liệu cũ
+        original[field] = payload[field];
+        if (payload.stock !== undefined) original.stock = payload.stock;
+
+    } catch (e) {
+        console.error(`[Dò mìn] ❌ Lỗi khi lưu ${field}:`, e);
+        if (typeof showToast === 'function') showToast(`Lỗi: ${e.message}`, true);
+    }
 }

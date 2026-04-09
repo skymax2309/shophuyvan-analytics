@@ -5,65 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quản lý Sản phẩm & SKU</title>
 <link rel="stylesheet" href="../css/admin.css">
-<style>
-/* ===== RESPONSIVE SKU PAGE ===== */
-@media (max-width: 768px) {
-  .parent-product-header { flex-direction: column !important; gap: 10px !important; padding: 12px !important; }
-  .responsive-img-parent { width: 56px !important; height: 56px !important; }
-  .responsive-info { min-width: 100% !important; }
-  .responsive-stats { width: 100% !important; display: flex !important; gap: 12px !important; align-items: center !important; }
-  .responsive-actions { width: 100% !important; flex-direction: row !important; }
-  .responsive-actions .btn-view,
-  .responsive-actions .btn-edit { flex: 1 !important; }
-  .child-row { flex-direction: column !important; align-items: flex-start !important; padding: 12px !important; gap: 8px !important; }
-  .responsive-cost { width: 100% !important; justify-content: flex-start !important; }
-  .responsive-stock-inline { width: 100% !important; justify-content: flex-start !important; }
-  .responsive-actions-child { min-width: 100% !important; }
-  .responsive-actions-child button { font-size: 12px !important; padding: 8px 6px !important; }
-  #sku-search { width: 100% !important; }
-  .sku-tab-btn { font-size: 11px !important; padding: 6px 8px !important; }
-  .card { padding: 12px !important; }
-  .container { padding: 8px !important; }
-}
-@media (max-width: 480px) {
-  .responsive-cost { flex-wrap: wrap !important; }
-  .responsive-stock-inline { flex-wrap: wrap !important; }
-  .responsive-actions-child { display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; }
-}
-
-/* ===== CARD & LAYOUT CHUNG ===== */
-.shopee-parent-card { transition: box-shadow 0.2s; }
-.shopee-parent-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.10) !important; }
-
-/* ===== SKU VIDEO EMBED ===== */
-.sku-video-wrap { width: 100%; background: #000; border-radius: 8px; overflow: hidden; margin-top: 8px; position: relative; aspect-ratio: 16/9; }
-.sku-video-wrap iframe,
-.sku-video-wrap video { width: 100%; height: 100%; border: none; display: block; }
-
-/* ===== GALLERY ẢNH ===== */
-.sku-gallery { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; scrollbar-width: thin; }
-.sku-gallery img { width: 52px; height: 52px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; flex-shrink: 0; cursor: pointer; transition: border-color 0.15s; }
-.sku-gallery img:hover { border-color: #2563eb; }
-
-/* ===== MÔ TẢ SẢN PHẨM ===== */
-.sku-desc-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #475569; line-height: 1.6; max-height: 80px; overflow: hidden; position: relative; cursor: pointer; transition: max-height 0.3s; }
-.sku-desc-block.expanded { max-height: 300px; overflow-y: auto; }
-.sku-desc-block::after { content: '▼ Xem thêm'; position: absolute; bottom: 0; right: 8px; font-size: 10px; color: #2563eb; background: linear-gradient(to right, transparent, #f8fafc 40%); padding-left: 20px; }
-.sku-desc-block.expanded::after { content: '▲ Thu gọn'; }
-
-/* ===== BADGE TRẠNG THÁI ===== */
-.badge-mapped { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 10px; display: inline-flex; align-items: center; gap: 3px; }
-.badge-unmapped { background: #fff7ed; color: #ea580c; border: 1px solid #fdba74; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
-
-/* ===== INPUT INLINE ===== */
-.inline-child-name:focus,
-.inline-child-inv:focus,
-.inline-child-cost:focus { border-color: #3b82f6 !important; background: #eff6ff !important; border-radius: 4px !important; padding: 2px 4px !important; }
-
-/* ===== PAGINATION ===== */
-#skuPaginationWrap button { transition: background 0.15s, color 0.15s; }
-#skuPaginationWrap button:not([disabled]):hover { background: #eff6ff !important; color: #2563eb !important; border-color: #bfdbfe !important; }
-</style>
+<link rel="stylesheet" href="../css/sku.css">
 </head>
 <body>
 
@@ -135,8 +77,7 @@
 </div>
 </template>
 
-<template id="tpl-child-row">
-  <div class="sku-item-row child-row" style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid #f1f5f9; background:#fff; transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+<div class="sku-item-row child-row" style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid #f1f5f9; background:#fff; transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
 
     <div style="flex-shrink:0;">
       <img src="{{c_img_url}}" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0; background:#f8fafc; display:block;">
@@ -149,26 +90,24 @@
     </div>
 
     <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
-      <div style="text-align:right; min-width:70px;">
+      <div style="text-align:right; min-width:85px;">
         <div style="font-size:9px; color:#64748b; font-weight:800; text-transform:uppercase;">Vốn HĐ</div>
-        <div style="font-size:13px; font-weight:700; color:#475569;">{{c_raw_inv}}đ</div>
+        <div style="font-size:13px; font-weight:700;">{{c_raw_inv}}</div>
       </div>
-      <div style="text-align:right; min-width:70px;">
+      <div style="text-align:right; min-width:85px;">
         <div style="font-size:9px; color:#7c3aed; font-weight:800; text-transform:uppercase;">Vốn Thực</div>
-        <div style="font-size:13px; font-weight:700; color:#7c3aed;">{{c_raw_real}}đ</div>
+        <div style="font-size:13px; font-weight:700;">{{c_raw_real}}</div>
       </div>
-      <div style="text-align:center; min-width:56px; background:#eff6ff; padding:4px 8px; border-radius:6px;">
+      <div style="text-align:center; min-width:65px; background:#eff6ff; padding:4px 8px; border-radius:6px;">
         <div style="font-size:9px; color:#2563eb; font-weight:800; text-transform:uppercase;">Kho BT</div>
-        <div style="font-size:13px; font-weight:800; color:#1d4ed8;">{{c_raw_stock_main}}</div>
+        <div style="font-size:13px; font-weight:800;">{{c_raw_stock_main}}</div>
       </div>
-      <div style="text-align:center; min-width:56px; background:#f8fafc; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0;">
+      <div style="text-align:center; min-width:65px; background:#f8fafc; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0;">
         <div style="font-size:9px; color:#64748b; font-weight:800; text-transform:uppercase;">Kho Phụ</div>
-        <div style="font-size:13px; font-weight:800; color:#475569;">{{c_raw_stock_sub}}</div>
+        <div style="font-size:13px; font-weight:800;">{{c_raw_stock_sub}}</div>
       </div>
     </div>
-    
   </div>
-</template>
 
 <div class="app-wrapper">
   <aside class="side-nav">
@@ -196,66 +135,7 @@
         <input type="file" id="shopee-files-input" accept=".csv, .xlsx" multiple style="display:none" onchange="processShopeeFiles(this.files)">
     </div>
 
-    <div class="card">
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
-        <div class="card-title" style="margin:0;">➕ Thêm / Cập nhật Sản phẩm thủ công</div>
-        <span id="s_mode_badge" style="display:none; align-items:center; gap:6px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:20px; padding:3px 10px; font-size:12px; font-weight:700;">
-          ✏️ Đang sửa: <strong id="s_mode_sku_label"></strong>
-        </span>
-        <button id="btnResetForm" onclick="resetSkuForm()" style="display:none; padding:4px 12px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🆕 Tạo mới</button>
-      </div>
-      <div id="parent-mode-notice" style="display:none; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:10px 14px; font-size:13px; color:#9a3412; font-weight:600; margin-bottom:12px;">
-        ℹ️ Đang sửa <strong>Sản phẩm Cha</strong> — chỉ chỉnh tên, ảnh, mô tả. Giá vốn & tồn kho quản lý ở từng phân loại con.
-      </div>
-      <input type="hidden" id="s_old_img" value="">
-      <input type="hidden" id="s_is_parent_mode" value="0">
-      <div style="display:flex; gap:16px; margin-bottom:16px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-          <img id="s_img_preview" src="https://placehold.co/60x60?text=IMG" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #cbd5e1; background:white;">
-          <div style="flex:1; min-width:200px;">
-              <label style="font-size:13px; color:#475569; font-weight:700; display:block; margin-bottom:6px;">Hình ảnh đại diện</label>
-              <input type="file" id="s_img_file" accept="image/*" onchange="document.getElementById('s_img_preview').src = window.URL.createObjectURL(this.files[0])" style="font-size:13px; width:100%; cursor:pointer;">
-          </div>
-      </div>
-      <div class="form-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
-        <div class="field"><label>SKU *</label><input id="s_sku" placeholder="VD: SP001"></div>
-        <div class="field"><label>Tên sản phẩm *</label><input id="s_name" placeholder="Tên sản phẩm"></div>
-        <div class="field"><label>Link Video (Shopee/Youtube)</label><input id="s_video_url" placeholder="https://..."></div>
-        <div class="field"><label>Vốn hóa đơn (đ)</label><input type="number" id="s_cost_inv" placeholder="0" step="100"></div>
-        <div class="field"><label>Vốn thực tế (đ)</label><input type="number" id="s_cost_real" placeholder="0" step="100"></div>
-        
-      </div>
-      <div id="stock-fields-wrap" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-top:12px;">
-        <div class="field"><label>📦 Kho Bình Tân</label><input type="number" id="s_stock_main" placeholder="0" value="0" oninput="document.getElementById('s_stock').value = (parseInt(this.value)||0) + (parseInt(document.getElementById('s_stock_sub').value)||0)"></div>
-        <div class="field"><label>📦 Kho Phụ</label><input type="number" id="s_stock_sub" placeholder="0" value="0" oninput="document.getElementById('s_stock').value = (parseInt(this.value)||0) + (parseInt(document.getElementById('s_stock_main').value)||0)"></div>
-        <div class="field"><label>📦 Tổng Tồn Kho</label><input type="number" id="s_stock" placeholder="0" value="0" readonly style="background:#f1f5f9; color:#16a34a; font-weight:bold;"></div>
-      </div>
-      <div style="margin-top:12px; background:#eff6ff; border:1px dashed #93c5fd; padding:10px 12px; border-radius:8px;">
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:700; color:#1e40af;">
-              <input type="checkbox" id="s_apply_all_cost" style="transform:scale(1.2); cursor:pointer;">
-              ⚡ Áp dụng Giá Vốn (HĐ & Thực tế) này cho TẤT CẢ phân loại của Sản phẩm này
-          </label>
-      </div>
-      
-      <div style="margin-top:16px; background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:8px;">
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; font-weight:700; color:#166534; margin-bottom:10px;">
-              <input type="checkbox" id="s_is_combo" onchange="toggleComboUI(this.checked)" style="transform:scale(1.3); cursor:pointer;">
-              📦 Đây là sản phẩm Combo (Ghép từ nhiều SKU khác nhau)
-          </label>
-          <div id="combo-ui-wrapper" style="display:none; margin-top:10px; border-top:1px dashed #bbf7d0; padding-top:10px;">
-              <div style="font-size:12px; color:#166534; margin-bottom:8px;">Thêm các SKU thành phần (Ví dụ: Khung xám + Túi lưới):</div>
-              <div id="combo-items-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;"></div>
-              <button onclick="addComboItemRow()" style="background:#22c55e; color:white; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">+ Thêm dòng SKU</button>
-              <datalist id="all-sku-datalist"></datalist>
-          </div>
-      </div>
-      <div class="field" style="margin-top:16px;">
-          <label style="font-size:13px; font-weight:700; color:#475569; display:block; margin-bottom:6px;">📝 Mô tả sản phẩm (Bài đăng)</label>
-          <textarea id="s_desc" placeholder="Nhập chi tiết bài đăng sản phẩm..." style="width:100%; height:120px; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; font-size:13px; box-sizing:border-box; outline:none;"></textarea>
-      </div>
-      <div style="margin-top:16px; text-align:right;">
-        <button class="btn btn-primary" id="btnSaveSku" onclick="saveSku()">💾 Lưu Sản phẩm</button>
-      </div>
-    </div>
+    
 
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -368,78 +248,6 @@
 <script src="../js/admin/sku-form.js"></script>
 <script src="../js/admin/sku-bulk.js"></script>
 <script src="../js/admin/sku-modals.js"></script>
-<script>
-    function showToast(msg, isErr = false) {
-      const t = document.getElementById("toast")
-      t.textContent = msg
-      t.style.background = isErr ? "#dc2626" : "#16a34a"
-      t.classList.add("show")
-      setTimeout(() => t.classList.remove("show"), 2500)
-    }
-
-    // Hiển thị/ẩn fields tùy theo mode sửa
-window.setFormMode = function(mode, skuLabel) {
-      const isParent = mode === 'parent';
-      const badge = document.getElementById('s_mode_badge');
-      const resetBtn = document.getElementById('btnResetForm');
-      const notice = document.getElementById('parent-mode-notice');
-      const stockWrap = document.getElementById('stock-fields-wrap');
-      const applyAll = document.getElementById('s_apply_all_cost')?.closest('div[style*="eff6ff"]');
-      const modeSkuLabel = document.getElementById('s_mode_sku_label');
-      const isParentModeInput = document.getElementById('s_is_parent_mode');
-      
-      // Khóa thêm mục Vốn Hóa Đơn và Vốn Thực Tế
-      const costInvWrap = document.getElementById('s_cost_inv')?.parentElement;
-      const costRealWrap = document.getElementById('s_cost_real')?.parentElement;
-
-      if (skuLabel) {
-        if (badge) badge.style.display = 'inline-flex';
-        if (modeSkuLabel) modeSkuLabel.textContent = skuLabel;
-        if (resetBtn) resetBtn.style.display = 'inline-block';
-      } else {
-        if (badge) badge.style.display = 'none';
-        if (resetBtn) resetBtn.style.display = 'none';
-      }
-
-      if (isParentModeInput) isParentModeInput.value = isParent ? '1' : '0';
-
-      if (isParent) {
-        // Khóa Toàn Diện SP Cha: Chỉ cho sửa tên/ảnh/mô tả
-        if (notice) notice.style.display = 'block';
-        if (stockWrap) stockWrap.style.display = 'none';
-        if (costInvWrap) costInvWrap.style.display = 'none';
-        if (costRealWrap) costRealWrap.style.display = 'none';
-        if (applyAll) applyAll.style.display = 'none'; 
-      } else {
-        // Form SP Con/Đơn: Hiện Full
-        if (notice) notice.style.display = 'none';
-        if (stockWrap) stockWrap.style.display = 'grid';
-        if (costInvWrap) costInvWrap.style.display = 'block';
-        if (costRealWrap) costRealWrap.style.display = 'block';
-        if (applyAll) applyAll.style.display = 'block';
-      }
-    }
-
-    window.resetSkuForm = function() {
-      document.getElementById('s_sku').value = '';
-      document.getElementById('s_name').value = '';
-      document.getElementById('s_cost_inv').value = '';
-      document.getElementById('s_cost_real').value = '';
-      document.getElementById('s_stock').value = '0';
-      document.getElementById('s_stock_main').value = '0';
-      document.getElementById('s_stock_sub').value = '0';
-      document.getElementById('s_old_img').value = '';
-      document.getElementById('s_img_preview').src = 'https://placehold.co/60x60?text=IMG';
-      const comboCb = document.getElementById('s_is_combo');
-      if (comboCb) { comboCb.checked = false; if(typeof toggleComboUI === 'function') toggleComboUI(false); }
-      setFormMode('single', null);
-      showToast('🆕 Sẵn sàng thêm sản phẩm mới');
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      loadSkus();
-      setFormMode('single', null);
-    });
-</script>
+<script src="../js/admin/sku-main.js"></script>
 </body>
 </html>

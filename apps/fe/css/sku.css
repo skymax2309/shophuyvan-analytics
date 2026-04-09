@@ -1,0 +1,88 @@
+/* ===== RESPONSIVE SKU PAGE ===== */
+@media (max-width: 768px) {
+  .parent-product-header { flex-direction: column !important; gap: 10px !important; padding: 12px !important; }
+  .responsive-img-parent { width: 56px !important; height: 56px !important; }
+  .responsive-info { min-width: 100% !important; }
+  .responsive-stats { width: 100% !important; display: flex !important; gap: 12px !important; align-items: center !important; }
+  .responsive-actions { width: 100% !important; flex-direction: row !important; }
+  .responsive-actions .btn-view,
+  .responsive-actions .btn-edit { flex: 1 !important; }
+  .child-row { flex-direction: column !important; align-items: flex-start !important; padding: 12px !important; gap: 8px !important; }
+  .responsive-cost { width: 100% !important; justify-content: flex-start !important; }
+  .responsive-stock-inline { width: 100% !important; justify-content: flex-start !important; }
+  .responsive-actions-child { min-width: 100% !important; }
+  .responsive-actions-child button { font-size: 12px !important; padding: 8px 6px !important; }
+  #sku-search { width: 100% !important; }
+  .sku-tab-btn { font-size: 11px !important; padding: 6px 8px !important; }
+  .card { padding: 12px !important; }
+  .container { padding: 8px !important; }
+}
+@media (max-width: 480px) {
+  .responsive-cost { flex-wrap: wrap !important; }
+  .responsive-stock-inline { flex-wrap: wrap !important; }
+  .responsive-actions-child { display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; }
+}
+
+/* ===== CARD & LAYOUT CHUNG ===== */
+.shopee-parent-card { transition: box-shadow 0.2s; }
+.shopee-parent-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.10) !important; }
+
+/* ===== SKU VIDEO EMBED ===== */
+.sku-video-wrap { width: 100%; background: #000; border-radius: 8px; overflow: hidden; margin-top: 8px; position: relative; aspect-ratio: 16/9; }
+.sku-video-wrap iframe,
+.sku-video-wrap video { width: 100%; height: 100%; border: none; display: block; }
+
+/* ===== GALLERY ẢNH ===== */
+.sku-gallery { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; scrollbar-width: thin; }
+.sku-gallery img { width: 52px; height: 52px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; flex-shrink: 0; cursor: pointer; transition: border-color 0.15s; }
+.sku-gallery img:hover { border-color: #2563eb; }
+
+/* ===== MÔ TẢ SẢN PHẨM ===== */
+.sku-desc-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #475569; line-height: 1.6; max-height: 80px; overflow: hidden; position: relative; cursor: pointer; transition: max-height 0.3s; }
+.sku-desc-block.expanded { max-height: 300px; overflow-y: auto; }
+.sku-desc-block::after { content: '▼ Xem thêm'; position: absolute; bottom: 0; right: 8px; font-size: 10px; color: #2563eb; background: linear-gradient(to right, transparent, #f8fafc 40%); padding-left: 20px; }
+.sku-desc-block.expanded::after { content: '▲ Thu gọn'; }
+
+/* ===== CHỈNH SỬA SIÊU TỐC (INLINE EDIT) ===== */
+.inline-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid transparent; /* Tàng hình khung viền */
+  background: transparent;
+  padding: 4px;
+  border-radius: 4px;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  transition: all 0.2s;
+}
+.inline-edit-input.right { text-align: right; }
+.inline-edit-input.center { text-align: center; }
+
+/* Khi rê chuột vào -> Hiện mờ mờ cho biết có thể bấm */
+.inline-edit-input:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+/* Khi click vào gõ -> Sáng lên màu xanh */
+.inline-edit-input:focus {
+  outline: none;
+  border-color: #3b82f6 !important;
+  background: #eff6ff !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* Ẩn mũi tên tăng giảm số của input number cho gọn */
+.inline-edit-input::-webkit-outer-spin-button,
+.inline-edit-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.inline-edit-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* ===== PAGINATION ===== */
+#skuPaginationWrap button { transition: background 0.15s, color 0.15s; }
+#skuPaginationWrap button:not([disabled]):hover { background: #eff6ff !important; color: #2563eb !important; border-color: #bfdbfe !important; }
