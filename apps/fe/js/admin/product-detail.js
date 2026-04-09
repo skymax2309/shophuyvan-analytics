@@ -47,10 +47,10 @@ async function loadProduct() {
 
     // Ảnh
     imgList = [];
-    if (parent.image_url) imgList.push({ url: parent.image_url });
+    if (parent.image_url && !parent.image_url.startsWith('blob:')) imgList.push({ url: parent.image_url });
     try {
       const extras = JSON.parse(parent.images || '[]');
-      extras.forEach(u => { if (u && u !== parent.image_url) imgList.push({ url: u }); });
+      extras.forEach(u => { if (u && u !== parent.image_url && !u.startsWith('blob:')) imgList.push({ url: u }); });
     } catch(e) {}
     renderGallery();
 
@@ -83,10 +83,13 @@ function renderGallery() {
 
 function handleImgUpload(input) {
   Array.from(input.files).forEach(file => {
-    const url = URL.createObjectURL(file);
-    imgList.push({ url, isLocal: true, file });
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        imgList.push({ url: e.target.result, isLocal: true, file });
+        renderGallery();
+    };
+    reader.readAsDataURL(file);
   });
-  renderGallery();
   input.value = '';
 }
 
@@ -175,16 +178,45 @@ function generateShopeeMatrix() {
   permutations.forEach((p, i) => addFreeRow({ product_name: p.name }, i));
 }
 
+window.previewAndConvertImg = function(input, imgId) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) { document.getElementById(imgId).src = e.target.result; };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+window.removeVariantRow = async function(btn, sku) {
+    if (sku) {
+        if (!confirm('Xóa vĩnh viễn phân loại này khỏi hệ thống?')) return;
+        try {
+            btn.innerHTML = '⏳';
+            await fetch(API + '/api/products/' + sku, { method: 'DELETE' });
+            showToast('🗑️ Đã xóa phân loại!');
+        } catch(e) {
+            showToast('❌ Lỗi: ' + e.message, true);
+            btn.innerHTML = '✕';
+            return;
+        }
+    }
+    btn.closest('tr').remove();
+}
+
 function addFreeRow(data = null, id = null) {
   const tbody = document.getElementById('var-tbody-shopee');
   const rowId = id !== null ? id : Date.now();
   const tr = document.createElement('tr');
   tr.className = 'shopee-var-row';
+  
+  let rowImg = data && data.image_url ? data.image_url : 'https://placehold.co/44x44?text=+';
+  if (rowImg.startsWith('blob:')) rowImg = 'https://placehold.co/44x44?text=Loi+Blob';
+  const existingSku = data && data.sku ? escHtml(data.sku) : '';
+
   tr.innerHTML = `
     <td>
       <div style="position:relative; width:44px; height:44px; cursor:pointer;" onclick="document.getElementById('shopee-img-${rowId}').click()" title="Đổi ảnh">
-        <img src="${data && data.image_url ? data.image_url : 'https://placehold.co/44x44?text=+'}" id="preview-${rowId}" style="width:100%; height:100%; object-fit:cover; border-radius:6px; border:1px solid #e5e7eb;">
-        <input type="file" id="shopee-img-${rowId}" style="display:none" accept="image/*" onchange="document.getElementById('preview-${rowId}').src = window.URL.createObjectURL(this.files[0])">
+        <img src="${rowImg}" id="preview-${rowId}" style="width:100%; height:100%; object-fit:cover; border-radius:6px; border:1px solid #e5e7eb;">
+        <input type="file" id="shopee-img-${rowId}" style="display:none" accept="image/*" onchange="previewAndConvertImg(this, 'preview-${rowId}')">
       </div>
     </td>
     <td><input type="text" class="v-name" value="${data ? escHtml(data.product_name) : ''}" placeholder="Tên biến thể..." style="width:100%; border:none; background:transparent; font-weight:500; outline:none;"></td>
@@ -192,8 +224,8 @@ function addFreeRow(data = null, id = null) {
     <td class="center"><input type="number" class="v-real" value="${data ? data.cost_real || 0 : 0}" style="width:100%; border:none; text-align:center; outline:none; color:#ee4d2d; font-weight:500;"></td>
     <td class="center"><input type="number" class="v-main" value="${data ? data.stock_main || 0 : 0}" style="width:100%; border:none; text-align:center; outline:none; color:#333;"></td>
     <td class="center"><input type="number" class="v-sub" value="${data ? data.stock_sub || 0 : 0}" style="width:100%; border:none; text-align:center; outline:none; color:#333;"></td>
-    <td><input type="text" class="v-sku" value="${data ? escHtml(data.sku) : ''}" placeholder="Nhập SKU..." style="width:100%; border:none; background:transparent; font-family:monospace; outline:none;"></td>
-    <td class="center"><button onclick="this.closest('tr').remove()" style="background:#fff; border:none; color:#ee4d2d; font-weight:bold; cursor:pointer;" title="Xóa dòng">✕</button></td>
+    <td><input type="text" class="v-sku" value="${existingSku}" placeholder="Nhập SKU..." style="width:100%; border:none; background:transparent; font-family:monospace; outline:none;"></td>
+    <td class="center"><button onclick="removeVariantRow(this, '${existingSku}')" style="background:#fff; border:none; color:#ee4d2d; font-weight:bold; cursor:pointer;" title="Xóa dòng">✕</button></td>
   `;
   tbody.appendChild(tr);
 }
