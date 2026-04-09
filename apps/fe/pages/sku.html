@@ -109,7 +109,7 @@
       </div>
 
       <div style="min-width:85px; text-align:right; margin-left:4px;">
-        <button onclick="window.location.href='product-detail.html?sku={{c_sku}}'; event.stopPropagation();" style="background:{{c_combo_bg}}; color:{{c_combo_color}}; border:1px solid {{c_combo_border}}; padding:6px 10px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer; text-transform:uppercase; transition:all 0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
+        <button onclick="openComboModal('{{c_sku}}'); event.stopPropagation();" style="background:{{c_combo_bg}}; color:{{c_combo_color}}; border:1px solid {{c_combo_border}}; padding:6px 10px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer; text-transform:uppercase; transition:all 0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
           📦 {{c_combo_text}}
         </button>
       </div>
@@ -245,6 +245,33 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="comboModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10001; align-items:center; justify-content:center; backdrop-filter:blur(2px);">
+  <div style="background:white; border-radius:12px; width:90%; max-width:600px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.2);">
+    
+    <div style="padding:16px 20px; border-bottom:1px solid #e2e8f0; background:#f8fafc; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:16px; color:#0f172a;">📦 Ghép Combo: <span id="comboTargetSku" style="color:#7c3aed;"></span></h3>
+      <button onclick="closeComboModal()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#64748b;">&times;</button>
+    </div>
+    <div style="padding:0 20px; font-size:12px; color:#64748b; font-weight:700; margin-top:8px;" id="comboTargetName"></div>
+
+    <div style="padding:12px 20px; position:relative;">
+      <input type="text" id="comboSearch" placeholder="🔍 Gõ tên hoặc mã SKU nội bộ để tìm thành phần..." oninput="searchComboProduct()" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; outline:none;">
+      <div id="comboSearchList" style="position:absolute; top:48px; left:20px; right:20px; background:white; border:1px solid #cbd5e1; border-radius:8px; max-height:200px; overflow-y:auto; z-index:10; box-shadow:0 4px 6px rgba(0,0,0,0.1); empty-cells: hide;"></div>
+    </div>
+
+    <div style="flex:1; overflow-y:auto; padding:0 20px 20px 20px;">
+      <div style="font-size:12px; font-weight:800; color:#334155; margin-bottom:10px; text-transform:uppercase;">Thành phần của Combo này:</div>
+      <div id="comboSelectedList"></div>
+    </div>
+
+    <div style="padding:16px 20px; border-top:1px solid #e2e8f0; background:#f8fafc; border-radius:0 0 12px 12px; text-align:right;">
+      <button onclick="closeComboModal()" style="padding:8px 16px; background:#e2e8f0; color:#475569; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; margin-right:8px;">Hủy</button>
+      <button id="btnSaveCombo" onclick="saveComboData()" style="padding:8px 16px; background:#7c3aed; color:white; border:none; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 2px 4px rgba(124, 58, 237, 0.3);">💾 Lưu Cấu Hình</button>
+    </div>
+
   </div>
 </div>
 
