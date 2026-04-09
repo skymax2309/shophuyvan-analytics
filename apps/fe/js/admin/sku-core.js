@@ -119,14 +119,50 @@ window.generateRowHtml = function(p) {
             const cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
             const isCombo = c.is_combo == 1;
             
-            // Khóa mõm các ô nhập liệu nếu là Combo, hiện icon ổ khóa
-            const invHtml = isCombo ? `<div style="font-size:13px; font-weight:700; color:#94a3b8; padding:4px 6px; text-align:right;" title="Tự động tính từ thành phần">🔒 ${c.cost_invoice || 0}</div>` : `<input type="number" class="inline-edit-input right" value="${c.cost_invoice || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_invoice', this.value)">`;
+            let displayInv = c.cost_invoice || 0;
+            let displayReal = c.cost_real || 0;
+            let displayStockMain = c.stock_main || 0;
+            let displayStockSub = c.stock_sub || 0;
+
+            // Bộ não tự động tính toán từ thành phần nếu là Combo
+            if (isCombo) {
+                displayInv = 0; displayReal = 0;
+                let minMain = Infinity, minSub = Infinity;
+                try {
+                    const items = JSON.parse(c.combo_items || '[]');
+                    if (items.length > 0) {
+                        items.forEach(item => {
+                            // Dò tìm thông tin sản phẩm thành phần
+                            const comp = window.allSkus.find(s => s.sku === item.sku);
+                            if (comp) {
+                                // Giá = Giá 1 cái * Số lượng
+                                displayInv += (comp.cost_invoice || 0) * item.qty;
+                                displayReal += (comp.cost_real || 0) * item.qty;
+                                // Tồn Combo = Số lượng tối đa có thể ghép
+                                const pMain = Math.floor((comp.stock_main || 0) / item.qty);
+                                const pSub = Math.floor((comp.stock_sub || 0) / item.qty);
+                                if (pMain < minMain) minMain = pMain;
+                                if (pSub < minSub) minSub = pSub;
+                            } else {
+                                minMain = 0; minSub = 0;
+                            }
+                        });
+                        displayStockMain = minMain === Infinity ? 0 : minMain;
+                        displayStockSub = minSub === Infinity ? 0 : minSub;
+                    } else {
+                        displayStockMain = 0; displayStockSub = 0;
+                    }
+                } catch(e) {}
+            }
             
-            const realHtml = isCombo ? `<div style="font-size:13px; font-weight:700; color:#94a3b8; padding:4px 6px; text-align:right;" title="Tự động tính từ thành phần">🔒 ${c.cost_real || 0}</div>` : `<input type="number" class="inline-edit-input right v-real" value="${c.cost_real || 0}" onblur="inlineUpdateProduct('${c.sku}', 'cost_real', this.value)">`;
+            // Khóa mõm các ô nhập liệu nếu là Combo, hiện icon ổ khóa kèm giá trị đã tính toán
+            const invHtml = isCombo ? `<div style="font-size:13px; font-weight:700; color:#94a3b8; padding:4px 6px; text-align:right;" title="Tự động tính từ thành phần">🔒 ${displayInv}</div>` : `<input type="number" class="inline-edit-input right" value="${displayInv}" onblur="inlineUpdateProduct('${c.sku}', 'cost_invoice', this.value)">`;
             
-            const stockMainHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${c.stock_main || 0}</div>` : `<input type="number" class="inline-edit-input center" value="${c.stock_main || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`;
+            const realHtml = isCombo ? `<div style="font-size:13px; font-weight:700; color:#94a3b8; padding:4px 6px; text-align:right;" title="Tự động tính từ thành phần">🔒 ${displayReal}</div>` : `<input type="number" class="inline-edit-input right v-real" value="${displayReal}" onblur="inlineUpdateProduct('${c.sku}', 'cost_real', this.value)">`;
             
-            const stockSubHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${c.stock_sub || 0}</div>` : `<input type="number" class="inline-edit-input center" value="${c.stock_sub || 0}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`;
+            const stockMainHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${displayStockMain}</div>` : `<input type="number" class="inline-edit-input center" value="${displayStockMain}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`;
+            
+            const stockSubHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${displayStockSub}</div>` : `<input type="number" class="inline-edit-input center" value="${displayStockSub}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`;
 
             return tplChild.replace(/{{c_sku}}/g, c.sku)
                 .replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại"))
