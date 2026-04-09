@@ -119,10 +119,44 @@
 
   <!-- ===== THÔNG TIN CƠ BẢN ===== -->
   <div class="pd-section">
-    <div class="pd-section-header" onclick="toggleSection(this)">
-      <h3>🛒 Phân Loại Hàng (Biến thể & Thiết lập hàng loạt)</h3>
-      <span class="toggle-icon">▼</span>
-    </div>
+    <div class="pd-section-header" onclick="toggleSection(this)">
+      <h3>📝 Thông tin cơ bản</h3>
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="pd-section-body">
+      <div class="pd-field">
+        <label>Tên sản phẩm <span class="req">*</span></label>
+        <input type="text" id="pd-name" placeholder="Nhập tên sản phẩm...">
+      </div>
+      <div class="pd-field">
+        <label>Hình ảnh sản phẩm</label>
+        <div class="img-gallery" id="img-gallery">
+          <label class="img-add-btn">
+            <span>+</span> Thêm ảnh
+            <input type="file" accept="image/*" multiple style="display:none;" onchange="handleImgUpload(this)">
+          </label>
+        </div>
+      </div>
+      <div class="pd-field">
+        <label>Video sản phẩm (Link)</label>
+        <input type="text" id="pd-video" placeholder="Link Youtube / MP4..." oninput="previewVideo(this.value)">
+        <div id="video-preview" style="display:none; margin-top:8px;">
+          <iframe id="video-iframe" style="display:none; width:100%; max-width:400px; aspect-ratio:16/9; border:none; border-radius:8px;"></iframe>
+          <video id="video-native" controls style="display:none; width:100%; max-width:400px; border-radius:8px;"></video>
+        </div>
+      </div>
+      <div class="pd-field">
+        <label>Mô tả sản phẩm</label>
+        <textarea id="pd-desc" placeholder="Nhập mô tả sản phẩm..."></textarea>
+      </div>
+    </div>
+  </div>
+
+    <div class="pd-section">
+    <div class="pd-section-header" onclick="toggleSection(this)">
+      <h3>🛒 Phân Loại Hàng (Biến thể & Thiết lập hàng loạt)</h3>
+      <span class="toggle-icon">▼</span>
+    </div>
     <div class="pd-section-body" style="background:#f8fafc; gap:16px;">
 
       <div style="background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:16px;">
@@ -230,11 +264,11 @@ let imgList = []; // [{url, isLocal, file?}]
 // ===== LOAD DỮ LIỆU =====
 async function loadProduct() {
   if (!currentSku) {
-    // Chế độ tạo mới
-    document.getElementById('topbar-title').textContent = 'Tạo sản phẩm mới';
-    addVarRow();
-    return;
-  }
+    // Chế độ tạo mới
+    document.getElementById('topbar-title').textContent = 'Tạo sản phẩm mới';
+    addFreeRow();
+    return;
+  }
   try {
     const data = await fetch(API + '/api/products').then(r => r.json());
     const all = Array.isArray(data) ? data : [];
@@ -485,17 +519,17 @@ async function saveProduct() {
 }
 // ===== XÓA SẢN PHẨM =====
 async function deleteProduct() {
-  if (!confirm('Xóa toàn bộ sản phẩm và phân loại này?')) return;
-  try {
-    const rows = document.querySelectorAll('#var-tbody tr');
-    for (const tr of rows) {
-      const id  = tr.dataset.rowid;
-      const sku = document.getElementById(`var-sku-${id}`)?.value.trim();
-      if (sku) await fetch(API + '/api/products/' + sku, { method: 'DELETE' });
-    }
-    showToast('🗑️ Đã xóa!');
-    setTimeout(() => { location.href = 'sku.html'; }, 1000);
-  } catch(e) { showToast('❌ Lỗi: ' + e.message, true); }
+  if (!confirm('Xóa toàn bộ sản phẩm và phân loại này?')) return;
+  try {
+    const rows = document.querySelectorAll('.shopee-var-row');
+    for (const tr of rows) {
+      const sku = tr.querySelector('.v-sku')?.value.trim();
+      if (sku) await fetch(API + '/api/products/' + sku, { method: 'DELETE' });
+    }
+    if (currentSku) await fetch(API + '/api/products/' + currentSku, { method: 'DELETE' });
+    showToast('🗑️ Đã xóa!');
+    setTimeout(() => { location.href = 'sku.html'; }, 1000);
+  } catch(e) { showToast('❌ Lỗi: ' + e.message, true); }
 }
 
 // ===== HELPER =====
