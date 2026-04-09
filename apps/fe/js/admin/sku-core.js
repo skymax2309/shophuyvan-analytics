@@ -198,13 +198,42 @@ window.renderSkuTables = function(page = null) {
 
   let filtered = kw ? tree.filter(p => p.sku.toLowerCase().includes(kw) || (p.product_name && p.product_name.toLowerCase().includes(kw)) || (p.children && p.children.some(c => c.sku.toLowerCase().includes(kw) || (c.product_name && c.product_name.toLowerCase().includes(kw))))) : tree;
 
+  // Hàm tính giá thực tế (bao gồm cả Combo) để bộ lọc nhận diện đúng
+  const getActualCost = (item) => {
+      let inv = parseFloat(item.cost_invoice) || 0;
+      let real = parseFloat(item.cost_real) || 0;
+      if (item.is_combo == 1) {
+          inv = 0; real = 0;
+          try {
+              const items = JSON.parse(item.combo_items || '[]');
+              items.forEach(i => {
+                  const comp = window.allSkus.find(s => s.sku === i.sku);
+                  if (comp) {
+                      inv += (parseFloat(comp.cost_invoice) || 0) * i.qty;
+                      real += (parseFloat(comp.cost_real) || 0) * i.qty;
+                  }
+              });
+          } catch(e) {}
+      }
+      return { inv, real };
+  };
+
   const noPrice = filtered.filter(p => {
-      if (p.children && p.children.length > 0) return p.children.some(c => !(c.cost_invoice || 0) && !(c.cost_real || 0));
-      return !(p.cost_invoice || 0) && !(p.cost_real || 0);
+      if (p.children && p.children.length > 0) return p.children.some(c => {
+          const cost = getActualCost(c);
+          return cost.inv === 0 && cost.real === 0;
+      });
+      const cost = getActualCost(p);
+      return cost.inv === 0 && cost.real === 0;
   });
+  
   const hasPrice = filtered.filter(p => {
-      if (p.children && p.children.length > 0) return p.children.every(c => (c.cost_invoice || 0) > 0 || (c.cost_real || 0) > 0);
-      return (p.cost_invoice || 0) > 0 || (p.cost_real || 0) > 0;
+      if (p.children && p.children.length > 0) return p.children.every(c => {
+          const cost = getActualCost(c);
+          return cost.inv > 0 || cost.real > 0;
+      });
+      const cost = getActualCost(p);
+      return cost.inv > 0 || cost.real > 0;
   });
   const missingMap = filtered.filter(p => (!p.mapped_shops || p.mapped_shops.split(',').length < window.totalShopCount) || (p.children && p.children.some(c => !c.mapped_shops || c.mapped_shops.split(',').length < window.totalShopCount)));
   const comboList = filtered.filter(p => p.is_combo == 1 || (p.children && p.children.some(c => c.is_combo == 1)));
