@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chi tiết Sản phẩm</title>
+<link rel="stylesheet" href="../css/admin.css">
+<style>
+/* ===== LAYOUT ===== */
+.pd-wrapper { max-width: 960px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 16px; }
+
+/* ===== SECTION BLOCK ===== */
+.pd-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+.pd-section-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; cursor: pointer; user-select: none; }
+.pd-section-header h3 { font-size: 14px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+.pd-section-header .toggle-icon { font-size: 12px; color: #94a3b8; transition: transform 0.2s; }
+.pd-section-header.collapsed .toggle-icon { transform: rotate(-90deg); }
+.pd-section-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.pd-section-body.hidden { display: none; }
+
+/* ===== FORM FIELDS ===== */
+.pd-field { display: flex; flex-direction: column; gap: 6px; }
+.pd-field label { font-size: 12px; font-weight: 700; color: #64748b; display: flex; align-items: center; gap: 4px; }
+.pd-field label .req { color: #ef4444; }
+.pd-field input[type="text"],
+.pd-field input[type="number"],
+.pd-field input[type="url"],
+.pd-field textarea {
+  border: 1.5px solid #e2e8f0; border-radius: 7px; padding: 9px 12px;
+  font-size: 13px; font-family: inherit; outline: none; width: 100%;
+  transition: border-color 0.15s;
+}
+.pd-field input:focus, .pd-field textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
+.pd-field textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
+.pd-field .hint { font-size: 11px; color: #94a3b8; }
+
+/* ===== ẢNH SẢN PHẨM ===== */
+.img-gallery { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+.img-thumb-wrap { position: relative; width: 90px; height: 90px; border-radius: 8px; overflow: hidden; border: 1.5px solid #e2e8f0; background: #f8fafc; flex-shrink: 0; }
+.img-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.img-thumb-wrap .img-del { position: absolute; top: 3px; right: 3px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; line-height: 1; }
+.img-thumb-wrap.main-img { border-color: #f97316; border-width: 2px; }
+.img-thumb-wrap.main-img::after { content: 'Ảnh chính'; position: absolute; bottom: 0; left: 0; right: 0; background: rgba(249,115,22,0.85); color: white; font-size: 9px; text-align: center; padding: 2px 0; font-weight: 700; }
+.img-add-btn { width: 90px; height: 90px; border: 2px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; color: #94a3b8; font-size: 11px; font-weight: 600; transition: border-color 0.15s, color 0.15s; flex-shrink: 0; }
+.img-add-btn:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+.img-add-btn span { font-size: 22px; line-height: 1; }
+
+/* ===== BẢNG PHÂN LOẠI ===== */
+.var-table-wrap { overflow-x: auto; }
+.var-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.var-table thead tr { background: #f1f5f9; }
+.var-table th { padding: 10px 12px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; text-align: left; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+.var-table th.center, .var-table td.center { text-align: center; }
+.var-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.var-table tr:last-child td { border-bottom: none; }
+.var-table tr:hover td { background: #f8fafc; }
+.var-table td input[type="text"],
+.var-table td input[type="number"] {
+  border: 1px solid transparent; border-radius: 5px; padding: 5px 7px;
+  font-size: 13px; font-weight: 600; outline: none; background: transparent;
+  width: 100%; transition: border-color 0.15s, background 0.15s;
+}
+.var-table td input:focus { border-color: #3b82f6; background: #eff6ff; }
+.var-table td input[type="number"] { text-align: center; color: #1d4ed8; font-weight: 700; }
+.var-table .td-sku input { color: #475569; font-family: monospace; font-size: 12px; }
+.var-table .td-cost-inv input { color: #64748b; }
+.var-table .td-cost-real input { color: #7c3aed; }
+.var-table .td-stock-main input { color: #1d4ed8; }
+.var-table .td-stock-sub input { color: #475569; }
+.var-table .td-total { font-weight: 800; color: #16a34a; text-align: center; font-size: 14px; }
+.var-table .td-del button { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; border-radius: 5px; padding: 4px 8px; cursor: pointer; font-size: 12px; transition: opacity 0.15s; }
+.var-table .td-del button:hover { opacity: 0.75; }
+
+/* Ảnh nhỏ trong bảng phân loại */
+.var-img-wrap { position: relative; width: 44px; height: 44px; flex-shrink: 0; cursor: pointer; }
+.var-img-wrap img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; background: #f8fafc; display: block; }
+.var-img-wrap input[type="file"] { display: none; }
+.var-img-wrap .var-img-overlay { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.55); color: white; font-size: 7px; text-align: center; border-radius: 0 0 5px 5px; padding: 2px 0; font-weight: 700; letter-spacing: 0.3px; }
+
+/* Nút thêm phân loại */
+.btn-add-var { width: 100%; padding: 10px; border: 2px dashed #bbf7d0; border-radius: 8px; background: #fff; color: #16a34a; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.btn-add-var:hover { background: #f0fdf4; }
+
+/* ===== ACTION BAR ===== */
+.pd-action-bar { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 20px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; position: sticky; bottom: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+.pd-action-bar button { padding: 10px 24px; border-radius: 8px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+.pd-action-bar button:hover { opacity: 0.85; }
+.btn-save-main { background: #2563eb; color: white; }
+.btn-cancel-main { background: #f1f5f9; color: #475569; }
+.btn-delete-main { background: #fee2e2; color: #dc2626; }
+
+/* ===== TOPBAR ===== */
+.pd-topbar { background: #1e293b; color: white; padding: 13px 20px; display: flex; align-items: center; gap: 14px; }
+.pd-topbar a { color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 6px; transition: background 0.15s; }
+.pd-topbar a:hover { background: rgba(255,255,255,0.1); color: white; }
+.pd-topbar .sep { color: #475569; }
+.pd-topbar .title { font-size: 15px; font-weight: 800; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+  .pd-wrapper { padding: 10px 8px; gap: 10px; }
+  .pd-section-body { padding: 14px; }
+  .img-thumb-wrap, .img-add-btn { width: 72px; height: 72px; }
+  .pd-action-bar { flex-wrap: wrap; }
+  .pd-action-bar button { flex: 1; }
+}
+</style>
+</head>
+<body style="background:#f0f2f5; min-height:100vh;">
+
+<!-- TOPBAR -->
+<div class="pd-topbar">
+  <a href="sku.html">← Danh sách</a>
+  <span class="sep">/</span>
+  <span class="title" id="topbar-title">Chi tiết Sản phẩm</span>
+</div>
+
+<div class="pd-wrapper">
+
+  <!-- ===== THÔNG TIN CƠ BẢN ===== -->
+  <div class="pd-section">
+    <div class="pd-section-header" onclick="toggleSection(this)">
+      <h3>📋 Thông tin cơ bản</h3>
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="pd-section-body">
+
+      <!-- Tên sản phẩm -->
+      <div class="pd-field">
+        <label><span class="req">*</span> Tên sản phẩm</label>
+        <input type="text" id="pd-name" placeholder="Nhập tên sản phẩm...">
+      </div>
+
+      <!-- Mô tả sản phẩm -->
+      <div class="pd-field">
+        <label>Mô tả sản phẩm</label>
+        <textarea id="pd-desc" placeholder="Nhập mô tả chi tiết sản phẩm..."></textarea>
+      </div>
+
+      <!-- Hình ảnh sản phẩm -->
+      <div class="pd-field">
+        <label>Hình ảnh sản phẩm</label>
+        <div class="hint">Ảnh đầu tiên là ảnh đại diện chính. Tối đa 9 ảnh.</div>
+        <div class="img-gallery" id="img-gallery">
+          <div class="img-add-btn" onclick="document.getElementById('img-upload-input').click()">
+            <span>＋</span>Thêm ảnh
+          </div>
+        </div>
+        <input type="file" id="img-upload-input" accept="image/*" multiple style="display:none" onchange="handleImgUpload(this)">
+      </div>
+
+      <!-- Video sản phẩm -->
+      <div class="pd-field">
+        <label>Video sản phẩm (URL YouTube hoặc link mp4)</label>
+        <input type="url" id="pd-video" placeholder="https://youtube.com/watch?v=... hoặc https://...mp4" oninput="previewVideo(this.value)">
+        <div id="video-preview" style="margin-top:8px; display:none;">
+          <iframe id="video-iframe" style="width:100%; max-width:480px; height:270px; border-radius:8px; border:none;" allowfullscreen></iframe>
+          <video id="video-native" controls style="width:100%; max-width:480px; max-height:270px; border-radius:8px; display:none;"></video>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== THÔNG TIN BÁN HÀNG (BẢNG PHÂN LOẠI) ===== -->
+  <div class="pd-section">
+    <div class="pd-section-header" onclick="toggleSection(this)">
+      <h3>🛒 Thông tin bán hàng — Bảng phân loại</h3>
+      <span class="toggle-icon">▼</span>
+    </div>
+    <div class="pd-section-body" style="padding:0; gap:0;">
+
+      <div class="var-table-wrap">
+        <table class="var-table">
+          <thead>
+            <tr>
+              <th style="width:50px;"></th>
+              <th>Tên phân loại</th>
+              <th class="center" style="width:110px;">Giá vốn HĐ</th>
+              <th class="center" style="width:110px;">Giá vốn thực</th>
+              <th class="center" style="width:90px;">Kho chính</th>
+              <th class="center" style="width:90px;">Kho phụ</th>
+              <th class="center" style="width:80px;">Tổng tồn</th>
+              <th style="width:120px; min-width:120px;">Mã SKU</th>
+              <th style="width:40px;"></th>
+            </tr>
+          </thead>
+          <tbody id="var-tbody">
+            <!-- Các dòng phân loại render ở đây -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tổng hợp cuối bảng -->
+      <div style="display:flex; gap:24px; padding:14px 20px; background:#f8fafc; border-top:2px solid #e2e8f0; flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Tổng SKU</div>
+          <div style="font-size:20px; font-weight:900; color:#2563eb;" id="summary-sku-count">0</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Tổng tồn kho</div>
+          <div style="font-size:20px; font-weight:900; color:#16a34a;" id="summary-stock-total">0</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Vốn HĐ TB</div>
+          <div style="font-size:20px; font-weight:900; color:#475569;" id="summary-cost-inv">0đ</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Vốn Thực TB</div>
+          <div style="font-size:20px; font-weight:900; color:#7c3aed;" id="summary-cost-real">0đ</div>
+        </div>
+      </div>
+
+      <!-- Nút thêm phân loại -->
+      <div style="padding:12px 16px; border-top:1px dashed #e2e8f0;">
+        <button class="btn-add-var" onclick="addVarRow()">➕ Thêm phân loại mới</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== ACTION BAR ===== -->
+  <div class="pd-action-bar">
+    <button class="btn-delete-main" id="btn-delete" onclick="deleteProduct()" style="display:none;">🗑️ Xóa sản phẩm</button>
+    <button class="btn-cancel-main" onclick="history.back()">↩ Quay lại</button>
+    <button class="btn-save-main" onclick="saveProduct()">💾 Lưu sản phẩm</button>
+  </div>
+
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="../js/utils/api.js"></script>
+<script>
+// ===== TOAST =====
+function showToast(msg, isErr = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? '#dc2626' : '#16a34a';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ===== TOGGLE SECTION =====
+function toggleSection(header) {
+  header.classList.toggle('collapsed');
+  const body = header.nextElementSibling;
+  body.classList.toggle('hidden');
+}
+
+// ===== LẤY SKU TỪ URL =====
+const urlParams = new URLSearchParams(location.search);
+const currentSku = urlParams.get('sku') || '';
+let productData = null;
+let imgList = []; // [{url, isLocal, file?}]
+
+// ===== LOAD DỮ LIỆU =====
+async function loadProduct() {
+  if (!currentSku) {
+    // Chế độ tạo mới
+    document.getElementById('topbar-title').textContent = 'Tạo sản phẩm mới';
+    addVarRow();
+    return;
+  }
+  try {
+    const data = await fetch(API + '/api/products').then(r => r.json());
+    const all = Array.isArray(data) ? data : [];
+    const parent = all.find(p => p.sku === currentSku);
+    if (!parent) return showToast('❌ Không tìm thấy sản phẩm', true);
+    productData = parent;
+    productData.children = all.filter(p => p.parent_sku === currentSku);
+
+    // Điền form
+    document.getElementById('pd-name').value = parent.product_name || '';
+    document.getElementById('pd-desc').value = parent.description || '';
+    document.getElementById('pd-video').value = parent.video_url || '';
+    document.getElementById('topbar-title').textContent = parent.product_name || currentSku;
+    document.getElementById('btn-delete').style.display = 'inline-block';
+    if (parent.video_url) previewVideo(parent.video_url);
+
+    // Ảnh
+    imgList = [];
+    if (parent.image_url) imgList.push({ url: parent.image_url });
+    try {
+      const extras = JSON.parse(parent.images || '[]');
+      extras.forEach(u => { if (u && u !== parent.image_url) imgList.push({ url: u }); });
+    } catch(e) {}
+    renderGallery();
+
+    // Phân loại
+    const vars = productData.children.length > 0 ? productData.children : [parent];
+    vars.forEach(v => addVarRow(v));
+    updateSummary();
+  } catch(e) {
+    showToast('❌ Lỗi tải dữ liệu: ' + e.message, true);
+  }
+}
+
+// ===== GALLERY ẢNH =====
+function renderGallery() {
+  const gallery = document.getElementById('img-gallery');
+  const addBtn = gallery.querySelector('.img-add-btn');
+  // Xóa thumbs cũ
+  gallery.querySelectorAll('.img-thumb-wrap').forEach(el => el.remove());
+
+  imgList.forEach((img, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'img-thumb-wrap' + (i === 0 ? ' main-img' : '');
+    wrap.innerHTML = `
+      <img src="${img.url}" alt="">
+      <button class="img-del" onclick="removeImg(${i})" title="Xóa ảnh">✕</button>
+    `;
+    gallery.insertBefore(wrap, addBtn);
+  });
+}
+
+function handleImgUpload(input) {
+  Array.from(input.files).forEach(file => {
+    const url = URL.createObjectURL(file);
+    imgList.push({ url, isLocal: true, file });
+  });
+  renderGallery();
+  input.value = '';
+}
+
+function removeImg(i) {
+  imgList.splice(i, 1);
+  renderGallery();
+}
+
+// ===== VIDEO PREVIEW =====
+function previewVideo(url) {
+  const wrap = document.getElementById('video-preview');
+  const iframe = document.getElementById('video-iframe');
+  const video = document.getElementById('video-native');
+  if (!url) { wrap.style.display = 'none'; return; }
+
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch) {
+    iframe.src = `https://www.youtube.com/embed/${ytMatch[1]}`;
+    iframe.style.display = 'block';
+    video.style.display = 'none';
+  } else {
+    video.src = url;
+    video.style.display = 'block';
+    iframe.style.display = 'none';
+  }
+  wrap.style.display = 'block';
+}
+
+// ===== BẢNG PHÂN LOẠI =====
+let varRowId = 0;
+
+function addVarRow(data = null) {
+  const id = ++varRowId;
+  const tbody = document.getElementById('var-tbody');
+  const tr = document.createElement('tr');
+  tr.dataset.rowid = id;
+
+  const stockMain = data ? (data.stock_main || 0) : 0;
+  const stockSub  = data ? (data.stock_sub  || 0) : 0;
+  const total     = stockMain + stockSub;
+  const imgUrl    = (data && data.image_url && !data.image_url.includes('placehold')) ? data.image_url : 'https://placehold.co/44x44?text=IMG';
+
+  tr.innerHTML = `
+    <td>
+      <div class="var-img-wrap" onclick="document.getElementById('var-file-${id}').click()" title="Đổi ảnh phân loại">
+        <img src="${imgUrl}" id="var-img-${id}">
+        <input type="file" id="var-file-${id}" accept="image/*" onchange="previewVarImg(${id}, this)">
+        <div class="var-img-overlay">ĐỔI ẢNH</div>
+      </div>
+    </td>
+    <td>
+      <input type="text" value="${escHtml(data ? data.product_name || '' : '')}" placeholder="Tên phân loại..." id="var-name-${id}">
+    </td>
+    <td class="td-cost-inv center">
+      <input type="number" value="${data ? data.cost_invoice || 0 : 0}" id="var-inv-${id}" oninput="updateSummary()" min="0" step="100">
+    </td>
+    <td class="td-cost-real center">
+      <input type="number" value="${data ? data.cost_real || 0 : 0}" id="var-real-${id}" oninput="updateSummary()" min="0" step="100">
+    </td>
+    <td class="td-stock-main center">
+      <input type="number" value="${stockMain}" id="var-main-${id}" oninput="recalcTotal(${id})" min="0">
+    </td>
+    <td class="td-stock-sub center">
+      <input type="number" value="${stockSub}" id="var-sub-${id}" oninput="recalcTotal(${id})" min="0">
+    </td>
+    <td class="td-total" id="var-total-${id}">${total}</td>
+    <td class="td-sku">
+      <input type="text" value="${escHtml(data ? data.sku || '' : '')}" placeholder="Mã SKU..." id="var-sku-${id}" style="font-family:monospace;">
+    </td>
+    <td class="td-del">
+      <button onclick="removeVarRow(${id})" title="Xóa dòng này">🗑️</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+  updateSummary();
+}
+
+function previewVarImg(id, input) {
+  if (input.files && input.files[0]) {
+    const url = URL.createObjectURL(input.files[0]);
+    document.getElementById(`var-img-${id}`).src = url;
+  }
+}
+
+function recalcTotal(id) {
+  const main = parseInt(document.getElementById(`var-main-${id}`)?.value) || 0;
+  const sub  = parseInt(document.getElementById(`var-sub-${id}`)?.value)  || 0;
+  const el   = document.getElementById(`var-total-${id}`);
+  if (el) el.textContent = main + sub;
+  updateSummary();
+}
+
+function removeVarRow(id) {
+  const tr = document.querySelector(`tr[data-rowid="${id}"]`);
+  if (tr) tr.remove();
+  updateSummary();
+}
+
+function updateSummary() {
+  const rows = document.querySelectorAll('#var-tbody tr');
+  let totalStock = 0, totalInv = 0, totalReal = 0;
+  rows.forEach(tr => {
+    const id = tr.dataset.rowid;
+    totalStock += (parseInt(document.getElementById(`var-main-${id}`)?.value)||0) + (parseInt(document.getElementById(`var-sub-${id}`)?.value)||0);
+    totalInv   += parseFloat(document.getElementById(`var-inv-${id}`)?.value) || 0;
+    totalReal  += parseFloat(document.getElementById(`var-real-${id}`)?.value) || 0;
+  });
+  const n = rows.length || 1;
+  document.getElementById('summary-sku-count').textContent   = rows.length;
+  document.getElementById('summary-stock-total').textContent = totalStock.toLocaleString('vi-VN');
+  document.getElementById('summary-cost-inv').textContent    = Math.round(totalInv / n).toLocaleString('vi-VN') + 'đ';
+  document.getElementById('summary-cost-real').textContent   = Math.round(totalReal / n).toLocaleString('vi-VN') + 'đ';
+}
+
+// ===== LƯU SẢN PHẨM =====
+async function saveProduct() {
+  const name = document.getElementById('pd-name').value.trim();
+  if (!name) return showToast('⚠️ Vui lòng nhập tên sản phẩm!', true);
+
+  const rows = document.querySelectorAll('#var-tbody tr');
+  if (rows.length === 0) return showToast('⚠️ Cần ít nhất 1 phân loại!', true);
+
+  // Kiểm tra SKU
+  for (const tr of rows) {
+    const id = tr.dataset.rowid;
+    if (!document.getElementById(`var-sku-${id}`)?.value.trim()) {
+      return showToast('⚠️ Mã SKU không được để trống!', true);
+    }
+  }
+
+  const btn = document.querySelector('.btn-save-main');
+  btn.textContent = '⏳ Đang lưu...'; btn.disabled = true;
+
+  try {
+    // Ảnh chính = phần tử đầu imgList
+    const mainImg  = imgList.length > 0 ? imgList[0].url : '';
+    const extraImg = imgList.slice(1).map(i => i.url);
+    const desc     = document.getElementById('pd-desc').value;
+    const videoUrl = document.getElementById('pd-video').value;
+
+    // Lưu từng phân loại
+    const parentSku = rows.length > 1 ? (productData?.sku || document.getElementById(`var-sku-${[...rows][0].dataset.rowid}`).value) : null;
+
+    for (const [i, tr] of [...rows].entries()) {
+      const id       = tr.dataset.rowid;
+      const sku      = document.getElementById(`var-sku-${id}`).value.trim();
+      const varName  = document.getElementById(`var-name-${id}`).value.trim() || name;
+      const inv      = parseFloat(document.getElementById(`var-inv-${id}`).value) || 0;
+      const real     = parseFloat(document.getElementById(`var-real-${id}`).value) || 0;
+      const stMain   = parseInt(document.getElementById(`var-main-${id}`).value) || 0;
+      const stSub    = parseInt(document.getElementById(`var-sub-${id}`).value) || 0;
+      const varImg   = document.getElementById(`var-img-${id}`)?.src || mainImg;
+
+      const isParent = (rows.length > 1 && i === 0);
+      const payload  = {
+        sku,
+        product_name : rows.length > 1 ? (i === 0 ? name : varName) : name,
+        description  : desc,
+        video_url    : videoUrl,
+        image_url    : varImg.includes('placehold') ? mainImg : varImg,
+        images       : JSON.stringify(extraImg),
+        cost_invoice : inv,
+        cost_real    : real,
+        stock_main   : stMain,
+        stock_sub    : stSub,
+        stock        : stMain + stSub,
+        is_parent    : rows.length > 1 && i === 0 ? 1 : 0,
+        parent_sku   : rows.length > 1 && i > 0 ? (productData?.sku || [...rows][0].querySelector('input[type="text"]')?.value || '') : null,
+      };
+
+      await fetch(API + '/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    showToast('✅ Lưu thành công!');
+    setTimeout(() => { location.href = 'sku.html'; }, 1200);
+  } catch(e) {
+    showToast('❌ Lỗi: ' + e.message, true);
+  } finally {
+    btn.textContent = '💾 Lưu sản phẩm'; btn.disabled = false;
+  }
+}
+
+// ===== XÓA SẢN PHẨM =====
+async function deleteProduct() {
+  if (!confirm('Xóa toàn bộ sản phẩm và phân loại này?')) return;
+  try {
+    const rows = document.querySelectorAll('#var-tbody tr');
+    for (const tr of rows) {
+      const id  = tr.dataset.rowid;
+      const sku = document.getElementById(`var-sku-${id}`)?.value.trim();
+      if (sku) await fetch(API + '/api/products/' + sku, { method: 'DELETE' });
+    }
+    showToast('🗑️ Đã xóa!');
+    setTimeout(() => { location.href = 'sku.html'; }, 1000);
+  } catch(e) { showToast('❌ Lỗi: ' + e.message, true); }
+}
+
+// ===== HELPER =====
+function escHtml(str) {
+  return (str || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== KHỞI ĐỘNG =====
+document.addEventListener('DOMContentLoaded', loadProduct);
+</script>
+</body>
+</html>
