@@ -260,18 +260,33 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
   }
   if (request.method === "DELETE") {
     const path = url.pathname;
-    
-    
+    const stmts = [];
     
     if (path.endsWith('/bulk')) {
       const { skus } = await request.json();
       if (!skus || !Array.isArray(skus) || skus.length === 0) return Response.json({ error: "No SKUs" }, { status: 400, headers: cors });
+      
       const placeholders = skus.map(() => '?').join(',');
-      await env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...skus).run();
+      // 1. Xóa trong danh mục sản phẩm
+      stmts.push(env.DB.prepare(`DELETE FROM products WHERE sku IN (${placeholders})`).bind(...skus));
+      // 2. Gỡ Map trong bảng đa sàn (Về trạng thái UNMAPPED)
+      stmts.push(env.DB.prepare(`UPDATE product_variations SET internal_sku = NULL, mapped_items = '[]', map_status = 'UNMAPPED' WHERE internal_sku IN (${placeholders})`).bind(...skus));
+      // 3. Xóa trong sổ tay tự động map (sku_alias)
+      stmts.push(env.DB.prepare(`DELETE FROM sku_alias WHERE internal_sku IN (${placeholders})`).bind(...skus));
+      
+      await env.DB.batch(stmts);
       return Response.json({ status: "ok", count: skus.length }, { headers: cors });
     }
-    const sku = path.split('/').pop();
-    await env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku).run();
+
+    const sku = decodeURIComponent(path.split('/').pop());
+    // 1. Xóa sản phẩm gốc
+    stmts.push(env.DB.prepare(`DELETE FROM products WHERE sku = ?`).bind(sku));
+    // 2. Giải phóng các biến thể đang map vào SKU này
+    stmts.push(env.DB.prepare(`UPDATE product_variations SET internal_sku = NULL, mapped_items = '[]', map_status = 'UNMAPPED' WHERE internal_sku = ?`).bind(sku));
+    // 3. Xóa alias để không bị auto-map lại mã cũ
+    stmts.push(env.DB.prepare(`DELETE FROM sku_alias WHERE internal_sku = ?`).bind(sku));
+    
+    await env.DB.batch(stmts);
     return Response.json({ status: "ok" }, { headers: cors });
   }
 }
@@ -559,14 +574,18 @@ export async function handleVariations(request, env, cors) {
     }
 
     // Luồng Map cũ (Dành cho trang Quản lý Sản phẩm có ID)
-    if (!id || !internal_sku)
-      return Response.json({ error: 'Missing id or internal_sku' }, { status: 400, headers: cors })
+    if (!id)
+      return Response.json({ error: 'Missing id' }, { status: 400, headers: cors })
+
+    // Lấy trạng thái và SKU muốn update từ Frontend (nếu rỗng thì gán mặc định)
+    const targetStatus = body.map_status || 'MAPPED';
+    const targetSku = internal_sku || '';
 
     await env.DB.prepare(`
           UPDATE product_variations
-          SET internal_sku = ?, mapped_items = ?, map_status = 'MAPPED', updated_at = datetime('now')
+          SET internal_sku = ?, mapped_items = ?, map_status = ?, updated_at = datetime('now')
           WHERE id = ?
-        `).bind(internal_sku, mapped_items || '[]', id).run()
+        `).bind(targetSku, mapped_items || '[]', targetStatus, id).run()
 
         // Đảm bảo bảng sku_alias tồn tại để Database không bị sập (Lỗi 500)
         await env.DB.prepare(`
@@ -576,15 +595,21 @@ export async function handleVariations(request, env, cors) {
           )
         `).run()
 
-        // Lưu vào sku_alias để dùng cho lần sau (Dùng SELECT -> UPDATE/INSERT để tránh lỗi ON CONFLICT)
+    // Cập nhật Sổ tay Auto-map (sku_alias)
     const row = await env.DB.prepare(`SELECT platform_sku FROM product_variations WHERE id=?`).bind(id).first()
     if (row?.platform_sku) {
-      const existAlias = await env.DB.prepare(`SELECT platform_sku FROM sku_alias WHERE platform_sku = ?`).bind(row.platform_sku).first()
-      if (existAlias) {
-        await env.DB.prepare(`UPDATE sku_alias SET internal_sku = ? WHERE platform_sku = ?`).bind(internal_sku, row.platform_sku).run()
-      } else {
-        await env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)`).bind(row.platform_sku, internal_sku).run()
-      }
+        if (targetStatus === 'UNMAPPED') {
+            // Nếu là thao tác "Hủy Map", XÓA luôn dòng liên kết trong sổ tay để bot không tự động Map lại
+            await env.DB.prepare(`DELETE FROM sku_alias WHERE platform_sku = ?`).bind(row.platform_sku).run();
+        } else if (targetSku !== '') {
+            // Nếu Map bình thường thì lưu/cập nhật vào sổ tay
+            const existAlias = await env.DB.prepare(`SELECT platform_sku FROM sku_alias WHERE platform_sku = ?`).bind(row.platform_sku).first()
+            if (existAlias) {
+                await env.DB.prepare(`UPDATE sku_alias SET internal_sku = ? WHERE platform_sku = ?`).bind(targetSku, row.platform_sku).run()
+            } else {
+                await env.DB.prepare(`INSERT INTO sku_alias (platform_sku, internal_sku) VALUES (?, ?)`).bind(row.platform_sku, targetSku).run()
+            }
+        }
     }
 
     return Response.json({ status: 'ok' }, { headers: cors })
