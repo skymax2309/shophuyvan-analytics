@@ -15,80 +15,74 @@ class LazadaOrderScraper:
         # ------------------------------------
         self.base_url = "https://sellercenter.lazada.vn/apps/order/list"
 
-    # ==========================================
-    # CÔNG CỤ API: LẤY TOKEN VÀ CHỮ KÝ
-    # ==========================================
-    def _get_api_token(self, shop_name):
-        """Hỏi Server Cloudflare xem Shop này đã cấp quyền API (Token) chưa?"""
-        import requests
-        try:
-            res = requests.get(f"{self.SERVER_URL}/shops/tokens", timeout=10)
-            if res.status_code == 200:
-                shops = res.json()
-                for shop in shops:
-                    # Dò theo username hoặc tên shop
-                    if shop.get('platform') == 'lazada' and (shop.get('user_name') == shop_name or shop.get('shop_name') == shop_name):
-                        if shop.get('access_token'):
-                            return shop['access_token']
-        except Exception as e:
-            self.log(f"   ⚠️ Lỗi lấy Token từ Server: {e}")
-        return None
-
-    def _generate_lazada_sign(self, api_path, params):
-        """Thuật toán băm chữ ký chuẩn Lazada"""
-        import hmac, hashlib
-        sorted_params = sorted(params.items())
-        sign_string = api_path
-        for k, v in sorted_params: sign_string += f"{k}{v}"
-        return hmac.new(self.LAZADA_SECRET.encode('utf-8'), sign_string.encode('utf-8'), hashlib.sha256).hexdigest().upper()
-    # ==========================================
-
     async def scrape_new_orders(self, page, shop_name="", mode="all"):
+        # 🌟 GỌI MODULE QUẢN GIA TOKEN LAZADA
+        import sys, os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from lazada_token_core import LazadaTokenCore
+        
+        token_mgr = LazadaTokenCore(self.log)
+        tokens_data = token_mgr.get_tokens_from_db(shop_name)
+        
+        if tokens_data and tokens_data.get("access_token"):
+            token = tokens_data["access_token"]
+            
+            self.log("-------------------------------------------------")
+            self.log(f"⚡ [LAZADA VIP] Shop '{shop_name}' ĐÃ CÓ TOKEN API!")
+            self.log("🚀 Kích hoạt luồng Đồng bộ Đơn hàng bằng API...")
+            
+            api_result = await self.scrape_by_api(token, shop_name, mode, token_mgr)
+            
+            # XỬ LÝ NẾU TOKEN CHẾT -> TỰ ĐỘNG XIN LẠI TOKEN MỚI
+            if api_result is False:
+                self.log("⚠️ API thất bại (Token có thể đã hết hạn). Bắt đầu làm mới Token tự động...")
+                new_token = token_mgr.refresh_and_save_token(tokens_data, shop_name)
+                
+                if new_token:
+                    self.log("🚀 Đang khởi động lại luồng lấy Đơn hàng bằng Token mới nóng hổi...")
+                    return await self.scrape_by_api(new_token, shop_name, mode, token_mgr)
+                else:
+                    self.log("❌ Làm mới Token thất bại. Bác vui lòng quét mã QR lại trên Web!")
+                    return []
+                    
+            return api_result
+
         self.log("-------------------------------------------------")
-        self.log(f"🚀 [LAZADA API REALTIME] Khởi động động cơ API cho Shop: {shop_name}...")
+        self.log(f"❌ Shop '{shop_name}' chưa kết nối Token API Lazada. Vui lòng cấp quyền trên Web!")
+        return []
 
-        # 1. LẤY TOKEN TỪ SERVER
-        access_token = self._get_api_token(shop_name)
-        if not access_token:
-            self.log(f"❌ Shop {shop_name} chưa được cấp quyền API (Không có Token).")
-            self.log(f"👉 Vui lòng lên Website OMS bấm 'Kết nối Lazada' cho shop này!")
-            return []
-
-        # 2. KHỞI TẠO SỔ ĐEN (Cache MD5)
+    async def scrape_by_api(self, token, shop_name, mode, token_mgr):
         cache_file = f"cache_orders_lazada_api_{shop_name}.json"
         cached_final_orders = {}
+        import os, json
         try:
             if os.path.exists(cache_file):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached_final_orders = json.load(f)
         except: pass
 
-        # 3. GỌI API LẤY ĐƠN TỔNG QUAN
         from datetime import datetime, timedelta
-        import time, requests, json, hashlib
+        import time, requests, hashlib
 
-        # Lấy đơn có sự thay đổi trong 15 ngày gần nhất
         created_after = (datetime.now() - timedelta(days=15)).isoformat(timespec='seconds') + "+07:00"
         
         params = {
             "created_after": created_after,
             "sort_direction": "DESC",
-            "limit": "100", # Lấy 100 đơn mới nhất mỗi lần quét
-            "app_key": self.LAZADA_APP_KEY,
-            "timestamp": str(int(time.time() * 1000)),
-            "sign_method": "sha256",
-            "access_token": access_token
+            "limit": "100"
         }
-        params["sign"] = self._generate_lazada_sign("/orders/get", params)
+        
+        # Dùng Quản gia tạo URL và chữ ký
+        url_get_orders, final_params = token_mgr.create_api_request("/orders/get", token, params)
 
         try:
             self.log("⚡ Đang kết nối siêu tốc đến máy chủ Lazada...")
-            res = requests.get(f"https://api.lazada.vn/rest/orders/get", params=params, timeout=20)
+            res = requests.get(url_get_orders, params=final_params, timeout=20)
             data = res.json()
             
             if data.get("code") != "0":
-                self.log(f"❌ API Lazada từ chối: {data.get('message')}")
-                return []
+                self.log(f"   ❌ LỖI API LAZADA: {data.get('message')}")
+                return False # 🌟 TRẢ VỀ FALSE ĐỂ ĐÁNH THỨC CƠ CHẾ AUTO REFRESH CỦA QUẢN GIA
                 
             orders_data = data.get("data", {}).get("orders", [])
             self.log(f"✅ Tải thành công {len(orders_data)} đơn hàng thô (Mất chưa tới 1 giây).")
@@ -129,16 +123,10 @@ class LazadaOrderScraper:
                 self.log(f"🚀 [XỬ LÝ API] {order_id} | {oms_status} -> Đang chọc API lấy chi tiết SKU...")
                 
                 # 4. GỌI API LẤY CHI TIẾT SẢN PHẨM (Chỉ gọi cho đơn mới/thay đổi)
-                item_params = {
-                    "order_id": order_id,
-                    "app_key": self.LAZADA_APP_KEY,
-                    "timestamp": str(int(time.time() * 1000)),
-                    "sign_method": "sha256",
-                    "access_token": access_token
-                }
-                item_params["sign"] = self._generate_lazada_sign("/order/items/get", item_params)
+                item_params = {"order_id": order_id}
+                url_get_items, final_item_params = token_mgr.create_api_request("/order/items/get", token, item_params)
                 
-                item_res = requests.get("https://api.lazada.vn/rest/order/items/get", params=item_params, timeout=10)
+                item_res = requests.get(url_get_items, params=final_item_params, timeout=10)
                 item_data = item_res.json()
                 
                 items_list = []

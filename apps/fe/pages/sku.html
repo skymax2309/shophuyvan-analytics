@@ -5,107 +5,217 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quản lý Sản phẩm & SKU</title>
 <link rel="stylesheet" href="../css/admin.css">
+<style>
+/* ===== RESPONSIVE SKU PAGE ===== */
+@media (max-width: 768px) {
+  .parent-product-header { flex-direction: column !important; gap: 10px !important; padding: 12px !important; }
+  .responsive-img-parent { width: 56px !important; height: 56px !important; }
+  .responsive-info { min-width: 100% !important; }
+  .responsive-stats { width: 100% !important; display: flex !important; gap: 12px !important; align-items: center !important; }
+  .responsive-actions { width: 100% !important; flex-direction: row !important; }
+  .responsive-actions .btn-view,
+  .responsive-actions .btn-edit { flex: 1 !important; }
+  .child-row { flex-direction: column !important; align-items: flex-start !important; padding: 12px !important; gap: 8px !important; }
+  .responsive-cost { width: 100% !important; justify-content: flex-start !important; }
+  .responsive-stock-inline { width: 100% !important; justify-content: flex-start !important; }
+  .responsive-actions-child { min-width: 100% !important; }
+  .responsive-actions-child button { font-size: 12px !important; padding: 8px 6px !important; }
+  #sku-search { width: 100% !important; }
+  .sku-tab-btn { font-size: 11px !important; padding: 6px 8px !important; }
+  .card { padding: 12px !important; }
+  .container { padding: 8px !important; }
+}
+@media (max-width: 480px) {
+  .responsive-cost { flex-wrap: wrap !important; }
+  .responsive-stock-inline { flex-wrap: wrap !important; }
+  .responsive-actions-child { display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; }
+}
+
+/* ===== CARD & LAYOUT CHUNG ===== */
+.shopee-parent-card { transition: box-shadow 0.2s; }
+.shopee-parent-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.10) !important; }
+
+/* ===== SKU VIDEO EMBED ===== */
+.sku-video-wrap { width: 100%; background: #000; border-radius: 8px; overflow: hidden; margin-top: 8px; position: relative; aspect-ratio: 16/9; }
+.sku-video-wrap iframe,
+.sku-video-wrap video { width: 100%; height: 100%; border: none; display: block; }
+
+/* ===== GALLERY ẢNH ===== */
+.sku-gallery { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; scrollbar-width: thin; }
+.sku-gallery img { width: 52px; height: 52px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; flex-shrink: 0; cursor: pointer; transition: border-color 0.15s; }
+.sku-gallery img:hover { border-color: #2563eb; }
+
+/* ===== MÔ TẢ SẢN PHẨM ===== */
+.sku-desc-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #475569; line-height: 1.6; max-height: 80px; overflow: hidden; position: relative; cursor: pointer; transition: max-height 0.3s; }
+.sku-desc-block.expanded { max-height: 300px; overflow-y: auto; }
+.sku-desc-block::after { content: '▼ Xem thêm'; position: absolute; bottom: 0; right: 8px; font-size: 10px; color: #2563eb; background: linear-gradient(to right, transparent, #f8fafc 40%); padding-left: 20px; }
+.sku-desc-block.expanded::after { content: '▲ Thu gọn'; }
+
+/* ===== BADGE TRẠNG THÁI ===== */
+.badge-mapped { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 10px; display: inline-flex; align-items: center; gap: 3px; }
+.badge-unmapped { background: #fff7ed; color: #ea580c; border: 1px solid #fdba74; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+/* ===== INPUT INLINE ===== */
+.inline-child-name:focus,
+.inline-child-inv:focus,
+.inline-child-cost:focus { border-color: #3b82f6 !important; background: #eff6ff !important; border-radius: 4px !important; padding: 2px 4px !important; }
+
+/* ===== PAGINATION ===== */
+#skuPaginationWrap button { transition: background 0.15s, color 0.15s; }
+#skuPaginationWrap button:not([disabled]):hover { background: #eff6ff !important; color: #2563eb !important; border-color: #bfdbfe !important; }
+</style>
 </head>
 <body>
 
 <template id="tpl-parent-card">
 <div class="shopee-parent-card" style="border:1px solid #e2e8f0; border-radius:12px; margin-bottom:16px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden;">
-    <div class="parent-product-header responsive-flex" style="display:flex; align-items:flex-start; flex-wrap:wrap; gap:16px; padding:16px 20px; background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%); border-bottom:1px solid #e2e8f0;">
-        <div style="padding-top:4px;" onclick="event.stopPropagation()">
-            <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.2); cursor:pointer;">
-        </div>
-        <div style="position:relative; cursor:pointer; flex-shrink:0;" onclick="document.getElementById('file-{{sku}}').click()">
-            <img src="{{image}}" id="img-{{sku}}" class="responsive-img-parent" style="width:72px; height:72px; object-fit:cover; border-radius:10px; border:2px solid #e2e8f0; background:#f1f5f9;">
-            <input type="file" id="file-{{sku}}" style="display:none" onchange="previewImgInline('{{sku}}', this)">
-            <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.5); color:white; font-size:9px; width:100%; text-align:center; border-radius:0 0 10px 10px;">ĐỔI ẢNH</div>
-        </div>
-        <div class="responsive-info" style="flex:1; min-width:200px;">
-    <div style="font-size:11px; color:#64748b; margin-bottom:4px; font-weight:700;">TÊN BÀI ĐĂNG:</div>
-    <input type="text" value="{{name}}" id="p-name-{{sku}}" 
-           style="font-size:16px; font-weight:800; color:#1e293b; border:1px solid #e2e8f0; background:#fff; width:100%; padding:8px; border-radius:6px; outline:none;"
-           onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 2px rgba(59,130,246,0.1)'">
-    <div style="margin-top:8px; display:flex; gap:8px;">
-        <div style="font-size:11px; color:#2563eb; background:#eff6ff; padding:2px 8px; border:1px solid #bfdbfe; border-radius:10px; font-weight:bold; display:flex; align-items:center;">🏷️ BÀI GỐC: {{sku}}</div>
-        <button onclick="saveFullArticle('{{sku}}')" 
-                style="background:#16a34a; color:white; border:none; padding:6px 16px; border-radius:8px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 2px 4px rgba(22,163,74,0.2);">
-            💾 LƯU BÀI ĐĂNG
-        </button>
-    </div>
-</div>
-        <div class="responsive-stats" style="text-align:center; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 18px; flex-shrink:0;">
-            <div style="font-size:11px; color:#94a3b8; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Tổng Tồn</div>
-            <div style="font-size:22px; font-weight:800; color:#16a34a; line-height:1.2;">{{total_stock}}</div>
-        </div>
-        <div class="responsive-actions" style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
-            <div style="display:flex; gap:6px;">
-                <button class="btn-view" onclick="openProductDetail('{{sku}}'); event.stopPropagation();" style="padding:6px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; width:100%;">👁️ Xem</button>
-                <button class="btn-edit" onclick="document.getElementById('p-name-{{sku}}').focus();" style="padding:6px 12px; background:#fefce8; color:#ca8a04; border:1px solid #fde68a; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; width:100%;">✏️ Sửa </button>
-            </div>
-        </div>
-    </div>
+
+  <!-- ====== HEADER: ẢNH + TÊN + ACTION ====== -->
+  <div class="parent-product-header responsive-flex" style="display:flex; align-items:flex-start; flex-wrap:wrap; gap:16px; padding:16px 20px; background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%); border-bottom:1px solid #e2e8f0;">
     
-    <div id="vars-{{safe_sku}}" style="display: block; background:#fff; border-top:1px solid #e2e8f0;">
-        <div style="padding:10px 20px; background:#f8fafc; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between;">
-            <span style="font-size:12px; font-weight:800; color:#64748b; text-transform:uppercase;">📊 DANH SÁCH PHÂN LOẠI</span>
-        </div>
-        {{children_list}}
-        <div style="padding:12px 20px; background:#fdfdfd; border-top:1px dashed #e2e8f0;">
-             <button onclick="addNewVarQuick('{{sku}}')" style="width:100%; padding:8px; background:#fff; color:#16a34a; border:2px dashed #bbf7d0; border-radius:8px; font-weight:800; cursor:pointer; font-size:12px;">➕ THÊM PHÂN LOẠI MỚI CHO BÀI ĐĂNG NÀY</button>
-        </div>
+    <!-- Checkbox -->
+    <div style="padding-top:4px;" onclick="event.stopPropagation()">
+      <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.2); cursor:pointer;">
     </div>
+
+    <!-- Ảnh đại diện + gallery -->
+    <div style="flex-shrink:0; display:flex; flex-direction:column; gap:6px;">
+      <div style="position:relative; cursor:pointer;" onclick="document.getElementById('file-{{sku}}').click()">
+        <img src="{{image}}" id="img-{{sku}}" class="responsive-img-parent" style="width:80px; height:80px; object-fit:cover; border-radius:10px; border:2px solid #e2e8f0; background:#f1f5f9; display:block;">
+        <input type="file" id="file-{{sku}}" accept="image/*" style="display:none" onchange="previewImgInline('{{sku}}', this)">
+        <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.5); color:white; font-size:8px; width:100%; text-align:center; border-radius:0 0 8px 8px; padding:2px 0; letter-spacing:0.5px;">ĐỔI ẢNH</div>
+      </div>
+      <!-- Gallery ảnh phụ -->
+      <div class="sku-gallery" id="gallery-{{sku}}">{{gallery_html}}</div>
+    </div>
+
+    <!-- Thông tin chính -->
+    <div class="responsive-info" style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:6px;">
+      <div style="font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Tên bài đăng</div>
+      <input type="text" value="{{name}}" id="p-name-{{sku}}"
+             style="font-size:15px; font-weight:800; color:#1e293b; border:1px solid #e2e8f0; background:#fff; width:100%; padding:7px 10px; border-radius:6px; outline:none; transition:border-color 0.15s, box-shadow 0.15s;"
+             onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 2px rgba(59,130,246,0.12)'"
+             onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none'">
+      
+      <!-- SKU + nút lưu -->
+      <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+        <span style="font-size:11px; color:#2563eb; background:#eff6ff; padding:2px 8px; border:1px solid #bfdbfe; border-radius:10px; font-weight:700;">🏷️ SKU: {{sku}}</span>
+        <button onclick="saveFullArticle('{{sku}}')"
+                style="background:#16a34a; color:white; border:none; padding:5px 14px; border-radius:7px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 2px 4px rgba(22,163,74,0.2); transition:opacity 0.15s;"
+                onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">
+          💾 LƯU BÀI ĐĂNG
+        </button>
+      </div>
+
+      <!-- Mô tả sản phẩm inline -->
+      <div id="desc-block-{{sku}}" class="sku-desc-block" onclick="this.classList.toggle('expanded')" title="Nhấn để mở rộng/thu gọn">
+        {{desc_text}}
+      </div>
+
+      <!-- Video sản phẩm -->
+      {{video_html}}
+
+      <!-- Map shop badge -->
+      {{mapped_badge}}
+    </div>
+
+    <!-- Stats tồn kho + actions -->
+    <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0; align-items:flex-end;">
+      <div class="responsive-stats" style="text-align:center; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 20px;">
+        <div style="font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Tổng Tồn</div>
+        <div style="font-size:24px; font-weight:900; color:#16a34a; line-height:1.1;">{{total_stock}}</div>
+      </div>
+      <div class="responsive-actions" style="display:flex; gap:6px;">
+        <button class="btn-view" onclick="openProductDetail('{{sku}}'); event.stopPropagation();" style="flex:1; padding:7px 12px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">👁️ Xem</button>
+        <button class="btn-edit" onclick="document.getElementById('p-name-{{sku}}').focus();" style="flex:1; padding:7px 12px; background:#fefce8; color:#b45309; border:1px solid #fde68a; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;">✏️ Sửa</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== DANH SÁCH PHÂN LOẠI ====== -->
+  <div id="vars-{{safe_sku}}" style="display:block; background:#fff; border-top:1px solid #e2e8f0;">
+    <div style="padding:9px 20px; background:#f8fafc; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between;">
+      <span style="font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">📊 Danh sách phân loại</span>
+    </div>
+    {{children_list}}
+    <div style="padding:10px 20px; background:#fdfdfd; border-top:1px dashed #e2e8f0;">
+      <button onclick="addNewVarQuick('{{sku}}')" style="width:100%; padding:8px; background:#fff; color:#16a34a; border:2px dashed #bbf7d0; border-radius:8px; font-weight:800; cursor:pointer; font-size:12px; transition:background 0.15s;" onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='#fff'">
+        ➕ THÊM PHÂN LOẠI MỚI CHO BÀI ĐĂNG NÀY
+      </button>
+    </div>
+  </div>
+
 </div>
 </template>
 
 <template id="tpl-child-row">
-    <div class="sku-item-row child-row responsive-flex" style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid #f1f5f9; background:#fff; transition:0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
-        <div onclick="event.stopPropagation()">
-            <input type="checkbox" class="sku-chk" data-sku="{{c_sku}}" onchange="updateSkuBulkDeleteUI()" style="transform:scale(1.1); cursor:pointer;">
-        </div>
-        <div style="position:relative; cursor:pointer; flex-shrink:0;" onclick="document.getElementById('file-{{c_sku}}').click()">
-            <img src="{{c_img_url}}" id="img-{{c_sku}}" style="width:48px; height:48px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc;">
-            <input type="file" id="file-{{c_sku}}" style="display:none" accept="image/*" onchange="previewImgInline('{{c_sku}}', this)">
-            <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.6); color:white; font-size:8px; width:100%; text-align:center; border-radius:0 0 8px 8px; padding:2px 0;">ĐỔI ẢNH</div>
-        </div>
-        <div class="responsive-info" style="flex:1; min-width:150px;">
-            <div style="font-size:11px; color:#94a3b8; font-weight:700;">TÊN PHÂN LOẠI:</div>
-<input type="text" value="{{c_name}}" class="inline-child-name" data-sku="{{c_sku}}"
-       style="width:100%; border:1px solid transparent; background:transparent; font-size:13px; font-weight:600; color:#334155; outline:none;"
-       onfocus="this.style.borderBottom='1px solid #3b82f6'">
-            <div style="font-size:11px; color:#94a3b8; font-family:monospace; margin-top:2px;">Mã: {{c_sku}}</div>
-            {{c_mapped_badge}}
-        </div>
-        <div class="responsive-cost" style="display:flex; gap:10px; text-align:center;">
-    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:4px 8px;">
-        <div style="font-size:9px; color:#64748b; font-weight:700;">VỐN HĐ</div>
+  <div class="sku-item-row child-row" style="display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px; padding:12px 20px; border-bottom:1px solid #f1f5f9; background:#fff; transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+
+    <!-- Checkbox -->
+    <div style="padding-top:2px;" onclick="event.stopPropagation()">
+      <input type="checkbox" class="sku-chk" data-sku="{{c_sku}}" onchange="updateSkuBulkDeleteUI()" style="transform:scale(1.15); cursor:pointer;">
+    </div>
+
+    <!-- Ảnh phân loại -->
+    <div style="position:relative; cursor:pointer; flex-shrink:0;" onclick="document.getElementById('file-{{c_sku}}').click()">
+      <img src="{{c_img_url}}" id="img-{{c_sku}}" style="width:52px; height:52px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; display:block;">
+      <input type="file" id="file-{{c_sku}}" style="display:none" accept="image/*" onchange="previewImgInline('{{c_sku}}', this)">
+      <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.6); color:white; font-size:7px; width:100%; text-align:center; border-radius:0 0 6px 6px; padding:2px 0; letter-spacing:0.3px;">ĐỔI ẢNH</div>
+    </div>
+
+    <!-- Thông tin phân loại -->
+    <div class="responsive-info" style="flex:1; min-width:150px; display:flex; flex-direction:column; gap:3px;">
+      <div style="font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">Tên phân loại</div>
+      <input type="text" value="{{c_name}}" class="inline-child-name" data-sku="{{c_sku}}"
+             style="width:100%; border:1px solid transparent; background:transparent; font-size:13px; font-weight:700; color:#334155; outline:none; padding:2px 0; border-bottom:1px solid #e2e8f0; transition:border-color 0.15s;"
+             onfocus="this.style.borderBottomColor='#3b82f6'; this.style.background='#eff6ff'; this.style.paddingLeft='4px'; this.style.borderRadius='4px';"
+             onblur="this.style.borderBottomColor='#e2e8f0'; this.style.background='transparent'; this.style.paddingLeft='0';">
+      <div style="font-size:10px; color:#94a3b8; font-family:monospace; margin-top:1px;">Mã SKU: <strong style="color:#475569;">{{c_sku}}</strong></div>
+      {{c_mapped_badge}}
+    </div>
+
+    <!-- Giá vốn + Tồn kho — nhóm thành 1 khối -->
+    <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:stretch;">
+
+      <!-- VỐN HÓA ĐƠN -->
+      <div class="responsive-cost" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:5px 8px; text-align:center; min-width:72px;">
+        <div style="font-size:9px; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px;">Vốn HĐ</div>
         <input type="number" value="{{c_raw_inv}}" class="inline-child-inv" data-sku="{{c_sku}}"
-               style="width:70px; border:none; background:transparent; text-align:center; font-size:13px; font-weight:700; color:#64748b; outline:none;">
-    </div>
-    <div style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px; padding:4px 8px;">
-        <div style="font-size:9px; color:#7c3aed; font-weight:700;">VỐN THỰC</div>
+               style="width:68px; border:none; background:transparent; text-align:center; font-size:13px; font-weight:700; color:#475569; outline:none;">
+      </div>
+
+      <!-- VỐN THỰC TẾ -->
+      <div class="responsive-cost" style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px; padding:5px 8px; text-align:center; min-width:72px;">
+        <div style="font-size:9px; color:#7c3aed; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px;">Vốn Thực</div>
         <input type="number" value="{{c_raw_real}}" class="inline-child-cost" data-sku="{{c_sku}}"
-               style="width:70px; border:none; background:transparent; text-align:center; font-size:13px; font-weight:700; color:#7c3aed; outline:none;">
+               style="width:68px; border:none; background:transparent; text-align:center; font-size:13px; font-weight:700; color:#7c3aed; outline:none;">
+      </div>
+
+      <!-- KHO CHÍNH -->
+      <div class="responsive-stock-inline" style="background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:5px 8px; text-align:center; min-width:60px;">
+        <div style="font-size:9px; color:#2563eb; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px;">Kho Chính</div>
+        <input type="number" value="{{c_raw_stock_main}}"
+               onchange="inlineUpdateStock('{{c_sku}}', this.value, 'main')"
+               style="width:52px; border:none; background:transparent; text-align:center; font-size:14px; font-weight:800; color:#1d4ed8; outline:none;">
+      </div>
+
+      <!-- KHO PHỤ -->
+      <div class="responsive-stock-inline" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:5px 8px; text-align:center; min-width:60px;">
+        <div style="font-size:9px; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:2px;">Kho Phụ</div>
+        <input type="number" value="{{c_raw_stock_sub}}"
+               onchange="inlineUpdateStock('{{c_sku}}', this.value, 'sub')"
+               style="width:52px; border:none; background:transparent; text-align:center; font-size:14px; font-weight:800; color:#475569; outline:none;">
+      </div>
+
     </div>
-</div>
-<div class="responsive-stock-inline" style="display:flex; gap:4px; text-align:center;">
-    <div style="background:#eff6ff; border:1px solid #dbeafe; border-radius:8px; padding:4px 8px;">
-        <div style="font-size:9px; color:#3b82f6; font-weight:700;">CHÍNH</div>
-        <input type="number" value="{{c_raw_stock_main}}" 
-               onchange="inlineUpdateStock('{{c_sku}}', this.value, 'main')" 
-               style="width:50px; border:none; background:transparent; text-align:center; font-size:14px; font-weight:800; color:#1d4ed8; outline:none;">
-    </div>
-    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:4px 8px;">
-        <div style="font-size:9px; color:#64748b; font-weight:700;">PHỤ</div>
-        <input type="number" value="{{c_raw_stock_sub}}" 
-               onchange="inlineUpdateStock('{{c_sku}}', this.value, 'sub')" 
-               style="width:50px; border:none; background:transparent; text-align:center; font-size:14px; font-weight:800; color:#475569; outline:none;">
-    </div>
-</div>
-        <div class="responsive-actions-child" style="display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-start; min-width:100%;">
-            <button class="btn-map" onclick="openQuickMapModal('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">🔗 Map</button>
-            <button class="btn-edit" onclick="this.closest('.child-row').querySelector('.inline-child-name').focus();" style="flex:1; padding:6px 10px; background:#fefce8; color:#ca8a04; border:1px solid #fde68a; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">✏️ Sửa</button>
-            <button class="btn-combo" onclick="makeCombo('{{c_sku}}', false); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#fdf4ff; color:#9333ea; border:1px solid #e9d5ff; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">📦 Ghép</button>
-            <button class="btn-copy" onclick="duplicateSku('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">📑 Sao</button>
-            <button class="btn-delete" onclick="deleteSku('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:6px 10px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">🗑️ Xóa</button>
+
+    <!-- Nút hành động -->
+    <div class="responsive-actions-child" style="display:flex; gap:5px; flex-wrap:wrap; width:100%; margin-top:2px;">
+      <button class="btn-map" onclick="openQuickMapModal('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:7px 8px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">🔗 Map</button>
+      <button class="btn-edit" onclick="this.closest('.child-row').querySelector('.inline-child-name').focus();" style="flex:1; padding:7px 8px; background:#fefce8; color:#b45309; border:1px solid #fde68a; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">✏️ Sửa</button>
+      <button class="btn-combo" onclick="makeCombo('{{c_sku}}', false); event.stopPropagation();" style="flex:1; padding:7px 8px; background:#fdf4ff; color:#9333ea; border:1px solid #e9d5ff; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">📦 Ghép</button>
+      <button class="btn-copy" onclick="duplicateSku('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:7px 8px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">📑 Sao</button>
+      <button class="btn-delete" onclick="deleteSku('{{c_sku}}'); event.stopPropagation();" style="flex:1; padding:7px 8px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer; white-space:nowrap;">🗑️ Xóa</button>
         </div>
     </div>
 </template>
@@ -137,8 +247,18 @@
     </div>
 
     <div class="card">
-      <div class="card-title">➕ Thêm / Cập nhật Sản phẩm thủ công</div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
+        <div class="card-title" style="margin:0;">➕ Thêm / Cập nhật Sản phẩm thủ công</div>
+        <span id="s_mode_badge" style="display:none; align-items:center; gap:6px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; border-radius:20px; padding:3px 10px; font-size:12px; font-weight:700;">
+          ✏️ Đang sửa: <strong id="s_mode_sku_label"></strong>
+        </span>
+        <button id="btnResetForm" onclick="resetSkuForm()" style="display:none; padding:4px 12px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">🆕 Tạo mới</button>
+      </div>
+      <div id="parent-mode-notice" style="display:none; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:10px 14px; font-size:13px; color:#9a3412; font-weight:600; margin-bottom:12px;">
+        ℹ️ Đang sửa <strong>Sản phẩm Cha</strong> — chỉ chỉnh tên, ảnh, mô tả. Giá vốn & tồn kho quản lý ở từng phân loại con.
+      </div>
       <input type="hidden" id="s_old_img" value="">
+      <input type="hidden" id="s_is_parent_mode" value="0">
       <div style="display:flex; gap:16px; margin-bottom:16px; align-items:center; flex-wrap:wrap; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
           <img id="s_img_preview" src="https://placehold.co/60x60?text=IMG" style="width:60px; height:60px; object-fit:cover; border-radius:8px; border:1px solid #cbd5e1; background:white;">
           <div style="flex:1; min-width:200px;">

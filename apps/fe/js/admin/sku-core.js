@@ -67,7 +67,37 @@ window.generateRowHtml = function(p) {
     const tplChild = document.getElementById('tpl-child-row').innerHTML;
     const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
     const validImg = p.image_url && p.image_url !== "undefined" && p.image_url.trim() !== "";
-    const imgUrl = validImg ? p.image_url.trim() : "https://placehold.co/60x60?text=No+Image";
+    const imgUrl = validImg ? p.image_url.trim() : "https://placehold.co/80x80?text=No+Image";
+
+    // === GALLERY ảnh phụ ===
+    let galleryHtml = '';
+    try {
+        const imgs = JSON.parse(p.images || '[]');
+        if (Array.isArray(imgs) && imgs.length > 0) {
+            galleryHtml = imgs.map(url => `<img src="${escapeHtml(url)}" onclick="event.stopPropagation(); document.getElementById('img-${p.sku}').src=this.src" title="Nhấn để đặt làm ảnh đại diện">`).join('');
+        }
+    } catch(e) {}
+
+    // === VIDEO nhúng ===
+    let videoHtml = '';
+    const vUrl = (p.video_url || '').trim();
+    if (vUrl) {
+        let embedUrl = '';
+        const ytMatch = vUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        if (ytMatch) {
+            embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+        } else if (vUrl.includes('shopee') || vUrl.match(/\.(mp4|webm|ogg)(\?|$)/i)) {
+            videoHtml = `<div class="sku-video-wrap"><video controls preload="none" style="width:100%;max-height:160px;background:#000;border-radius:8px;"><source src="${escapeHtml(vUrl)}"></video></div>`;
+        } else {
+            embedUrl = vUrl; // fallback iframe
+        }
+        if (embedUrl) {
+            videoHtml = `<div class="sku-video-wrap" style="aspect-ratio:16/9;max-height:160px;"><iframe src="${escapeHtml(embedUrl)}" allowfullscreen loading="lazy" style="width:100%;height:100%;border:none;border-radius:8px;"></iframe></div>`;
+        }
+    }
+
+    // === Mô tả ===
+    const descText = (p.description || '').trim() || '<span style="color:#cbd5e1;font-style:italic;">Chưa có mô tả sản phẩm</span>';
 
     const genBadge = (skuStr, mappedShops) => {
         const btnQuickMap = `<button onclick="openQuickMapModal('${skuStr}')" style="background:#eff6ff;color:#2563eb;border:1px dashed #93c5fd;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:bold;cursor:pointer;margin-top:4px;">+ Map Shop</button>`;

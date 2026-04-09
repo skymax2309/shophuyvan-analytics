@@ -112,24 +112,11 @@
         └── debug_payload_lazada_orders.json
         └── debug_payload_lazada_products.json
         └── debug_payload_tiktok.json
-        └── debug_shopee.py
-        └── lay_token_lazada.py
-        └── lay_token_shopee.py
-        └── lazada_test_api.py
         └── main.py
         └── media_chihuy1984.xlsx
         └── nhat_ky_tram.txt
-        └── oms_clean_unmapped_orders.py
         └── sales_chihuy1984.xlsx
-        └── sync_shopee.py
-        └── tao_link_lazada.py
-        └── tao_link_shopee.py
         └── Tem_API_2604052FTYNM12.pdf
-        └── test_api_shopee.py
-        └── test_lazada_shipping_auto.py
-        └── test_promo_web.py
-        └── test_shopee_excel.py
-        └── test_tai_pdf_shopee.py
         └── tunnel.log
         └── utils.py
         ├── data/
@@ -149,28 +136,24 @@
                 └── lazada_orders.py
                 └── lazada_process.py
                 └── lazada_products.py
+                └── lazada_token_core.py
             ├── shopee/
-                └── basic_chihuy1984.xlsx
-                └── basic_chihuy2309.xlsx
-                └── basic_khogiadungcona.xlsx
-                └── basic_phambich2312.xlsx
-                └── media_chihuy1984.xlsx
-                └── media_chihuy2309.xlsx
-                └── media_khogiadungcona.xlsx
-                └── media_phambich2312.xlsx
-                └── sales_chihuy1984.xlsx
-                └── sales_chihuy2309.xlsx
-                └── sales_khogiadungcona.xlsx
-                └── sales_phambich2312.xlsx
                 └── shopee_auth.py
                 └── shopee_doanh_thu.py
                 └── shopee_don_hang.py
                 └── shopee_hoa_don.py
+                └── shopee_orders - Copy.py
                 └── shopee_orders.py
+                └── shopee_orders_api.py
+                └── shopee_orders_browser.py
                 └── shopee_process.py
+                └── shopee_products - Copy.py
                 └── shopee_products.py
+                └── shopee_products_api.py
+                └── shopee_products_browser.py
                 └── shopee_promo.py
                 └── shopee_status_core.py
+                └── shopee_token_core.py
             ├── tiktok/
                 └── tiktok_auth.py
                 └── tiktok_doanh_thu.py

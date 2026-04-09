@@ -15,39 +15,24 @@ class LazadaProducts:
         self.LAZADA_SECRET = "UHMS2CUNhAspEYgNMYZ1ywytbHhCx1wK"
         self.SERVER_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api"
 
-    # ==========================================
-    # CÔNG CỤ API: LẤY TOKEN VÀ CHỮ KÝ
-    # ==========================================
-    def _get_api_token(self, shop_name):
-        try:
-            res = requests.get(f"{self.SERVER_URL}/shops/tokens", timeout=10)
-            if res.status_code == 200:
-                for shop in res.json():
-                    # ĐIỀU KIỆN MỚI: Phải có access_token thì mới lấy (Bỏ qua rác)
-                    if shop.get('platform') == 'lazada' and (shop.get('user_name') == shop_name or shop.get('shop_name') == shop_name):
-                        token = shop.get('access_token')
-                        if token: # <-- Chỉ trả về nếu token thực sự tồn tại
-                            return token
-        except Exception as e:
-            self.log(f"   ⚠️ Lỗi lấy Token từ Server: {e}")
-        return None
-
-    def _generate_lazada_sign(self, api_path, params):
-        sorted_params = sorted(params.items())
-        sign_string = api_path
-        for k, v in sorted_params: sign_string += f"{k}{v}"
-        return hmac.new(self.LAZADA_SECRET.encode('utf-8'), sign_string.encode('utf-8'), hashlib.sha256).hexdigest().upper()
-
     async def run(self, page, shop):
         shop_id = shop.get('user_name', shop.get('ten_shop', 'Unnamed'))
         self.log("-------------------------------------------------")
         self.log(f"🚀 [LAZADA API REALTIME] Khởi động động cơ SẢN PHẨM & TỒN KHO cho: {shop_id}")
 
-        # 1. MÓC CHÌA KHÓA TỪ ĐÁM MÂY
-        access_token = self._get_api_token(shop_id)
-        if not access_token:
+        # 1. GỌI QUẢN GIA TOKEN LAZADA TỪ ĐÁM MÂY
+        import sys, os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        from lazada_token_core import LazadaTokenCore
+        
+        token_mgr = LazadaTokenCore(self.log)
+        tokens_data = token_mgr.get_tokens_from_db(shop_id)
+        
+        if not tokens_data or not tokens_data.get("access_token"):
             self.log(f"❌ Shop {shop_id} chưa kết nối API. Vui lòng cấp quyền trên Website!")
             return
+            
+        access_token = tokens_data["access_token"]
 
         all_products = []
         offset = 0
@@ -60,20 +45,26 @@ class LazadaProducts:
                 params = {
                     "filter": "all", # Kéo tất cả sản phẩm
                     "limit": str(limit),
-                    "offset": str(offset),
-                    "app_key": self.LAZADA_APP_KEY,
-                    "timestamp": str(int(time.time() * 1000)),
-                    "sign_method": "sha256",
-                    "access_token": access_token
+                    "offset": str(offset)
                 }
-                params["sign"] = self._generate_lazada_sign("/products/get", params)
+                
+                # Dùng Quản gia tạo URL và chữ ký
+                url_get_products, final_params = token_mgr.create_api_request("/products/get", access_token, params)
 
-                res = requests.get("https://api.lazada.vn/rest/products/get", params=params, timeout=20)
+                res = requests.get(url_get_products, params=final_params, timeout=20)
                 data = res.json()
 
                 if data.get("code") != "0":
-                    self.log(f"❌ API Lazada từ chối: {data.get('message')}")
-                    break
+                    self.log(f"⚠️ API Lazada báo lỗi: {data.get('message')}. Đang thử làm mới Token...")
+                    # 🌟 THỬ LÀM MỚI TOKEN NGAY LẬP TỨC TRONG VÒNG LẶP
+                    new_token = token_mgr.refresh_and_save_token(tokens_data, shop_id)
+                    if new_token:
+                        access_token = new_token
+                        tokens_data["access_token"] = new_token
+                        continue # Quay lại vòng lặp để kéo lại đúng mốc offset bị lỗi
+                    else:
+                        self.log("❌ Làm mới Token thất bại. Dừng quá trình kéo sản phẩm!")
+                        break
 
                 products = data.get("data", {}).get("products", [])
                 if not products:
