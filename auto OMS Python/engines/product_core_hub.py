@@ -27,13 +27,45 @@ class ProductCoreHub:
 
     def sync_products(self, shop_id, platform, products_data):
         """Hàm chuẩn hóa và đẩy dữ liệu sản phẩm lên Server"""
-        self.log(f"🔄 [PRODUCT HUB] Tiếp nhận {len(products_data)} sản phẩm từ {platform.upper()} ({shop_id}). Đang đối chiếu...")
+        self.log(f"🔄 [PRODUCT HUB] Tiếp nhận {len(products_data)} sản phẩm từ {platform.upper()} ({shop_id}). Đang lọc dữ liệu...")
+        
+        # 🌟 CẤU HÌNH PHÂN KHO TẠI ĐÂY (Sửa tên shop cho đúng với thực tế)
+        # Nếu tên shop không có trong danh sách này, mặc định sẽ đẩy vào Kho Chính
+        warehouse_map = {
+            "chihuy2309": "sub",          # Shop này dùng Kho Phụ
+            "Shopee 166563639": "main",   # Shop này dùng Kho Chính
+            # "Tên_Shop_Khác": "main",
+        }
+        target_warehouse = warehouse_map.get(str(shop_id).strip(), "main")
+        
+        cleaned_products = []
+        
+        for p in products_data:
+            valid_vars = []
+            for v in p.get('variations', []):
+                # 1. BỘ LỌC TỒN KHO: Tồn = 0 thì vứt sọt rác, không cho lên mây
+                if int(v.get('stock', 0)) > 0:
+                    v['target_warehouse'] = target_warehouse # Đóng dấu kiện hàng chuyển đi đâu
+                    valid_vars.append(v)
+            
+            # 2. GIỮ NGUYÊN CẤU TRÚC CHA-CON: Chỉ lấy bài đăng nào còn ít nhất 1 phân loại > 0
+            if valid_vars:
+                p['variations'] = valid_vars
+                cleaned_products.append(p)
+        
+        if not cleaned_products:
+            self.log(f"⚠️ [PRODUCT HUB] Sau khi lọc rác Tồn = 0, không còn sản phẩm nào để đồng bộ!")
+            return True
+            
+        self.log(f"✅ [PRODUCT HUB] Lọc xong! Còn {len(cleaned_products)} Bài đăng hợp lệ (Đích đến: {target_warehouse.upper()}).")
+
         try:
             # Gói dữ liệu theo đúng chuẩn API Server đang chờ
             payload = json.dumps({
                 "user_name": shop_id, 
                 "platform": platform,
-                "products": products_data
+                "target_warehouse": target_warehouse,
+                "products": cleaned_products
             }).encode('utf-8')
 
             self.log(f"⏳ [PRODUCT HUB] Đang bơm dữ liệu lên Server qua đường ống API...")

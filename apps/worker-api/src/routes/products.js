@@ -397,7 +397,8 @@ export async function handleVariations(request, env, cors) {
                main_image: p_img || '',
                price: v.price,
                discount_price: v.discount_price || 0, // BỔ SUNG LẤY GIÁ KM TỪ PYTHON
-               stock: v.stock
+               stock: v.stock,
+               target_warehouse: v.target_warehouse || body.target_warehouse || 'main' // 🌟 Bắt lấy nhãn Kho từ Python
             })
          }
       }
@@ -443,31 +444,27 @@ export async function handleVariations(request, env, cors) {
         }
       }
 
-// 🌟 TÍNH NĂNG MỚI: NẾU VẪN KHÔNG TÌM THẤY -> TỰ ĐỘNG KHAI SINH SKU GỐC
-      // Bọc thép: Chỉ nhận SKU chuẩn (ngắn hơn 20 ký tự, không bị Shopee ghép dấu '-')
-      if (!internalSku && pSku.length >= 2 && pSku.length <= 20 && !pSku.includes('-') && !pSku.toLowerCase().includes('chưa map') && !pSku.toLowerCase().includes('null')) {
-        internalSku = pSku.toUpperCase();
-        mapStatus = 'MAPPED';
-        
-        // 🌟 Bơm thẳng mã mới vào bảng Danh mục Sản phẩm (KÈM THEO TỒN KHO TỪ EXCEL)
-        await env.DB.prepare(`
-          INSERT INTO products (sku, product_name, cost_invoice, cost_real, image_url, stock)
-          VALUES (?, ?, 0, 0, ?, ?)
-          ON CONFLICT(sku) DO NOTHING
-        `).bind(internalSku, v.product_name || "Sản phẩm tự sinh", v.main_image || v.image_url || "", v.stock || 0).run();
-        
-        // Cập nhật bộ nhớ tạm để không bị tạo trùng ở các vòng lặp sau
-        allSkus.push(internalSku);
-        console.log(`[AUTO-CREATE] 🌟 Đã tự sinh SKU gốc mới: ${internalSku} (Tồn: ${v.stock})`);
-      }
+// 🌟 LỆNH TỪ ADMIN: TUYỆT ĐỐI KHÔNG TỰ ĐẺ MÃ SKU ĐỂ TRÁNH RÁC DATABASE!
+      // Nếu mã lạ (Không tìm thấy internalSku), hệ thống sẽ ngó lơ việc cập nhật Tồn Kho
+      // và ném nó vào danh sách UNMAPPED để con người review thủ công trên Web.
 
       if (internalSku) {
           autoMapped++;
           
-          // 🌟 TÍNH NĂNG ĐỒNG BỘ: Ép tồn kho từ Excel ghi đè sang SKU Nội Bộ (Kho Tổng)
-          stmts.push(env.DB.prepare(`
-            UPDATE products SET stock = ? WHERE sku = ?
-          `).bind(v.stock || 0, internalSku));
+          // 🌟 ĐỒNG BỘ TỒN KHO VÀO ĐÚNG CỘT KHO ĐÍCH
+          if (v.target_warehouse === 'sub') {
+              stmts.push(env.DB.prepare(`
+                UPDATE products 
+                SET stock_sub = ?, stock = IFNULL(stock_main, 0) + ? 
+                WHERE sku = ?
+              `).bind(v.stock || 0, v.stock || 0, internalSku));
+          } else {
+              stmts.push(env.DB.prepare(`
+                UPDATE products 
+                SET stock_main = ?, stock = ? + IFNULL(stock_sub, 0) 
+                WHERE sku = ?
+              `).bind(v.stock || 0, v.stock || 0, internalSku));
+          }
       }
 
       stmts.push(env.DB.prepare(`
