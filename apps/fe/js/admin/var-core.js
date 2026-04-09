@@ -257,7 +257,7 @@ window.copySelectedToWarehouse = async function() {
     btn.disabled = true;
 
     try {
-        const res = await fetch(API + '/api/sync-variations/copy-to-warehouse', {
+        const res = await fetch(API + '/api/sync-variations?action=copy-to-warehouse', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: ids })

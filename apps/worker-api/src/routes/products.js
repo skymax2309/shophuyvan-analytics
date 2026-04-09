@@ -376,7 +376,7 @@ export async function handleVariations(request, env, cors) {
   }
 
   // POST /api/sync-variations — Bot gửi lên sau khi crawl SP Shopee
-  if (request.method === 'POST') {
+  if (request.method === 'POST' && url.searchParams.get('action') !== 'copy-to-warehouse') {
     const body = await request.json()
     
     // BỌC THÉP: Ưu tiên bắt user_name từ Bot đẩy lên (fallback về shop để tool cũ không chết)
@@ -615,13 +615,10 @@ export async function handleVariations(request, env, cors) {
     return Response.json({ status: 'ok' }, { headers: cors })
   }
 
-// ==========================================
-  // 🌟 [SHIPXANH CLONE] API SAO CHÉP VỀ KHO (Tạo SKU Nội Bộ từ SKU Sàn)
-  // ==========================================
   // ==========================================
   // 🌟 [SHIPXANH CLONE] API SAO CHÉP VỀ KHO (Tạo Bài Đăng Gốc & Phân Loại)
   // ==========================================
-  if (request.method === 'POST' && url.pathname.endsWith('/copy-to-warehouse')) {
+  if (request.method === 'POST' && url.searchParams.get('action') === 'copy-to-warehouse') {
     try {
         const { ids } = await request.json();
         if (!ids || !ids.length) return Response.json({ error: 'Không có ID nào được chọn' }, { status: 400, headers: cors });
