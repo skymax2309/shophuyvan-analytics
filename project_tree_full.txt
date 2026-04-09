@@ -72,6 +72,7 @@
                 └── dashboard_video.html
                 └── import-sku-tool.html
                 └── oms-dashboard.html
+                └── product-detail.html
                 └── profit-dashboard.html
                 └── report-upload.html
                 └── sku.html
