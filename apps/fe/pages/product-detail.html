@@ -172,26 +172,24 @@
 
       <div class="var-table-wrap">
         <table class="var-table">
-          <thead>
+<thead>
             <tr>
-              <th style="width:50px;"></th>
+              <th style="width:50px;">Ảnh</th>
               <th>Tên phân loại</th>
               <th class="center" style="width:110px;">Giá vốn HĐ</th>
               <th class="center" style="width:110px;">Giá vốn thực</th>
-              <th class="center" style="width:90px;">Kho chính</th>
-              <th class="center" style="width:90px;">Kho phụ</th>
+              <th class="center" style="width:90px;">Kho BT</th>
+              <th class="center" style="width:90px;">Kho Phụ</th>
               <th class="center" style="width:80px;">Tổng tồn</th>
               <th style="width:120px; min-width:120px;">Mã SKU</th>
-              <th style="width:40px;"></th>
+              <th style="width:80px;">Combo</th>
             </tr>
           </thead>
           <tbody id="var-tbody">
-            <!-- Các dòng phân loại render ở đây -->
-          </tbody>
+            </tbody>
         </table>
       </div>
 
-      <!-- Tổng hợp cuối bảng -->
       <div style="display:flex; gap:24px; padding:14px 20px; background:#f8fafc; border-top:2px solid #e2e8f0; flex-wrap:wrap;">
         <div style="text-align:center;">
           <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase;">Tổng SKU</div>
@@ -210,13 +208,31 @@
           <div style="font-size:20px; font-weight:900; color:#7c3aed;" id="summary-cost-real">0đ</div>
         </div>
       </div>
-
-      <!-- Nút thêm phân loại -->
+      
       <div style="padding:12px 16px; border-top:1px dashed #e2e8f0;">
-        <button class="btn-add-var" onclick="addVarRow()">➕ Thêm phân loại mới</button>
+        <button class="btn-add-var" onclick="if(typeof addNewVarQuick === 'function') addNewVarQuick(currentSku); else addVarRow()">➕ Thêm phân loại mới (Chỉ dùng khi cần)</button>
       </div>
 
     </div>
+  </div>
+  
+  <div class="pd-section" id="combo-manager-section" style="display:none; border-color:#bbf7d0;">
+      <div class="pd-section-header" style="background:#f0fdf4; border-bottom-color:#bbf7d0;">
+          <h3 style="color:#166534;">📦 Quản lý Thành phần Combo</h3>
+          <span style="font-size:12px; color:#16a34a; font-weight:bold;" id="combo-target-name">Đang xử lý: ...</span>
+      </div>
+      <div class="pd-section-body" style="background:#f0fdf4;">
+          <input type="hidden" id="current-combo-sku" value="">
+          <div id="combo-ui-wrapper">
+              <div style="font-size:13px; color:#166534; margin-bottom:8px; font-weight:600;">Thêm các SKU thành phần (Ví dụ: Khẩu trang + Nước rửa tay):</div>
+              <div id="combo-items-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;"></div>
+              <div style="display:flex; gap:10px;">
+                  <button onclick="if(typeof addComboItemRow === 'function') addComboItemRow()" style="background:#22c55e; color:white; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">+ Thêm dòng SKU</button>
+                  <button onclick="document.getElementById('combo-manager-section').style.display='none'" style="background:#f1f5f9; color:#475569; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;">Đóng bảng Combo</button>
+              </div>
+              <datalist id="all-sku-datalist"></datalist>
+          </div>
+      </div>
   </div>
 
   <!-- ===== ACTION BAR ===== -->
@@ -232,6 +248,9 @@
 <div class="toast" id="toast"></div>
 
 <script src="../js/utils/api.js"></script>
+<script src="../js/utils/format.js"></script>
+<script src="../js/admin/sku-core.js"></script>
+<script src="../js/admin/sku-form.js"></script>
 <script>
 // ===== TOAST =====
 function showToast(msg, isErr = false) {
@@ -271,7 +290,7 @@ async function loadProduct() {
     productData = parent;
     productData.children = all.filter(p => p.parent_sku === currentSku);
 
-    // Điền form
+    // --- KHU VỰC 1: Dữ liệu từ Sàn (Chỉ xem, hạn chế sửa) ---
     document.getElementById('pd-name').value = parent.product_name || '';
     document.getElementById('pd-desc').value = parent.description || '';
     document.getElementById('pd-video').value = parent.video_url || '';
@@ -288,8 +307,15 @@ async function loadProduct() {
     } catch(e) {}
     renderGallery();
 
-    // Phân loại
+    // --- KHU VỰC 2 & 3: Dữ liệu lõi OMS & Bảng phân loại ---
+    // Nạp datalist cho Combo
+    if (window.allSkus && document.getElementById('all-sku-datalist')) {
+        document.getElementById('all-sku-datalist').innerHTML = window.allSkus.filter(s => !s.is_combo).map(s => `<option value="${escHtml(s.sku)}">${escHtml(s.sku)} - ${escHtml(s.product_name)}</option>`).join('');
+    }
+
     const vars = productData.children.length > 0 ? productData.children : [parent];
+    // Clear bảng cũ
+    document.getElementById('var-tbody').innerHTML = '';
     vars.forEach(v => addVarRow(v));
     updateSummary();
   } catch(e) {
@@ -363,35 +389,38 @@ function addVarRow(data = null) {
   const total     = stockMain + stockSub;
   const imgUrl    = (data && data.image_url && !data.image_url.includes('placehold')) ? data.image_url : 'https://placehold.co/44x44?text=IMG';
 
-  tr.innerHTML = `
+tr.innerHTML = `
     <td>
       <div class="var-img-wrap" onclick="document.getElementById('var-file-${id}').click()" title="Đổi ảnh phân loại">
-        <img src="${imgUrl}" id="var-img-${id}">
-        <input type="file" id="var-file-${id}" accept="image/*" onchange="previewVarImg(${id}, this)">
+        <img src="${imgUrl}" id="img-${data ? data.sku : 'new'}-${id}">
+        <input type="file" id="var-file-${id}" accept="image/*" onchange="previewVarImg('${data ? data.sku : 'new'}-${id}', this)">
         <div class="var-img-overlay">ĐỔI ẢNH</div>
       </div>
     </td>
     <td>
-      <input type="text" value="${escHtml(data ? data.product_name || '' : '')}" placeholder="Tên phân loại..." id="var-name-${id}">
+      <input type="text" value="${escHtml(data ? data.product_name || '' : '')}" class="inline-child-name" data-sku="${data ? data.sku : ''}" placeholder="Tên phân loại..." id="var-name-${id}" style="font-weight:700; width:100%; border:none; background:transparent;">
+      <div style="font-size:10px; color:#64748b; margin-top:2px;">
+        ${data && data.mapped_shops ? `🏷️ ${data.mapped_shops}` : ''}
+      </div>
     </td>
     <td class="td-cost-inv center">
-      <input type="number" value="${data ? data.cost_invoice || 0 : 0}" id="var-inv-${id}" oninput="updateSummary()" min="0" step="100">
+      <input type="number" value="${data ? data.cost_invoice || 0 : 0}" class="inline-child-inv" id="var-inv-${id}" oninput="updateSummary()" min="0" step="100" style="width:100%; border:none; text-align:center; font-weight:600;">
     </td>
     <td class="td-cost-real center">
-      <input type="number" value="${data ? data.cost_real || 0 : 0}" id="var-real-${id}" oninput="updateSummary()" min="0" step="100">
+      <input type="number" value="${data ? data.cost_real || 0 : 0}" class="inline-child-cost" id="var-real-${id}" oninput="updateSummary()" min="0" step="100" style="width:100%; border:none; text-align:center; font-weight:600;">
     </td>
     <td class="td-stock-main center">
-      <input type="number" value="${stockMain}" id="var-main-${id}" oninput="recalcTotal(${id})" min="0">
+      <input type="number" value="${stockMain}" onchange="if(typeof inlineUpdateStock === 'function') inlineUpdateStock('${data ? data.sku : ''}', this.value, 'main'); recalcTotal(${id})" id="var-main-${id}" min="0" style="width:100%; border:none; text-align:center; font-weight:600; color:#1d4ed8;">
     </td>
     <td class="td-stock-sub center">
-      <input type="number" value="${stockSub}" id="var-sub-${id}" oninput="recalcTotal(${id})" min="0">
+      <input type="number" value="${stockSub}" onchange="if(typeof inlineUpdateStock === 'function') inlineUpdateStock('${data ? data.sku : ''}', this.value, 'sub'); recalcTotal(${id})" id="var-sub-${id}" min="0" style="width:100%; border:none; text-align:center; font-weight:600; color:#475569;">
     </td>
     <td class="td-total" id="var-total-${id}">${total}</td>
     <td class="td-sku">
-      <input type="text" value="${escHtml(data ? data.sku || '' : '')}" placeholder="Mã SKU..." id="var-sku-${id}" style="font-family:monospace;">
+      <input type="text" value="${escHtml(data ? data.sku || '' : '')}" id="var-sku-${id}" readonly style="font-family:monospace; border:none; background:transparent; width:100%;">
     </td>
-    <td class="td-del">
-      <button onclick="removeVarRow(${id})" title="Xóa dòng này">🗑️</button>
+    <td class="center">
+      <button type="button" onclick="openComboManager('${data ? data.sku : ''}', '${escHtml(data ? data.product_name : '')}')" style="background:${data && data.is_combo ? '#dcfce7' : '#f1f5f9'}; border:1px solid ${data && data.is_combo ? '#4ade80' : '#cbd5e1'}; border-radius:4px; padding:4px; cursor:pointer;" title="Quản lý Combo">📦</button>
     </td>
   `;
   tbody.appendChild(tr);
@@ -435,78 +464,62 @@ function updateSummary() {
   document.getElementById('summary-cost-real').textContent   = Math.round(totalReal / n).toLocaleString('vi-VN') + 'đ';
 }
 
-// ===== LƯU SẢN PHẨM =====
+// ===== LƯU BÀI ĐĂNG (GỌI LOGIC CORE) =====
 async function saveProduct() {
-  const name = document.getElementById('pd-name').value.trim();
-  if (!name) return showToast('⚠️ Vui lòng nhập tên sản phẩm!', true);
-
-  const rows = document.querySelectorAll('#var-tbody tr');
-  if (rows.length === 0) return showToast('⚠️ Cần ít nhất 1 phân loại!', true);
-
-  // Kiểm tra SKU
-  for (const tr of rows) {
-    const id = tr.dataset.rowid;
-    if (!document.getElementById(`var-sku-${id}`)?.value.trim()) {
-      return showToast('⚠️ Mã SKU không được để trống!', true);
-    }
-  }
-
   const btn = document.querySelector('.btn-save-main');
   btn.textContent = '⏳ Đang lưu...'; btn.disabled = true;
 
   try {
-    // Ảnh chính = phần tử đầu imgList
-    const mainImg  = imgList.length > 0 ? imgList[0].url : '';
-    const extraImg = imgList.slice(1).map(i => i.url);
-    const desc     = document.getElementById('pd-desc').value;
-    const videoUrl = document.getElementById('pd-video').value;
-
-    // Lưu từng phân loại
-    const parentSku = rows.length > 1 ? (productData?.sku || document.getElementById(`var-sku-${[...rows][0].dataset.rowid}`).value) : null;
-
-    for (const [i, tr] of [...rows].entries()) {
-      const id       = tr.dataset.rowid;
-      const sku      = document.getElementById(`var-sku-${id}`).value.trim();
-      const varName  = document.getElementById(`var-name-${id}`).value.trim() || name;
-      const inv      = parseFloat(document.getElementById(`var-inv-${id}`).value) || 0;
-      const real     = parseFloat(document.getElementById(`var-real-${id}`).value) || 0;
-      const stMain   = parseInt(document.getElementById(`var-main-${id}`).value) || 0;
-      const stSub    = parseInt(document.getElementById(`var-sub-${id}`).value) || 0;
-      const varImg   = document.getElementById(`var-img-${id}`)?.src || mainImg;
-
-      const isParent = (rows.length > 1 && i === 0);
-      const payload  = {
-        sku,
-        product_name : rows.length > 1 ? (i === 0 ? name : varName) : name,
-        description  : desc,
-        video_url    : videoUrl,
-        image_url    : varImg.includes('placehold') ? mainImg : varImg,
-        images       : JSON.stringify(extraImg),
-        cost_invoice : inv,
-        cost_real    : real,
-        stock_main   : stMain,
-        stock_sub    : stSub,
-        stock        : stMain + stSub,
-        is_parent    : rows.length > 1 && i === 0 ? 1 : 0,
-        parent_sku   : rows.length > 1 && i > 0 ? (productData?.sku || [...rows][0].querySelector('input[type="text"]')?.value || '') : null,
-      };
-
-      await fetch(API + '/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    }
-
-    showToast('✅ Lưu thành công!');
-    setTimeout(() => { location.href = 'sku.html'; }, 1200);
+      if (typeof window.saveFullArticle === 'function') {
+          // Lưu tên chung trước khi gọi hàm Core
+          const newName = document.getElementById('pd-name').value.trim();
+          if (newName) {
+              const pNameEl = document.getElementById(`p-name-${currentSku}`);
+              if (!pNameEl) {
+                  const dummyInput = document.createElement('input');
+                  dummyInput.type = 'hidden';
+                  dummyInput.id = `p-name-${currentSku}`;
+                  dummyInput.value = newName;
+                  document.body.appendChild(dummyInput);
+              } else {
+                  pNameEl.value = newName;
+              }
+          }
+          
+          await window.saveFullArticle(currentSku);
+          setTimeout(() => { location.href = 'sku.html'; }, 1000);
+      } else {
+          showToast('❌ Lỗi: Không kết nối được với Logic OMS Core', true);
+      }
   } catch(e) {
-    showToast('❌ Lỗi: ' + e.message, true);
+      showToast('❌ Lỗi hệ thống: ' + e.message, true);
   } finally {
-    btn.textContent = '💾 Lưu sản phẩm'; btn.disabled = false;
+      btn.textContent = '💾 Lưu sản phẩm'; btn.disabled = false;
   }
 }
 
+// ===== QUẢN LÝ COMBO =====
+function openComboManager(sku, name) {
+    if (!sku) return showToast('⚠️ Vui lòng lưu SKU trước khi làm Combo', true);
+    document.getElementById('combo-manager-section').style.display = 'block';
+    document.getElementById('combo-target-name').textContent = name || sku;
+    document.getElementById('current-combo-sku').value = sku;
+    
+    // Tạo giả lập checkbox s_is_combo để tương thích với hàm Core
+    let dummyCb = document.getElementById('s_is_combo');
+    if (!dummyCb) {
+        dummyCb = document.createElement('input');
+        dummyCb.type = 'checkbox';
+        dummyCb.id = 's_is_combo';
+        dummyCb.style.display = 'none';
+        document.body.appendChild(dummyCb);
+    }
+    
+    // Gọi hàm load combo của Core
+    if (typeof window.makeCombo === 'function') {
+        window.makeCombo(sku, false);
+    }
+}
 // ===== XÓA SẢN PHẨM =====
 async function deleteProduct() {
   if (!confirm('Xóa toàn bộ sản phẩm và phân loại này?')) return;
