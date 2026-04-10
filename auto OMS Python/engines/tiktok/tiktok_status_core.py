@@ -1,6 +1,7 @@
 import asyncio
 import requests
 import re
+from parsers.tiktok_order_parser import TiktokOrderParser
 
 class TikTokStatusCore:
     def __init__(self, log_callback):

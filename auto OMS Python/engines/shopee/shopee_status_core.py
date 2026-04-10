@@ -76,36 +76,16 @@ class ShopeeStatusCore:
                         shopee_data = parsed[0]
                         shopee_status = shopee_data.get("status", "")
                         
-                        new_oms = None
-                        order_type = order.get("order_type", "normal")
+                        # 🌟 DÙNG LUÔN KẾT QUẢ TỪ SIÊU TỪ ĐIỂN CỦA PARSER, KHÔNG TỰ ĐOÁN NỮA!
+                        new_oms = shopee_data.get("oms_status")
+                        shopee_status = shopee_data.get("shipping_status") # Lấy mã chuẩn đã gọt dũa
                         
-                        # Bộ từ vựng chi tiết vét cạn mọi trạng thái Shopee
-                        st_lower = shopee_status.lower()
-                        
-                        # Nhóm 1: Hủy ngang
-                        if "đã hủy" in st_lower or "hủy bởi" in st_lower or shopee_status == "Hủy":
-                            new_oms = "CANCELLED"
+                        # Cập nhật order_type tự động dựa trên oms_status
+                        order_type = "normal"
+                        if new_oms in ["CANCELLED", "LOGISTICS_IN_RETURN", "FAILED_DELIVERY"]:
                             order_type = "cancel"
-                        # Nhóm 2: Giao thất bại
-                        elif "không thành công" in st_lower or "thất bại" in st_lower:
-                            new_oms = "LOGISTICS_IN_RETURN"
-                            order_type = "cancel"
-                        # Nhóm 3: Trả hàng / Hoàn tiền
-                        elif "trả hàng" in st_lower or "hoàn tiền" in st_lower:
-                            new_oms = "RETURN"
+                        elif new_oms == "RETURN":
                             order_type = "return"
-                        # Nhóm 4: Giao khách thành công (Chốt sổ)
-                        elif "giao hàng thành công" in st_lower or "đã nhận được hàng" in st_lower or ("đã giao" in st_lower and "đơn vị vận chuyển" not in st_lower and "đvvc" not in st_lower):
-                            new_oms = "COMPLETED"
-                            order_type = "normal"
-                        # Nhóm 5: Đang giao / Đã đưa Shipper
-                        elif "đang giao" in st_lower or "đã lấy hàng" in st_lower or "đến bưu cục" in st_lower or ("đã giao" in st_lower and ("đơn vị vận chuyển" in st_lower or "đvvc" in st_lower)):
-                            new_oms = "SHIPPED"
-                            order_type = "normal"
-                        # Nhóm 6: Chờ lấy hàng
-                        elif "chờ lấy hàng" in st_lower or "đang chuẩn bị" in st_lower:
-                            new_oms = "LOGISTICS_PENDING_ARRANGE"
-                            order_type = "normal"
                             
                         # 3.4 Báo cáo Server: GỬI khi đổi trạng thái HOẶC có thêm mã vận đơn mới!
                         new_tracking = shopee_data.get("tracking_number", "")

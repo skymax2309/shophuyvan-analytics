@@ -495,26 +495,23 @@ if (shipping) {
 
 async function updateOmsStatus(request, env, cors, orderId) {
   const body = await request.json()
-  const { oms_status } = body
+  // 🌟 Mở cửa cho nhận cả vỏ (oms) lẫn ruột (shipping)
+  const { oms_status, shipping_status } = body
 
-  const VALID = [
-    'PENDING',          // Chờ xác nhận
-    'CONFIRMED',        // Đã xác nhận
-    'PACKING',          // Đang đóng gói
-    'PACKED',           // Đã đóng gói
-    'HANDED_OVER',      // Đã giao cho shipper
-    'COMPLETED',        // Hoàn thành (shipper giao thành công)
-    'CANCELLED_TRANSIT',// Hủy trong quá trình vận chuyển
-    'FAILED_DELIVERY',  // Giao khách không thành công
-    'RETURN_REFUND',    // Trả hàng hoàn tiền
-  ]
-  if (!VALID.includes(oms_status))
-    return Response.json({ error: 'Invalid status' }, { status: 400, headers: cors })
+  // Bỏ luôn cái mảng VALID cũ rích đi vì Python đã có Siêu Từ Điển kiểm duyệt
+  if (!oms_status || !shipping_status) {
+    return Response.json({ error: 'Thiếu dữ liệu trạng thái!' }, { status: 400, headers: cors })
+  }
 
+  // 🌟 Cập nhật ĐỒNG BỘ cả 2 trạng thái vào Database
   await env.DB.prepare(`
-    UPDATE orders_v2 SET oms_status = ?, oms_updated_at = datetime('now', '+7 hours')
+    UPDATE orders_v2 
+    SET oms_status = ?, 
+        shipping_status = ?, 
+        oms_updated_at = datetime('now', '+7 hours')
     WHERE order_id = ?
-  `).bind(oms_status, orderId).run()
+  `).bind(oms_status, shipping_status, orderId).run()
+  
   return Response.json({ status: "ok" }, { headers: cors })
 }
 
