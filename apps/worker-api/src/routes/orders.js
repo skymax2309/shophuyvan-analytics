@@ -77,9 +77,26 @@ async function exportOrders(request, env, cors) {
 
 async function recalcCost(request, env, cors) {
   const cfg = await getCostSettings(env)
-  const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real FROM products`).all()
+  const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real, is_combo FROM products`).all()
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
+
+  // TÍNH LẠI GIÁ VỐN CHO SẢN PHẨM COMBO DỰA VÀO THÀNH PHẦN CON
+  const comboRows = await env.DB.prepare(`SELECT combo_sku, component_sku, quantity FROM combo_items`).all()
+  for (const p of productRows.results) {
+    if (p.is_combo === 1) {
+      const components = comboRows.results.filter(c => c.combo_sku === p.sku)
+      let comboCostReal = 0
+      let comboCostInvoice = 0
+      for (const comp of components) {
+        const compData = productMap[comp.component_sku] || { cost_real: 0, cost_invoice: 0 }
+        comboCostReal += (compData.cost_real * comp.quantity)
+        comboCostInvoice += (compData.cost_invoice * comp.quantity)
+      }
+      productMap[p.sku].cost_real = comboCostReal
+      productMap[p.sku].cost_invoice = comboCostInvoice
+    }
+  }
 
 const BATCH = 50
   let updated = 0
@@ -232,9 +249,26 @@ async function importOrdersV2(request, env, cors) {
 
   const cfg = await getCostSettings(env)
 
-  const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real FROM products`).all()
+  const productRows = await env.DB.prepare(`SELECT sku, cost_invoice, cost_real, is_combo FROM products`).all()
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
+
+  // TÍNH LẠI GIÁ VỐN CHO SẢN PHẨM COMBO DỰA VÀO THÀNH PHẦN CON
+  const comboRows = await env.DB.prepare(`SELECT combo_sku, component_sku, quantity FROM combo_items`).all()
+  for (const p of productRows.results) {
+    if (p.is_combo === 1) {
+      const components = comboRows.results.filter(c => c.combo_sku === p.sku)
+      let comboCostReal = 0
+      let comboCostInvoice = 0
+      for (const comp of components) {
+        const compData = productMap[comp.component_sku] || { cost_real: 0, cost_invoice: 0 }
+        comboCostReal += (compData.cost_real * comp.quantity)
+        comboCostInvoice += (compData.cost_invoice * comp.quantity)
+      }
+      productMap[p.sku].cost_real = comboCostReal
+      productMap[p.sku].cost_invoice = comboCostInvoice
+    }
+  }
 
   // 1. DỊCH SẢN PHẨM & MAP SKU TRƯỚC ĐỂ TÌM GIÁ VỐN
   const varRows = await env.DB.prepare(`SELECT platform_sku, internal_sku, image_url, variation_name FROM product_variations WHERE map_status='MAPPED'`).all()

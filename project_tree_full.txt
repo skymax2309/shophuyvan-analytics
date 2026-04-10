@@ -20,7 +20,9 @@
                 └── admin.css
                 └── dashboard.css
                 └── oms-dashboard.css
+                └── product-detail.css
                 └── report-upload.css
+                └── sku.css
             ├── js/
                 └── oms-api.js
                 └── oms-main.js
@@ -32,10 +34,12 @@
                     └── cost-settings.js
                     └── invoice-manager.js
                     └── main.js
+                    └── product-detail.js
                     └── purchase-manager.js
                     └── sku-bulk.js
                     └── sku-core.js
                     └── sku-form.js
+                    └── sku-main.js
                     └── sku-modals.js
                     └── var-actions.js
                     └── var-core.js
@@ -143,12 +147,10 @@
                 └── shopee_doanh_thu.py
                 └── shopee_don_hang.py
                 └── shopee_hoa_don.py
-                └── shopee_orders - Copy.py
                 └── shopee_orders.py
                 └── shopee_orders_api.py
                 └── shopee_orders_browser.py
                 └── shopee_process.py
-                └── shopee_products - Copy.py
                 └── shopee_products.py
                 └── shopee_products_api.py
                 └── shopee_products_browser.py
