@@ -417,7 +417,12 @@ async function getOrders(request, env, cors) {
     const q = `%${search}%`
     params.push(q, q, q, q)
   }
-if (shipping) { conds.push(`o.shipping_status = ?`); params.push(shipping) }
+if (shipping) { 
+  const shipArr = shipping.split(','); // Tách chuỗi bằng dấu phẩy
+  const marks = shipArr.map(() => '?').join(',');
+  conds.push(`o.shipping_status IN (${marks})`); // Chuyển từ "=" sang "IN" để lấy nhiều trạng thái
+  params.push(...shipArr);
+}
   
   // 🌟 Lọc chuẩn ĐVVC (Dropdown)
   if (carrier) { 
