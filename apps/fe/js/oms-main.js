@@ -238,12 +238,16 @@ window.switchMainTab = function(mainStatus) {
 
     const subConfig = {
         'PENDING': [
-            { id: 'LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' },
-            { id: 'LOGISTICS_REQUEST_CREATED', label: 'Đã Xử Lý' },
-            { id: 'LOGISTICS_PACKAGED', label: 'Đã Đóng Gói' },
+            { id: '', label: 'Tất Cả' },
+            { id: 'Chờ xác nhận', label: 'Chờ Xác Nhận (Bot)' },
+            { id: 'Chờ thanh toán', label: 'Chờ Thanh Toán (Bot)' },
+            { id: 'LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý (API)' },
+            { id: 'LOGISTICS_REQUEST_CREATED', label: 'Đã Xử Lý (API)' },
+            { id: 'LOGISTICS_PACKAGED', label: 'Đã Đóng Gói (API)' },
             { id: 'ADVANCE_FULFILMENT', label: 'Gói Sẵn Giao Nhanh' }
         ],
         'RETURN': [
+            { id: '', label: 'Tất Cả' },
             { id: 'LOGISTICS_IN_RETURN', label: 'Đang Hoàn' },
             { id: 'LOGISTICS_RETURNED_BY_SHIPPER', label: 'Shipper Đã Trả' },
             { id: 'LOGISTICS_RETURN_PACKAGE_RECEIVED', label: 'Đã Nhận Đơn Hoàn' },
