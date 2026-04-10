@@ -17,26 +17,26 @@ class ShopeeOrderParser:
             self.log(f"⚠️ [LỖI DÒ MÌN] Không thể xử lý giá tiền: '{price_str}'. Lỗi: {e}")
             return 0.0
 
-    def _map_oms_status(self, shopee_status):
-        """Ánh xạ trạng thái Shopee sang chuẩn hệ thống OMS (Chuẩn ShipXanh)"""
-        status_map = {
-            # Từ khóa gốc của sàn
-            "Hoàn thành": "COMPLETED",
-            "Đã hủy": "CANCELLED",
-            "Trả hàng/Hoàn tiền": "RETURN",
-            "Đang giao": "SHIPPED",
-            "Chờ xác nhận": "LOGISTICS_PENDING_ARRANGE",
-            "Chờ lấy hàng": "SHIPPED",
-            "Chưa xử lý": "LOGISTICS_PENDING_ARRANGE",
-            "Đã xử lý": "LOGISTICS_REQUEST_CREATED",
+    def _normalize_status(self, raw_status):
+        """Bộ lọc vạn năng: Chuẩn hóa 100% ngôn ngữ Sàn về mã chuẩn ShipXanh"""
+        raw = str(raw_status).lower().strip()
+        
+        # 🌟 Bế "to_confirm_receive" lên nhóm Hoàn Thành
+        if any(x in raw for x in ["người mua xác nhận", "đã giao", "delivered", "completed", "hoàn thành", "to_confirm_receive"]): 
+            return "COMPLETED", "COMPLETED"
             
-            # Bổ sung map theo Tên Tab (Shopee Orders)
-            "Đã giao": "COMPLETED",
-            "Đơn Hủy": "CANCELLED",
-            "Trả hàng": "RETURN",
-            "Hủy & Trả hàng": "RETURN"
-        }
-        return status_map.get(shopee_status.strip(), "LOGISTICS_PENDING_ARRANGE")
+        # 🌟 Đã xóa "to_confirm_receive" khỏi nhóm này
+        if any(x in raw for x in ["chờ xác nhận", "confirmed", "ready_to_ship", "cần gửi", "chờ đóng gói", "chưa xử lý"]): 
+            return "LOGISTICS_PENDING_ARRANGE", "PENDING"
+            
+        if any(x in raw for x in ["chờ lấy hàng", "processed", "đã chuẩn bị", "chờ bàn giao", "đã xử lý"]): return "LOGISTICS_REQUEST_CREATED", "PENDING"
+        if any(x in raw for x in ["đang giao", "đã vận chuyển", "shipped", "đã gửi"]): return "SHIPPED", "SHIPPING"
+        if any(x in raw for x in ["đã hủy", "cancelled", "canceled"]): return "CANCELLED", "CANCELLED"
+        if any(x in raw for x in ["hoàn hàng", "package returned", "trả hàng", "hủy & trả hàng"]): return "RETURN", "RETURN"
+        if any(x in raw for x in ["to_return", "giao không thành công"]): return "LOGISTICS_IN_RETURN", "RETURN"
+        if "lost by 3pl" in raw: return "LOGISTICS_LOST", "RETURN"
+        if "giao thất bại" in raw: return "FAILED_DELIVERY", "RETURN"
+        return "LOGISTICS_PENDING_ARRANGE", "PENDING"
 
     def parse_order_list(self, html_content, cached_ids=None):
         if cached_ids is None:
@@ -183,17 +183,18 @@ class ShopeeOrderParser:
 
                 # --- THỰC THI PHƯƠNG ÁN 2: CHUẨN HÓA DATA TRƯỚC KHI ĐẨY LÊN WEB ---
                 revenue_numeric = self._clean_price(total_price)
-                oms_status = self._map_oms_status(status)
+                shipping_st, oms_st = self._normalize_status(status)
 
                 orders.append({
                     "order_id": order_sn,
                     "platform": "shopee",
                     "customer_name": buyer_name,
-                    "items": items,                    # Danh sách SP để đẩy vào bảng order_items
-                    "revenue": revenue_numeric,        # Doanh thu số thực
-                    "raw_revenue": revenue_numeric,    # Doanh thu chưa trừ phí
-                    "status": status,                  # Trạng thái gốc Shopee
-                    "oms_status": oms_status,          # Trạng thái chuẩn hệ thống
+                    "items": items,
+                    "revenue": revenue_numeric,
+                    "raw_revenue": revenue_numeric,
+                    "status": status,
+                    "shipping_status": shipping_st,    # 🌟 Đã gọt sạch sẽ thành mã chuẩn
+                    "oms_status": oms_st,              # 🌟 Đã gọt sạch sẽ thành mã chuẩn
                     "tracking_number": tracking_number,
                     "shipping_carrier": carrier,
                     "order_date": order_date,          # Ngày khách đặt

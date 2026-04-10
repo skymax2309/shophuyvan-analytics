@@ -236,37 +236,20 @@ window.switchMainTab = function(mainStatus) {
     const activeTab = document.getElementById('tab-' + mainStatus);
     if(activeTab) activeTab.classList.add('active');
 
-   const subConfig = {
+const subConfig = {
         'PENDING': [
-            // Gom đơn mới và đơn chưa in: Chờ xác nhận (Bot), confirmed (API), ready_to_ship, TO_CONFIRM_RECEIVE
-            { id: 'Chờ xác nhận,confirmed,ready_to_ship,TO_CONFIRM_RECEIVE,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' }, 
-            // Gom đơn đã có mã vận đơn: Chờ lấy hàng, PROCESSED
+            { id: 'Chờ xác nhận,confirmed,ready_to_ship,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' }, 
             { id: 'Chờ lấy hàng,PROCESSED,LOGISTICS_REQUEST_CREATED,đã chuẩn bị', label: 'Đã Xử Lý' },
-            // Đơn đã đóng gói
             { id: 'LOGISTICS_PACKAGED,Đã đóng gói', label: 'Đã Đóng Gói' },
             { id: 'ADVANCE_FULFILMENT', label: 'Gói Sẵn Giao Nhanh' }
         ],
-        'SHIPPING': [
-            { id: '', label: 'Tất Cả' },
-            // Gom các trạng thái đang trên đường đi từ SQL bác gửi
-            { id: 'đã vận chuyển,SHIPPED,shipped,Đang giao', label: 'Đang Giao' }
-        ],
-        'COMPLETED': [
-            // Gom tất cả các đơn đã nhận tiền và các dòng chữ dài Shopee bác liệt kê
-            { id: 'Đã giao,delivered,COMPLETED,đã vận chuyển,Người mua xác nhận đã nhận được hàng, tuy nhiên Người mua vẫn có thể gửi yêu cầu Trả hàng/Hoàn tiền', label: 'Hoàn Thành' }
-        ],
+        // 🌟 Đã xóa sổ hoàn toàn menu con của SHIPPING, COMPLETED và CANCELLED cho sạch màn hình
         'RETURN': [
-            { id: '', label: 'Tất Cả' }, 
-            // Nhóm Hủy (Theo Map 5 bác duyệt)
-            { id: 'Đã hủy,CANCELLED,canceled', label: 'Đơn Hủy' },
-            // Nhóm Hoàn Tiền
+            // 🌟 Đã tiễn dòng "Tất Cả" vô dụng đi
             { id: 'Hoàn hàng,package returned', label: 'Hoàn Tiền' },
-            // Nhóm Đang Hoàn
             { id: 'TO_RETURN,LOGISTICS_IN_RETURN', label: 'Đang Hoàn' },
-            // Nhóm Thất Lạc
             { id: 'lost by 3pl,LOGISTICS_LOST', label: 'Thất Lạc' },
-            // Nhóm Giao Thất Bại
-            { id: 'Giao thất bại', label: 'Giao Thất Bại' }
+            { id: 'Giao thất bại,FAILED_DELIVERY', label: 'Giao Thất Bại' }
         ]
     };
 

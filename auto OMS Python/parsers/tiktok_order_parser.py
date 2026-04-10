@@ -5,17 +5,26 @@ class TiktokOrderParser:
     def __init__(self, log_callback):
         self.log = log_callback
 
-    def _map_oms_status(self, tiktok_status):
-        """Ánh xạ trạng thái TikTok sang chuẩn hệ thống OMS (Chuẩn ShipXanh)"""
-        status_map = {
-            "Cần gửi": "LOGISTICS_PENDING_ARRANGE",
-            "Đã gửi": "SHIPPED",
-            "Đã hoàn tất": "COMPLETED",
-            "Đã hủy": "CANCELLED",
-            "Giao không thành công": "LOGISTICS_IN_RETURN",
-            "Trả hàng": "RETURN"
-        }
-        return status_map.get(tiktok_status, "LOGISTICS_PENDING_ARRANGE")
+    def _normalize_status(self, raw_status):
+        """Bộ lọc vạn năng: Chuẩn hóa 100% ngôn ngữ Sàn về mã chuẩn ShipXanh"""
+        raw = str(raw_status).lower().strip()
+        
+        # 🌟 Bế "to_confirm_receive" lên nhóm Hoàn Thành
+        if any(x in raw for x in ["người mua xác nhận", "đã giao", "delivered", "completed", "hoàn thành", "to_confirm_receive"]): 
+            return "COMPLETED", "COMPLETED"
+            
+        # 🌟 Đã xóa "to_confirm_receive" khỏi nhóm này
+        if any(x in raw for x in ["chờ xác nhận", "confirmed", "ready_to_ship", "cần gửi", "chờ đóng gói", "chưa xử lý"]): 
+            return "LOGISTICS_PENDING_ARRANGE", "PENDING"
+            
+        if any(x in raw for x in ["chờ lấy hàng", "processed", "đã chuẩn bị", "chờ bàn giao", "đã xử lý"]): return "LOGISTICS_REQUEST_CREATED", "PENDING"
+        if any(x in raw for x in ["đang giao", "đã vận chuyển", "shipped", "đã gửi"]): return "SHIPPED", "SHIPPING"
+        if any(x in raw for x in ["đã hủy", "cancelled", "canceled"]): return "CANCELLED", "CANCELLED"
+        if any(x in raw for x in ["hoàn hàng", "package returned", "trả hàng", "hủy & trả hàng"]): return "RETURN", "RETURN"
+        if any(x in raw for x in ["to_return", "giao không thành công"]): return "LOGISTICS_IN_RETURN", "RETURN"
+        if "lost by 3pl" in raw: return "LOGISTICS_LOST", "RETURN"
+        if "giao thất bại" in raw: return "FAILED_DELIVERY", "RETURN"
+        return "LOGISTICS_PENDING_ARRANGE", "PENDING"
 
     def parse_order_list(self, html_content, current_tab="Cần gửi"):
         """
@@ -125,15 +134,18 @@ class TiktokOrderParser:
 
                 if not name: name = "Sản phẩm TikTok"
 
+                shipping_st, oms_st = self._normalize_status(current_tab)
+                
                 orders.append({
                     "order_id": order_id,
                     "buyer_name": buyer_name,
                     "total_price": total_price,
                     "carrier": carrier,
                     "status": status,
-                    "oms_status": self._map_oms_status(current_tab), # <--- Ép chuẩn ShipXanh
+                    "shipping_status": shipping_st,    # 🌟 Chuẩn hóa
+                    "oms_status": oms_st,              # 🌟 Chuẩn hóa
                     "tab_source": current_tab,
-                    "tracking_number": "", 
+                    "tracking_number": "",
                     "items": [{
                         "name": name,
                         "variation": variation,
