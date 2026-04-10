@@ -418,9 +418,10 @@ async function getOrders(request, env, cors) {
     params.push(q, q, q, q)
   }
 if (shipping) { 
-  const shipArr = shipping.split(','); // Tách chuỗi bằng dấu phẩy
+  // 🌟 Đã bọc thêm .map(s => s.trim()) để gọt sạch khoảng trắng thừa
+  const shipArr = shipping.split(',').map(s => s.trim()); 
   const marks = shipArr.map(() => '?').join(',');
-  conds.push(`o.shipping_status IN (${marks})`); // Chuyển từ "=" sang "IN" để lấy nhiều trạng thái
+  conds.push(`o.shipping_status IN (${marks})`);
   params.push(...shipArr);
 }
   
