@@ -22,6 +22,7 @@ initActions(
 // ── STATE ───────────────────────────────────────────────────────────
 let currentPage    = 1
 let currentStatus  = 'ALL'
+let currentSubStatus = '' // 🌟 Thêm biến quản lý trạng thái phụ (shipping_status)
 let currentType    = ''
 let currentPlatform= ''
 let omsCache       = []
@@ -95,6 +96,7 @@ export async function loadOrders(page = 1) {
   if (carrier)   params.set('carrier', carrier) // Truyền thẳng tham số carrier lên Server
   if (isExpress) params.set('express', '1')
   if (currentStatus && currentStatus !== 'ALL') params.set('oms_status', currentStatus)
+  if (currentSubStatus) params.set('shipping_status', currentSubStatus) // 🌟 Gửi trạng thái phụ lên Server
   if (currentType)     params.set('order_type', currentType)
   
   // Nếu chọn Sàn ở Dropdown thì ưu tiên dùng nó
@@ -224,6 +226,7 @@ export { fmt, fmtDate, showToast, copyText, closeModal };
 window.switchMainTab = function(mainStatus) {
     console.log(`[OMS LOG] 👆 Chuyển Tab Tầng 1: ${mainStatus}`);
     currentStatus = mainStatus;
+    currentSubStatus = ''; // 🌟 Reset tab phụ mỗi khi chuyển tab chính
 
     // Dọn dẹp Menu Cây trên Desktop
     document.querySelectorAll('.sidebar-sub-menu').forEach(el => el.remove());
@@ -271,7 +274,7 @@ window.switchMainTab = function(mainStatus) {
             ).join('');
         }
 
-        currentStatus = subConfig[mainStatus][0].id;
+        currentSubStatus = subConfig[mainStatus][0].id; // 🌟 Gán vào biến phụ, KHÔNG ĐƯỢC GHI ĐÈ biến chính
     } else {
         if (subBar) subBar.style.display = 'none';
     }
@@ -281,7 +284,7 @@ window.switchMainTab = function(mainStatus) {
 
 window.switchSubTab = function(subStatus) {
     console.log(`[OMS LOG] 👆 Chọn Tab con: ${subStatus}`);
-    currentStatus = subStatus;
+    currentSubStatus = subStatus; // 🌟 Gán vào biến phụ
     // Đồng bộ highlight cho cả Desktop và Mobile cùng lúc
     document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll(`.sub-tab[data-sub="${subStatus}"]`).forEach(t => t.classList.add('active'));
