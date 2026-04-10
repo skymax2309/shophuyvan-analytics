@@ -238,8 +238,9 @@ window.switchMainTab = function(mainStatus) {
 
     const subConfig = {
         'PENDING': [
-            { id: '', label: 'Chưa Xử Lý' }, // 🌟 UI cũ, nhưng ID rỗng để hiển thị đủ 44 đơn Bot
-            { id: 'LOGISTICS_REQUEST_CREATED', label: 'Đã Xử Lý' },
+            // 🌟 PHƯƠNG ÁN: Gán mã cụ thể để lọc đúng 44 đơn, không bị hiện 425 đơn
+            { id: 'LOGISTICS_PENDING_ARRANGE,Chờ xác nhận', label: 'Chưa Xử Lý' }, 
+            { id: 'LOGISTICS_REQUEST_CREATED,Đã xử lý', label: 'Đã Xử Lý' },
             { id: 'LOGISTICS_PACKAGED', label: 'Đã Đóng Gói' },
             { id: 'ADVANCE_FULFILMENT', label: 'Gói Sẵn Giao Nhanh' }
         ],

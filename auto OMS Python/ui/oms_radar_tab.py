@@ -122,8 +122,8 @@ class OMSRadarTab(ctk.CTkFrame):
                                 
                                 self.so_log_msg(f"🖨️ [RADAR] Nhận lệnh Chuẩn bị hàng: {len(order_ids)} đơn của Shop {job_shop}!")
                                 
-                                # Ghi giấy nhớ riêng cho từng Shop 
-                                temp_file = f"temp_print_jobs_{job_shop}.json"
+                                # 🌟 ĐÃ ĐỒNG BỘ: Ghi vào file chung để Bot Shopee tìm thấy
+                                temp_file = "temp_print_jobs.json"
                                 with open(temp_file, "w") as f:
                                     json.dump(order_ids, f)
                                     

@@ -105,14 +105,19 @@ class ShopeeOrderProcessor:
                 }
                 res_create = requests.post(url_create_doc, json=payload_doc).json()
                 
-                # Shopee cần 2 giây để vẽ xong file PDF
-                await asyncio.sleep(2)
-
-                # 3. API TẢI FILE PDF GỐC (Không bị rác HTML)
-                url_download = self._sign_shopee_api("/api/v2/logistics/download_shipping_document", token, shop_id)
-                res_pdf = requests.post(url_download, json=payload_doc)
+                # 🌟 PHƯƠNG ÁN: Thử lại 3 lần, mỗi lần cách nhau 3 giây để đợi Sàn duyệt mã vạch
+                res_pdf = None
+                for retry in range(3):
+                    self.log(f"   ⏳ Đang đợi sàn duyệt mã vạch (Lần {retry+1}/3)...")
+                    await asyncio.sleep(3)
+                    
+                    url_download = self._sign_shopee_api("/api/v2/logistics/download_shipping_document", token, shop_id)
+                    res_pdf = requests.post(url_download, json=payload_doc)
+                    
+                    if res_pdf.status_code == 200 and b"%PDF" in res_pdf.content[:10]:
+                        break # ✅ Đã lấy được PDF, thoát vòng lặp
                 
-                if res_pdf.status_code == 200 and b"%PDF" in res_pdf.content[:10]:
+                if res_pdf and res_pdf.status_code == 200 and b"%PDF" in res_pdf.content[:10]:
                     if not os.path.exists("Phieu_In_PDF"): os.makedirs("Phieu_In_PDF")
                     pdf_path = f"Phieu_In_PDF/{order_id}.pdf"
                     with open(pdf_path, "wb") as f:

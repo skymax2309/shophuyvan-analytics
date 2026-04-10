@@ -13,7 +13,7 @@ window.showTab = function(name) {
   const targetTab = document.getElementById("tab-" + name);
   if (targetTab) targetTab.classList.add("active");
   
-  // Update UI Sidebar (nếu có class active)
+  // Highlight menu tương ứng trên Sidebar
   document.querySelectorAll(".sidebar-nav a").forEach(a => {
     a.classList.remove("active");
     if (a.getAttribute('onclick') && a.getAttribute('onclick').includes(name)) {
@@ -21,11 +21,11 @@ window.showTab = function(name) {
     }
   });
 
-  // Gọi hàm Load Data tương ứng với Tab
+  // Điều hướng tải dữ liệu theo Tab
   if (name === "daily") {
-    loadDaily();
+    if (typeof loadDaily === 'function') loadDaily();
   } else if (name === "monthly") {
-    loadMonthly();
+    if (typeof loadMonthly === 'function') loadMonthly();
   } else if (name === "top") {
     if(typeof loadTop === 'function') loadTop();
     if(typeof populateSkuShopFilter === 'function') populateSkuShopFilter();
@@ -106,29 +106,20 @@ function onSkuChange() {
 window.init = async function() {
   if (typeof applyPreset === 'function') applyPreset("thismonth");
   if (typeof loadProducts === 'function') await loadProducts();
-  // Mặc định load tab Ngày đầu tiên
-  await loadDaily();
+  
+  // Mặc định khởi động vào Tab Doanh thu Ngày
+  if (typeof loadDaily === 'function') {
+    await loadDaily();
+  } else if (typeof loadDashboard === 'function') {
+    await loadDashboard(); // Fallback dùng tạm hàm cũ nếu chưa đổi tên
+  }
 }
 
-// ── LOAD DAILY (Thay thế cho loadDashboard cũ) ──
+// ── ĐIỀU HƯỚNG DỮ LIỆU NGÀY ──
 window.loadDaily = async function() {
   console.log("Loading Daily Tab...");
-  // Gọi các hàm KPI và Biểu đồ Ngày ở đây (kế thừa từ file kpi.js của bạn)
-  if (typeof renderKPI === 'function') await renderKPI();
-  if (typeof renderChartRevenue === 'function') await renderChartRevenue();
-  if (typeof renderChartProfit === 'function') await renderChartProfit();
-  if (typeof renderChartPlatform === 'function') await renderChartPlatform();
-  if (typeof renderChartShop === 'function') await renderChartShop();
-}
-
-// ── LOAD MONTHLY (Dành riêng cho Tab Đối Soát Tháng) ──
-window.loadMonthly = async function() {
-  console.log("Loading Monthly Settlement Tab...");
-  // Hiển thị loading
-  const kpiGrid = document.getElementById('kpiGridMonthly');
-  if (kpiGrid) kpiGrid.innerHTML = '<div class="loading">Đang tải dữ liệu chốt sổ...</div>';
-  
-  // TODO: Đoạn này mình sẽ hướng dẫn bạn viết hàm fetch API bảng platform_reports để vẽ dữ liệu chốt sổ thực tế sau khi bạn confirm HTML đã chạy mượt.
+  // Gọi lại các logic render biểu đồ Ngày của bạn (đang nằm trong kpi.js)
+  if (typeof loadDashboard === 'function') await loadDashboard();
 }
 
 window.switchDashTab = (n) => {
