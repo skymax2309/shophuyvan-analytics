@@ -238,20 +238,35 @@ window.switchMainTab = function(mainStatus) {
 
    const subConfig = {
         'PENDING': [
-            // Dùng 'Chờ xác nhận' và 'LOGISTICS_PENDING_ARRANGE'
-            { id: 'Chờ xác nhận,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' }, 
-            // Dùng 'confirmed' (khớp đúng 88 đơn bác đang có)
-            { id: 'confirmed,LOGISTICS_REQUEST_CREATED', label: 'Đã Xử Lý' },
-            // Dùng 'Đã đóng gói'
+            // Gom đơn mới và đơn chưa in: Chờ xác nhận (Bot), confirmed (API), ready_to_ship, TO_CONFIRM_RECEIVE
+            { id: 'Chờ xác nhận,confirmed,ready_to_ship,TO_CONFIRM_RECEIVE,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' }, 
+            // Gom đơn đã có mã vận đơn: Chờ lấy hàng, PROCESSED
+            { id: 'Chờ lấy hàng,PROCESSED,LOGISTICS_REQUEST_CREATED,đã chuẩn bị', label: 'Đã Xử Lý' },
+            // Đơn đã đóng gói
             { id: 'LOGISTICS_PACKAGED,Đã đóng gói', label: 'Đã Đóng Gói' },
             { id: 'ADVANCE_FULFILMENT', label: 'Gói Sẵn Giao Nhanh' }
         ],
+        'SHIPPING': [
+            { id: '', label: 'Tất Cả' },
+            // Gom các trạng thái đang trên đường đi từ SQL bác gửi
+            { id: 'đã vận chuyển,SHIPPED,shipped,Đang giao', label: 'Đang Giao' }
+        ],
+        'COMPLETED': [
+            // Gom tất cả các đơn đã nhận tiền và các dòng chữ dài Shopee bác liệt kê
+            { id: 'Đã giao,delivered,COMPLETED,đã vận chuyển,Người mua xác nhận đã nhận được hàng, tuy nhiên Người mua vẫn có thể gửi yêu cầu Trả hàng/Hoàn tiền', label: 'Hoàn Thành' }
+        ],
         'RETURN': [
             { id: '', label: 'Tất Cả' }, 
-            { id: 'LOGISTICS_IN_RETURN', label: 'Đang Hoàn' },
-            { id: 'LOGISTICS_RETURNED_BY_SHIPPER', label: 'Shipper Đã Trả' },
-            { id: 'LOGISTICS_RETURN_PACKAGE_RECEIVED', label: 'Đã Nhận Đơn Hoàn' },
-            { id: 'LOGISTICS_LOST', label: 'Thất Lạc' }
+            // Nhóm Hủy (Theo Map 5 bác duyệt)
+            { id: 'Đã hủy,CANCELLED,canceled', label: 'Đơn Hủy' },
+            // Nhóm Hoàn Tiền
+            { id: 'Hoàn hàng,package returned', label: 'Hoàn Tiền' },
+            // Nhóm Đang Hoàn
+            { id: 'TO_RETURN,LOGISTICS_IN_RETURN', label: 'Đang Hoàn' },
+            // Nhóm Thất Lạc
+            { id: 'lost by 3pl,LOGISTICS_LOST', label: 'Thất Lạc' },
+            // Nhóm Giao Thất Bại
+            { id: 'Giao thất bại', label: 'Giao Thất Bại' }
         ]
     };
 
