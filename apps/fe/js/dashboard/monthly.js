@@ -14,6 +14,7 @@ window.loadMonthly = async function() {
     const res = await fetch(API + "/api/reports");
     if (!res.ok) throw new Error("Không thể tải báo cáo tháng");
     const reports = await res.json();
+	console.log("👉 DỮ LIỆU 1 DÒNG TỪ DB:", reports[0]);
 
     if (!reports || reports.length === 0) {
       if (kpiGrid) kpiGrid.innerHTML = '<div style="padding:20px; color:#64748b; font-weight:600;">Chưa có dữ liệu đối soát nào.</div>';
