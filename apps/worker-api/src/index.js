@@ -341,15 +341,24 @@ export default {
         return updateOmsStatus(request, env, cors, orderId)
       }
 
-      // Cập nhật nhiều đơn cùng lúc
+      // Cập nhật nhiều đơn cùng lúc (HỖ TRỢ 2 TẦNG TRẠNG THÁI)
       if (url.pathname === "/api/orders/bulk-oms-status" && request.method === "POST") {
-        const { order_ids, oms_status } = await request.json()
+        const { order_ids, oms_status, shipping_status } = await request.json()
         if (!order_ids?.length || !oms_status)
           return Response.json({ error: "Missing data" }, { status: 400, headers: cors })
-        const stmts = order_ids.map(id =>
-          env.DB.prepare(`UPDATE orders_v2 SET oms_status=?, oms_updated_at=datetime('now','+7 hours') WHERE order_id=?`)
-            .bind(oms_status, id)
-        )
+          
+        let stmts = [];
+        if (shipping_status) {
+            stmts = order_ids.map(id =>
+              env.DB.prepare(`UPDATE orders_v2 SET oms_status=?, shipping_status=?, oms_updated_at=datetime('now','+7 hours') WHERE order_id=?`)
+                .bind(oms_status, shipping_status, id)
+            )
+        } else {
+            stmts = order_ids.map(id =>
+              env.DB.prepare(`UPDATE orders_v2 SET oms_status=?, oms_updated_at=datetime('now','+7 hours') WHERE order_id=?`)
+                .bind(oms_status, id)
+            )
+        }
         await env.DB.batch(stmts)
         return Response.json({ status: "ok", updated: order_ids.length }, { headers: cors })
       }
@@ -621,11 +630,11 @@ export default {
             VALUES (?, ?)
           `).bind(orderId, fileName).run();
 
-          // [QUAN TRỌNG]: Tự động chuyển trạng thái đơn hàng thành "ĐÃ ĐÓNG GÓI" (PACKED)
+          // [QUAN TRỌNG]: Tự động chuyển trạng thái đơn hàng thành "ĐÃ ĐÓNG GÓI" (Chuẩn 2 tầng)
           await env.DB.prepare(`
             UPDATE orders_v2 
-            SET oms_status = 'PACKED', oms_updated_at = datetime('now', '+7 hours') 
-            WHERE order_id = ? AND oms_status = 'PENDING'
+            SET oms_status = 'PENDING', shipping_status = 'LOGISTICS_PACKAGED', oms_updated_at = datetime('now', '+7 hours') 
+            WHERE order_id = ?
           `).bind(orderId).run();
 
           return Response.json({ status: "ok", fileName }, { headers: cors });

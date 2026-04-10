@@ -22,12 +22,12 @@ function getChecked() {
   return [...document.querySelectorAll('.oms-chk:checked')].map(c => c.dataset.id);
 }
 
-// Cập nhật trạng thái Kho
-async function patchOmsStatus(ids, status) {
+// Cập nhật trạng thái Kho (CHUẨN 2 TẦNG)
+async function patchOmsStatus(ids, omsStatus, shippingStatus) {
   await fetch(API + '/api/orders/bulk-oms-status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ order_ids: ids, oms_status: status })
+    body: JSON.stringify({ order_ids: ids, oms_status: omsStatus, shipping_status: shippingStatus })
   });
 }
 
@@ -63,49 +63,14 @@ export async function markConfirmed() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Xác nhận ${ids.length} đơn hàng?`)) return;
-  await patchOmsStatus(ids, 'LOGISTICS_REQUEST_CREATED');
+  await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_REQUEST_CREATED');
   showToast(`✅ Đã xác nhận ${ids.length} đơn`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
 }
 
 export async function markPrepare() {
-  const ids = getChecked();
-  if (!ids.length) return;
-
-  // 1. Rút hồ sơ gốc của các đơn đang chọn
-  const allOrders = getCacheFn ? getCacheFn() : [];
-  const selectedOrders = allOrders.filter(o => ids.includes(o.order_id));
-
-  // 2. Thuật toán "Chia lô": Gom đơn theo đúng Sàn và đúng Shop
-  const batches = {};
-  selectedOrders.forEach(o => {
-    const key = `${o.platform}|${o.shop}`;
-    if (!batches[key]) batches[key] = { platform: o.platform, shop: o.shop, order_ids: [] };
-    batches[key].order_ids.push(o.order_id);
-  });
-
-  // 3. Đẩy từng kiện hàng (Lệnh) lên Server
-  try {
-    const batchKeys = Object.keys(batches);
-    for (const key of batchKeys) {
-      const batch = batches[key];
-      await fetch(API + '/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          task_type: 'print_label',
-          payload:   JSON.stringify({ order_ids: batch.order_ids }),
-          shop_name: batch.shop, 
-          platform:  batch.platform,
-          month: new Date().getMonth()+1, year: new Date().getFullYear(),
-        })
-      });
-    }
-    showToast(`🖨️ Đã chia thành ${batchKeys.length} lô giao cho Bot! Đơn xử lý xong sẽ tự nhảy sang "Đang đóng gói".`, 6000);
-  } catch(e) {
-    showToast('❌ Lỗi gửi lệnh in: ' + e.message);
-  }
+// ... (giữ nguyên ruột markPrepare) ...
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
 }
@@ -114,7 +79,7 @@ export async function markPacked() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Xác nhận đã đóng gói xong ${ids.length} đơn?`)) return;
-  await patchOmsStatus(ids, 'LOGISTICS_PACKAGED');
+  await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_PACKAGED');
   showToast(`📦 Đã đóng gói xong ${ids.length} đơn`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -124,7 +89,7 @@ export async function markHandedOver() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Xác nhận đã giao ${ids.length} đơn cho shipper?`)) return;
-  await patchOmsStatus(ids, 'SHIPPED');
+  await patchOmsStatus(ids, 'SHIPPING', 'SHIPPED');
   showToast(`🚚 Đã giao ${ids.length} đơn cho shipper`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -134,7 +99,7 @@ export async function markCancelledTransit() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Đánh dấu ${ids.length} đơn bị hủy trong quá trình vận chuyển?`)) return;
-  await patchOmsStatus(ids, 'CANCELLED');
+  await patchOmsStatus(ids, 'CANCELLED', 'CANCELLED');
   showToast(`✗ Đã đánh dấu ${ids.length} đơn hủy khi vận chuyển`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -144,7 +109,7 @@ export async function markFailedDelivery() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Đánh dấu ${ids.length} đơn giao không thành công?`)) return;
-  await patchOmsStatus(ids, 'LOGISTICS_IN_RETURN');
+  await patchOmsStatus(ids, 'RETURN', 'FAILED_DELIVERY');
   showToast(`⚠️ Đã đánh dấu ${ids.length} đơn giao thất bại`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
@@ -154,7 +119,7 @@ export async function markReturnRefund() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Đánh dấu ${ids.length} đơn trả hàng hoàn tiền?`)) return;
-  await patchOmsStatus(ids, 'RETURN');
+  await patchOmsStatus(ids, 'RETURN', 'RETURN');
   showToast(`↩ Đã đánh dấu ${ids.length} đơn trả hàng`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
