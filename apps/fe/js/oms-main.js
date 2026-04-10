@@ -236,12 +236,14 @@ window.switchMainTab = function(mainStatus) {
     const activeTab = document.getElementById('tab-' + mainStatus);
     if(activeTab) activeTab.classList.add('active');
 
-    const subConfig = {
+   const subConfig = {
         'PENDING': [
-            // 🌟 PHƯƠNG ÁN: Gán mã cụ thể để lọc đúng 44 đơn, không bị hiện 425 đơn
-            { id: 'LOGISTICS_PENDING_ARRANGE,Chờ xác nhận', label: 'Chưa Xử Lý' }, 
-            { id: 'LOGISTICS_REQUEST_CREATED,Đã xử lý', label: 'Đã Xử Lý' },
-            { id: 'LOGISTICS_PACKAGED', label: 'Đã Đóng Gói' },
+            // Dùng 'Chờ xác nhận' và 'LOGISTICS_PENDING_ARRANGE'
+            { id: 'Chờ xác nhận,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' }, 
+            // Dùng 'confirmed' (khớp đúng 88 đơn bác đang có)
+            { id: 'confirmed,LOGISTICS_REQUEST_CREATED', label: 'Đã Xử Lý' },
+            // Dùng 'Đã đóng gói'
+            { id: 'LOGISTICS_PACKAGED,Đã đóng gói', label: 'Đã Đóng Gói' },
             { id: 'ADVANCE_FULFILMENT', label: 'Gói Sẵn Giao Nhanh' }
         ],
         'RETURN': [
