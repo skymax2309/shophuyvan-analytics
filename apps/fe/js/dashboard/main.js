@@ -8,18 +8,31 @@ let allProducts    = []
 let currentFilters = {}
 
 // ── TABS ─────────────────────────────────────────────────────────────
-function showTab(name) {
+window.showTab = function(name) {
   document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"))
-  document.getElementById("tab-" + name).classList.add("active")
-  document.querySelectorAll(".topbar nav a").forEach((a, i) => {
-    a.classList.toggle("active", i === ["dashboard", "top", "cancel", "calc"].indexOf(name))
-  })
-  if (name === "top") {
-    loadTop()
-    populateSkuShopFilter()
-    loadTopSkuFull()
+  const targetTab = document.getElementById("tab-" + name);
+  if (targetTab) targetTab.classList.add("active");
+  
+  // Update UI Sidebar (nếu có class active)
+  document.querySelectorAll(".sidebar-nav a").forEach(a => {
+    a.classList.remove("active");
+    if (a.getAttribute('onclick') && a.getAttribute('onclick').includes(name)) {
+      a.classList.add("active");
+    }
+  });
+
+  // Gọi hàm Load Data tương ứng với Tab
+  if (name === "daily") {
+    loadDaily();
+  } else if (name === "monthly") {
+    loadMonthly();
+  } else if (name === "top") {
+    if(typeof loadTop === 'function') loadTop();
+    if(typeof populateSkuShopFilter === 'function') populateSkuShopFilter();
+    if(typeof loadTopSkuFull === 'function') loadTopSkuFull();
+  } else if (name === "cancel") {
+    if(typeof loadCancel === 'function') loadCancel();
   }
-  if (name === "cancel") loadCancel()
 }
 
 
@@ -90,10 +103,32 @@ function onSkuChange() {
 
 
 // ── INIT ─────────────────────────────────────────────────────────────
-async function init() {
-  applyPreset("thismonth")
-  await loadDashboard()
-  await loadProducts()
+window.init = async function() {
+  if (typeof applyPreset === 'function') applyPreset("thismonth");
+  if (typeof loadProducts === 'function') await loadProducts();
+  // Mặc định load tab Ngày đầu tiên
+  await loadDaily();
+}
+
+// ── LOAD DAILY (Thay thế cho loadDashboard cũ) ──
+window.loadDaily = async function() {
+  console.log("Loading Daily Tab...");
+  // Gọi các hàm KPI và Biểu đồ Ngày ở đây (kế thừa từ file kpi.js của bạn)
+  if (typeof renderKPI === 'function') await renderKPI();
+  if (typeof renderChartRevenue === 'function') await renderChartRevenue();
+  if (typeof renderChartProfit === 'function') await renderChartProfit();
+  if (typeof renderChartPlatform === 'function') await renderChartPlatform();
+  if (typeof renderChartShop === 'function') await renderChartShop();
+}
+
+// ── LOAD MONTHLY (Dành riêng cho Tab Đối Soát Tháng) ──
+window.loadMonthly = async function() {
+  console.log("Loading Monthly Settlement Tab...");
+  // Hiển thị loading
+  const kpiGrid = document.getElementById('kpiGridMonthly');
+  if (kpiGrid) kpiGrid.innerHTML = '<div class="loading">Đang tải dữ liệu chốt sổ...</div>';
+  
+  // TODO: Đoạn này mình sẽ hướng dẫn bạn viết hàm fetch API bảng platform_reports để vẽ dữ liệu chốt sổ thực tế sau khi bạn confirm HTML đã chạy mượt.
 }
 
 window.switchDashTab = (n) => {
