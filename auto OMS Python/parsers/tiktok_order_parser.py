@@ -6,19 +6,29 @@ class TiktokOrderParser:
         self.log = log_callback
 
     def _normalize_status(self, raw_status):
-        """Bộ lọc vạn năng: Chuẩn hóa 100% ngôn ngữ Sàn về mã chuẩn ShipXanh"""
+        """Bộ lọc vạn năng: Chuẩn hóa 100% ngôn ngữ Sàn về mã chuẩn ShipXanh [CẬP NHẬT TIKTOK]"""
         raw = str(raw_status).lower().strip()
         
-        # 🌟 Bế "to_confirm_receive" lên nhóm Hoàn Thành
-        if any(x in raw for x in ["người mua xác nhận", "đã giao", "delivered", "completed", "hoàn thành", "to_confirm_receive"]): 
+        # 🌟 1. Xử lý Case đặc biệt của bác: Bị hủy bởi Tiktok -> Giao thất bại
+        if "bị hủy bởi tiktok" in raw: 
+            return "FAILED_DELIVERY", "RETURN"
+
+        # 🌟 2. Nhóm Hoàn Thành (Thêm Đã hoàn thành, Đã giao hàng)
+        if any(x in raw for x in ["người mua xác nhận", "đã giao", "completed", "hoàn thành", "đã hoàn thành", "đã giao hàng"]): 
             return "COMPLETED", "COMPLETED"
             
-        # 🌟 Đã xóa "to_confirm_receive" khỏi nhóm này
-        if any(x in raw for x in ["chờ xác nhận", "confirmed", "ready_to_ship", "cần gửi", "chờ đóng gói", "chưa xử lý"]): 
+        # 🌟 3. Nhóm Chờ Xử Lý (Thêm Đang chờ vận chuyển)
+        if any(x in raw for x in ["chờ xác nhận", "confirmed", "ready_to_ship", "cần gửi", "chờ đóng gói", "chưa xử lý", "đang chờ vận chuyển"]): 
             return "LOGISTICS_PENDING_ARRANGE", "PENDING"
             
-        if any(x in raw for x in ["chờ lấy hàng", "processed", "đã chuẩn bị", "chờ bàn giao", "đã xử lý"]): return "LOGISTICS_REQUEST_CREATED", "PENDING"
-        if any(x in raw for x in ["đang giao", "đã vận chuyển", "shipped", "đã gửi"]): return "SHIPPED", "SHIPPING"
+        # 🌟 4. Nhóm Đã Chuẩn Bị (Thêm Đang chờ lấy hàng)
+        if any(x in raw for x in ["chờ lấy hàng", "processed", "đã chuẩn bị", "chờ bàn giao", "đã xử lý", "đang chờ lấy hàng"]): 
+            return "LOGISTICS_REQUEST_CREATED", "PENDING"
+
+        # 🌟 5. Nhóm Đang Giao (Thêm Đang trung chuyển)
+        if any(x in raw for x in ["đang giao", "đã vận chuyển", "shipped", "đã gửi", "đang trung chuyển"]): 
+            return "SHIPPED", "SHIPPING"
+
         if any(x in raw for x in ["đã hủy", "cancelled", "canceled"]): return "CANCELLED", "CANCELLED"
         if any(x in raw for x in ["hoàn hàng", "package returned", "trả hàng", "hủy & trả hàng"]): return "RETURN", "RETURN"
         if any(x in raw for x in ["to_return", "giao không thành công"]): return "LOGISTICS_IN_RETURN", "RETURN"

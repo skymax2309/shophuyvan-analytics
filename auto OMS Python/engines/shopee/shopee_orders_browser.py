@@ -162,7 +162,10 @@ class ShopeeOrdersBrowser:
                         tracking_number = ""
                         for line in lines:
                             if "Express" in line or "Giao Hàng" in line or "Ninja" in line or "Viettel" in line or "VNPost" in line or "Ahamove" in line or "BeDelivery" in line:
-                                carrier = line.replace("Vận chuyển chiều giao hàng", "").replace("Vận chuyển qua nền tảng", "").replace("|", "").strip()
+                                # 🌟 Bọc thép ĐVVC: Loại bỏ nhãn trạng thái rác dính vào tên ĐVVC để cột hiển thị sạch sẽ
+                                carrier = line.replace("Vận chuyển chiều giao hàng", "").replace("Vận chuyển qua nền tảng", "")\
+                                              .replace("READY_TO_SHIP", "").replace("RETRY_SHIP", "").replace("PROCESSED", "")\
+                                              .replace("|", "").strip()
                                 break
                                 
                         for line in lines:
@@ -267,26 +270,17 @@ class ShopeeOrdersBrowser:
 
                         revenue_numeric = self.parser._clean_price(total_price)
                         status_raw = tab['name'] 
-                        oms_status = self.parser._map_oms_status(status_raw)
 
+                        # 1. Tinh chỉnh từ khóa status_raw dựa trên thực tế đơn hàng
                         if "Chờ lấy hàng" in tab['name']:
                             full_text = " ".join(lines)
                             if "Chuẩn bị hàng" in full_text or "Chưa xử lý" in tab['name']:
                                 status_raw = "Chưa xử lý"
-                                oms_status = "PENDING"      
                             elif "In phiếu giao" in full_text or "Thông tin vận chuyển" in full_text or "Đã xử lý" in tab['name']:
                                 status_raw = "Đã xử lý"
-                                oms_status = "CONFIRMED"    
 
-                        shipping_map = {
-                            "PENDING": "Chờ xác nhận",
-                            "CONFIRMED": "Chờ lấy hàng",
-                            "SHIPPING": "Đang giao",
-                            "COMPLETED": "Đã giao",
-                            "CANCELLED_TRANSIT": "Đã hủy",
-                            "RETURN_REFUND": "Hoàn hàng"
-                        }
-                        display_status = shipping_map.get(oms_status, "Chờ lấy hàng")
+                        # 🌟 2. Ép qua Siêu Từ Điển của Parser để lấy 2 mã chuẩn
+                        shipping_st, oms_st = self.parser._normalize_status(status_raw)
 
                         order_obj = {
                             "order_id": order_id,
@@ -297,8 +291,8 @@ class ShopeeOrdersBrowser:
                             "revenue": revenue_numeric,
                             "raw_revenue": revenue_numeric,
                             "status": status_raw,               
-                            "shipping_status": display_status,  
-                            "oms_status": oms_status,
+                            "shipping_status": shipping_st,  # 🌟 Mã chi tiết chuẩn
+                            "oms_status": oms_st,            # 🌟 Mã Tab chuẩn
                             "tracking_number": tracking_number,
                             "shipping_carrier": carrier if carrier else "SPX Express",
                             "oms_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -317,10 +311,10 @@ class ShopeeOrdersBrowser:
                         order_signature = hashlib.md5(json.dumps(hash_data, sort_keys=True).encode('utf-8')).hexdigest()
 
                         if order_id in cached_final_orders and cached_final_orders[order_id] == order_signature:
-                            self.log(f"👁️ [ĐÃ QUÉT] {order_id} | Ngày: {order_date} | {oms_status} -> (Bỏ qua vì không đổi)")
+                            self.log(f"👁️ [ĐÃ QUÉT] {order_id} | Ngày: {order_date} | {oms_st} -> (Bỏ qua vì không đổi)")
                             continue 
 
-                        self.log(f"🚀 [CẬP NHẬT] {order_id} | Ngày: {order_date} | {oms_status} -> (Dữ liệu Mới/Đã sửa)")
+                        self.log(f"🚀 [CẬP NHẬT] {order_id} | Ngày: {order_date} | {oms_st} -> (Dữ liệu Mới/Đã sửa)")
                         
                         if not any(o['order_id'] == order_id for o in tab_orders):
                             order_obj['_signature'] = order_signature

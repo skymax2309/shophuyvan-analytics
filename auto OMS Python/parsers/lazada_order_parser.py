@@ -30,7 +30,7 @@ class LazadaOrderParser:
             
         if any(x in raw for x in ["chờ lấy hàng", "processed", "đã chuẩn bị", "chờ bàn giao", "đã xử lý"]): return "LOGISTICS_REQUEST_CREATED", "PENDING"
         if any(x in raw for x in ["đang giao", "đã vận chuyển", "shipped", "đã gửi"]): return "SHIPPED", "SHIPPING"
-        if any(x in raw for x in ["đã hủy", "cancelled", "canceled"]): return "CANCELLED", "RETURN"
+        if any(x in raw for x in ["đã hủy", "cancelled", "canceled"]): return "CANCELLED", "CANCELLED"
         if any(x in raw for x in ["hoàn hàng", "package returned", "trả hàng", "hủy & trả hàng"]): return "RETURN", "RETURN"
         if any(x in raw for x in ["to_return", "giao không thành công"]): return "LOGISTICS_IN_RETURN", "RETURN"
         if "lost by 3pl" in raw: return "LOGISTICS_LOST", "RETURN"

@@ -200,7 +200,7 @@ class ShopeeOrderParser:
                     "order_date": order_date,          # Ngày khách đặt
                     "oms_updated_at": order_date       # Đánh dấu thời điểm cập nhật cuối
                 })
-                self.log(f"✅ Đã chuẩn hóa đơn {order_sn}: {revenue_numeric}đ | Status: {oms_status}")
+                self.log(f"✅ Đã chuẩn hóa đơn {order_sn}: {revenue_numeric}đ | Status: {oms_st}")
             except Exception as e:
                 self.log(f"⚠️ Lỗi bóc tách 1 đơn hàng nội bộ ({order_sn}): {e}")
 

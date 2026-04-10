@@ -80,7 +80,22 @@ class TiktokOrderScraper:
                             await asyncio.sleep(1)
                 except: pass
 
-                # 3. Bật "Xem dạng thẻ"
+                # 3. Phá bộ lọc (Reset Filters) - Theo Phương án 1 (Bắn tỉa tọa độ thực tế)
+                try:
+                    self.log("   ⚙️ Đang phá bộ lọc theo tọa độ Log...")
+                    # Sử dụng XPath chính xác từ Log bác gửi để xóa lọc nhanh
+                    reset_btn = page.locator('id("main") >> div >> div >> div >> div >> div >> div >> div >> div >> div >> svg').nth(2)
+                    
+                    if await reset_btn.is_visible():
+                        await reset_btn.click()
+                        self.log("   ✅ Đã click icon xóa lọc.")
+                        await asyncio.sleep(3)
+                    else:
+                        self.log("   ℹ️ Không thấy bộ lọc nào đang bật, bỏ qua.")
+                except Exception as e:
+                    self.log(f"   ⚠️ Không thể phá lọc: {e}")
+
+                # 4. Bật "Xem dạng thẻ"
                 try:
                     self.log("   ⚙️ Chuyển sang 'Xem dạng thẻ'...")
                     await page.locator('span:has-text("Chế độ xem")').first.click(timeout=3000)
@@ -89,7 +104,7 @@ class TiktokOrderScraper:
                     await asyncio.sleep(3)
                 except: pass
 
-                # 4. Ép hiển thị 50 đơn/trang
+                # 5. Ép hiển thị 50 đơn/trang
                 try:
                     self.log("   ⚙️ Mở rộng hiển thị 50 đơn/trang...")
                     await page.locator('.p-pagination-options, [class*="pagination"] svg, #p-select-popup-1').last.click(timeout=3000)
@@ -204,30 +219,10 @@ class TiktokOrderScraper:
                                 revenue_numeric = float(re.sub(r'[^\d.]', '', str(total_price).replace('.', '')))
                             except: pass
 
-                        # Map trạng thái chuẩn OMS (CHUẨN SHIPXANH MỚI)
-                        oms_st = "LOGISTICS_PENDING_ARRANGE"
-                        if tab_name == "Cần gửi": 
-                            oms_st = "LOGISTICS_PENDING_ARRANGE" # -> Chưa Xử Lý
-                        elif tab_name == "Đã gửi": 
-                            oms_st = "SHIPPED" # -> Đang Giao
-                        elif tab_name == "Đã hoàn tất": 
-                            oms_st = "COMPLETED" # -> Đã Giao
-                        elif tab_name == "Đã hủy": 
-                            oms_st = "CANCELLED" # -> Đã Huỷ
-                        elif tab_name == "Giao không thành công": 
-                            oms_st = "LOGISTICS_IN_RETURN" # -> Đang Hoàn
-                        # Chuẩn hóa danh sách sản phẩm theo D1 (ĐỒNG BỘ XUẤT KÉP NHƯ SHOPEE)
-                        formatted_items = []
-                        for it in items:
-                            var_text = it.get("variation", "")
-                            formatted_items.append({
-                                "sku": it.get("sku", ""),
-                                "variation_name": var_text,  # Đổi tên cho khớp với Server
-                                "clean_variation": var_text, # TikTok đã tự tách riêng SKU, nên bản sạch = bản gốc
-                                "product_name": it.get("name", "Sản phẩm TikTok"),
-                                "qty": int(it.get("quantity", 1)),
-                                "image_url": ""
-                            })
+                        # Map trạng thái chuẩn OMS (GỌI SIÊU TỪ ĐIỂN TỪ PARSER)
+                        shipping_st, oms_st = self.parser._normalize_status(tab_name)
+
+                        # ... (giữ nguyên phần code formatted_items phía trên) ...
 
                         # Đóng gói dữ liệu theo chuẩn Database D1
                         order_obj = {
@@ -239,7 +234,8 @@ class TiktokOrderScraper:
                             "revenue": revenue_numeric,
                             "raw_revenue": revenue_numeric,
                             "status": tab_name,
-                            "oms_status": oms_st,
+                            "shipping_status": shipping_st,  # 🌟 THÊM RUỘT ĐỂ HIỆN TAB
+                            "oms_status": oms_st,            # 🌟 THÊM VỎ ĐỂ PHÂN LOẠI
                             "tracking_number": tracking_number,
                             "shipping_carrier": carrier,
                             "oms_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

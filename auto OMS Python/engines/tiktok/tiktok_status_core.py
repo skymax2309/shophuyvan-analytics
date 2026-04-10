@@ -64,28 +64,49 @@ class TikTokStatusCore:
                         continue
                     order_id = id_match.group(1)
                     
-                    # 🌟 Bắt mốc trạng thái tương ứng trong từng khối (CHUẨN SHIPXANH MỚI)
-                    oms_st = None
-                    if "Đã hoàn tất" in block:
-                        oms_st = "COMPLETED"
-                    elif "Đã gửi" in block or "Đang giao" in block or "Đang trung chuyển" in block or "Đã giao hàng" in block:
-                        oms_st = "SHIPPED"
-                    elif "Đã hủy" in block:
-                        oms_st = "CANCELLED"
-                    elif "Giao không thành công" in block or "Giao thất bại" in block:
-                        oms_st = "LOGISTICS_IN_RETURN"
+                    # 🌟 1. Nhặt Mã Vận Đơn (Tracking Number) từ khối text - Regex bọc thép
+                    tracking_number = ""
+                    # Dò tìm dãy số 12-14 chữ số đứng sau dấu phẩy hoặc tên ĐVVC (Theo ảnh bác gửi)
+                    track_match = re.search(r'(?:Express|vận chuyển|,\s*)(\d{12,15})(?!\d)', block)
+                    if track_match:
+                        tracking_number = track_match.group(1)
+
+                    # 🌟 2. Nhặt từ khóa trạng thái thực tế trong block
+                    raw_st = ""
+                    keywords = ["Đang chờ lấy hàng", "Đang chờ vận chuyển", "Đang trung chuyển", "Đã giao hàng", "Bị hủy bởi Tiktok", "Đã hủy", "Đã hoàn tất", "Giao không thành công", "Giao thất bại"]
+                    for kw in keywords:
+                        if kw in block:
+                            raw_st = kw
+                            break
+                    
+                    if not raw_st:
+                        # Fallback nếu không thấy từ khóa chi tiết, lấy tab tổng quát
+                        if "Đã hoàn tất" in block: raw_st = "Đã hoàn tất"
+                        elif "Đang trung chuyển" in block or "Đã gửi" in block: raw_st = "Đang trung chuyển"
+                        elif "Đã hủy" in block: raw_st = "Đã hủy"
+
+                    # 🌟 3. Gọi Siêu từ điển dịch ra 2 mã chuẩn
+                    if raw_st:
+                        parser = TiktokOrderParser(self.log)
+                        shipping_st, oms_st = parser._normalize_status(raw_st)
                         
-                    # Bắn API Server
-                    if oms_st:
+                        # 🌟 4. Bắn API cập nhật CẢ 2 TRẠNG THÁI + MÃ VẬN ĐƠN [cite: 1]
                         try:
+                            payload = {
+                                "oms_status": oms_st,
+                                "shipping_status": shipping_st,
+                                "tracking_number": tracking_number
+                            }
                             res = requests.patch(
                                 self.api_url.format(order_id),
-                                json={"oms_status": oms_st},
+                                json=payload,
                                 timeout=10
                             )
                             if res.status_code == 200:
                                 total_updated += 1
-                                self.log(f"✅ Đã update: {order_id} -> {oms_st}")
+                                self.log(f"✅ Đã update: {order_id} -> [{shipping_st}] (Tab: {oms_st}) | Vận đơn: {tracking_number or 'Chưa thấy'}")
+                            else:
+                                self.log(f"❌ Server từ chối {order_id}: {res.text}")
                         except Exception as e:
                             self.log(f"❌ Lỗi mạng khi update {order_id}: {e}")
                             
