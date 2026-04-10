@@ -81,20 +81,24 @@ async function recalcCost(request, env, cors) {
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
-  // TÍNH LẠI GIÁ VỐN CHO SẢN PHẨM COMBO DỰA VÀO THÀNH PHẦN CON
+// TÍNH LẠI GIÁ VỐN CHO SẢN PHẨM COMBO DỰA VÀO THÀNH PHẦN CON
   const comboRows = await env.DB.prepare(`SELECT combo_sku, component_sku, quantity FROM combo_items`).all()
   for (const p of productRows.results) {
     if (p.is_combo === 1) {
       const components = comboRows.results.filter(c => c.combo_sku === p.sku)
-      let comboCostReal = 0
-      let comboCostInvoice = 0
-      for (const comp of components) {
-        const compData = productMap[comp.component_sku] || { cost_real: 0, cost_invoice: 0 }
-        comboCostReal += (compData.cost_real * comp.quantity)
-        comboCostInvoice += (compData.cost_invoice * comp.quantity)
+      // CHỐT CHẶN: Chỉ tính lại và ghi đè nếu Combo đó CÓ KHAI BÁO THÀNH PHẦN CON.
+      // Nếu chưa khai báo gì (components.length === 0), giữ nguyên giá gốc đã nhập trong bảng products.
+      if (components.length > 0) {
+        let comboCostReal = 0
+        let comboCostInvoice = 0
+        for (const comp of components) {
+          const compData = productMap[comp.component_sku] || { cost_real: 0, cost_invoice: 0 }
+          comboCostReal += (compData.cost_real * comp.quantity)
+          comboCostInvoice += (compData.cost_invoice * comp.quantity)
+        }
+        productMap[p.sku].cost_real = comboCostReal
+        productMap[p.sku].cost_invoice = comboCostInvoice
       }
-      productMap[p.sku].cost_real = comboCostReal
-      productMap[p.sku].cost_invoice = comboCostInvoice
     }
   }
 
@@ -253,20 +257,23 @@ async function importOrdersV2(request, env, cors) {
   const productMap = {}
   for (const p of productRows.results) productMap[p.sku] = p
 
-  // TÍNH LẠI GIÁ VỐN CHO SẢN PHẨM COMBO DỰA VÀO THÀNH PHẦN CON
+// TÍNH LẠI GIÁ VỐN CHO SẢN PHẨM COMBO DỰA VÀO THÀNH PHẦN CON
   const comboRows = await env.DB.prepare(`SELECT combo_sku, component_sku, quantity FROM combo_items`).all()
   for (const p of productRows.results) {
     if (p.is_combo === 1) {
       const components = comboRows.results.filter(c => c.combo_sku === p.sku)
-      let comboCostReal = 0
-      let comboCostInvoice = 0
-      for (const comp of components) {
-        const compData = productMap[comp.component_sku] || { cost_real: 0, cost_invoice: 0 }
-        comboCostReal += (compData.cost_real * comp.quantity)
-        comboCostInvoice += (compData.cost_invoice * comp.quantity)
+      // CHỐT CHẶN: Chỉ tính lại và ghi đè nếu Combo đó CÓ KHAI BÁO THÀNH PHẦN CON.
+      if (components.length > 0) {
+        let comboCostReal = 0
+        let comboCostInvoice = 0
+        for (const comp of components) {
+          const compData = productMap[comp.component_sku] || { cost_real: 0, cost_invoice: 0 }
+          comboCostReal += (compData.cost_real * comp.quantity)
+          comboCostInvoice += (compData.cost_invoice * comp.quantity)
+        }
+        productMap[p.sku].cost_real = comboCostReal
+        productMap[p.sku].cost_invoice = comboCostInvoice
       }
-      productMap[p.sku].cost_real = comboCostReal
-      productMap[p.sku].cost_invoice = comboCostInvoice
     }
   }
 
