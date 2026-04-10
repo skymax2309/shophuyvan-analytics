@@ -33,10 +33,10 @@ window.loadMonthly = async function() {
       // Hỗ trợ linh hoạt tên cột từ nhiều tool parse khác nhau
       const month = r.report_month || 'N/A';
       const platform = r.platform || 'unknown';
-      const rev = parseFloat(r.revenue || r.total_revenue || 0);
-      const fee = parseFloat(r.platform_fee || r.total_fee || r.fees || 0);
-      const ads = parseFloat(r.ads_fee || r.marketing_fee || 0);
-      const profit = parseFloat(r.profit || r.net_income || r.profit_real || 0);
+      const rev = parseFloat(r.gross_revenue || r.net_product_revenue || r.revenue || 0);
+      const fee = parseFloat(r.fee_total || r.total_fee || 0);
+      const ads = parseFloat(r.fee_ads || r.ads_fee || 0);
+      const profit = parseFloat(r.total_payout || r.profit || 0);
 
       totalRev += rev;
       totalProfit += profit;
