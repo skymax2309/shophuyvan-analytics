@@ -126,7 +126,7 @@ export default {
         return importOrdersV2(request, env, cors)
 
       // 🌟 CỔNG TIẾP NHẬN WEBHOOK TỪ SHOPEE (REALTIME)
-      if (url.pathname === "/api/webhooks/shopee" && request.method === "POST")
+      if (url.pathname === "/api/webhooks/shopee")
         return handleShopeeWebhook(request, env, cors)
 
       // 📥 TỰ ĐỘNG IMPORT — Bot gửi file_key sau khi upload R2 xong

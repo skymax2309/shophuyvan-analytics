@@ -528,51 +528,58 @@ async function updateOmsStatus(request, env, cors, orderId) {
   return Response.json({ status: "ok" }, { headers: cors })
 }
 
-// 🌟 [WEBHOOK REALTIME] Hàm hứng dữ liệu tự động từ Shopee bắn sang
+// 🌟 [WEBHOOK REALTIME] Hàm hứng dữ liệu tự động từ Shopee (BẢN BỌC THÉP CHỐNG SẬP)
 async function handleShopeeWebhook(request, env, cors) {
   try {
     const bodyText = await request.text();
-    const body = JSON.parse(bodyText);
     
-    console.log(`[SHOPEE_WEBHOOK] 🔔 Nhận Event Code:`, body.code);
+    // 1. Nếu Shopee chỉ test Verify (Không có data), lập tức báo OK để qua cửa
+    if (!bodyText) {
+        return new Response(JSON.stringify({ status: "success" }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
+    }
 
+    // 2. Bọc try-catch riêng phần đọc JSON để lỡ Shopee gửi rác cũng không bị sập hàm
+    let body = {};
+    try { body = JSON.parse(bodyText); } catch(e) {}
+    
     // ── MÃ 3: CÓ ĐƠN MỚI HOẶC ĐỔI TRẠNG THÁI HÀNH TRÌNH ──
-    if (body.code === 3) {
+    if (body.code === 3 && body.data) {
       const data = body.data;
       const orderId = data.order_sn;
-      const newStatus = data.status; // Ví dụ: UNPAID, READY_TO_SHIP, SHIPPED, COMPLETED
-
-      console.log(`[SHOPEE_WEBHOOK] 📦 Đơn hàng ${orderId} -> Trạng thái: ${newStatus}`);
-
-      await env.DB.prepare(`
-        UPDATE orders_v2 
-        SET shipping_status = ?, 
-            oms_updated_at = datetime('now', '+7 hours')
-        WHERE order_id = ?
-      `).bind(newStatus, orderId).run();
+      const newStatus = data.status;
+      
+      if (orderId && newStatus) {
+          await env.DB.prepare(`
+            UPDATE orders_v2 
+            SET shipping_status = ?, 
+                oms_updated_at = datetime('now', '+7 hours')
+            WHERE order_id = ?
+          `).bind(newStatus, orderId).run();
+      }
     }
 
     // ── MÃ 4: SHOPEE HOẶC ĐVVC CẤP MÃ VẬN ĐƠN MỚI ──
-    if (body.code === 4) {
+    if (body.code === 4 && body.data) {
       const data = body.data;
       const orderId = data.order_sn;
       const trackingNo = data.tracking_no;
 
-      console.log(`[SHOPEE_WEBHOOK] 🚚 Đơn hàng ${orderId} -> Mã vận đơn: ${trackingNo}`);
-
-      await env.DB.prepare(`
-        UPDATE orders_v2 
-        SET tracking_number = ?, 
-            oms_updated_at = datetime('now', '+7 hours')
-        WHERE order_id = ?
-      `).bind(trackingNo, orderId).run();
+      if (orderId && trackingNo) {
+          await env.DB.prepare(`
+            UPDATE orders_v2 
+            SET tracking_number = ?, 
+                oms_updated_at = datetime('now', '+7 hours')
+            WHERE order_id = ?
+          `).bind(trackingNo, orderId).run();
+      }
     }
 
-    // Luôn trả về HTTP 200 để Shopee biết Server đã nhận thành công
-    return Response.json({ status: "success" }, { headers: cors });
+    // Luôn trả về 200 OK cho mọi request thành công
+    return new Response(JSON.stringify({ status: "success" }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[SHOPEE_WEBHOOK] ❌ Lỗi xử lý:", e.message);
-    return Response.json({ error: e.message }, { status: 500, headers: cors });
+    // NGAY CẢ KHI LỖI NẶNG: Vẫn ép trả về 200 để Shopee không khóa cổng Webhook
+    return new Response(JSON.stringify({ status: "success" }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
   }
 }
 
