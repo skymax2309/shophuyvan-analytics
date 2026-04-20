@@ -528,4 +528,52 @@ async function updateOmsStatus(request, env, cors, orderId) {
   return Response.json({ status: "ok" }, { headers: cors })
 }
 
-export { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus }
+// 🌟 [WEBHOOK REALTIME] Hàm hứng dữ liệu tự động từ Shopee bắn sang
+async function handleShopeeWebhook(request, env, cors) {
+  try {
+    const bodyText = await request.text();
+    const body = JSON.parse(bodyText);
+    
+    console.log(`[SHOPEE_WEBHOOK] 🔔 Nhận Event Code:`, body.code);
+
+    // ── MÃ 3: CÓ ĐƠN MỚI HOẶC ĐỔI TRẠNG THÁI HÀNH TRÌNH ──
+    if (body.code === 3) {
+      const data = body.data;
+      const orderId = data.order_sn;
+      const newStatus = data.status; // Ví dụ: UNPAID, READY_TO_SHIP, SHIPPED, COMPLETED
+
+      console.log(`[SHOPEE_WEBHOOK] 📦 Đơn hàng ${orderId} -> Trạng thái: ${newStatus}`);
+
+      await env.DB.prepare(`
+        UPDATE orders_v2 
+        SET shipping_status = ?, 
+            oms_updated_at = datetime('now', '+7 hours')
+        WHERE order_id = ?
+      `).bind(newStatus, orderId).run();
+    }
+
+    // ── MÃ 4: SHOPEE HOẶC ĐVVC CẤP MÃ VẬN ĐƠN MỚI ──
+    if (body.code === 4) {
+      const data = body.data;
+      const orderId = data.order_sn;
+      const trackingNo = data.tracking_no;
+
+      console.log(`[SHOPEE_WEBHOOK] 🚚 Đơn hàng ${orderId} -> Mã vận đơn: ${trackingNo}`);
+
+      await env.DB.prepare(`
+        UPDATE orders_v2 
+        SET tracking_number = ?, 
+            oms_updated_at = datetime('now', '+7 hours')
+        WHERE order_id = ?
+      `).bind(trackingNo, orderId).run();
+    }
+
+    // Luôn trả về HTTP 200 để Shopee biết Server đã nhận thành công
+    return Response.json({ status: "success" }, { headers: cors });
+  } catch (e) {
+    console.error("[SHOPEE_WEBHOOK] ❌ Lỗi xử lý:", e.message);
+    return Response.json({ error: e.message }, { status: 500, headers: cors });
+  }
+}
+
+export { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus, handleShopeeWebhook }
