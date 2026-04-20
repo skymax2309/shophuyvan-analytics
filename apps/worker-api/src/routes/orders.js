@@ -528,7 +528,7 @@ async function updateOmsStatus(request, env, cors, orderId) {
   return Response.json({ status: "ok" }, { headers: cors })
 }
 
-// 🌟 [WEBHOOK REALTIME] Hàm hứng dữ liệu tự động từ Shopee (BẢN BỌC THÉP CHỐNG SẬP)
+// 🌟 [WEBHOOK REALTIME] Hàm hứng dữ liệu tự động từ Shopee (BẢN CÓ BỘ DỊCH TAB)
 async function handleShopeeWebhook(request, env, cors) {
   try {
     const bodyText = await request.text();
@@ -538,7 +538,6 @@ async function handleShopeeWebhook(request, env, cors) {
         return new Response(JSON.stringify({ status: "success" }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
-    // 2. Bọc try-catch riêng phần đọc JSON để lỡ Shopee gửi rác cũng không bị sập hàm
     let body = {};
     try { body = JSON.parse(bodyText); } catch(e) {}
     
@@ -546,15 +545,25 @@ async function handleShopeeWebhook(request, env, cors) {
     if (body.code === 3 && body.data) {
       const data = body.data;
       const orderId = data.order_sn;
-      const newStatus = data.status;
+      const newStatus = data.status; // Ví dụ: READY_TO_SHIP, SHIPPED, COMPLETED...
       
       if (orderId && newStatus) {
+          // 🌟 BỘ DỊCH TRẠNG THÁI TỪ SHOPEE SANG TAB CỦA WEB OMS
+          let omsStatus = "PENDING"; // Mặc định
+          if (newStatus === "UNPAID") omsStatus = "UNPAID";
+          else if (newStatus === "READY_TO_SHIP" || newStatus === "PROCESSED") omsStatus = "PENDING";
+          else if (newStatus === "SHIPPED") omsStatus = "SHIPPED";
+          else if (newStatus === "COMPLETED") omsStatus = "COMPLETED";
+          else if (newStatus === "CANCELLED" || newStatus === "IN_CANCEL") omsStatus = "CANCELLED";
+
+          // Lưu ý: Update chỉ chạy thành công với những đơn đã có sẵn trong Database (Do Bot cào vỏ vào trước đó)
           await env.DB.prepare(`
             UPDATE orders_v2 
             SET shipping_status = ?, 
+                oms_status = CASE WHEN ? != 'PENDING' THEN ? ELSE oms_status END,
                 oms_updated_at = datetime('now', '+7 hours')
             WHERE order_id = ?
-          `).bind(newStatus, orderId).run();
+          `).bind(newStatus, omsStatus, omsStatus, orderId).run();
       }
     }
 
@@ -574,11 +583,9 @@ async function handleShopeeWebhook(request, env, cors) {
       }
     }
 
-    // Luôn trả về 200 OK cho mọi request thành công
     return new Response(JSON.stringify({ status: "success" }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[SHOPEE_WEBHOOK] ❌ Lỗi xử lý:", e.message);
-    // NGAY CẢ KHI LỖI NẶNG: Vẫn ép trả về 200 để Shopee không khóa cổng Webhook
     return new Response(JSON.stringify({ status: "success" }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
   }
 }
