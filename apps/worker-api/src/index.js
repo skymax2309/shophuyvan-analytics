@@ -3,7 +3,7 @@ import { getFilters, buildWhere }        from './utils/filters.js'
 import { getCostSettings, calcProfit }   from './utils/db.js'
 import { handleProducts, handleCostSettings, handleVariations } from './routes/products.js'
 import { handleShopsWarehouse } from './routes/shops.js'
-import { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus } from './routes/orders.js'
+import { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus, handleShopeeWebhook } from './routes/orders.js'
 import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          topSku, topProduct, topShop, topPlatform,
          cancelStats, priceCalc, topSkuFull } from './routes/dashboard.js'
@@ -124,6 +124,10 @@ export default {
       // ── Import Orders ─────────────────────────────────────────────
       if (url.pathname === "/api/import-orders-v2")
         return importOrdersV2(request, env, cors)
+
+      // 🌟 CỔNG TIẾP NHẬN WEBHOOK TỪ SHOPEE (REALTIME)
+      if (url.pathname === "/api/webhooks/shopee" && request.method === "POST")
+        return handleShopeeWebhook(request, env, cors)
 
       // 📥 TỰ ĐỘNG IMPORT — Bot gửi file_key sau khi upload R2 xong
       if (url.pathname === "/api/auto-import-trigger" && request.method === "POST") {

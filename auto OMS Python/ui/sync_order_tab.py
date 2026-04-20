@@ -469,7 +469,12 @@ class SyncOrderTab(ctk.CTkFrame):
                             
                             if res.status_code == 200:
                                 res_data = res.json()
-                                self.so_log_msg(f"✅ [SERVER] Thành công! Đã xử lý: {res_data.get('inserted', 0)} đơn mới, {res_data.get('updated', 0)} cập nhật.")
+                                imported = res_data.get('imported_orders', 0)
+                                skipped = res_data.get('skipped', 0)
+                                if skipped > 0:
+                                    self.so_log_msg(f"⚠️ [SERVER] Lưu được {imported} đơn. NHƯNG CÓ {skipped} ĐƠN BỊ TỪ CHỐI DO LỖI DỮ LIỆU BẢNG (Database)!")
+                                else:
+                                    self.so_log_msg(f"✅ [SERVER] Thành công! Đã lưu {imported} đơn vào hệ thống.")
                             else:
                                 # 🔴 ĐÂY LÀ DÒNG QUAN TRỌNG ĐỂ BIẾT LỖI DATABASE
                                 self.so_log_msg(f"❌ [LỖI SERVER {res.status_code}] Nội dung: {res.text}")
