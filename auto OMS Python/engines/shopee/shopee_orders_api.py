@@ -91,14 +91,23 @@ class ShopeeOrdersAPI:
                     
                     if cached_final_orders.get(order_sn) == update_time: continue 
                         
-                    oms_st = "LOGISTICS_PENDING_ARRANGE"
-                    if raw_status == "READY_TO_SHIP": oms_st = "LOGISTICS_PENDING_ARRANGE"
-                    elif raw_status == "PROCESSED": oms_st = "LOGISTICS_REQUEST_CREATED"
-                    elif raw_status in ["SHIPPED", "TO_CONFIRM_RECEIVE"]: oms_st = "SHIPPED"
-                    elif raw_status == "COMPLETED": oms_st = "COMPLETED"
-                    elif raw_status == "CANCELLED": oms_st = "CANCELLED"
-                    elif raw_status in ["TO_RETURN", "IN_CANCEL"]: oms_st = "LOGISTICS_IN_RETURN"
-                    elif raw_status == "UNPAID": continue
+                    if raw_status == "UNPAID": continue
+                    
+                    # 🌟 Bộ từ điển chuẩn 2 tầng cho Shopee API
+                    status_map = {
+                        "READY_TO_SHIP": ("PENDING", "LOGISTICS_PENDING_ARRANGE"),
+                        "PROCESSED": ("PENDING", "LOGISTICS_REQUEST_CREATED"),
+                        "SHIPPED": ("SHIPPING", "SHIPPED"),
+                        "TO_CONFIRM_RECEIVE": ("COMPLETED", "COMPLETED"),
+                        "COMPLETED": ("COMPLETED", "COMPLETED"),
+                        "CANCELLED": ("CANCELLED", "CANCELLED"),
+                        "IN_CANCEL": ("RETURN", "LOGISTICS_IN_RETURN"),
+                        "TO_RETURN": ("RETURN", "RETURN")
+                    }
+                    
+                    mapped_statuses = status_map.get(raw_status, ("PENDING", "LOGISTICS_PENDING_ARRANGE"))
+                    oms_st = mapped_statuses[0]
+                    shipping_st = mapped_statuses[1]
                     
                     buyer_name = o.get("buyer_username") or o.get("recipient_address", {}).get("name", "Khách Shopee")
                     
@@ -147,9 +156,9 @@ class ShopeeOrdersAPI:
                         "raw_revenue": revenue_numeric,
                         "shipping_carrier": carrier,
                         "tracking_number": o.get("tracking_no", ""),
-                        "oms_status": oms_st,
+                        "oms_status": oms_st,              # 🌟 Mã Vỏ chuẩn
                         "order_type": "normal",
-                        "shipping_status": raw_status,
+                        "shipping_status": shipping_st,    # 🌟 Mã Ruột chuẩn
                         "items": items_list
                     })
                     newly_completed[order_sn] = update_time

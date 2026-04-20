@@ -90,27 +90,32 @@ class LazadaOrderScraper:
             valid_orders = []
             newly_completed = {}
             
-            # Bộ từ điển dịch trạng thái Lazada -> OMS (Chuẩn ShipXanh)
+            # Bộ từ điển dịch trạng thái Lazada -> OMS (Chuẩn 2 Tầng ShipXanh)
             status_map = {
-                'pending': 'LOGISTICS_PENDING_ARRANGE',
-                'ready_to_ship': 'LOGISTICS_PACKAGED',
-                'shipped': 'SHIPPED',
-                'delivered': 'COMPLETED',
-                'canceled': 'CANCELLED',
-                'returned': 'RETURN',
-                'failed': 'LOGISTICS_IN_RETURN'
+                'pending': ('PENDING', 'LOGISTICS_PENDING_ARRANGE'),
+                'packed': ('PENDING', 'LOGISTICS_REQUEST_CREATED'),
+                'ready_to_ship': ('PENDING', 'LOGISTICS_PACKAGED'),
+                'shipped': ('SHIPPING', 'SHIPPED'),
+                'delivered': ('COMPLETED', 'COMPLETED'),
+                'canceled': ('CANCELLED', 'CANCELLED'),
+                'returned': ('RETURN', 'RETURN'),
+                'failed': ('RETURN', 'FAILED_DELIVERY')
             }
 
             for o in orders_data:
                 order_id = str(o.get('order_id'))
                 raw_status = o.get('statuses', ['pending'])[0]
-                oms_status = status_map.get(raw_status, 'LOGISTICS_PENDING_ARRANGE')
+                
+                # Áp dụng Siêu Từ Điển 2 Tầng
+                mapped_statuses = status_map.get(raw_status, ('PENDING', 'LOGISTICS_PENDING_ARRANGE'))
+                oms_status = mapped_statuses[0]
+                shipping_st = mapped_statuses[1]
                 
                 # Tạo obj cơ bản để check Hash MD5
                 base_obj = {
                     "order_id": order_id,
                     "oms_status": oms_status,
-                    "shipping_status": raw_status,
+                    "shipping_status": shipping_st,
                     "order_total": float(o.get('price', 0))
                 }
                 
@@ -164,7 +169,7 @@ class LazadaOrderScraper:
                     "tracking_number": tracking_number,     
                     "oms_status": oms_status,
                     "order_type": "return" if raw_status == 'returned' else ("cancel" if raw_status == 'canceled' else "normal"),
-                    "shipping_status": raw_status,
+                    "shipping_status": shipping_st, # 🌟 Gắn mã ruột chuẩn 2 tầng
                     "items": items_list
                 }
                 

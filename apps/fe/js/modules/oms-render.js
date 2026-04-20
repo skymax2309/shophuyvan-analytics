@@ -153,21 +153,23 @@ export function renderTable(omsCache) {
         </div>` : ''}
       </td>
       <td data-label="Sàn">${pltHtml}</td>
-      <td data-label="Doanh thu">
-        <div class="revenue rev-positive">${fmt(revenue)}</div>
-        ${feeHtml}
-      </td>
-      <td data-label="Lãi thực">
-        <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>
-        <div style="font-size:10px;color:${o.cost_real > 0 ? 'var(--muted)' : 'var(--red)'};margin-top:2px;font-weight:600;">
-           Vốn: ${fmt(o.cost_real || 0)}
-        </div>
-      </td>
-      <td data-label="Sàn vận chuyển">
-        <div style="font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 5px;">${o.shipping_carrier || 'Chưa rõ ĐVVC'}</div>
-        ${renderShippingStatus(o.shipping_status || o.status)}
-      </td>
-      <td data-label="Kho (OMS)">
+      <td data-label="ĐV Vận Chuyển">
+        <div style="font-weight: 600; font-size: 13px; color: var(--text);">${o.shipping_carrier || 'Chưa rõ ĐVVC'}</div>
+      </td>
+      <td data-label="Trạng Thái Giao">
+        ${renderShippingStatus(o.shipping_status || o.status)}
+      </td>
+      <td data-label="Doanh thu">
+        <div class="revenue rev-positive">${fmt(revenue)}</div>
+        ${feeHtml}
+      </td>
+      <td data-label="Lãi thực">
+        <div class="revenue ${profit>=0?'s-green':'s-red'}">${fmt(profit)}</div>
+        <div style="font-size:10px;color:${o.cost_real > 0 ? 'var(--muted)' : 'var(--red)'};margin-top:2px;font-weight:600;">
+           Vốn: ${fmt(o.cost_real || 0)}
+        </div>
+      </td>
+      <td data-label="Kho (OMS)">
         <span class="oms-tag oms-${o.oms_status||'PENDING'}">
           <span class="dot"></span>${omsInfo.label}
         </span>
