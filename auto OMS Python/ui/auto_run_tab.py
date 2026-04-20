@@ -202,6 +202,11 @@ class AutoRunTab(ctk.CTkFrame):
         # TIỀN XỬ LÝ LỆNH TỪ SERVER (Giải quyết triệt để lỗi từ khóa ALL và lệch tên Shop)
         expanded_jobs = []
         for job in jobs_data:
+            # 🌟 CHÌA KHÓA 1: Không cướp lệnh của Radar (Bỏ qua nếu không phải việc của Tab Báo cáo)
+            task_type = str(job.get('task_type') or 'all').strip().lower()
+            if task_type in ['print_label', 'scrape_orders', 'sync_status']:
+                continue
+
             plat = str(job.get('platform', 'shopee')).lower()
             s_name = str(job.get('shop_name', ''))
             

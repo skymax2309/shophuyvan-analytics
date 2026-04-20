@@ -359,7 +359,13 @@ async function importOrdersV2(request, env, cors) {
     `).bind(
       o.order_id ?? null, o.platform ?? '', o.shop ?? '', o.order_date ?? null, o.order_type ?? 'normal', o.revenue ?? 0, o.raw_revenue ?? 0, o.cost_invoice ?? 0, o.cost_real ?? 0, o.fee ?? 0, o.profit_invoice ?? 0, o.profit_real ?? 0, o.tax_flat ?? 0, o.tax_income ?? 0, o.fee_platform ?? 0, o.fee_payment ?? 0, o.fee_affiliate ?? 0, o.fee_ads ?? 0, o.fee_piship ?? 0, o.fee_service ?? 0, o.fee_packaging ?? 0, o.fee_operation ?? 0, o.fee_labor ?? 0, o.cancel_reason ?? null, o.return_fee ?? 0, o.shipped ?? 0, o.discount_shop ?? 0, o.discount_shopee ?? 0, o.discount_combo ?? 0, o.shipping_return_fee ?? 0, o.order_status || o.shipping_status || '', o.shipping_provider || o.shipping_carrier || '', o.tracking_number ?? '', o.customer_name ?? '', o.oms_status ?? 'PENDING'
     ))
-    try { await env.DB.batch(stmts); importedOrders += chunk.length } catch(e) { skipped += chunk.length }
+    try { 
+      await env.DB.batch(stmts); 
+      importedOrders += chunk.length;
+    } catch(e) { 
+      console.error("[IMPORT_V2] ❌ LỖI BATCH ORDERS_V2:", e.message);
+      return Response.json({ error: "LỖI DB D1 (Orders): " + e.message }, { status: 500, headers: cors });
+    }
   }
 
   const orderIds = [...new Set(processedItems.map(i => i.order_id))]
@@ -379,9 +385,10 @@ async function importOrdersV2(request, env, cors) {
     ))
     try { 
         await env.DB.batch(stmts); 
-        importedItems += chunk.length 
+        importedItems += chunk.length;
     } catch(e) { 
-        console.error(`[IMPORT_V2] ❌ LỖI INSERT SẢN PHẨM VÀO DB:`, e.message);
+        console.error("[IMPORT_V2] ❌ LỖI INSERT SẢN PHẨM:", e.message);
+        return Response.json({ error: "LỖI DB D1 (Items): " + e.message }, { status: 500, headers: cors });
     }
   }
 
@@ -497,22 +504,26 @@ if (shipping) {
 
 async function updateOmsStatus(request, env, cors, orderId) {
   const body = await request.json()
-  // 🌟 Mở cửa cho nhận cả vỏ (oms) lẫn ruột (shipping)
-  const { oms_status, shipping_status } = body
+  // 🌟 Đã mở cửa nhận thêm Mã Vận Đơn (Tracking)
+  const { oms_status, shipping_status, tracking_number } = body
 
-  // Bỏ luôn cái mảng VALID cũ rích đi vì Python đã có Siêu Từ Điển kiểm duyệt
   if (!oms_status || !shipping_status) {
     return Response.json({ error: 'Thiếu dữ liệu trạng thái!' }, { status: 400, headers: cors })
   }
 
-  // 🌟 Cập nhật ĐỒNG BỘ cả 2 trạng thái vào Database
-  await env.DB.prepare(`
-    UPDATE orders_v2 
-    SET oms_status = ?, 
-        shipping_status = ?, 
-        oms_updated_at = datetime('now', '+7 hours')
-    WHERE order_id = ?
-  `).bind(oms_status, shipping_status, orderId).run()
+  if (tracking_number) {
+      await env.DB.prepare(`
+        UPDATE orders_v2 
+        SET oms_status = ?, shipping_status = ?, tracking_number = ?, oms_updated_at = datetime('now', '+7 hours')
+        WHERE order_id = ?
+      `).bind(oms_status, shipping_status, tracking_number, orderId).run()
+  } else {
+      await env.DB.prepare(`
+        UPDATE orders_v2 
+        SET oms_status = ?, shipping_status = ?, oms_updated_at = datetime('now', '+7 hours')
+        WHERE order_id = ?
+      `).bind(oms_status, shipping_status, orderId).run()
+  }
   
   return Response.json({ status: "ok" }, { headers: cors })
 }

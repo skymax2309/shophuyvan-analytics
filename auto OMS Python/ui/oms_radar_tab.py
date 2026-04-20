@@ -95,6 +95,10 @@ class OMSRadarTab(ctk.CTkFrame):
                             job_id = job.get('id')
                             task_type = job.get('task_type')
                             
+                            # 🌟 CHÌA KHÓA 2: Không cướp lệnh của Tab Báo Cáo (Chỉ xử lý lệnh của Radar)
+                            if task_type not in ['print_label', 'scrape_orders', 'sync_status']:
+                                continue
+                                
                             # Xử lý an toàn chuỗi payload (Chống sập do NoneType)
                             payload_raw = job.get('payload')
                             if not payload_raw: payload_raw = '[]' 
@@ -157,11 +161,11 @@ class OMSRadarTab(ctk.CTkFrame):
 
                             # LUỒNG MỚI: QUÉT HÀNH TRÌNH (BẰNG CÁO ĐA TAB SIÊU TỐC)
                             elif task_type == 'sync_status':
-                                self.so_log_msg("🔍 [RADAR] Nhận lệnh từ Web: ĐỒNG BỘ HÀNH TRÌNH (Bỏ qua Tab Chờ Lấy Hàng)!")
+                                self.so_log_msg("🔍 [RADAR] Nhận lệnh từ Web: ĐỒNG BỘ HÀNH TRÌNH (Gọi Status Cores)!")
                                 for shop_data in [s for s in self.app.DANH_SACH_SHOP if s.get("platform") in ["shopee", "tiktok", "lazada"]]:
                                     if hasattr(self.legacy_engine, 'playwright_order_job'):
-                                        # Truyền mã lệnh ĐẶC NHIỆM: Chỉ quét hành trình
-                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "status_only"))
+                                        # 🌟 Sửa thành chữ "status" để khớp chính xác Nhiệm Vụ 3 trong sync_order_tab
+                                        asyncio.run(self.legacy_engine.playwright_order_job(shop_data, "status"))
                                     
                             # Báo cáo hoàn thành lên Web
                             requests.patch(f"{api_jobs}/{job_id}", json={"status": "completed"}, timeout=10)

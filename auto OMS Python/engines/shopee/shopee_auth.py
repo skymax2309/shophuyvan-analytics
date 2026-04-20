@@ -27,10 +27,18 @@ class ShopeeAuth(BaseAuth):
             if user_name:
                 try:
                     self.log_step("Đang chờ ô nhập tài khoản xuất hiện...")
-                    await page.wait_for_selector('input[placeholder*="Email/Số điện thoại/Tên đăng nhập"]', timeout=10000)
-                    await page.locator('input[placeholder*="Email/Số điện thoại/Tên đăng nhập"]').fill(user_name)
+                    # Dùng thuộc tính name tĩnh, click (focus) trước khi fill để chống lệch form
+                    await page.wait_for_selector('input[name="loginKey"]', timeout=10000)
+                    
+                    input_tk = page.locator('input[name="loginKey"]')
+                    await input_tk.click()
+                    await input_tk.fill(user_name)
+                    
                     if shop.get("mat_khau"):
-                        await page.locator('input[type="password"]').first.fill(shop["mat_khau"])
+                        input_mk = page.locator('input[name="password"]')
+                        await input_mk.click()
+                        await input_mk.fill(shop["mat_khau"])
+                        await asyncio.sleep(0.5) # Nghỉ 0.5s để DOM nhận dữ liệu
                         await page.keyboard.press("Enter")
                     self.log_step("👉 Đã điền xong. Đang chờ bạn xác minh OTP/Captcha...")
                 except Exception as e:
@@ -64,10 +72,12 @@ class ShopeeAuth(BaseAuth):
     async def re_verify(self, page, shop):
         """Xử lý khi Shopee yêu cầu nhập lại mật khẩu xác minh"""
         try:
-            pass_input = await page.query_selector('input[type="password"]')
+            pass_input = await page.query_selector('input[name="password"]')
             if pass_input and shop.get("mat_khau"):
                 self.log_step("🔒 Shopee yêu cầu xác minh mật khẩu, đang tự động nhập...")
-                await page.fill('input[type="password"]', shop["mat_khau"])
+                input_mk = page.locator('input[name="password"]')
+                await input_mk.click()
+                await input_mk.fill(shop["mat_khau"])
                 await page.keyboard.press("Enter")
                 await asyncio.sleep(8)
         except Exception as e:

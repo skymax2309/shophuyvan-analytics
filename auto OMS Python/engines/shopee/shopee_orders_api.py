@@ -133,11 +133,10 @@ class ShopeeOrdersAPI:
                         
                         items_list.append({
                             "sku": it.get("model_sku") or it.get("item_sku", ""),
-                            "variation_name": var_name,
-                            "clean_variation": var_name,
-                            "product_name": it.get("item_name", "Sản phẩm Shopee"),
-                            "qty": qty, 
-                            "image_url": img_url 
+                            "variation": var_name,
+                            "name": it.get("item_name", "Sản phẩm Shopee"),
+                            "quantity": qty, 
+                            "image": img_url 
                         })
                         
                     revenue_numeric = float(o.get("total_amount") or 0)

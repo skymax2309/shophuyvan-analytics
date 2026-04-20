@@ -80,18 +80,18 @@ class TiktokOrderScraper:
                             await asyncio.sleep(1)
                 except: pass
 
-                # 3. Phá bộ lọc (Reset Filters) - Theo Phương án 1 (Bắn tỉa tọa độ thực tế)
+                # 3. Phá bộ lọc (Reset Filters) - Theo Phương án "Bắt chữ" (Text Locator)
                 try:
-                    self.log("   ⚙️ Đang phá bộ lọc theo tọa độ Log...")
-                    # Sử dụng XPath chính xác từ Log bác gửi để xóa lọc nhanh
-                    reset_btn = page.locator('id("main") >> div >> div >> div >> div >> div >> div >> div >> div >> div >> svg').nth(2)
+                    self.log("   ⚙️ Đang kiểm tra và phá bộ lọc 'Đang chờ vận chuyển'...")
+                    # Tìm đúng thẻ chứa chữ "Đang chờ vận chuyển" và click vào nút X (biểu tượng svg) bên trong nó
+                    reset_btn = page.locator('div, span').filter(has_text="Đang chờ vận chuyển").locator('svg').first
                     
-                    if await reset_btn.is_visible():
-                        await reset_btn.click()
-                        self.log("   ✅ Đã click icon xóa lọc.")
+                    if await reset_btn.count() > 0 and await reset_btn.first.is_visible():
+                        await reset_btn.first.click()
+                        self.log("   ✅ Đã click icon xóa bộ lọc thành công.")
                         await asyncio.sleep(3)
                     else:
-                        self.log("   ℹ️ Không thấy bộ lọc nào đang bật, bỏ qua.")
+                        self.log("   ℹ️ Không thấy bộ lọc 'Đang chờ vận chuyển' đang bật, bỏ qua.")
                 except Exception as e:
                     self.log(f"   ⚠️ Không thể phá lọc: {e}")
 

@@ -3,6 +3,11 @@
 ├── shophuyvan-analytics/
     └── .gitignore
     └── API endpoint.txt
+    └── cache_orders_lazada_api_kinhdoanhonlinegiasoc@gmail.com.json
+    └── cache_orders_shopee_chihuy1984.json
+    └── cache_orders_shopee_chihuy2309.json
+    └── cache_orders_shopee_khogiadungcona.json
+    └── cache_orders_shopee_phambich2312.json
     └── import_purchase.py
     └── NHẬP HÀNG CHÍNH NGẠCH.xlsx
     └── project_tree_full.txt
@@ -55,6 +60,7 @@
                     └── filters.js
                     └── kpi.js
                     └── main.js
+                    └── monthly.js
                     └── top.js
                 ├── modules/
                     └── handler-lazada.js
@@ -109,18 +115,14 @@
         └── cache_orders_shopee_chihuy2309.json
         └── cache_orders_shopee_khogiadungcona.json
         └── cache_orders_shopee_phambich2312.json
-        └── cache_orders_tiktok_0909128999.json
         └── cau truc thu muc OMS python.txt
         └── cctv_local_server.py
         └── config.py
-        └── debug_payload_lazada.json
-        └── debug_payload_lazada_orders.json
-        └── debug_payload_lazada_products.json
-        └── debug_payload_tiktok.json
         └── main.py
         └── media_chihuy1984.xlsx
         └── nhat_ky_tram.txt
         └── sales_chihuy1984.xlsx
+        └── temp_print_jobs.json
         └── Tem_API_2604052FTYNM12.pdf
         └── tunnel.log
         └── utils.py
@@ -155,7 +157,6 @@
                 └── shopee_products_api.py
                 └── shopee_products_browser.py
                 └── shopee_promo.py
-                └── shopee_status_core.py
                 └── shopee_token_core.py
             ├── tiktok/
                 └── tiktok_auth.py
@@ -165,7 +166,6 @@
                 └── tiktok_orders.py
                 └── tiktok_process.py
                 └── tiktok_products.py
-                └── tiktok_status_core.py
         ├── parsers/
             └── lazada_order_parser.py
             └── lazada_parser.py
@@ -174,116 +174,6 @@
             └── tiktok_order_parser.py
             └── tiktok_parser.py
         ├── Phieu_In_PDF/
-            └── 260401N6JR5N5T.pdf
-            └── 260401N7GMP6AD.pdf
-            └── 260402QVXTJA0R.pdf
-            └── 260402R02T658Y.pdf
-            └── 260403T70AA689.pdf
-            └── 260403T7RPFF80.pdf
-            └── 260403TC03Y9YA.pdf
-            └── 260403TF8MF46R.pdf
-            └── 260403TJ5PSB6D.pdf
-            └── 260403TK8DUR8M.pdf
-            └── 260403TP6R6MFY.pdf
-            └── 260403TQ39UXGY.pdf
-            └── 260403TT29717E.pdf
-            └── 260403TUBWH3KW.pdf
-            └── 260403TWYHHCDG.pdf
-            └── 260403TYD1RNHP.pdf
-            └── 260403U0CX7FC3.pdf
-            └── 260403U0GYW9X4.pdf
-            └── 260403U0JKDPXF.pdf
-            └── 2604040025TJEK.pdf
-            └── 260404024A33NY.pdf
-            └── 26040402BSEKXB.pdf
-            └── 260404030BFKHQ.pdf
-            └── 26040403HJNKYP.pdf
-            └── 26040403YTJ12P.pdf
-            └── 2604040BHNMCHE.pdf
-            └── 2604040BYD9JPG.pdf
-            └── 2604040FDYCAMD.pdf
-            └── 260404U3CQANPG.pdf
-            └── 260404U50JNKC6.pdf
-            └── 260404U6UCAKK3.pdf
-            └── 260404U6UNUQDR.pdf
-            └── 260404U6WKUNTN.pdf
-            └── 260404U7724K0U.pdf
-            └── 260404U7A0K17H.pdf
-            └── 260404U7WSSY9B.pdf
-            └── 260404U8XY6S5G.pdf
-            └── 260404U9AED5U5.pdf
-            └── 260404U9QF49T8.pdf
-            └── 260404UA5P21QM.pdf
-            └── 260404UFP0WP41.pdf
-            └── 260404UHBC0W8F.pdf
-            └── 260404UTDE5HKN.pdf
-            └── 260404UVSMNEW3.pdf
-            └── 260404UWMY6KC8.pdf
-            └── 260404UXM0WTFT.pdf
-            └── 260404V00DVEYP.pdf
-            └── 260404V4MER639.pdf
-            └── 260404V4S2N39A.pdf
-            └── 260404V5XVU6XX.pdf
-            └── 260404V65XUPNT.pdf
-            └── 260404V6GP4E5H.pdf
-            └── 260404VAAHS1DM.pdf
-            └── 260404VBJFNAGR.pdf
-            └── 260404VDR1J5VK.pdf
-            └── 260404VEEMDK52.pdf
-            └── 260404VGGMTGAP.pdf
-            └── 260404VGQ4R1H1.pdf
-            └── 260404VJQS795C.pdf
-            └── 260404VM04GJ4J.pdf
-            └── 260404VNCFKDEJ.pdf
-            └── 260404VPE825VN.pdf
-            └── 260404VRT611WN.pdf
-            └── 260404VTEYX6KM.pdf
-            └── 260404VX7WY0KX.pdf
-            └── 2604050GNNMQWC.pdf
-            └── 2604050J60G9RR.pdf
-            └── 2604050N5KWV8T.pdf
-            └── 2604051BY041SC.pdf
-            └── 2604051FMARGDX.pdf
-            └── 2604051GPPAFN7.pdf
-            └── 2604051H5TUCGV.pdf
-            └── 2604051M21FDJW.pdf
-            └── 2604051TCA1P8U.pdf
-            └── 2604051XBN5CUH.pdf
-            └── 2604051XK7BBUV.pdf
-            └── 26040520PETT5R.pdf
-            └── 26040520Q3V4JJ.pdf
-            └── 26040523247Q7X.pdf
-            └── 260405263UBGPB.pdf
-            └── 26040526AE461X.pdf
-            └── 260405282B4NU2.pdf
-            └── 260405284RF70K.pdf
-            └── 2604052AKNSP88.pdf
-            └── 2604052BVAJV98.pdf
-            └── 2604052DM8M4V4.pdf
-            └── 2604052FTYNM12.pdf
-            └── 2604052FU5CQDG.pdf
-            └── 2604052GM0QMCT.pdf
-            └── 2604052GTAWVMP.pdf
-            └── 2604052HDSPV52.pdf
-            └── 2604052J4RYTCF.pdf
-            └── 2604052J71G07D.pdf
-            └── 2604052NTA96XA.pdf
-            └── 2604052QT60B19.pdf
-            └── 2604052QWC20H2.pdf
-            └── 2604052QYS8M5B.pdf
-            └── 2604052XAK0BT6.pdf
-            └── 2604052YQM15HE.pdf
-            └── 2604052YW0NP8Y.pdf
-            └── 26040631SQ8F4N.pdf
-            └── 26040633UKUAHN.pdf
-            └── 2604063H5RG3JK.pdf
-            └── 2604063HCKTR3X.pdf
-            └── 2604063NAKWJ0B.pdf
-            └── 2604063UANCD89.pdf
-            └── 26040640QV5ENJ.pdf
-            └── 2604075HV5456J.pdf
-            └── 2604075JH3MFEK.pdf
-            └── 2604076MHHQ871.pdf
         ├── profiles/
             ├── Huy Vân Store Q.Bình Tân/
                 └── first_party_sets.db
@@ -1170,17 +1060,6 @@
                     └── data_3
                     └── index
         ├── temp_videos/
-            └── 1548238272381_raw.webm
-            └── 22518286_raw.webm
-            └── 5772106116132_raw.webm
-            └── 854134114880_raw.webm
-            └── 861556184996.mp4
-            └── SPXVN061641923423_raw.webm
-            └── SPXVN066329941104_raw.webm
-            └── SPXVN069324675003_raw.webm
-            └── SPXVN069868872864_raw.webm
-            └── VN2627664499913.mp4
-            └── VN268579718765C_raw.webm
         ├── ui/
             └── auto_run_tab.py
             └── login_tab.py

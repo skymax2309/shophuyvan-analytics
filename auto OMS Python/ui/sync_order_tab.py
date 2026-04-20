@@ -445,11 +445,23 @@ class SyncOrderTab(ctk.CTkFrame):
                                 del order_info["items"]
                             payload["orders"].append(order_info)
                             
-                            # 2. Tách danh sách Sản phẩm (Items)
+                            # 2. Tách danh sách Sản phẩm (Items) - 🌟 MÀNG LỌC ĐỒNG BỘ KEY TỪ CÁC SÀN VỀ CHUẨN DATABASE
                             if "items" in order:
                                 for item in order["items"]:
-                                    item_payload = item.copy()
-                                    item_payload["order_id"] = o_id
+                                    item_payload = {
+                                        "order_id": o_id,
+                                        "sku": item.get("sku", ""),
+                                        "product_name": item.get("product_name") or item.get("name") or "Sản phẩm",
+                                        "variation_name": item.get("variation_name") or item.get("variation") or item.get("clean_variation") or "",
+                                        "image_url": item.get("image_url") or item.get("image") or ""
+                                    }
+                                    
+                                    # Ép kiểu số nguyên cho Số lượng (qty) để Database không bị sập (lỗi 500)
+                                    try:
+                                        item_payload["qty"] = int(item.get("qty") or item.get("quantity") or 1)
+                                    except:
+                                        item_payload["qty"] = 1
+                                        
                                     payload["items"].append(item_payload)
                         try:
                             self.so_log_msg(f"🔎 [RADAR] Bot chuẩn bị gửi: {len(payload['orders'])} Đơn và {len(payload['items'])} Sản phẩm!")
