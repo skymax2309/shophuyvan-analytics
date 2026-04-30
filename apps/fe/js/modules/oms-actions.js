@@ -24,11 +24,55 @@ function getChecked() {
 
 // Cập nhật trạng thái Kho (CHUẨN 2 TẦNG)
 async function patchOmsStatus(ids, omsStatus, shippingStatus) {
-  await fetch(API + '/api/orders/bulk-oms-status', {
+  const res = await fetch(API + '/api/orders/bulk-oms-status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ order_ids: ids, oms_status: omsStatus, shipping_status: shippingStatus })
   });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(msg || 'Không cập nhật được trạng thái OMS');
+  }
+}
+
+function getSelectedGroups(ids) {
+  const cache = Array.isArray(getCacheFn?.()) ? getCacheFn() : [];
+  const byId = new Map(cache.map(o => [String(o.order_id), o]));
+  const groups = new Map();
+
+  ids.forEach(id => {
+    const order = byId.get(String(id));
+    if (!order?.shop || !order?.platform) {
+      throw new Error(`Không xác định được shop/sàn của đơn ${id}`);
+    }
+    const platform = String(order.platform).toLowerCase();
+    const shop = String(order.shop);
+    const key = `${platform}||${shop}`;
+    if (!groups.has(key)) groups.set(key, { platform, shop, order_ids: [] });
+    groups.get(key).order_ids.push(id);
+  });
+
+  return [...groups.values()];
+}
+
+async function createPrintJob(group) {
+  const now = new Date();
+  const res = await fetch(API + '/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      task_type: 'print_label',
+      payload: JSON.stringify({ order_ids: group.order_ids }),
+      shop_name: group.shop,
+      platform: group.platform,
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+    })
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(msg || `Không tạo được job in phiếu cho shop ${group.shop}`);
+  }
 }
 
 // ── CÁC HÀNH ĐỘNG CHÍNH ──────────────────────────────────────────
@@ -70,9 +114,27 @@ export async function markConfirmed() {
 }
 
 export async function markPrepare() {
-// ... (giữ nguyên ruột markPrepare) ...
-  if (clearCheckFn) clearCheckFn();
-  if (reloadFn) reloadFn(getPageFn());
+  const ids = getChecked();
+  if (!ids.length) return;
+  const groups = getSelectedGroups(ids);
+  const groupText = groups.map(g => `${g.shop} (${g.order_ids.length})`).join(', ');
+  if (!confirm(`Tạo lệnh chuẩn bị hàng + in PDF cho ${ids.length} đơn?\n\nShop: ${groupText}`)) return;
+
+  const btn = document.getElementById('btnPrepare');
+  if (btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
+  showToast('🖨️ Đang tạo lệnh in phiếu cho Bot...');
+
+  try {
+    await Promise.all(groups.map(createPrintJob));
+    await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_REQUEST_CREATED');
+    showToast(`✅ Đã gửi ${groups.length} lệnh in phiếu cho Bot (${ids.length} đơn).`);
+    if (clearCheckFn) clearCheckFn();
+    if (reloadFn) reloadFn(getPageFn());
+  } catch (e) {
+    showToast('❌ Lỗi tạo lệnh in phiếu: ' + e.message);
+  } finally {
+    if (btn) { btn.style.opacity = '1'; btn.disabled = false; }
+  }
 }
 
 export async function markPacked() {
@@ -237,7 +299,8 @@ export async function triggerBotStatus() {
 
 // Bơm thẳng các hàm này ra Window để các nút bấm (onclick) trên HTML gọi được
  Object.assign(window, {
-  deleteErrorOrders, markPrepare, markPacked,
+  deleteErrorOrders, markConfirmed, markPrepare, markPacked, markHandedOver,
   markCancelledTransit, markFailedDelivery, markReturnRefund,
-  archiveOldOrders, recalcAllCosts, triggerBotScrape, triggerBotStatus
+  archiveOldOrders, recalcAllCosts, triggerBotScrape, triggerBotStatus,
+  triggerBotUploadInventory
 });

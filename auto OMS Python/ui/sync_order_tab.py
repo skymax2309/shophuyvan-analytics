@@ -141,7 +141,7 @@ class SyncOrderTab(ctk.CTkFrame):
         import os
         
         # Đã cập nhật mã CONFIRMED sang LOGISTICS_REQUEST_CREATED (Chuẩn ShipXanh)
-        api_orders = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/orders?oms_status=LOGISTICS_REQUEST_CREATED&platform=shopee&limit=50"
+        api_orders = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/orders?oms_status=PENDING&shipping_status=LOGISTICS_REQUEST_CREATED&platform=shopee&limit=50"
         api_jobs = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/jobs"
         
         while self.is_auto_running:
@@ -162,21 +162,29 @@ class SyncOrderTab(ctk.CTkFrame):
                             for job in pending_jobs:
                                 job_id = job.get('id')
                                 task_type = job.get('task_type')
-                                payload = json.loads(job.get('payload', '{}'))
+                                payload_raw = job.get('payload') or '{}'
+                                payload = json.loads(payload_raw) if isinstance(payload_raw, str) else (payload_raw or {})
+                                job_shop = job.get('shop_name', '')
                                 
                                 # Khóa Lệnh lại để không bị chạy trùng
                                 requests.patch(f"{api_jobs}/{job_id}", json={"status": "processing"}, timeout=10)
                                 
                                 if task_type == 'print_label':
-                                    order_ids = payload.get('order_ids', [])
+                                    order_ids = payload.get('order_ids', []) if isinstance(payload, dict) else (payload if isinstance(payload, list) else [])
                                     self.so_log_msg(f"🖨️ [RADAR] Đã bắt được lệnh IN PHIẾU GIAO cho {len(order_ids)} đơn!")
                                     
-                                    # Viết giấy nhớ giao việc cho Bot Shopee
-                                    with open("temp_print_jobs.json", "w") as f:
-                                        json.dump(order_ids, f)
+                                    # Viết giấy nhớ giao việc cho Bot theo đúng shop, giữ file chung để tương thích.
+                                    temp_files = ["temp_print_jobs.json"]
+                                    if job_shop:
+                                        temp_files.insert(0, f"temp_print_jobs_{job_shop}.json")
+                                    for temp_file in temp_files:
+                                        with open(temp_file, "w", encoding="utf-8") as f:
+                                            json.dump(order_ids, f)
                                         
                                     # Khởi động Bot Shopee đi lấy PDF ngay lập tức
-                                    shop_data = next((s for s in self.app.DANH_SACH_SHOP if s.get("platform") == "shopee"), None)
+                                    shop_data = next((s for s in self.app.DANH_SACH_SHOP if job_shop and s.get("ten_shop") == job_shop), None)
+                                    if not shop_data:
+                                        shop_data = next((s for s in self.app.DANH_SACH_SHOP if s.get("platform") == "shopee"), None)
                                     if shop_data:
                                         self.so_log_msg("⚡ Đang khởi động Bot Shopee để lấy file PDF...")
                                         try:

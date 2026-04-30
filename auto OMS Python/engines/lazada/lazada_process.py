@@ -46,6 +46,8 @@ class LazadaOrderProcessor:
 
         orders = []
         temp_file = f"temp_print_jobs_{shop_name}.json"
+        if not os.path.exists(temp_file) and os.path.exists("temp_print_jobs.json"):
+            temp_file = "temp_print_jobs.json"
         if os.path.exists(temp_file):
             try:
                 with open(temp_file, "r") as f:
@@ -114,7 +116,7 @@ class LazadaOrderProcessor:
                     self.log(f"   ✅ Đã lấy được dữ liệu Phiếu in từ Lazada API.")
                     
                     # Đồng bộ trạng thái PACKING lên Server (Chuẩn ShipXanh)
-                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "LOGISTICS_PACKAGED"})
+                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "PENDING", "shipping_status": "LOGISTICS_PACKAGED"})
                     
                     # Đẩy "nội dung phiếu" lên R2 (Lưu dạng .html để Web xem trực tiếp cho nét)
                     upload_url = f"{self.api_url}/upload?file=labels/{order_id}.html&token=huyvan_secret_2026"

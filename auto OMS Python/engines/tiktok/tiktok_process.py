@@ -13,6 +13,8 @@ class TikTokOrderProcessor:
 
         orders = []
         temp_file = f"temp_print_jobs_{shop_name}.json"
+        if not os.path.exists(temp_file) and os.path.exists("temp_print_jobs.json"):
+            temp_file = "temp_print_jobs.json"
 
         # 1. ĐỌC LỆNH TỪ RADAR TRUYỀN XUỐNG
         if os.path.exists(temp_file):
@@ -194,7 +196,7 @@ class TikTokOrderProcessor:
 
                     # Báo cáo Server cập nhật lên "Đã đóng gói" (Chuẩn ShipXanh)
                     try:
-                        res = requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "LOGISTICS_PACKAGED"})
+                        res = requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "PENDING", "shipping_status": "LOGISTICS_PACKAGED"})
                         if res.status_code == 200:
                             self.log(f"🔄 Đã đồng bộ trạng thái về Web thành 'Đã đóng gói'.")
                     except: pass

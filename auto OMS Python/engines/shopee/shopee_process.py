@@ -65,6 +65,8 @@ class ShopeeOrderProcessor:
     async def process_by_api(self, token, shop_id, shop_name):
         orders = []
         temp_file = f"temp_print_jobs_{shop_name}.json"
+        if not os.path.exists(temp_file) and os.path.exists("temp_print_jobs.json"):
+            temp_file = "temp_print_jobs.json"
         if os.path.exists(temp_file):
             try:
                 with open(temp_file, "r") as f: order_ids = json.load(f)
@@ -75,7 +77,7 @@ class ShopeeOrderProcessor:
 
         if not orders:
             try:
-                res = requests.get(f"{self.api_url}/orders?oms_status=LOGISTICS_REQUEST_CREATED&platform=shopee&shop={shop_name}&limit=5")
+                res = requests.get(f"{self.api_url}/orders?oms_status=PENDING&shipping_status=LOGISTICS_REQUEST_CREATED&platform=shopee&shop={shop_name}&limit=5")
                 if res.status_code == 200:
                     orders = [o['order_id'] for o in res.json().get("data", [])]
             except: pass
@@ -131,7 +133,7 @@ class ShopeeOrderProcessor:
                         self.log(f"   ✅ Đồng bộ đám mây thành công!")
                         
                     # 5. Cập nhật trạng thái OMS
-                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "LOGISTICS_PACKAGED"})
+                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "PENDING", "shipping_status": "LOGISTICS_PACKAGED"})
                     self.log(f"   🔄 Đã đồng bộ trạng thái về Web thành 'Đã đóng gói'.")
                 else:
                     self.log(f"   ❌ Lỗi tải PDF từ API Shopee. Sàn chưa duyệt xong mã vạch.")
@@ -150,6 +152,8 @@ class ShopeeOrderProcessor:
         self.log(f"[*] Bắt đầu quy trình CHUẨN BỊ HÀNG bằng Chrome cho shop: {shop_name}")
         orders = []
         temp_file = f"temp_print_jobs_{shop_name}.json"
+        if not os.path.exists(temp_file) and os.path.exists("temp_print_jobs.json"):
+            temp_file = "temp_print_jobs.json"
         if os.path.exists(temp_file):
             try:
                 with open(temp_file, "r") as f: orders = [{"order_id": oid} for oid in json.load(f)]
@@ -158,7 +162,7 @@ class ShopeeOrderProcessor:
 
         if not orders:
             try:
-                res = requests.get(f"{self.api_url}/orders?oms_status=LOGISTICS_REQUEST_CREATED&platform=shopee&shop={shop_name}&limit=5")
+                res = requests.get(f"{self.api_url}/orders?oms_status=PENDING&shipping_status=LOGISTICS_REQUEST_CREATED&platform=shopee&shop={shop_name}&limit=5")
                 if res.status_code == 200: orders = res.json().get("data", [])
             except: pass
 
@@ -252,7 +256,7 @@ class ShopeeOrderProcessor:
                     except Exception as pdf_err: pass
                     await new_page.close()
                     
-                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "LOGISTICS_PACKAGED"})
+                    requests.patch(f"{self.api_url}/orders/{order_id}/oms-status", json={"oms_status": "PENDING", "shipping_status": "LOGISTICS_PACKAGED"})
                     self.log(f"🔄 Đã đồng bộ trạng thái về Web thành 'Đã đóng gói'.")
             except Exception as e:
                 continue

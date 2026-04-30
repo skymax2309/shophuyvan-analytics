@@ -6,6 +6,54 @@
 import { getCostSettings, calcProfit } from '../utils/db.js'
 import { getFilters } from '../utils/filters.js'
 
+const OMS_STATUS_ALIASES = {
+  PENDING: ['PENDING', 'LOGISTICS_PENDING_ARRANGE', 'LOGISTICS_REQUEST_CREATED', 'LOGISTICS_PACKAGED', 'ADVANCE_FULFILMENT'],
+  SHIPPING: ['SHIPPING', 'SHIPPED'],
+  SHIPPED: ['SHIPPING', 'SHIPPED'],
+  CANCELLED: ['CANCELLED', 'CANCELLED_TRANSIT', 'IN_CANCEL'],
+  RETURN: ['RETURN', 'RETURN_REFUND', 'LOGISTICS_IN_RETURN', 'LOGISTICS_RETURNED_BY_SHIPPER', 'LOGISTICS_RETURN_PACKAGE_RECEIVED', 'LOGISTICS_LOST', 'FAILED_DELIVERY']
+}
+
+const CHILD_TO_PARENT_STATUS = {
+  LOGISTICS_PENDING_ARRANGE: 'PENDING',
+  READY_TO_SHIP: 'PENDING',
+  confirmed: 'PENDING',
+  LOGISTICS_REQUEST_CREATED: 'PENDING',
+  PROCESSED: 'PENDING',
+  LOGISTICS_PACKAGED: 'PENDING',
+  ADVANCE_FULFILMENT: 'PENDING',
+  SHIPPED: 'SHIPPING',
+  TO_CONFIRM_RECEIVE: 'SHIPPING',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  CANCELLED_TRANSIT: 'CANCELLED',
+  IN_CANCEL: 'CANCELLED',
+  RETURN: 'RETURN',
+  RETURN_REFUND: 'RETURN',
+  LOGISTICS_IN_RETURN: 'RETURN',
+  LOGISTICS_RETURNED_BY_SHIPPER: 'RETURN',
+  LOGISTICS_RETURN_PACKAGE_RECEIVED: 'RETURN',
+  LOGISTICS_LOST: 'RETURN',
+  FAILED_DELIVERY: 'RETURN'
+}
+
+function expandOmsStatusFilter(status) {
+  const parts = String(status || '').split(',').map(s => s.trim()).filter(Boolean)
+  const values = parts.flatMap(s => OMS_STATUS_ALIASES[s] || [s])
+  return [...new Set(values)]
+}
+
+function normalizeOmsStatusPair(omsStatus, shippingStatus) {
+  const oms = String(omsStatus || '').trim()
+  const shipping = String(shippingStatus || '').trim()
+  if (!oms) return { oms: '', shipping }
+  if (shipping) return { oms: CHILD_TO_PARENT_STATUS[oms] || oms, shipping }
+  if (CHILD_TO_PARENT_STATUS[oms] && CHILD_TO_PARENT_STATUS[oms] !== oms) {
+    return { oms: CHILD_TO_PARENT_STATUS[oms], shipping: oms }
+  }
+  return { oms, shipping: '' }
+}
+
 
 async function exportOrders(request, env, cors) {
   const filters = getFilters(new URL(request.url))
@@ -420,7 +468,12 @@ async function getOrders(request, env, cors) {
   if (plt)    { conds.push(`o.platform = ?`);          params.push(plt) }
   if (shop)   { conds.push(`o.shop = ?`);              params.push(shop) }
   if (type)   { conds.push(`o.order_type = ?`);        params.push(type) }
-  if (status) { conds.push(`o.oms_status = ?`);        params.push(status) }
+  if (status) {
+    const statusArr = expandOmsStatusFilter(status)
+    const marks = statusArr.map(() => '?').join(',')
+    conds.push(`o.oms_status IN (${marks})`)
+    params.push(...statusArr)
+  }
   if (search) {
     conds.push(`(o.order_id LIKE ? OR o.shop LIKE ? OR o.customer_name LIKE ? OR o.tracking_number LIKE ?)`)
     const q = `%${search}%`
@@ -506,24 +559,34 @@ async function updateOmsStatus(request, env, cors, orderId) {
   const body = await request.json()
   // 🌟 Đã mở cửa nhận thêm Mã Vận Đơn (Tracking)
   const { oms_status, shipping_status, tracking_number } = body
+  const normalized = normalizeOmsStatusPair(oms_status, shipping_status)
 
-  if (!oms_status || !shipping_status) {
+  if (!normalized.oms && !normalized.shipping && !tracking_number) {
     return Response.json({ error: 'Thiếu dữ liệu trạng thái!' }, { status: 400, headers: cors })
   }
 
-  if (tracking_number) {
-      await env.DB.prepare(`
-        UPDATE orders_v2 
-        SET oms_status = ?, shipping_status = ?, tracking_number = ?, oms_updated_at = datetime('now', '+7 hours')
-        WHERE order_id = ?
-      `).bind(oms_status, shipping_status, tracking_number, orderId).run()
-  } else {
-      await env.DB.prepare(`
-        UPDATE orders_v2 
-        SET oms_status = ?, shipping_status = ?, oms_updated_at = datetime('now', '+7 hours')
-        WHERE order_id = ?
-      `).bind(oms_status, shipping_status, orderId).run()
+  const sets = []
+  const params = []
+  if (normalized.oms) {
+    sets.push('oms_status = ?')
+    params.push(normalized.oms)
   }
+  if (normalized.shipping) {
+    sets.push('shipping_status = ?')
+    params.push(normalized.shipping)
+  }
+  if (tracking_number) {
+    sets.push('tracking_number = ?')
+    params.push(tracking_number)
+  }
+  sets.push("oms_updated_at = datetime('now', '+7 hours')")
+  params.push(orderId)
+
+  await env.DB.prepare(`
+    UPDATE orders_v2
+    SET ${sets.join(', ')}
+    WHERE order_id = ?
+  `).bind(...params).run()
   
   return Response.json({ status: "ok" }, { headers: cors })
 }
@@ -549,12 +612,19 @@ async function handleShopeeWebhook(request, env, cors) {
       
       if (orderId && newStatus) {
           // 🌟 BỘ DỊCH TRẠNG THÁI TỪ SHOPEE SANG TAB CỦA WEB OMS
-          let omsStatus = "PENDING"; // Mặc định
-          if (newStatus === "UNPAID") omsStatus = "UNPAID";
-          else if (newStatus === "READY_TO_SHIP" || newStatus === "PROCESSED") omsStatus = "PENDING";
-          else if (newStatus === "SHIPPED") omsStatus = "SHIPPED";
-          else if (newStatus === "COMPLETED") omsStatus = "COMPLETED";
-          else if (newStatus === "CANCELLED" || newStatus === "IN_CANCEL") omsStatus = "CANCELLED";
+          const shopeeStatusMap = {
+            UNPAID: { oms: "UNPAID", shipping: "UNPAID" },
+            READY_TO_SHIP: { oms: "PENDING", shipping: "LOGISTICS_PENDING_ARRANGE" },
+            PROCESSED: { oms: "PENDING", shipping: "LOGISTICS_REQUEST_CREATED" },
+            SHIPPED: { oms: "SHIPPING", shipping: "SHIPPED" },
+            TO_CONFIRM_RECEIVE: { oms: "SHIPPING", shipping: "TO_CONFIRM_RECEIVE" },
+            COMPLETED: { oms: "COMPLETED", shipping: "COMPLETED" },
+            CANCELLED: { oms: "CANCELLED", shipping: "CANCELLED" },
+            IN_CANCEL: { oms: "CANCELLED", shipping: "CANCELLED" }
+          }
+          const mappedStatus = shopeeStatusMap[newStatus] || normalizeOmsStatusPair(newStatus, "")
+          const omsStatus = mappedStatus.oms || "PENDING"
+          const shippingStatus = mappedStatus.shipping || newStatus
 
           // Lưu ý: Update chỉ chạy thành công với những đơn đã có sẵn trong Database (Do Bot cào vỏ vào trước đó)
           await env.DB.prepare(`
@@ -563,7 +633,7 @@ async function handleShopeeWebhook(request, env, cors) {
                 oms_status = CASE WHEN ? != 'PENDING' THEN ? ELSE oms_status END,
                 oms_updated_at = datetime('now', '+7 hours')
             WHERE order_id = ?
-          `).bind(newStatus, omsStatus, omsStatus, orderId).run();
+          `).bind(shippingStatus, omsStatus, omsStatus, orderId).run();
       }
     }
 
@@ -590,4 +660,4 @@ async function handleShopeeWebhook(request, env, cors) {
   }
 }
 
-export { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus, handleShopeeWebhook }
+export { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus, handleShopeeWebhook, normalizeOmsStatusPair }

@@ -3,7 +3,7 @@ import { getFilters, buildWhere }        from './utils/filters.js'
 import { getCostSettings, calcProfit }   from './utils/db.js'
 import { handleProducts, handleCostSettings, handleVariations } from './routes/products.js'
 import { handleShopsWarehouse } from './routes/shops.js'
-import { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus, handleShopeeWebhook } from './routes/orders.js'
+import { exportOrders, recalcCost, importOrdersV2, getOrders, updateOmsStatus, handleShopeeWebhook, normalizeOmsStatusPair } from './routes/orders.js'
 import { dashboard, revenueByDay, profitByDay, uniqueSkus,
          topSku, topProduct, topShop, topPlatform,
          cancelStats, priceCalc, topSkuFull } from './routes/dashboard.js'
@@ -348,19 +348,20 @@ export default {
       // Cập nhật nhiều đơn cùng lúc (HỖ TRỢ 2 TẦNG TRẠNG THÁI)
       if (url.pathname === "/api/orders/bulk-oms-status" && request.method === "POST") {
         const { order_ids, oms_status, shipping_status } = await request.json()
-        if (!order_ids?.length || !oms_status)
+        const normalizedStatus = normalizeOmsStatusPair(oms_status, shipping_status)
+        if (!order_ids?.length || !normalizedStatus.oms)
           return Response.json({ error: "Missing data" }, { status: 400, headers: cors })
           
         let stmts = [];
-        if (shipping_status) {
+        if (normalizedStatus.shipping) {
             stmts = order_ids.map(id =>
               env.DB.prepare(`UPDATE orders_v2 SET oms_status=?, shipping_status=?, oms_updated_at=datetime('now','+7 hours') WHERE order_id=?`)
-                .bind(oms_status, shipping_status, id)
+                .bind(normalizedStatus.oms, normalizedStatus.shipping, id)
             )
         } else {
             stmts = order_ids.map(id =>
               env.DB.prepare(`UPDATE orders_v2 SET oms_status=?, oms_updated_at=datetime('now','+7 hours') WHERE order_id=?`)
-                .bind(oms_status, id)
+                .bind(normalizedStatus.oms, id)
             )
         }
         await env.DB.batch(stmts)

@@ -40,7 +40,9 @@ export function debounceLoad() {
 
 // ── SIDEBAR SWITCH ──────────────────────────────────────────────────
 export function switchStatus(s) {
-  currentStatus   = s === currentStatus && s !== 'ALL' ? 'ALL' : s
+  const nextStatus = s === 'SHIPPED' ? 'SHIPPING' : s
+  currentStatus   = nextStatus === currentStatus && nextStatus !== 'ALL' ? 'ALL' : nextStatus
+  currentSubStatus = ''
   currentType     = ''
   currentPlatform = ''
   document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'))
@@ -51,6 +53,7 @@ export function switchStatus(s) {
 export function switchType(t) {
   currentType     = t === currentType ? '' : t
   currentStatus   = 'ALL'
+  currentSubStatus = ''
   currentPlatform = ''
   document.querySelectorAll('.status-tab').forEach(el => el.classList.remove('active'))
   if (currentType) document.getElementById('tab-' + t)?.classList.add('active')
@@ -61,6 +64,7 @@ export function switchType(t) {
 export function switchPlatform(p) {
   currentPlatform = p === currentPlatform ? '' : p
   currentStatus   = 'ALL'
+  currentSubStatus = ''
   currentType     = ''
   document.querySelectorAll('.status-tab').forEach(el => el.classList.remove('active'))
   if (currentPlatform) document.getElementById('tab-' + p)?.classList.add('active')
@@ -183,6 +187,7 @@ export function resetFilter() {
   document.getElementById('f_search').value   = ''
   document.getElementById('f_shipping').value = ''
   currentStatus   = 'ALL'
+  currentSubStatus = ''
   currentType     = ''
   currentPlatform = ''
   document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'))
@@ -224,6 +229,7 @@ export { fmt, fmtDate, showToast, copyText, closeModal };
 
 // [CORE LOGIC] CHUYỂN ĐỔI TAB 2 TẦNG (TÍCH HỢP ĐỒNG BỘ DESKTOP & MOBILE)
 window.switchMainTab = function(mainStatus) {
+    if (mainStatus === 'SHIPPED') mainStatus = 'SHIPPING';
     console.log(`[OMS LOG] 👆 Chuyển Tab Tầng 1: ${mainStatus}`);
     currentStatus = mainStatus;
     currentSubStatus = ''; // 🌟 Reset tab phụ mỗi khi chuyển tab chính
@@ -238,15 +244,16 @@ window.switchMainTab = function(mainStatus) {
 
 const subConfig = {
         'PENDING': [
-            { id: 'Chờ xác nhận,confirmed,ready_to_ship,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' }, 
+            { id: '', label: 'Tất Cả' },
+            { id: 'Chờ xác nhận,confirmed,ready_to_ship,READY_TO_SHIP,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' },
             { id: 'Chờ lấy hàng,PROCESSED,LOGISTICS_REQUEST_CREATED,đã chuẩn bị', label: 'Đã Xử Lý' },
             { id: 'LOGISTICS_PACKAGED,Đã đóng gói', label: 'Đã Đóng Gói' },
             { id: 'ADVANCE_FULFILMENT', label: 'Gói Sẵn Giao Nhanh' }
         ],
         // 🌟 Đã xóa sổ hoàn toàn menu con của SHIPPING, COMPLETED và CANCELLED cho sạch màn hình
         'RETURN': [
-            // 🌟 Đã tiễn dòng "Tất Cả" vô dụng đi
-            { id: 'Hoàn hàng,package returned', label: 'Hoàn Tiền' },
+            { id: '', label: 'Tất Cả' },
+            { id: 'Hoàn hàng,package returned,RETURN,RETURN_REFUND', label: 'Hoàn Tiền' },
             { id: 'TO_RETURN,LOGISTICS_IN_RETURN', label: 'Đang Hoàn' },
             { id: 'lost by 3pl,LOGISTICS_LOST', label: 'Thất Lạc' },
             { id: 'Giao thất bại,FAILED_DELIVERY', label: 'Giao Thất Bại' }

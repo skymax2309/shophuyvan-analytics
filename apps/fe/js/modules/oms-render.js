@@ -6,6 +6,30 @@ import { fmt, fmtDate } from '../utils/helpers.js';
 
 // ── 1. SHIPPING STATUS TAGS ──────────────────────────────────────────
 export function renderShippingStatus(s) {
+  const raw = String(s || '').trim();
+  const labelMap = {
+    LOGISTICS_PENDING_ARRANGE: 'Chưa xử lý',
+    READY_TO_SHIP: 'Chưa xử lý',
+    confirmed: 'Chờ xác nhận',
+    LOGISTICS_REQUEST_CREATED: 'Đã xử lý',
+    PROCESSED: 'Đã xử lý',
+    LOGISTICS_PACKAGED: 'Đã đóng gói',
+    ADVANCE_FULFILMENT: 'Gói sẵn giao nhanh',
+    SHIPPING: 'Đang giao',
+    SHIPPED: 'Đang giao',
+    TO_CONFIRM_RECEIVE: 'Đang giao',
+    COMPLETED: 'Đã giao',
+    CANCELLED: 'Đã hủy',
+    CANCELLED_TRANSIT: 'Đã hủy',
+    RETURN: 'Hoàn hàng',
+    RETURN_REFUND: 'Hoàn hàng',
+    LOGISTICS_IN_RETURN: 'Đang hoàn',
+    LOGISTICS_RETURNED_BY_SHIPPER: 'Shipper trả',
+    LOGISTICS_RETURN_PACKAGE_RECEIVED: 'Đã nhận hoàn',
+    LOGISTICS_LOST: 'Thất lạc',
+    FAILED_DELIVERY: 'Giao thất bại'
+  };
+  const label = labelMap[raw] || raw || 'Chưa rõ';
   const map = {
     'Chờ lấy hàng':  { color: '#f59e0b', bg: 'rgba(245,158,11,.12)', icon: '📬' },
     'Chờ xác nhận':  { color: '#a78bfa', bg: 'rgba(167,139,250,.12)', icon: '🕐' },
@@ -13,9 +37,18 @@ export function renderShippingStatus(s) {
     'Đã giao':        { color: '#22c55e', bg: 'rgba(34,197,94,.12)',   icon: '✅' },
     'Đã hủy':         { color: '#ef4444', bg: 'rgba(239,68,68,.12)',   icon: '✗'  },
     'Hoàn hàng':      { color: '#f97316', bg: 'rgba(249,115,22,.12)',  icon: '↩'  },
+    'Chưa xử lý':      { color: '#a78bfa', bg: 'rgba(167,139,250,.12)', icon: '⏳' },
+    'Đã xử lý':        { color: '#f59e0b', bg: 'rgba(245,158,11,.12)', icon: '✓' },
+    'Đã đóng gói':     { color: '#14b8a6', bg: 'rgba(20,184,166,.12)', icon: '📦' },
+    'Gói sẵn giao nhanh': { color: '#0ea5e9', bg: 'rgba(14,165,233,.12)', icon: '⚡' },
+    'Đang hoàn':       { color: '#f97316', bg: 'rgba(249,115,22,.12)',  icon: '↩'  },
+    'Shipper trả':     { color: '#f97316', bg: 'rgba(249,115,22,.12)',  icon: '↩'  },
+    'Đã nhận hoàn':    { color: '#f97316', bg: 'rgba(249,115,22,.12)',  icon: '↩'  },
+    'Thất lạc':        { color: '#ef4444', bg: 'rgba(239,68,68,.12)',   icon: '?'  },
+    'Giao thất bại':   { color: '#f97316', bg: 'rgba(249,115,22,.12)',  icon: '!'  },
   }
-  const info = map[s] || { color: 'var(--muted)', bg: 'var(--surface2)', icon: '—' }
-  return `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${info.bg};color:${info.color};border:1px solid ${info.color}33;white-space:nowrap">${info.icon} ${s||'Chưa rõ'}</span>`
+  const info = map[label] || map[raw] || { color: 'var(--muted)', bg: 'var(--surface2)', icon: '—' }
+  return `<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:${info.bg};color:${info.color};border:1px solid ${info.color}33;white-space:nowrap">${info.icon} ${label}</span>`
 }
 
 // ── 2. RENDER MAIN TABLE ─────────────────────────────────────────────
@@ -60,12 +93,19 @@ export function renderTable(omsCache) {
       lazada:  `<span class="plt-tag plt-lazada">🛒 Lazada</span>`,
     }[o.platform] || `<span class="plt-tag">${o.platform||'—'}</span>`
 
+    const statusForLabel = (o.oms_status === 'PENDING' || o.oms_status === 'RETURN')
+      ? (o.shipping_status || o.oms_status)
+      : o.oms_status;
+    const statusClass = String(statusForLabel || o.oms_status || 'PENDING').replace(/[^A-Za-z0-9_-]/g, '_');
+
     const omsInfo = {
       // Nhóm 1: Trạng thái cốt lõi
       UNPAID: { icon: '💳', label: 'Chờ Thanh Toán' },
+      SHIPPING: { icon: '🚚', label: 'Đang Giao' },
       SHIPPED: { icon: '🚚', label: 'Đang Giao' },
       COMPLETED: { icon: '🏆', label: 'Đã Giao' },
       CANCELLED: { icon: '✗', label: 'Đã Huỷ' },
+      CANCELLED_TRANSIT: { icon: '✗', label: 'Huỷ Khi Vận Chuyển' },
       RETURN: { icon: '↩', label: 'Hoàn Hàng' },
       // Nhóm 2: Chờ Xử Lý (Tầng 2)
       LOGISTICS_PENDING_ARRANGE: { icon: '🕐', label: 'Chưa Xử Lý' },
@@ -76,8 +116,12 @@ export function renderTable(omsCache) {
       LOGISTICS_IN_RETURN: { icon: '🔙', label: 'Đang Hoàn' },
       LOGISTICS_RETURNED_BY_SHIPPER: { icon: '👤', label: 'Shipper Trả' },
       LOGISTICS_RETURN_PACKAGE_RECEIVED: { icon: '📥', label: 'Đã Nhận Hoàn' },
-      LOGISTICS_LOST: { icon: '❓', label: 'Thất Lạc' }
-    }[o.oms_status] || { icon: '🏷️', label: o.oms_status || 'CHƯA RÕ' }
+      LOGISTICS_LOST: { icon: '❓', label: 'Thất Lạc' },
+      RETURN_REFUND: { icon: '↩', label: 'Hoàn Tiền' },
+      FAILED_DELIVERY: { icon: '⚠', label: 'Giao Thất Bại' },
+      READY_TO_SHIP: { icon: '🕐', label: 'Chưa Xử Lý' },
+      PROCESSED: { icon: '✅', label: 'Đã Xử Lý' }
+    }[statusForLabel] || { icon: '🏷️', label: statusForLabel || 'CHƯA RÕ' }
 
     const typeHtml = {
       normal: `<span class="type-normal">✓ Thành công</span>`,
@@ -170,7 +214,7 @@ export function renderTable(omsCache) {
         </div>
       </td>
       <td data-label="Kho (OMS)">
-        <span class="oms-tag oms-${o.oms_status||'PENDING'}">
+        <span class="oms-tag oms-${statusClass}">
           <span class="dot"></span>${omsInfo.label}
         </span>
       </td>
@@ -212,29 +256,38 @@ export async function updateBadges() {
     const badges = await fetch(API + '/api/orders/badges').then(r => r.json());
     
     // Thuật toán "Gom Bi": Cộng dồn số lượng Tầng 2 lên Tầng 1
-    const pendingCount = (badges['LOGISTICS_PENDING_ARRANGE'] || 0) +
+    const pendingCount = (badges['PENDING'] || 0) +
+                         (badges['LOGISTICS_PENDING_ARRANGE'] || 0) +
                          (badges['LOGISTICS_REQUEST_CREATED'] || 0) +
                          (badges['LOGISTICS_PACKAGED'] || 0) +
                          (badges['ADVANCE_FULFILMENT'] || 0);
-                         
+
+    const shippingCount = (badges['SHIPPING'] || 0) +
+                          (badges['SHIPPED'] || 0);
+
     const returnCount = (badges['LOGISTICS_IN_RETURN'] || 0) +
                         (badges['LOGISTICS_RETURNED_BY_SHIPPER'] || 0) +
                         (badges['LOGISTICS_RETURN_PACKAGE_RECEIVED'] || 0) +
                         (badges['LOGISTICS_LOST'] || 0) +
+                        (badges['FAILED_DELIVERY'] || 0) +
+                        (badges['RETURN_REFUND'] || 0) +
                         (badges['RETURN'] || 0);
+
+    const cancelledCount = (badges['CANCELLED'] || 0) +
+                           (badges['CANCELLED_TRANSIT'] || 0);
 
     // Bảng điều phối cuối cùng
     const finalCounts = {
       'ALL': badges['ALL'] || 0,
       'UNPAID': badges['UNPAID'] || 0,
       'PENDING': pendingCount,
-      'SHIPPED': badges['SHIPPED'] || 0,
+      'SHIPPING': shippingCount,
       'COMPLETED': badges['COMPLETED'] || 0,
-      'CANCELLED': badges['CANCELLED'] || 0,
+      'CANCELLED': cancelledCount,
       'RETURN': returnCount
     };
 
-    const keys = ['ALL', 'UNPAID', 'PENDING', 'SHIPPED', 'COMPLETED', 'CANCELLED', 'RETURN'];
+    const keys = ['ALL', 'UNPAID', 'PENDING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'RETURN'];
     keys.forEach(k => {
       const el = document.getElementById('cnt-' + k);
       if (el) el.textContent = finalCounts[k] || 0;
