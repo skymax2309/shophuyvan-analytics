@@ -21,6 +21,13 @@ function cleanYmd(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
 }
 
+function addDaysYmd(ymd, days = 1) {
+  const [year, month, day] = String(ymd || '').split('-').map(Number)
+  if (!year || !month || !day) return ymd
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return date.toISOString().slice(0, 10)
+}
+
 function dateYmd(date) {
   const shifted = new Date(date.getTime() + 7 * 3600 * 1000)
   const yyyy = shifted.getUTCFullYear()
@@ -51,10 +58,27 @@ function financeWhere(options, alias = 'oa') {
   const prefix = alias ? `${alias}.` : ''
   const conds = ['1=1']
   const params = []
-  if (options.from) { conds.push(`date(${prefix}order_date) >= ?`); params.push(options.from) }
-  if (options.to) { conds.push(`date(${prefix}order_date) <= ?`); params.push(options.to) }
-  if (options.platform) { conds.push(`LOWER(COALESCE(${prefix}platform, '')) = ?`); params.push(options.platform) }
-  if (options.shop) { conds.push(`${prefix}shop = ?`); params.push(options.shop) }
+
+  if (options.from) {
+    conds.push(`${prefix}order_date >= ?`)
+    params.push(options.from)
+  }
+
+  if (options.to) {
+    conds.push(`${prefix}order_date < ?`)
+    params.push(addDaysYmd(options.to, 1))
+  }
+
+  if (options.platform) {
+    conds.push(`LOWER(COALESCE(${prefix}platform, '')) = ?`)
+    params.push(options.platform)
+  }
+
+  if (options.shop) {
+    conds.push(`${prefix}shop = ?`)
+    params.push(options.shop)
+  }
+
   return { where: `WHERE ${conds.join(' AND ')}`, params }
 }
 
@@ -254,7 +278,7 @@ async function readMissingPaymentRows(env, options) {
     FROM order_analytics oa
     ${filter.where}
       AND (oa.actual_income_source = ? OR COALESCE(oa.actual_income_source, '') = '')
-    ORDER BY date(oa.order_date) DESC, oa.order_sn DESC
+    ORDER BY oa.order_date DESC, oa.order_sn DESC
     LIMIT ?
   `).bind(...filter.params, ESTIMATE_SOURCE, options.limit).all()
   return rows.results || []
