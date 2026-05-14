@@ -11,3 +11,69 @@
         input[type="checkbox"] { accent-color: #00CED1; width: 18px; height: 18px; }
         .badge-kg { background: #FFA500; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; }
         .badge-khoi { background: #00CED1; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px; } 
+		html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.purchase-page {
+  min-width: 0;
+}
+
+.purchase-actions,
+.purchase-toolbar,
+.purchase-toolbar-actions {
+  min-width: 0;
+}
+
+.purchase-actions button,
+.purchase-toolbar-actions button {
+  white-space: nowrap;
+}
+
+.purchase-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#purchaseTable {
+  min-width: 980px;
+}
+
+#purchaseTable th,
+#purchaseTable td {
+  vertical-align: top;
+}
+
+#purchaseTable td {
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  h1 {
+    font-size: 1.25rem !important;
+    line-height: 1.6rem !important;
+  }
+
+  .purchase-toolbar-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  #purchaseTable {
+    min-width: 920px;
+  }
+
+  #purchaseTable th,
+  #purchaseTable td {
+    padding: 0.75rem;
+  }
+
+  #settingsModal {
+    padding: 12px;
+  }
+}

@@ -248,14 +248,12 @@
     }
 	
 	// Hàm xử lý khi click "Chọn tất cả"
-    function toggleSelectAll() {
-        const isChecked = event.target.checked;
-        // Tích chọn hoặc bỏ chọn tất cả các dòng
-        document.querySelectorAll('.row-check').forEach(cb => cb.checked = isChecked);
-        // Đồng bộ trạng thái cho cả 2 nút "Chọn tất cả" trên giao diện
-        document.querySelectorAll('#selectAll').forEach(cb => cb.checked = isChecked);
-        updateSelectedCount();
-    }
+function toggleSelectAll() {
+    const isChecked = event.target.checked;
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = isChecked);
+    document.querySelectorAll('#selectAll, .select-all-table').forEach(cb => cb.checked = isChecked);
+    updateSelectedCount();
+}
 
 	function updateSelectedCount() {
     const selectedCount = document.querySelectorAll('.row-check:checked').length;
@@ -264,10 +262,15 @@
     // Sửa lại ID cho đúng với HTML (btnDeleteAll)
     const btnDelete = document.getElementById('btnDeleteAll');
     if (selectedCount > 0) {
-        btnDelete.classList.remove('hidden');
-    } else {
-        btnDelete.classList.add('hidden');
-    }
+    btnDelete.classList.remove('hidden');
+} else {
+    btnDelete.classList.add('hidden');
+}
+
+const totalRows = document.querySelectorAll('.row-check').length;
+document.querySelectorAll('#selectAll, .select-all-table').forEach(cb => {
+    cb.checked = totalRows > 0 && selectedCount === totalRows;
+});
 }
 
 // Hàm xóa hàng loạt các mục đã tích

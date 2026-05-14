@@ -2,6 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quản Lý Nhập Hàng Chính Ngạch | Huy Vân Analytics</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -11,9 +12,9 @@
 <link rel="stylesheet" href="../css/admin-purchase.css">
 <script src="../js/auth-guard.js?v=account-widget-20260504"></script>
 </head>
-<body class="p-6">
+<body class="p-3 sm:p-6 overflow-x-hidden">
 
-<div class="w-full px-4 mx-auto">
+<div class="purchase-page w-full max-w-full px-0 sm:px-4 mx-auto">
     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div>
             <h1 class="text-3xl font-bold text-[#00CED1] flex items-center gap-2">
@@ -22,23 +23,23 @@
             <p class="text-gray-500 italic mt-1">Tự động tối ưu chi phí vận chuyển & xuất hồ sơ hải quan</p>
         </div>
         
-        <div class="flex gap-3">
-            <input type="text" id="searchInput" placeholder="Tìm tên SP, SKU hoặc Mã vận đơn..." 
-                   class="bg-[#1a1a1a] border border-[#333] rounded-lg px-4 py-2 w-80 focus:border-[#00CED1] outline-none">
-            <button onclick="document.getElementById('excelInput').click()" class="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg font-bold text-white">📥 IMPORT EXCEL</button>
-            <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="importExcel(this)">
-            <button onclick="addNewRow()" class="btn-cyan px-5 py-2 rounded-lg font-bold">✚ THÊM MỚI</button>
-        </div>
+        <div class="purchase-actions flex flex-col sm:flex-row sm:flex-wrap gap-3 w-full md:w-auto">
+    <input type="text" id="searchInput" placeholder="Tìm tên SP, SKU hoặc Mã vận đơn..."
+           class="bg-[#1a1a1a] border border-[#333] rounded-lg px-4 py-2 w-full sm:w-80 focus:border-[#00CED1] outline-none">
+    <button onclick="document.getElementById('excelInput').click()" class="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg font-bold text-white w-full sm:w-auto">📥 IMPORT EXCEL</button>
+    <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="importExcel(this)">
+    <button onclick="addNewRow()" class="btn-cyan px-5 py-2 rounded-lg font-bold w-full sm:w-auto">✚ THÊM MỚI</button>
+</div>
     </div>
 
-    <div class="glass-card p-4 mb-4 flex justify-between items-center">
+    <div class="glass-card purchase-toolbar p-4 mb-4 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
         <div class="flex items-center gap-4 text-sm">
             <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="selectAll" onclick="toggleSelectAll()"> Chọn tất cả
+                <input type="checkbox" id="selectAll" onclick="toggleSelectAll(event)"> Chọn tất cả
             </label>
             <span id="selectedCount" class="text-[#00CED1] font-bold">0</span> sản phẩm đã chọn
         </div>
-        <div class="flex gap-3">
+        <div class="purchase-toolbar-actions flex flex-col sm:flex-row sm:flex-wrap gap-3">
             <button onclick="exportData('excel')" class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
                 📥 XUẤT EXCEL
             </button>
@@ -52,11 +53,11 @@
         </div>
     </div>
 
-    <div class="glass-card overflow-x-auto max-h-[700px]">
-        <table id="purchaseTable">
+    <div class="glass-card purchase-table-wrap max-h-[700px]">
+    <table id="purchaseTable">
             <thead>
                 <tr class="text-[11px] uppercase text-gray-400 bg-[#1f1f1f] sticky top-0 z-20 shadow-md">
-                    <th class="p-4 text-center w-10"><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                   <th class="p-4 text-center w-10"><input type="checkbox" class="select-all-table" onclick="toggleSelectAll(event)"></th>
                     <th class="p-4 text-left min-w-[300px]">Sản Phẩm & Phân Loại</th>
                     <th class="p-4 text-center w-32">Số Lượng</th>
                     <th class="p-4 text-center min-w-[150px]">Kích Thước & Cân Nặng</th>
@@ -72,7 +73,7 @@
 </div>
 
 <div id="settingsModal" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center z-50">
-    <div class="glass-card p-6 w-96">
+    <div class="glass-card p-6 w-[calc(100vw-24px)] max-w-96">
         <h2 class="text-[#00CED1] text-xl font-bold mb-4">CÀI ĐẶT THÔNG SỐ</h2>
         <div class="space-y-4">
             <div>

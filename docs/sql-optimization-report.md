@@ -47,3 +47,8 @@ SELECT * FROM marketplace_push_sync_queue
 WHERE status = 'queued' AND run_after <= datetime('now')
 ORDER BY priority ASC, run_after ASC LIMIT 10;
 ```
+Đã canonicalize shop Shopee 166563639 về chihuy2309.
+Đã chặn tạo lại shop tạm dạng Shopee <api_shop_id>.
+Đã tối ưu filter ngày cho orders_v2, order_finance_core, order_analytics_shared_core.
+Đã thêm index idx_order_analytics_platform_shop_order_date.
+EXPLAIN xác nhận order_analytics dùng index platform/shop/order_date.
