@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Upload Báo Cáo Sàn</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -11,7 +11,8 @@
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
 </script>
-<link rel="stylesheet" href="../css/report-upload.css">
+<link rel="stylesheet" href="../css/report-upload.css?v=report-bot-wake-20260509b">
+<script src="../js/auth-guard.js?v=account-widget-20260504"></script>
 </head>
 <body>
 
@@ -26,8 +27,14 @@
   <div class="card">
     <div class="card-title">📤 Upload Báo Cáo Mới</div>
 
+    <div class="platform-strip" aria-label="Chọn sàn upload">
+      <button type="button" class="platform-pill is-active shopee" data-platform-group="upload" data-platform="shopee" onclick="setUploadPlatform('shopee')">Shopee</button>
+      <button type="button" class="platform-pill lazada" data-platform-group="upload" data-platform="lazada" onclick="setUploadPlatform('lazada')">Lazada</button>
+      <button type="button" class="platform-pill tiktok" data-platform-group="upload" data-platform="tiktok" onclick="setUploadPlatform('tiktok')">TikTok</button>
+    </div>
+
     <div class="grid3">
-      <div class="field">
+      <div class="field platform-select-field">
         <label>Sàn</label>
         <select id="selPlatform">
           <option value="shopee">Shopee</option>
@@ -74,9 +81,20 @@
   <div class="card" style="border-top: 4px solid #ff9800;">
     <div class="card-title">🤖 Ra Lệnh Cho Bot (Automation)</div>
 
+    <div class="automation-mode-note">
+      <b>Tải báo cáo Seller Center cần bot trình duyệt thật.</b>
+      Website tạo lệnh và theo dõi trạng thái. Bot Auto E-Com Data Center đang bật sẽ nhận lệnh từ server và thao tác bằng Chrome local.
+    </div>
+
+    <div class="platform-strip" aria-label="Chọn sàn automation">
+      <button type="button" class="platform-pill is-active shopee" data-platform-group="bot" data-platform="shopee" onclick="setBotPlatform('shopee')">Shopee</button>
+      <button type="button" class="platform-pill lazada" data-platform-group="bot" data-platform="lazada" onclick="setBotPlatform('lazada')">Lazada</button>
+      <button type="button" class="platform-pill tiktok" data-platform-group="bot" data-platform="tiktok" onclick="setBotPlatform('tiktok')">TikTok</button>
+    </div>
+
     <!-- Hàng 1: Sàn + Tháng + Năm + Hẹn giờ -->
     <div class="grid3">
-      <div class="field">
+      <div class="field platform-select-field">
         <label>🏪 Sàn</label>
         <select id="botPlatform" onchange="onBotPlatformChange()" style="width:100%;border:1.5px solid #e0e0e0;border-radius:8px;padding:9px 12px;">
           <option value="shopee">Shopee</option>
@@ -151,7 +169,7 @@
 
     <div style="margin-top: 15px; display: flex; gap: 10px;">
       <button class="btn btn-primary" id="btnCreateJob" onclick="createAutomationJob()" style="background: #ff9800; border:none; flex: 1;">
-        🚀 Gửi Lệnh Cho Bot Chạy
+        🚀 Tạo Lệnh Cho Bot Trình Duyệt
       </button>
     </div>
     <div id="botStatusLog" style="margin-top:10px; font-size:13px; color: #666;"></div>
@@ -162,6 +180,12 @@
 <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <span>📋 Báo Cáo Đã Upload</span>
       <div style="display:flex;gap:8px">
+        <div class="platform-strip compact" aria-label="Lọc báo cáo theo sàn">
+          <button type="button" class="platform-pill is-active all" data-platform-group="history" data-platform="all" onclick="setHistoryPlatform('all')">Tất cả</button>
+          <button type="button" class="platform-pill shopee" data-platform-group="history" data-platform="shopee" onclick="setHistoryPlatform('shopee')">Shopee</button>
+          <button type="button" class="platform-pill lazada" data-platform-group="history" data-platform="lazada" onclick="setHistoryPlatform('lazada')">Lazada</button>
+          <button type="button" class="platform-pill tiktok" data-platform-group="history" data-platform="tiktok" onclick="setHistoryPlatform('tiktok')">TikTok</button>
+        </div>
         <select id="filterPlatform" onchange="onFilterPlatformChange()" style="border:1.5px solid #e0e0e0;border-radius:7px;padding:6px 10px;font-size:13px;outline:none">
           <option value="">Tất cả sàn</option>
           <option value="shopee">Shopee</option>
@@ -197,73 +221,11 @@
   
 </div>
 
-<script src="../js/report-bot.js"></script>
-<script src="../js/report-history.js"></script>
-<script src="../js/report-upload.js"></script>
+<script src="../js/report-bot.js?v=report-bot-watch-20260510a"></script>
+<script src="../js/report-history.js?v=report-history-metrics-20260512"></script>
+<script src="../js/report-upload.js?v=report-server-parser-20260512"></script>
 
-<script>
-// 1. Hack thông minh: Tự động quét và click Xóa với độ trễ (Chống lỗi chặn Spam của Server)
-async function deleteAllJobs() {
-    // Quét tất cả các thẻ có chữ Xóa (bất kể là button, thẻ a, hay div) và có chứa lệnh onclick
-    const deleteBtns = Array.from(document.querySelectorAll('#jobProgressList *')).filter(el => 
-        (el.innerText && el.innerText.includes('Xóa')) && el.hasAttribute('onclick')
-    );
-    
-    if(deleteBtns.length === 0) {
-        alert("Không có lệnh nào để xóa!");
-        return;
-    }
-    
-    if(!confirm(`Bạn có chắc muốn dọn dẹp toàn bộ ${deleteBtns.length} lệnh này không?`)) return;
-    
-    // Bịt miệng confirm
-    const originalConfirm = window.confirm;
-    window.confirm = () => true; 
-    
-    for(let btn of deleteBtns) {
-        btn.click();
-        // CHÌA KHÓA: Phải nghỉ 200ms (0.2 giây) giữa mỗi lần bấm để Server lách luật chống Spam
-        await new Promise(r => setTimeout(r, 200)); 
-    }
-    
-    window.confirm = originalConfirm;
-    alert("Đã xóa xong! Giao diện sẽ tự động làm mới.");
-    setTimeout(() => loadJobProgress(), 1500);
-}
-
-// 2. ÉP TẢI LẠI DANH SÁCH SHOP MỚI NHẤT (Vượt rào Cache của Cloudflare)
-setTimeout(async () => {
-    try {
-        // Thêm tham số t=... để ép Server trả về data mới nhất trong Database, không dùng Cache cũ
-        const res = await fetch("https://huyvan-worker-api.nghiemchihuy.workers.dev/api/shops?t=" + new Date().getTime());
-        if (!res.ok) return;
-        const shops = await res.json();
-        
-        // Cập nhật Dropdown
-        let options = '<option value="">-- Chọn shop --</option>';
-        shops.forEach(s => options += `<option value="${s.shop_name}">${s.shop_name}</option>`);
-        document.getElementById('inpShop').innerHTML = options;
-        
-        let filterOptions = '<option value="">Tất cả shop</option>' + options;
-        const filterShop = document.getElementById('filterShop');
-        if(filterShop) filterShop.innerHTML = filterOptions;
-
-        // Cập nhật Checkbox Automation
-        let htmlCb = '';
-        shops.forEach(s => {
-            htmlCb += `<label style="display:flex;align-items:center;gap:4px;cursor:pointer;background:white;padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px">
-                         <input type="checkbox" value="${s.shop_name}" data-platform="${s.platform}">
-                         [${(s.platform || 'shopee').toUpperCase()}] ${s.shop_name}
-                       </label>`;
-        });
-        const botShopCheckboxes = document.getElementById('botShopCheckboxes');
-        if(botShopCheckboxes) botShopCheckboxes.innerHTML = htmlCb;
-        
-    } catch(e) {
-        console.error("Lỗi vượt cache:", e);
-    }
-}, 800); // Tự động chạy sau 0.8 giây khi trang vừa load xong
-</script>
+<script src="../js/features/report-upload/report-upload-inline-1.js?v=fe-split-20260514"></script>
 
 </body>
 </html>

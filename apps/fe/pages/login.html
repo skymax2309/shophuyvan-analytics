@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đăng nhập - ShopHuyVan</title>
+<link rel="stylesheet" href="../css/auth.css?v=login-polish-20260504">
+</head>
+<body>
+  <main class="auth-shell login-shell">
+    <section class="auth-panel login-panel">
+      <div class="auth-card">
+        <div class="brand">
+          <span class="brand-mark">SHV</span>
+          <span>
+            <b>ShopHuyVan</b>
+            <small>Operations Center</small>
+          </span>
+        </div>
+        <div class="auth-kicker">Đăng nhập nội bộ</div>
+        <h1>Kiểm soát vận hành từ một màn hình.</h1>
+        <p class="auth-slogan">Bán hàng đa sàn, kiểm soát từng đơn, từng đồng.</p>
+        <p class="auth-copy">Truy cập dashboard, OMS, chat khách hàng và phân quyền nhân sự theo đúng vai trò được cấp.</p>
+
+        <form class="form" id="loginForm">
+          <div class="field">
+            <label for="username">Tài khoản</label>
+            <input id="username" name="username" autocomplete="username" placeholder="Ví dụ: huyvan_admin" required>
+          </div>
+          <div class="field">
+            <label for="password">Mật khẩu</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+          </div>
+          <div class="auth-message" id="loginMessage"></div>
+          <button class="btn btn-primary" type="submit">Đăng nhập hệ thống</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="auth-side" aria-label="Tổng quan hệ thống">
+      <div class="auth-side-content">
+        <div class="hero-eyebrow">Live Commerce Dashboard</div>
+        <h2>Ra quyết định bằng số liệu thật.</h2>
+        <p>Theo dõi đơn hàng, chăm sóc khách, lợi nhuận và API sàn trong cùng một trung tâm vận hành.</p>
+
+        <div class="hero-board" aria-hidden="true">
+          <div class="hero-board-head">
+            <span>Hôm nay</span>
+            <b>Đang hoạt động</b>
+          </div>
+          <div class="hero-metrics">
+            <div><span>Đơn mới</span><b>Realtime</b></div>
+            <div><span>Chat</span><b>CSKH</b></div>
+            <div><span>Lợi nhuận</span><b>Đối soát</b></div>
+          </div>
+          <div class="hero-flow">
+            <span>Shop API</span>
+            <i></i>
+            <span>OMS</span>
+            <i></i>
+            <span>Kho</span>
+          </div>
+        </div>
+
+        <div class="role-grid">
+          <div class="role-tile"><b>Admin</b><span>Cấu hình, API và phân quyền.</span></div>
+          <div class="role-tile"><b>CSKH</b><span>Chat, đơn liên quan và phản hồi khách.</span></div>
+          <div class="role-tile"><b>Thủ kho</b><span>Đơn, đóng gói, tem và tồn kho.</span></div>
+          <div class="role-tile"><b>Reviewer</b><span>Chỉ xem dữ liệu phục vụ kiểm duyệt.</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+<script src="../js/login.js?v=login-polish-20260504"></script>
+</body>
+</html>

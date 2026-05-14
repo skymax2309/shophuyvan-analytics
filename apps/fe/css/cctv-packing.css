@@ -1,0 +1,49 @@
+/* Bố cục cố định, chống cuộn và co giãn lung tung trên thiết bị Apple */
+        body { font-family: 'Segoe UI', sans-serif; background: #101010; color: white; text-align: center; margin: 0; padding: 10px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        h2 { color: #00CED1; margin: 5px 0; font-size: 20px; flex-shrink: 0; }
+        
+        /* Khung Camera: Ép nằm gọn gàng, không bị vỡ */
+        #reader { width: 100%; max-width: 600px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 2px solid #333; background: #000; flex-shrink: 0; }
+        #reader video { object-fit: cover; } /* Đảm bảo video không bị méo */
+        
+        /* Khung trạng thái: Nổi bật, nền đỏ sẫm khi đang quay */
+        .status-box { margin: 10px auto; width: 100%; max-width: 600px; padding: 15px; background: #1a1a1a; border-radius: 10px; border: 2px solid #333; flex-shrink: 0; box-sizing: border-box; }
+        .status-box.recording { border-color: #ff4757; background: #2a0a0a; box-shadow: 0 0 15px rgba(255, 71, 87, 0.4); }
+        .order-id { font-size: 24px; color: #555; font-weight: bold; margin: 5px 0; word-wrap: break-word; }
+        .order-id.active { color: #00FF88; font-size: 30px; }
+        .record-indicator { display: none; color: #ff4757; font-weight: bold; font-size: 18px; margin-top: 5px; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        
+        /* Khung Log: Tự động co giãn chiếm phần trống còn lại */
+.log-box { max-width: 600px; width: 100%; margin: 0 auto; text-align: left; font-size: 12px; color: #00FF88; background: #0A0A0A; padding: 10px; border-radius: 8px; flex-grow: 1; overflow-y: auto; box-sizing: border-box; }
+        
+        /* Lớp phủ mở khóa âm thanh Apple */
+        #unlock-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .unlock-btn { background: #00FF88; color: #000; font-size: 20px; font-weight: bold; padding: 20px 40px; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px rgba(0, 255, 136, 0.5); animation: pulse 1.5s infinite; }
+        .packing-settings { width: 100%; max-width: 600px; margin: 0 auto 8px; padding: 10px; background: #151515; border: 1px solid #2b3a3a; border-radius: 10px; box-sizing: border-box; flex-shrink: 0; text-align: left; }
+        .settings-title { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: #c9f7ff; font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+        .wake-lock-status { color: #9fb1b1; font-size: 11px; font-weight: 600; text-align: right; }
+        .stop-qr-row { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; align-items: center; }
+        #stop-qr { width: 112px; height: 112px; border-radius: 8px; background: #fff; display: grid; place-items: center; color: #111; overflow: hidden; }
+        #stop-qr canvas, #stop-qr svg { width: 104px !important; height: 104px !important; display: block; }
+        .stop-code { display: inline-flex; max-width: 100%; margin-top: 4px; padding: 3px 7px; border-radius: 6px; color: #00ff88; background: #071b12; border: 1px solid #124b31; font-size: 12px; font-weight: 800; letter-spacing: .2px; }
+        .setting-text { margin: 0; color: #c5d6d6; font-size: 12px; line-height: 1.35; }
+        .setting-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .setting-btn { border: 1px solid #284746; background: #0f2221; color: #e9ffff; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 800; cursor: pointer; }
+        .setting-btn.danger { background: #3a1017; border-color: #85303d; color: #ffdce1; }
+        .setting-btn.active { background: #163b1f; border-color: #32b45a; color: #dfffe8; }
+        .setting-note { margin: 8px 0 0; color: #ffcf8b; font-size: 11px; line-height: 1.35; }
+        body.power-save { background: #000; }
+        body.power-save h2, body.power-save .packing-settings, body.power-save .log-box { opacity: .34; }
+        body.power-save #video-preview { opacity: .12; filter: brightness(.18) contrast(1.1); }
+        body.power-save #reader { border-color: #0b3321; }
+        body.power-save .scan-frame { opacity: .45; box-shadow: 0 0 0 4000px rgba(0,0,0,.9) !important; }
+        @media (max-width: 430px) {
+            .stop-qr-row { grid-template-columns: 96px minmax(0, 1fr); }
+            #stop-qr { width: 96px; height: 96px; }
+            #stop-qr canvas, #stop-qr svg { width: 90px !important; height: 90px !important; }
+            .setting-actions { gap: 5px; }
+            .setting-btn { padding: 7px 8px; }
+        }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }

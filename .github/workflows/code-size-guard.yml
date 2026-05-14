@@ -1,0 +1,16 @@
+name: Code Size Guard
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  code-size:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Block code files over 30KB
+        run: node scripts/check-code-size.mjs

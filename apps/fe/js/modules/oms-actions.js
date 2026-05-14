@@ -3,11 +3,40 @@
 // ==========================================
 import { API } from '../oms-api.js';
 import { showToast } from '../utils/helpers.js';
+import { wakeRadarLocal } from './oms-radar-helper.js';
+const CHAT_ORDER_JUMP_STORAGE_PREFIX = `shv_chat_order_jump:${location.origin}:`
 
 let reloadFn = null;
 let getPageFn = null;
 let clearCheckFn = null;
 let getCacheFn = null; // Bổ sung kho chứa dữ liệu
+let buyerCancelRowListenerReady = false;
+
+async function syncMarketplaceReturnStatuses() {
+  const platform = String(document.getElementById('f_platform')?.value || '').toLowerCase()
+  const shop = document.getElementById('f_shop')?.value || ''
+  const shopParam = shop ? `&shop=${encodeURIComponent(shop)}` : ''
+  const tasks = []
+  if (!platform || platform === 'shopee') {
+    tasks.push(fetch(API + `/api/returns/shopee/sync?hours=${shop ? 168 : 72}&page_size=${shop ? 80 : 40}&max_pages=${shop ? 3 : 2}&include_detail=true${shopParam}`, { method: 'POST' }).then(r => r.json()).catch(() => null))
+  }
+  if (!platform || platform === 'lazada') {
+    tasks.push(fetch(API + `/api/returns/lazada/sync?days=${shop ? 90 : 45}&page_size=${shop ? 80 : 40}&max_pages=${shop ? 3 : 2}&include_detail=true&include_history=true&history_pages=${shop ? 2 : 1}${shopParam}`, { method: 'POST' }).then(r => r.json()).catch(() => null))
+  }
+  return Promise.all(tasks)
+}
+
+async function rebuildCustomerRiskCache() {
+  const platform = String(document.getElementById('f_platform')?.value || '').toLowerCase()
+  const shop = document.getElementById('f_shop')?.value || ''
+  const params = new URLSearchParams()
+  if (platform) params.set('platform', platform)
+  if (shop) params.set('shop', shop)
+  // Phase 1 chỉ cập nhật hồ sơ cảnh báo khách hàng trong D1, không tác động trạng thái đơn.
+  return fetch(API + '/api/customer-risk/rebuild' + (params.toString() ? `?${params}` : ''), { method: 'POST' })
+    .then(r => r.json())
+    .catch(error => ({ status: 'error', message: error.message }))
+}
 
 // Cầu nối nhận các hàm tiện ích từ file main truyền sang
 export function initActions(loadOrdersCallback, getPageCallback, clearCheckCallback, getCacheCallback) {
@@ -15,11 +44,49 @@ export function initActions(loadOrdersCallback, getPageCallback, clearCheckCallb
   getPageFn = getPageCallback;
   clearCheckFn = clearCheckCallback;
   getCacheFn = getCacheCallback;
+  if (!buyerCancelRowListenerReady) {
+    buyerCancelRowListenerReady = true;
+    document.addEventListener('click', async event => {
+      const btn = event.target.closest('[data-buyer-cancel-decision][data-order-id]');
+      if (!btn) return;
+      event.preventDefault();
+      btn.disabled = true;
+      try {
+        await decideBuyerCancellationForOrder(btn.dataset.orderId, btn.dataset.buyerCancelDecision);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
 }
 
 // Helper nội bộ: Lấy danh sách ID đang chọn
 function getChecked() {
   return [...document.querySelectorAll('.oms-chk:checked')].map(c => c.dataset.id);
+}
+
+function buildOrderChatJumpKey() {
+  return `${CHAT_ORDER_JUMP_STORAGE_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function findOrderFromCache(orderId) {
+  const cache = Array.isArray(getCacheFn?.()) ? getCacheFn() : []
+  return cache.find(item => String(item.order_id || '') === String(orderId || '')) || null
+}
+
+function normalizePlatform(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function notifyStatusUpdated(ids, omsStatus, shippingStatus, message = '') {
+  window.dispatchEvent(new CustomEvent('oms:status-updated', {
+    detail: {
+      order_ids: ids,
+      oms_status: omsStatus,
+      shipping_status: shippingStatus,
+      message
+    }
+  }))
 }
 
 // Cập nhật trạng thái Kho (CHUẨN 2 TẦNG)
@@ -33,6 +100,94 @@ async function patchOmsStatus(ids, omsStatus, shippingStatus) {
     const msg = await res.text().catch(() => '');
     throw new Error(msg || 'Không cập nhật được trạng thái OMS');
   }
+}
+
+async function loadLabelStatus(orderId) {
+  const res = await fetch(`${API}/api/labels/status?order_id=${encodeURIComponent(orderId)}`, { cache: 'no-store' })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error && data.error !== 'not_found') {
+    return { order_id: orderId, has_label: false, error: data.error || 'Không kiểm tra được tem.' }
+  }
+  return data
+}
+
+function groupLabelRefreshRows(rows) {
+  const groups = new Map()
+  const blocked = []
+  rows.forEach(row => {
+    const platform = normalizePlatform(row.platform)
+    const shop = String(row.shop || '').trim()
+    const orderId = String(row.order_id || '').trim()
+    if (!platform || !shop || !orderId) {
+      blocked.push(row)
+      return
+    }
+    const key = `${platform}||${shop}`
+    if (!groups.has(key)) groups.set(key, { platform, shop, order_ids: [] })
+    groups.get(key).order_ids.push(orderId)
+  })
+  return { groups: [...groups.values()], blocked }
+}
+
+async function createLabelRefreshJob(group) {
+  const now = new Date()
+  const res = await fetch(API + '/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      task_type: 'refresh_label',
+      shop_name: group.shop,
+      platform: group.platform,
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+      payload: JSON.stringify({
+        order_ids: group.order_ids,
+        download_only: true,
+        source: 'packed_status_gate'
+      })
+    })
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) throw new Error(data.error || `Không tạo được job tải tem cho ${group.shop}`)
+  return data
+}
+
+async function requestLabelRefresh(rows) {
+  const { groups, blocked } = groupLabelRefreshRows(rows)
+  const jobs = []
+  for (const group of groups) {
+    const job = await createLabelRefreshJob(group)
+    jobs.push({ ...job, group })
+  }
+  if (jobs[0]?.id) await wakeRadarLocal('refresh_label', jobs[0].id)
+  return {
+    jobCount: jobs.length,
+    orderCount: groups.reduce((sum, group) => sum + group.order_ids.length, 0),
+    blockedCount: blocked.length
+  }
+}
+
+async function ensureLabelsBeforePacked(ids) {
+  const cache = Array.isArray(getCacheFn?.()) ? getCacheFn() : []
+  const selected = ids.map(id => cache.find(order => String(order.order_id || '') === String(id)) || { order_id: id })
+  const rowsNeedLabel = selected.filter(order => ['shopee', 'tiktok'].includes(normalizePlatform(order.platform)))
+  if (!rowsNeedLabel.length) return true
+
+  // Đơn Shopee/TikTok phải có tem đã lưu trước khi chốt đóng gói để khiếu nại/video đóng gói có đủ bằng chứng.
+  const statuses = await Promise.all(rowsNeedLabel.map(async order => ({
+    ...order,
+    ...(await loadLabelStatus(order.order_id))
+  })))
+  const missing = statuses.filter(row => !row.has_label)
+  if (!missing.length) return true
+
+  const sample = missing.slice(0, 3).map(row => row.order_id).join(', ')
+  const result = await requestLabelRefresh(missing)
+  const parts = []
+  if (result.orderCount) parts.push(`đã gửi ${result.orderCount} đơn / ${result.jobCount} job`)
+  if (result.blockedCount) parts.push(`${result.blockedCount} đơn thiếu shop/sàn`)
+  showToast(`📄 Có ${missing.length} đơn chưa có tem đã lưu nên chưa chuyển Đã đóng gói. Mẫu: ${sample}. ${parts.join(' · ') || 'Đã tạo lệnh tải tem.'}`, 9000)
+  return false
 }
 
 function getSelectedGroups(ids) {
@@ -73,33 +228,102 @@ async function createPrintJob(group) {
     const msg = await res.text().catch(() => '');
     throw new Error(msg || `Không tạo được job in phiếu cho shop ${group.shop}`);
   }
+  return res.json().catch(() => ({}));
+}
+
+function jobsArray(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.jobs)) return payload.jobs;
+  return [];
+}
+
+async function waitForBotJob(jobId, label) {
+  if (!jobId) return;
+  for (let i = 0; i < 90; i++) {
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    const payload = await fetch(API + '/api/jobs?mode=monitor').then(r => r.json()).catch(() => null);
+    const job = jobsArray(payload).find(j => Number(j.id) === Number(jobId));
+    if (!job) continue;
+
+    const status = String(job.status || '').toLowerCase();
+    if (status === 'completed') {
+      showToast(`✅ ${label} đã xong, đang làm mới dashboard...`, 4000);
+      if (reloadFn) reloadFn(1);
+      return;
+    }
+    if (status === 'failed') {
+      showToast(`❌ ${label} bị lỗi. Bạn xem log Radar để biết chi tiết.`, 5000);
+      if (reloadFn) reloadFn(1);
+      return;
+    }
+  }
+  showToast(`⏳ ${label} vẫn đang chạy, dashboard sẽ tự làm mới khi có dữ liệu mới.`, 4000);
+}
+
+function watchBotJob(jobId, label) {
+  waitForBotJob(jobId, label).catch(() => {});
+}
+
+async function wakeRadarForJob(taskType, jobId, label) {
+  const wake = await wakeRadarLocal(taskType, jobId);
+  if (wake?.ok) {
+    const state = wake.radar_running ? 'đang chạy' : 'đang mở';
+    showToast(`✅ Đã gửi lệnh ${label}. Radar Python ${state} và sẽ nhận job ngay.`, 5000);
+    return true;
+  }
+  showToast(`✅ Đã gửi lệnh ${label}. Nếu Python chưa mở, Watchdog Windows sẽ bật trong tối đa 1 phút.`, 6000);
+  return false;
 }
 
 // ── CÁC HÀNH ĐỘNG CHÍNH ──────────────────────────────────────────
-export async function deleteErrorOrders() {
-  const ids = getChecked();
-  if (!ids.length) return;
-  if (!confirm(`🚨 NGUY HIỂM: Xóa vĩnh viễn ${ids.length} đơn hàng khỏi Server? Hành động này không thể hoàn tác!`)) return;
+export async function openOrderChatResolver(orderId) {
+  const order = findOrderFromCache(orderId)
+  if (!order) {
+    showToast('❌ Không tìm thấy đơn hàng trong danh sách hiện tại.')
+    return
+  }
 
-  const btn = document.getElementById('btnDeleteOrders');
-  if (btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
-  showToast('🗑️ Đang xóa dữ liệu...');
+  const btn = document.querySelector(`[data-chat-order-open="${String(orderId || '')}"]`)
+  const oldText = btn?.textContent || ''
+  if (btn) {
+    btn.disabled = true
+    btn.textContent = 'Đang mở chat...'
+  }
 
   try {
-    const res = await fetch(API + '/api/orders/bulk-delete', {
+    // Resolver ưu tiên mở đúng hội thoại đã có; nếu chưa có thread thì backend sẽ seed hội thoại mới từ đơn hàng.
+    const response = await fetch(`${API}/api/chat/resolve-order-conversation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order_ids: ids })
-    });
-    if (!res.ok) throw new Error("Lỗi khi xóa trên Server");
-    
-    showToast(`✅ Đã xóa sạch ${ids.length} đơn hàng!`);
-    if (clearCheckFn) clearCheckFn();
-    if (reloadFn) reloadFn(1);
-  } catch (e) {
-    showToast('❌ Lỗi: ' + e.message);
+      body: JSON.stringify({
+        platform: order.platform || '',
+        shop: order.shop || '',
+        order_id: order.order_id || '',
+        customer_name: order.customer_name || '',
+        customer_phone: order.customer_phone || '',
+        tracking_number: order.tracking_number || '',
+        oms_status: order.oms_status || '',
+        shipping_status: order.shipping_status || ''
+      })
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.error || data.message || 'Không resolve được hội thoại từ đơn hàng.')
+
+    const jumpKey = buildOrderChatJumpKey()
+    localStorage.setItem(jumpKey, JSON.stringify({
+      created_at: Date.now(),
+      source: 'oms-order',
+      ...data
+    }))
+    window.location.href = `/pages/chat-marketplace.html?jump=${encodeURIComponent(jumpKey)}`
+  } catch (error) {
+    showToast(`❌ Không mở được chat khách: ${error.message || error}`)
   } finally {
-    if (btn) { btn.style.opacity = '1'; btn.disabled = false; }
+    if (btn) {
+      btn.disabled = false
+      btn.textContent = oldText || 'Nhắn khách'
+    }
   }
 }
 
@@ -125,7 +349,8 @@ export async function markPrepare() {
   showToast('🖨️ Đang tạo lệnh in phiếu cho Bot...');
 
   try {
-    await Promise.all(groups.map(createPrintJob));
+    const jobs = await Promise.all(groups.map(createPrintJob));
+    if (jobs[0]?.id) await wakeRadarForJob('print_label', jobs[0].id, 'in phiếu');
     await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_REQUEST_CREATED');
     showToast(`✅ Đã gửi ${groups.length} lệnh in phiếu cho Bot (${ids.length} đơn).`);
     if (clearCheckFn) clearCheckFn();
@@ -141,20 +366,119 @@ export async function markPacked() {
   const ids = getChecked();
   if (!ids.length) return;
   if (!confirm(`Xác nhận đã đóng gói xong ${ids.length} đơn?`)) return;
-  await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_PACKAGED');
-  showToast(`📦 Đã đóng gói xong ${ids.length} đơn`);
-  if (clearCheckFn) clearCheckFn();
-  if (reloadFn) reloadFn(getPageFn());
+  try {
+    if (!(await ensureLabelsBeforePacked(ids))) return;
+    await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_PACKAGED');
+    notifyStatusUpdated(ids, 'PENDING', 'LOGISTICS_PACKAGED', 'Đã chuyển sang Đã đóng gói.');
+    showToast(`📦 Đã đóng gói xong ${ids.length} đơn`);
+    if (clearCheckFn) clearCheckFn();
+    if (reloadFn) reloadFn(getPageFn());
+  } catch (error) {
+    showToast(`❌ Không chuyển được Đã đóng gói: ${error.message}`, 7000);
+  }
 }
 
 export async function markHandedOver() {
   const ids = getChecked();
   if (!ids.length) return;
-  if (!confirm(`Xác nhận đã giao ${ids.length} đơn cho shipper?`)) return;
+  const cache = Array.isArray(getCacheFn?.()) ? getCacheFn() : [];
+  const selected = cache.filter(order => ids.includes(String(order.order_id || '')));
+  const blocked = selected.filter(order => {
+    const oms = String(order.oms_status || '').toUpperCase();
+    const ship = String(order.shipping_status || '').toUpperCase();
+    return ['CANCELLED', 'RETURN', 'COMPLETED'].includes(oms)
+      || ['CANCELLED', 'RETURN', 'RETURN_REFUND', 'FAILED_DELIVERY', 'COMPLETED'].includes(ship);
+  });
+  if (blocked.length) {
+    showToast(`❌ Có ${blocked.length} đơn đã hủy/hoàn/đã giao, không thể bàn giao ĐVVC.`);
+    return;
+  }
+  // Shop không có API không tự đổi hành trình sau đóng gói, nên bước này là xác nhận vận hành tay sau khi đã giao cho ĐVVC.
+  if (!confirm(`Xác nhận đã bàn giao ${ids.length} đơn cho ĐVVC?\n\nSau thao tác, đơn sẽ chuyển sang tab Đang giao. Shop có API vẫn được đối soát lại ở lần đồng bộ sau; shop không API dùng đây là xác nhận tay.`)) return;
   await patchOmsStatus(ids, 'SHIPPING', 'SHIPPED');
-  showToast(`🚚 Đã giao ${ids.length} đơn cho shipper`);
+  showToast(`🚚 Đã chuyển ${ids.length} đơn sang Đang giao`);
   if (clearCheckFn) clearCheckFn();
   if (reloadFn) reloadFn(getPageFn());
+}
+
+function getSelectedBuyerCancelOrders(ids) {
+  const cache = Array.isArray(getCacheFn?.()) ? getCacheFn() : [];
+  const selected = cache.filter(order => ids.includes(String(order.order_id || '')));
+  const invalid = selected.filter(order => String(order.shipping_status || '').toUpperCase() !== 'IN_CANCEL');
+  if (!selected.length) throw new Error('Chưa chọn đơn cần xử lý.');
+  if (invalid.length) throw new Error(`Có ${invalid.length} đơn không ở trạng thái Khách yêu cầu hủy.`);
+  return selected;
+}
+
+async function decideBuyerCancellationForIds(ids, operation) {
+  if (!ids.length) return;
+  const normalized = String(operation || '').toUpperCase() === 'REJECT' ? 'REJECT' : 'ACCEPT';
+  let selected = [];
+  try {
+    selected = getSelectedBuyerCancelOrders(ids);
+  } catch (error) {
+    showToast('Không thể xử lý hủy: ' + error.message, 5000);
+    return;
+  }
+
+  const unsupported = selected.filter(order => !['shopee', 'lazada'].includes(String(order.platform || '').toLowerCase()));
+  if (unsupported.length) {
+    showToast(`Có ${unsupported.length} đơn chưa có endpoint xác nhận hủy, cần xử lý tay trên sàn.`, 5000);
+    return;
+  }
+
+  const label = normalized === 'ACCEPT' ? 'đồng ý hủy' : 'từ chối hủy';
+  // Đây là thao tác ghi thật lên sàn nên bắt buộc xác nhận rõ trước khi gửi API.
+  if (!confirm(`Xác nhận ${label} ${selected.length} đơn khách yêu cầu hủy?\n\nChỉ tiếp tục khi đã kiểm tra kiện hàng chưa bàn giao ĐVVC hoặc có thể xử lý theo quy định sàn.`)) return;
+
+  const btnIds = ['btnAcceptBuyerCancel', 'btnRejectBuyerCancel'];
+  btnIds.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = true;
+  });
+  showToast(`Đang gửi lệnh ${label} lên sàn...`, 5000);
+
+  const results = [];
+  for (const order of selected) {
+    try {
+      const response = await fetch(API + '/api/orders/buyer-cancellation/decide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: order.platform,
+          shop: order.shop,
+          order_id: order.order_id,
+          operation: normalized,
+          confirm_action: true
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      results.push({ ok: response.ok && data.status === 'ok', order_id: order.order_id, data });
+    } catch (error) {
+      results.push({ ok: false, order_id: order.order_id, data: { message: error.message } });
+    }
+  }
+
+  const okCount = results.filter(item => item.ok).length;
+  const failed = results.filter(item => !item.ok);
+  if (failed.length) {
+    const sample = failed.slice(0, 2).map(item => `${item.order_id}: ${item.data?.message || item.data?.error || 'lỗi không rõ'}`).join('; ');
+    showToast(`Đã xử lý ${okCount}/${selected.length}. Lỗi: ${sample}`, 7000);
+  } else {
+    showToast(`Đã ${label} ${okCount} đơn.`, 5000);
+  }
+  if (clearCheckFn) clearCheckFn();
+  if (reloadFn) reloadFn(getPageFn());
+}
+
+export async function decideBuyerCancellation(operation) {
+  await decideBuyerCancellationForIds(getChecked(), operation);
+}
+
+export async function decideBuyerCancellationForOrder(orderId, operation) {
+  const id = String(orderId || '').trim();
+  if (!id) return;
+  await decideBuyerCancellationForIds([id], operation);
 }
 
 export async function markCancelledTransit() {
@@ -187,37 +511,13 @@ export async function markReturnRefund() {
   if (reloadFn) reloadFn(getPageFn());
 }
 
-export async function archiveOldOrders() {
-  if (!confirm("Hệ thống sẽ dựa vào 'Loại đơn' và 'Trạng thái vận chuyển' cũ để tự động phân loại hàng ngàn đơn hàng lịch sử về đúng các Tab: Hoàn thành, Hủy, Trả hàng.\\n\\nBạn có chắc chắn muốn chuẩn hóa?")) return;
-  showToast('🔄 Đang chạy thuật toán phân loại dữ liệu...');
-  try {
-    await fetch(API + '/api/orders/archive-old', { method: 'POST' });
-    showToast('✅ Đã chuẩn hóa dữ liệu thành công!');
-    if (reloadFn) reloadFn(1);
-  } catch (e) {
-    showToast('❌ Lỗi: ' + e.message);
-  }
-}
-
-export async function recalcAllCosts() {
-  if (!confirm("Hệ thống sẽ tính toán lại toàn bộ Lãi/Lỗ của TẤT CẢ đơn hàng trong lịch sử dựa trên Giá vốn mới nhất mà bạn vừa nhập.\\n\\nBạn có chắc chắn muốn thực hiện?")) return;
-  showToast('🔄 Đang quét Server và tính toán lại toàn bộ (có thể mất vài giây)...');
-  try {
-    const res = await fetch(API + '/api/orders/recalc-cost', { method: 'POST' }).then(r => r.json());
-    showToast(`✅ Quá dữ! Đã cập nhật xong Lãi/Lỗ cho ${res.updated_v2 || 0} đơn hàng.`);
-    if (reloadFn) reloadFn(getPageFn());
-  } catch (e) {
-    showToast('❌ Lỗi: ' + e.message);
-  }
-}
-
 export async function triggerBotScrape() {
   const btn = document.querySelector('button[onclick="triggerBotScrape()"]');
   if(btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
   showToast('🔄 Đang gửi tín hiệu đánh thức Bot...');
 
   try {
-    await fetch(API + '/api/jobs', {
+    const res = await fetch(API + '/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -229,7 +529,10 @@ export async function triggerBotScrape() {
         year: new Date().getFullYear(),
       })
     });
-showToast('✅ Đã phát lệnh! Bot Python ở nhà sẽ bắt đầu cào đơn mới.', 4000);
+    if (!res.ok) throw new Error(await res.text().catch(() => 'Không tạo được job kéo đơn'));
+    const job = await res.json();
+    await wakeRadarForJob('scrape_orders', job.id, 'kéo đơn mới');
+    watchBotJob(job.id, 'Kéo đơn mới');
   } catch (e) {
     showToast('❌ Lỗi gửi tín hiệu: ' + e.message);
   } finally {
@@ -271,13 +574,27 @@ export async function triggerBotUploadInventory() {
 // Nhớ xuất hàm ra window ở dòng dưới cùng của file nhé:
 // Object.assign(window, { ..., triggerBotUploadInventory });
 
+async function runOmsApiSyncStep(url, label) {
+  const response = await fetch(API + url, { method: 'POST' });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.status === 'error') {
+    const message = data.errors?.[0]?.error || data.error || `${label} thất bại`;
+    throw new Error(message);
+  }
+  if (data.status === 'partial_error') {
+    const warning = data.errors?.[0]?.error || data.warnings?.[0]?.message || 'Có cảnh báo từ API sàn';
+    showToast(`${label}: ${warning}`, 7000);
+  }
+  return data;
+}
+
 export async function triggerBotStatus() {
   const btn = document.querySelector('button[onclick="triggerBotStatus()"]');
   if(btn) { btn.style.opacity = '0.7'; btn.disabled = true; }
-  showToast('🔄 Đang gửi tín hiệu yêu cầu cập nhật hành trình...');
+  showToast('🔄 Đang quét trạng thái. Đơn đã rời kho sẽ tự chuyển sang Đang giao...');
 
   try {
-    await fetch(API + '/api/jobs', {
+    const res = await fetch(API + '/api/jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -289,7 +606,37 @@ export async function triggerBotStatus() {
         year: new Date().getFullYear(),
       })
     });
-    showToast('✅ Đã phát lệnh! Bot Python sẽ đi quét cập nhật trạng thái Hành trình ngay lập tức.', 5000);
+    if (!res.ok) throw new Error(await res.text().catch(() => 'Không tạo được job cập nhật trạng thái'));
+    const job = await res.json();
+    await runOmsApiSyncStep('/api/orders/sync-api-orders?platform=shopee&statuses=IN_CANCEL&limit=20&fetch_fees=0&fetch_tracking=0', 'Kéo đơn Shopee IN_CANCEL');
+    await runOmsApiSyncStep('/api/orders/sync-api-orders?platform=shopee&statuses=READY_TO_SHIP&limit=20&fetch_fees=0&fetch_tracking=0', 'Kéo đơn Shopee READY_TO_SHIP');
+    await runOmsApiSyncStep('/api/orders/sync-api-orders?platform=shopee&statuses=PROCESSED&limit=30&fetch_fees=0&fetch_tracking=0', 'Kéo đơn Shopee PROCESSED');
+    await runOmsApiSyncStep('/api/orders/sync-api-orders?platform=shopee&statuses=SHIPPED&limit=20&fetch_fees=0&fetch_tracking=0', 'Kéo đơn Shopee SHIPPED');
+    await runOmsApiSyncStep('/api/orders/sync-api-orders?platform=lazada&days=30&limit=4', 'Kéo đơn Lazada');
+    const apiSyncParts = [
+      await runOmsApiSyncStep('/api/orders/sync-api-status?platform=shopee&limit=120&days=60', 'Đối soát trạng thái Shopee'),
+      await runOmsApiSyncStep('/api/orders/sync-api-status?platform=lazada&limit=12&days=90', 'Đối soát trạng thái Lazada')
+    ];
+    const apiSync = {
+      checked: apiSyncParts.reduce((sum, item) => sum + Number(item?.checked || 0), 0),
+      updated: apiSyncParts.reduce((sum, item) => sum + Number(item?.updated || 0), 0)
+    };
+    const returnSync = await syncMarketplaceReturnStatuses();
+    const returnOrdersUpdated = returnSync.reduce((sum, item) => sum + Number(item?.orders_updated || 0), 0);
+    await rebuildCustomerRiskCache();
+    if (apiSync?.checked) {
+      showToast(`✅ Đã đối soát API ${apiSync.updated || 0}/${apiSync.checked} đơn. Radar sẽ quét tiếp shop chưa có API để tự cập nhật hành trình.`, 5000);
+      if (returnOrdersUpdated) showToast(`Đã cập nhật thêm ${returnOrdersUpdated} đơn hoàn/trả từ API sàn.`, 5000);
+      if (reloadFn) reloadFn(1);
+    } else {
+      await wakeRadarForJob('sync_status', job.id, 'cập nhật trạng thái');
+    }
+    if (!apiSync?.checked && returnOrdersUpdated) {
+      showToast(`Đã cập nhật thêm ${returnOrdersUpdated} đơn hoàn/trả từ API sàn.`, 5000);
+      if (reloadFn) reloadFn(1);
+    }
+    if (apiSync?.checked) await wakeRadarForJob('sync_status', job.id, 'cập nhật trạng thái');
+    watchBotJob(job.id, 'Cập nhật trạng thái');
   } catch (e) {
     showToast('❌ Lỗi gửi tín hiệu: ' + e.message);
   } finally {
@@ -299,8 +646,9 @@ export async function triggerBotStatus() {
 
 // Bơm thẳng các hàm này ra Window để các nút bấm (onclick) trên HTML gọi được
  Object.assign(window, {
-  deleteErrorOrders, markConfirmed, markPrepare, markPacked, markHandedOver,
-  markCancelledTransit, markFailedDelivery, markReturnRefund,
-  archiveOldOrders, recalcAllCosts, triggerBotScrape, triggerBotStatus,
+ openOrderChatResolver,
+  markConfirmed, markPrepare, markPacked, markHandedOver,
+  decideBuyerCancellation, markCancelledTransit, markFailedDelivery, markReturnRefund,
+  triggerBotScrape, triggerBotStatus,
   triggerBotUploadInventory
 });

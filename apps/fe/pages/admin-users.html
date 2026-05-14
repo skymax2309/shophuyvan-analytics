@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản trị tài khoản - ShopHuyVan</title>
+<link rel="stylesheet" href="../css/auth.css?v=account-widget-20260504">
+<script src="../js/auth-guard.js?v=account-widget-20260504"></script>
+</head>
+<body>
+  <main class="admin-layout">
+    <div class="admin-topbar">
+      <div>
+        <div class="brand" style="margin-bottom:8px">
+          <span class="brand-mark">SHV</span>
+          <span>Quản trị phân quyền</span>
+        </div>
+        <p id="currentUser" style="color:#64748b"></p>
+      </div>
+      <nav class="admin-nav">
+        <a class="btn btn-ghost" href="profit-dashboard.html">Dashboard</a>
+        <a class="btn btn-ghost" href="oms-dashboard.html">OMS đơn hàng</a>
+        <a class="btn btn-ghost" href="admin-products.html#variations">Sản phẩm</a>
+        <button class="btn btn-danger" type="button" onclick="SHV_AUTH.logout()">Đăng xuất</button>
+      </nav>
+    </div>
+
+    <div class="admin-grid">
+      <section class="admin-card">
+        <h1>Tạo tài khoản</h1>
+        <p>Tạo user cho Shopee reviewer, thủ kho, CSKH hoặc quản lý vận hành.</p>
+        <form class="form" id="createUserForm">
+          <div class="field">
+            <label for="username">Username</label>
+            <input id="username" name="username" placeholder="vd: shopee_reviewer" required>
+          </div>
+          <div class="field">
+            <label for="password">Mật khẩu</label>
+            <input id="password" name="password" type="password" minlength="10" placeholder="Tối thiểu 10 ký tự" required>
+          </div>
+          <div class="field">
+            <label for="role">Vai trò</label>
+            <select id="role" name="role"></select>
+          </div>
+          <div class="field">
+            <label for="licenseExpireAt">Ngày hết hạn nếu cần</label>
+            <input id="licenseExpireAt" name="licenseExpireAt" type="datetime-local">
+          </div>
+          <button class="btn btn-primary" type="submit">Tạo tài khoản</button>
+        </form>
+
+        <div class="role-list" id="roleList"></div>
+      </section>
+
+      <section class="admin-card">
+        <h1>Danh sách tài khoản</h1>
+        <p>Admin có thể đổi role, reset mật khẩu và thu hồi phiên đăng nhập cũ.</p>
+        <div class="auth-message" id="adminMessage" style="margin-top:12px"></div>
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Tài khoản</th>
+              <th>Vai trò</th>
+              <th>Quyền</th>
+              <th>Ngày tạo</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="usersTable">
+            <tr><td colspan="5" style="color:#64748b">Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+
+<script src="../js/admin-users.js?v=admin-auth-20260504"></script>
+</body>
+</html>

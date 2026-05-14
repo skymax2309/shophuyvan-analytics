@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#17172b">
+  <title>ShopHuyVan - Chat Zalo</title>
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" href="../icons/shophuyvan-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/shophuyvan-icon.svg">
+  <link rel="stylesheet" href="../css/dashboard.css?v=chat-page-20260505">
+  <script src="../js/auth-guard.js?v=account-widget-20260504"></script>
+  <link rel="stylesheet" href="../css/features/chat-zalo/chat-zalo-inline-1.css?v=fe-split-20260514">
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">🛒 ShopHuyVan</div>
+        <button class="btn-close-sidebar" onclick="toggleSidebar()">✕</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="profit-dashboard.html">📊 Doanh thu Ngày</a>
+        <a href="profit-dashboard.html#monthly">📈 Doanh thu Tháng</a>
+        <a href="profit-dashboard.html#income">💳 Số dư doanh thu</a>
+        <a href="profit-dashboard.html#netprofit">💹 Lãi ròng API</a>
+        <a href="profit-dashboard.html#top">🔥 Top SKU</a>
+        <a href="profit-dashboard.html#cancel">⚠️ Hủy / Hoàn</a>
+        <a href="chat-marketplace.html">💬 Chat sàn</a>
+        <a href="chat-zalo.html" class="active">🟦 Chat Zalo</a>
+        <a href="ads.html">📣 ADS quảng cáo</a>
+        <a href="profit-dashboard.html#calc">🧮 Máy tính</a>
+        <a href="admin-products.html#variations">📦 Sản phẩm</a>
+        <a href="oms-dashboard.html">📦 Đơn Hàng</a>
+        <a href="report-upload.html">📁 Báo Cáo</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="cost-settings.html" class="btn-settings" style="justify-content:center">⚙️ Cài đặt chi phí</a>
+      </div>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <div class="main-wrapper">
+      <div class="mobile-topbar">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="logo">🟦 Chat Zalo</div>
+      </div>
+
+      <main class="zalo-main">
+        <div class="zalo-quick-nav">
+          <a class="zalo-quick-link" href="chat-marketplace.html">Chat sàn</a>
+          <a class="zalo-quick-link active" href="chat-zalo.html">Chat Zalo</a>
+        </div>
+
+        <section class="zalo-card">
+          <div class="zalo-head">
+            <div style="font-size:13px;color:#2563eb;font-weight:700;text-transform:uppercase">Kết nối công cụ nội bộ</div>
+            <h2>Quản lý chat Zalo</h2>
+            <p>Dùng chung trang quản trị để mở nhanh tool Zalo. Chat sàn và Chat Zalo đã tách riêng để thao tác rõ ràng hơn.</p>
+            <p style="font-size:13px;color:#475569;margin:0">Tool chuẩn của bạn: <b>E:\tool zalo</b>. Nếu URL vẫn ra app khác, hãy đổi cổng đúng của tool Zalo rồi kiểm tra lại.</p>
+          </div>
+
+          <div class="zalo-bridge-bar">
+            <input id="zaloToolUrl" type="text" placeholder="http://127.0.0.1:8787">
+            <div class="zalo-bridge-actions">
+              <button type="button" onclick="saveZaloToolUrl()">Kiểm tra kết nối</button>
+              <button type="button" class="secondary" onclick="openZaloTool()">Mở Zalo tool</button>
+            </div>
+          </div>
+
+          <div id="zaloBridgeStatus" class="zalo-bridge-status">Đang kiểm tra kết nối...</div>
+          <div id="zaloEmbedNote" class="zalo-frame-note" hidden></div>
+
+          <div id="zaloFrameWrap" class="zalo-frame-wrap" hidden>
+            <iframe id="zaloFrame" title="Zalo Tool"></iframe>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/features/chat-zalo/chat-zalo-inline-1.js?v=fe-split-20260514"></script>
+  <script src="../js/dashboard/chat-zalo.js?v=chat-page-20260505"></script>
+</body>
+</html>

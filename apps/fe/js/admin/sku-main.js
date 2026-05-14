@@ -32,6 +32,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (typeof loadSkus === 'function') {
         loadSkus();
     }
+    const initialHash = (location.hash || "").replace("#", "");
+    if (initialHash === "combo" && typeof switchSkuTab === "function") {
+        setTimeout(() => switchSkuTab("combo"), 80);
+    }
     // Mặc định trả về chế độ tạo mới (ẩn các badge sửa)
     setFormMode('single', null);
 });

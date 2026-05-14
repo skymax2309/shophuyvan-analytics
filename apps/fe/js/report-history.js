@@ -4,15 +4,22 @@
 async function onFilterPlatformChange() {
   const platform = document.getElementById("filterPlatform").value
   const shopSel  = document.getElementById("filterShop")
+  if (typeof setActivePlatformButtons === "function") {
+    setActivePlatformButtons("history", platform || "all")
+  }
   shopSel.innerHTML = '<option value="">Tất cả shop</option>'
 
   try {
-    const params = new URLSearchParams()
-    if (platform) params.set("platform", platform)
-    const rows = await fetch(API + "/api/reports?" + params.toString()).then(r => r.json())
-    const shops = [...new Set(rows.map(r => r.shop).filter(Boolean))].sort()
-    shopSel.innerHTML = '<option value="">Tất cả shop</option>'
-      + shops.map(s => `<option value="${s}">${s}</option>`).join("")
+    if (typeof refreshHistoryShopSelect === "function") {
+      refreshHistoryShopSelect()
+    } else {
+      const params = new URLSearchParams()
+      if (platform) params.set("platform", platform)
+      const rows = await fetch(API + "/api/reports?" + params.toString()).then(r => r.json())
+      const shops = [...new Set(rows.map(r => r.shop).filter(Boolean))].sort()
+      shopSel.innerHTML = '<option value="">Tất cả shop</option>'
+        + shops.map(s => `<option value="${s}">${s}</option>`).join("")
+    }
   } catch(e) {
     console.error("Không load được shop:", e)
   }
@@ -46,6 +53,84 @@ async function loadHistory() {
 
   const typeLabel = { income: "Doanh Thu", expense: "Chi Phí", orders: "Đơn Hàng", "phi-dau-thau": "Quảng Cáo" }
   const fmt = n => Math.abs(Math.round(n || 0)).toLocaleString("vi-VN")
+  const moneyFields = [
+    "gross_revenue", "total_payout", "tax_total", "fee_commission", "fee_payment",
+    "fee_affiliate", "fee_service", "fee_handling", "fee_total", "fee_ads", "compensation",
+  ]
+  const hasMoneyData = r => moneyFields.some(key => Number(r[key] || 0) !== 0)
+  const reportTotalFee = r => Number(r.fee_total || 0)
+    || Number(r.fee_commission || 0)
+    + Number(r.fee_payment || 0)
+    + Number(r.fee_affiliate || 0)
+    + Number(r.fee_service || 0)
+    + Number(r.fee_handling || 0)
+    + Number(r.fee_ads || 0)
+
+  const renderFeeDetails = r => {
+    const parts = []
+    const add = (label, value) => {
+      if (Number(value || 0) > 0) parts.push(`${label}: ${fmt(value)}đ`)
+    }
+    add("HH", r.fee_commission)
+    add("TT", r.fee_payment)
+    add("Affiliate", r.fee_affiliate)
+    add("SFR/PiShip", r.fee_service)
+    add("Xử lý ĐH", r.fee_handling)
+    add("Ads", r.fee_ads)
+    if (Number(r.compensation || 0) > 0) parts.push(`Bồi thường: +${fmt(r.compensation)}đ`)
+    const totalFee = reportTotalFee(r)
+    if (totalFee > 0) parts.push(`<b>Tổng phí: ${fmt(totalFee)}đ</b>`)
+    return parts.length
+      ? `<div style="font-size:11px;color:#888">${parts.join("&nbsp;|&nbsp;")}</div>`
+      : ""
+  }
+
+  const renderMoneySummary = r => {
+    const type = String(r.report_type || "")
+    // Mỗi loại file có ý nghĩa khác nhau: file đơn hàng chỉ nhập OMS, không phải nguồn doanh thu/phí.
+    if (type === "orders") {
+      return `
+        <div style="font-size:11px;color:#64748b;line-height:1.8">
+          File đơn hàng dùng để nhập OMS; dòng này không tính doanh thu/phí.
+        </div>`
+    }
+    if (type === "expense") {
+      const totalFee = reportTotalFee(r)
+      if (!hasMoneyData(r)) {
+        return `
+          <div style="font-size:11px;color:#b45309;line-height:1.8">
+            Chưa đọc được số chi phí từ file này; cần kiểm tra parser hoặc file gốc.
+          </div>`
+      }
+      return `
+        <div style="font-size:11px;color:#888;line-height:1.8">
+          Chi phí sàn: <b>${fmt(totalFee || r.total_payout)}</b>đ
+          &nbsp;|&nbsp; Thuế: ${fmt(r.tax_total)}đ
+        </div>
+        ${renderFeeDetails(r)}`
+    }
+    if (type === "phi-dau-thau") {
+      const adsFee = Number(r.fee_ads || 0) || Number(r.fee_total || 0)
+      return `
+        <div style="font-size:11px;color:#888;line-height:1.8">
+          Quảng cáo/phí đấu thầu: <b>${fmt(adsFee)}</b>đ
+          &nbsp;|&nbsp; Thuế: ${fmt(r.tax_total)}đ
+        </div>
+        ${renderFeeDetails(r)}`
+    }
+    if (!hasMoneyData(r)) {
+      return `
+        <div style="font-size:11px;color:#b45309;line-height:1.8">
+          Chưa đọc được số doanh thu từ file này; cần kiểm tra parser hoặc file gốc.
+        </div>`
+    }
+    return `
+      <div style="font-size:11px;color:#888;line-height:1.8">
+        DT: <b>${fmt(r.gross_revenue)}</b>đ → 💰 <b style="color:#16a34a">${fmt(r.total_payout)}</b>đ
+        &nbsp;|&nbsp; Thuế: ${fmt(r.tax_total)}đ
+      </div>
+      ${renderFeeDetails(r)}`
+  }
 
 el.innerHTML = `
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:8px 12px;background:#f8f9fa;border-radius:8px;flex-wrap:wrap">
@@ -60,7 +145,7 @@ el.innerHTML = `
       </div>
     </div>
     <div style="display:grid;grid-template-columns:32px 80px 90px 100px 1fr auto;gap:12px;font-size:11px;font-weight:700;color:#888;padding:0 14px;margin-bottom:6px">
-      <span></span><span>Sàn</span><span>Tháng</span><span>Loại</span><span>File / Doanh thu → Về túi</span><span>Tải</span>
+      <span></span><span>Sàn</span><span>Tháng</span><span>Loại</span><span>File / Số liệu đọc được</span><span>Tải</span>
     </div>
     ${rows.map(r => `
     <div class="history-item" style="display:grid;grid-template-columns:32px 80px 90px 100px 1fr auto;gap:12px;align-items:center">
@@ -70,19 +155,7 @@ el.innerHTML = `
       <span style="font-size:12px">${typeLabel[r.report_type] || r.report_type}</span>
       <div>
         <div style="font-weight:600;font-size:12px">${r.file_name}</div>
-        <div style="font-size:11px;color:#888;line-height:1.8">
-          DT: <b>${fmt(r.gross_revenue)}</b>đ → 💰 <b style="color:#16a34a">${fmt(r.total_payout)}</b>đ
-          &nbsp;|&nbsp; Thuế: ${fmt(r.tax_total)}đ
-        </div>
-        <div style="font-size:11px;color:#888">
-          📌 HH: ${fmt(r.fee_commission)}đ
-          &nbsp;| 💳 TT: ${fmt(r.fee_payment)}đ
-          &nbsp;| 🤝 Affiliate: ${fmt(r.fee_affiliate)}đ
-          ${r.fee_service > 0 ? `&nbsp;| 🚚 SFR/PiShip: ${fmt(r.fee_service)}đ` : ""}
-          ${r.fee_handling > 0 ? `&nbsp;| 📦 Xử lý ĐH: ${fmt(r.fee_handling)}đ` : ""}
-          ${r.compensation > 0 ? `&nbsp;| 🎁 Bồi thường: +${fmt(r.compensation)}đ` : ""}
-          &nbsp;| <b>Tổng phí: ${fmt(r.fee_total)}đ</b>
-        </div>
+        ${renderMoneySummary(r)}
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <a href="${API}/api/report-file?key=${encodeURIComponent(r.r2_key)}"

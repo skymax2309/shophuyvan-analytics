@@ -56,6 +56,60 @@ async function extractExcelText(arrayBuffer) {
   return ""
 }
 
+function parseMoneyValue(value) {
+  const text = String(value || '').replace(/[₫đ\s]/gi, '').trim()
+  if (!text) return 0
+  if (text.includes(',') && /\.\d{2}$/.test(text)) {
+    return Math.round(Number(text.replace(/,/g, '')) || 0)
+  }
+  if (text.includes('.') && /,\d{2}$/.test(text)) {
+    return Math.round(Number(text.replace(/\./g, '').replace(',', '.')) || 0)
+  }
+  return parseInt(text.replace(/[,.]/g, ''), 10) || 0
+}
+
+function moneyValues(segment = '') {
+  const values = []
+  const re = /(?:^|[^\d])(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?)(?=\s*(?:₫|đ)?(?:\D|$))/gi
+  let match
+  while ((match = re.exec(segment)) !== null) values.push(parseMoneyValue(match[1]))
+  return values.filter(value => value > 0)
+}
+
+function moneyValuesAfterLabel(text = '', label, windowSize = 260) {
+  const values = []
+  const re = new RegExp(label, 'gi')
+  let match
+  while ((match = re.exec(text)) !== null) {
+    const start = match.index + match[0].length
+    const nearby = moneyValues(text.slice(start, start + windowSize))
+    if (nearby.length) values.push(nearby[0])
+  }
+  return values
+}
+
+function firstMoneyAfterLabel(text, label, windowSize = 260) {
+  return moneyValuesAfterLabel(text, label, windowSize)[0] || 0
+}
+
+function firstLooseMoneyAfterLabel(text = '', label, windowSize = 90) {
+  const re = new RegExp(label, 'gi')
+  let match
+  while ((match = re.exec(text)) !== null) {
+    const start = match.index + match[0].length
+    const segment = text.slice(start, start + windowSize)
+    // Một số hóa đơn Shopee ghi VAT nhỏ như 800đ, không có dấu nghìn nên cần bắt riêng.
+    const amount = segment.match(/-?\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|-?\d{3,}/)
+    if (amount) return parseMoneyValue(amount[0])
+  }
+  return 0
+}
+
+function lastMoneyAfterLabel(text, label, windowSize = 260) {
+  const values = moneyValuesAfterLabel(text, label, windowSize)
+  return values.length ? values[values.length - 1] : 0
+}
+
 // ── Detect loại hóa đơn + parse tương ứng ────────────────────────────
 function autoDetectAndParse(text, platform, reportType) {
   console.log("[autoDetectAndParse] platform:", platform, "reportType:", reportType,
@@ -97,23 +151,12 @@ function autoDetectAndParse(text, platform, reportType) {
 
 // Shopee VAT Invoice — hóa đơn chi phí (phí HH, phí giao dịch, PiShip, đấu thầu, rút tiền...)
 function parseShopeeExpenseInvoice(text) {
-  const findAmt = (label) => {
-    const re = new RegExp(label + "[\\s\\S]{0,200}?([\\d\\.]+(?:\\.[\\d]+)?)[\\s]*(?=\\d{1,2}%|Cộng tiền)", "i")
-    const m = text.match(re)
-    if (m) return parseInt(m[1].replace(/\./g, "")) || 0
-    return 0
-  }
+  const sub = lastMoneyAfterLabel(text, "Cộng tiền hàng")
+  // Hóa đơn Shopee có cả tiêu đề cột "Tiền thuế GTGT"; lấy lần cuối để tránh nhầm sang dòng hàng.
+  const vat = firstLooseMoneyAfterLabel(text, "Tiền thuế GTGT \\(VAT amount\\):|VAT amount\\):")
+    || lastMoneyAfterLabel(text, "Tiền thuế GTGT")
+  const total = lastMoneyAfterLabel(text, "Tổng cộng tiền thanh toán|Total Payment")
 
-  // Tìm "Cộng tiền hàng (Sub total): X"
-  const subMatch = text.match(/Cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
-  const vatMatch = text.match(/Tiền thuế GTGT[^:]*:\s*([\d\.,]+)/)
-  const totalMatch = text.match(/Tổng cộng tiền thanh toán[^:]*:\s*([\d\.,]+)/)
-
-  const sub   = subMatch  ? parseInt(subMatch[1].replace(/[\.]/g, "")) : 0
-  const vat   = vatMatch  ? parseInt(vatMatch[1].replace(/[\.]/g, "")) : 0
-  const total = totalMatch? parseInt(totalMatch[1].replace(/[\.]/g, "")): 0
-
-  // Tìm từng dòng phí
   const commission  = findAmtLine(text, "Phí hoa hồng cố định")
   const transaction = findAmtLine(text, "Phí xử lý giao dịch")
   const piship      = findAmtLine(text, "Phí dịch vụ PiShip")
@@ -121,8 +164,7 @@ function parseShopeeExpenseInvoice(text) {
   const ads_line    = findAmtLine(text, "Phí dịch vụ đấu thầu")
   // fee_service: chỉ lấy "Phí dịch vụ" thuần, không lấy PiShip và đấu thầu
   const service     = findAmtLine(text, "Phí dịch vụ(?! PiShip)(?! đấu thầu)")
-  // Phí ADS = tổng tiền thanh toán đã bao gồm VAT
-  const ads         = ads_line > 0 ? (total > 0 ? total : ads_line) : 0
+  const ads         = ads_line > 0 ? (sub > 0 ? sub : ads_line) : 0
 
   return {
     gross_revenue: 0, refund_amount: 0, net_product_revenue: 0,
@@ -146,21 +188,11 @@ function parseShopeeExpenseInvoice(text) {
 
 // TikTok Tax Invoice — hóa đơn chi phí platform + logistics
 function parseTiktokExpenseInvoice(text) {
-  const findAmt = (label) => {
-    const re = new RegExp(label + "[^\\d]*([\\.\\d]+)[^\\d]*([\\.\\d]+)[^\\d]*([\\.\\d]+)")
-    const m = text.match(re)
-    // Cột 1: excl tax, cột 2: tax, cột 3: incl tax
-    if (m) return parseInt(m[1].replace(/\./g, "")) || 0
-    return 0
-  }
+  const findAmt = (label) => firstMoneyAfterLabel(text, label, 180)
 
-  const subtotalMatch = text.match(/Subtotal \(excluding Tax\)[^\d]*([\d\.,]+)/)
-  const taxMatch      = text.match(/Total Tax[^\d]*([\d\.,]+)/)
-  const totalMatch    = text.match(/Total Amount[^\d]*([\d\.,]+)/)
-
-  const sub   = subtotalMatch ? parseInt(subtotalMatch[1].replace(/[,\.]/g, "").slice(0,-3) + subtotalMatch[1].replace(/[,\.]/g,"").slice(-3)) : 0
-  const tax   = taxMatch      ? parseInt(taxMatch[1].replace(/[,\.]/g,"").slice(0,-3)       + taxMatch[1].replace(/[,\.]/g,"").slice(-3))       : 0
-  const total = totalMatch    ? parseInt(totalMatch[1].replace(/[,\.]/g,"").slice(0,-3)      + totalMatch[1].replace(/[,\.]/g,"").slice(-3))      : 0
+  const sub   = firstMoneyAfterLabel(text, "Subtotal \\(excluding Tax\\)")
+  const tax   = firstMoneyAfterLabel(text, "Total Tax")
+  const total = firstMoneyAfterLabel(text, "Total Amount")
 
   const isLogistics = text.includes("Tokgistic") || text.includes("Logistics fee") || text.includes("delivery shipping fee")
   const commission  = text.includes("commission fee") ? findAmt("TikTok Shop commission fee") : 0
@@ -193,20 +225,13 @@ function parseLazadaExpenseInvoice(text, isAds = false) {
   text = text.normalize("NFC")
 
   const findLine = (label) => {
-    const re = new RegExp(label + "[\\s\\S]{0,50}?([\\d]{1,3}(?:\\.[\\d]{3})+)")
-    const m = text.match(re)
-    if (!m) return 0
-    return parseInt(m[1].replace(/\./g, "")) || 0
+    return firstMoneyAfterLabel(text, label, 160)
   }
 
   // Lấy số tiền đã bao gồm thuế — "Tổng cộng tiền hàng (Total payment)"
-  const totalMatch = text.match(/Tổng cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
-  const vatMatch   = text.match(/Tiền thuế GTGT[^:]*:\s*([\d\.,]+)/)
-  const subMatch   = text.match(/Cộng tiền hàng[^:]*:\s*([\d\.,]+)/)
-
-  const total = totalMatch ? parseInt(totalMatch[1].replace(/\./g, "")) : 0
-  const vat   = vatMatch   ? parseInt(vatMatch[1].replace(/\./g, ""))   : 0
-  const sub   = subMatch   ? parseInt(subMatch[1].replace(/\./g, ""))   : 0
+  const total = lastMoneyAfterLabel(text, "Tổng cộng tiền hàng|Total payment")
+  const vat   = lastMoneyAfterLabel(text, "Tiền thuế GTGT")
+  const sub   = lastMoneyAfterLabel(text, "Cộng tiền hàng")
 
   // Đọc tháng từ nội dung PDF — VD: "tháng 02/2026" hoặc "02/2026"
   let reportMonthFromContent = ""
@@ -268,10 +293,10 @@ function parseLazadaExpenseInvoice(text, isAds = false) {
 }
 
 function findAmtLine(text, label) {
-  const re = new RegExp(label + "[\\s\\S]{0,100}?([\\d]{1,3}(?:\\.[\\d]{3})+)")
+  const re = new RegExp(label, "i")
   const m = text.match(re)
   if (!m) return 0
-  return parseInt(m[1].replace(/\./g, "")) || 0
+  return firstMoneyAfterLabel(text.slice(m.index), label, 260)
 }
 
 // ── Parser Shopee PDF ────────────────────────────────────────────────

@@ -24,6 +24,7 @@ const FIELDS = [
   { id: "lazada_vat",                 type: "pct"   },
   { id: "lazada_pit",                 type: "pct"   },
   { id: "lazada_shipping_diff",       type: "pct"   },
+  { id: "lazada_affiliate",           type: "pct"   },
   { id: "lazada_ads",                 type: "pct"   },
 ]
 

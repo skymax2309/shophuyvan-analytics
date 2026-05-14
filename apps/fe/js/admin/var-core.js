@@ -1,282 +1,426 @@
 window.allVariations = [];
 window.currentVarPage = 1;
 window.VARS_PER_PAGE = 48;
+window.productReviewRiskRows = [];
+window.productReviewRiskByKey = new Map();
 
 window.escapeHtml = function(unsafe) {
-    return (unsafe || '').toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  return (unsafe || '').toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
+function formatVnd(value) {
+  const number = Number(value || 0);
+  return number ? number.toLocaleString('vi-VN') + 'đ' : '0đ';
 }
+
+function statusBadge(status) {
+  const badges = {
+    MAPPED: '<span class="variation-chip" style="background:#dcfce7;color:#16a34a;">Đã liên kết</span>',
+    UNMAPPED: '<span class="variation-chip" style="background:#fef3c7;color:#b45309;">Chưa liên kết</span>',
+    IGNORED: '<span class="variation-chip" style="background:#f3f4f6;color:#64748b;">Bỏ qua</span>'
+  };
+  return badges[status] || escapeHtml(status || '');
+}
+
+function reviewRiskKey(platform, shop, type, value) {
+  const normalized = (value || '').toString().trim().toLowerCase();
+  if (!normalized || normalized === 'sản phẩm chưa rõ') return '';
+  return [
+    (platform || '').toString().trim().toLowerCase(),
+    (shop || '').toString().trim().toLowerCase(),
+    type,
+    normalized
+  ].join('|');
+}
+
+function reviewRiskKeys(row = {}) {
+  // Review_core có thể thiếu SKU hoặc tên, nên key phải giữ cả item_id để match đúng sản phẩm sàn.
+  return [
+    reviewRiskKey(row.platform, row.shop, 'item', row.platform_item_id),
+    reviewRiskKey(row.platform, row.shop, 'sku', row.item_sku || row.platform_sku || row.sku),
+    reviewRiskKey(row.platform, row.shop, 'name', row.product_name)
+  ].filter(Boolean);
+}
+
+function indexProductReviewRisk(rows = []) {
+  const map = new Map();
+  rows.forEach(row => {
+    reviewRiskKeys(row).forEach(key => {
+      if (!map.has(key)) map.set(key, row);
+    });
+  });
+  window.productReviewRiskByKey = map;
+}
+
+function findProductReviewRisk(row = {}) {
+  const map = window.productReviewRiskByKey || new Map();
+  for (const key of reviewRiskKeys(row)) {
+    if (map.has(key)) return map.get(key);
+  }
+  return null;
+}
+
+function reviewRiskBadge(row = {}) {
+  if (!row) return '';
+  const adsSpend = Number(row.ads_spend_14d || 0);
+  const adsText = adsSpend > 0 ? ` · ADS ${formatVnd(adsSpend)}` : '';
+  return `<span class="review-risk-chip variation-review-risk" title="Review xấu từ review_core">Review xấu ${Number(row.negative_reviews || 0).toLocaleString('vi-VN')}${adsText}</span>`;
+}
+
+function renderProductReviewRiskPanel() {
+  const list = document.getElementById('productReviewRiskList');
+  if (!list) return;
+  const rows = window.productReviewRiskRows || [];
+  if (!rows.length) {
+    list.innerHTML = '<div class="variation-empty">Chưa có sản phẩm nào bị review xấu trong core hiện tại.</div>';
+    return;
+  }
+  list.innerHTML = rows.slice(0, 6).map(row => {
+    const adsSpend = Number(row.ads_spend_14d || 0);
+    const adsChip = adsSpend > 0
+      ? `<span class="review-risk-chip ads">ADS 14 ngày: ${formatVnd(adsSpend)}</span>`
+      : '<span class="review-risk-chip good">Chưa trùng ADS đang chi tiền</span>';
+    return `
+      <div class="review-risk-item">
+        <b title="${escapeHtml(row.product_name)}">${escapeHtml(row.product_name || 'Sản phẩm chưa rõ')}</b>
+        <span>${escapeHtml(row.item_sku || row.platform_item_id || 'Chưa rõ SKU')} · ${escapeHtml(row.platform || '')} / ${escapeHtml(row.shop || '')}</span>
+        <div class="review-risk-meta">
+          <span class="review-risk-chip">${Number(row.negative_reviews || 0).toLocaleString('vi-VN')} review xấu</span>
+          <span class="review-risk-chip">${Number(row.need_reply_reviews || 0).toLocaleString('vi-VN')} cần trả lời</span>
+          ${adsChip}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.loadProductReviewRisk = async function(options = {}) {
+  const list = document.getElementById('productReviewRiskList');
+  if (list && options.force) list.innerHTML = '<div class="variation-empty">Đang tải lại review xấu...</div>';
+  try {
+    const data = await fetch(API + '/api/reviews/product-risk?limit=30&t=' + Date.now()).then(r => {
+      if (!r.ok) throw new Error('Review API HTTP ' + r.status);
+      return r.json();
+    });
+    window.productReviewRiskRows = Array.isArray(data.rows) ? data.rows : [];
+    indexProductReviewRisk(window.productReviewRiskRows);
+    renderProductReviewRiskPanel();
+    if (!options.skipRender && window.allVariations && window.allVariations.length) {
+      renderVariations(window.currentVarPage || 1);
+    }
+  } catch (error) {
+    window.productReviewRiskRows = [];
+    indexProductReviewRisk([]);
+    if (list) list.innerHTML = `<div class="variation-empty" style="color:#b91c1c;">Không tải được review_core: ${escapeHtml(error.message)}</div>`;
+    if (!options.silent) showToast('Không tải được review_core: ' + error.message, true);
+  }
+};
+
+function selectedVariationIds() {
+  return Array.from(document.querySelectorAll('.var-checkbox:checked'))
+    .map(cb => Number(cb.getAttribute('data-id')))
+    .filter(Number.isFinite);
+}
+window.getSelectedVariationIds = selectedVariationIds;
 
 window.loadVariations = async function() {
   const container = document.getElementById('var-list-wrapper') || document.getElementById('variationsTable');
-  if (container) container.innerHTML = '<p style="text-align:center;color:#888;padding:40px">⏳ Đang tải dữ liệu đa sàn...</p>';
+  if (container) container.innerHTML = '<p style="text-align:center;color:#64748b;padding:32px">Đang tải dữ liệu đa sàn...</p>';
+
   try {
-    window.allVariations = await fetch(API + '/api/sync-variations').then(r => r.json());
-    if (!window.allSkus || window.allSkus.length === 0) window.allSkus = await fetch(API + '/api/products').then(r => r.json());
-    updateShopDropdown(); renderVariations(); updateUnmappedBadge();
-  } catch(e) {
-    if (container) container.innerHTML = `<p style="color:#ef4444;padding:20px;text-align:center;font-weight:bold;">❌ Lỗi kết nối Server: ${e.message}</p>`;
+    const variationPromise = fetch(API + '/api/sync-variations?t=' + Date.now()).then(r => r.json());
+    const skuPromise = (!window.allSkus || window.allSkus.length === 0)
+      ? fetch(API + '/api/products?t=' + Date.now()).then(r => r.json())
+      : Promise.resolve(window.allSkus);
+    const reviewPromise = window.loadProductReviewRisk({ silent: true, skipRender: true }).catch(() => null);
+    const [variationRows, skuRows] = await Promise.all([variationPromise, skuPromise, reviewPromise]);
+    window.allVariations = variationRows;
+    window.allSkus = skuRows;
+    updateShopDropdown();
+    renderVariations();
+    updateUnmappedBadge();
+  } catch (e) {
+    if (container) container.innerHTML = `<p style="color:#ef4444;padding:20px;text-align:center;font-weight:bold;">Lỗi kết nối Server: ${escapeHtml(e.message)}</p>`;
   }
-}
+};
 
 window.updateShopDropdown = function() {
-  const platformFilter = document.getElementById('var_filter_platform').value;
-  const filteredShops = window.allVariations.filter(v => !platformFilter || v.platform === platformFilter).map(v => v.shop).filter(Boolean);
-  const uniqueShops = [...new Set(filteredShops)];
+  const platformFilter = document.getElementById('var_filter_platform')?.value || '';
   const shopSelect = document.getElementById('var_filter_shop');
+  if (!shopSelect) return;
+
+  const filteredShops = window.allVariations
+    .filter(v => !platformFilter || v.platform === platformFilter)
+    .map(v => v.shop)
+    .filter(Boolean);
+  const uniqueShops = [...new Set(filteredShops)];
   const currentShop = shopSelect.value;
-  shopSelect.innerHTML = '<option value="">🛒 Tất cả Shop</option>' + uniqueShops.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-  shopSelect.value = uniqueShops.includes(currentShop) ? currentShop : "";
-}
+
+  shopSelect.innerHTML = '<option value="">Tất cả shop</option>' +
+    uniqueShops.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  shopSelect.value = uniqueShops.includes(currentShop) ? currentShop : '';
+};
 
 window.updateUnmappedBadge = function() {
   const n = window.allVariations.filter(v => v.map_status === 'UNMAPPED').length;
   const badge = document.getElementById('badge-unmapped');
-  if(badge) { badge.textContent = n; badge.style.display = n > 0 ? '' : 'none'; }
-}
+  if (badge) {
+    badge.textContent = n;
+    badge.style.display = n > 0 ? '' : 'none';
+  }
+};
 
 window.renderVariations = function(page = 1) {
   try {
-      window.currentVarPage = page;
-      const kw = (document.getElementById('var_search').value || '').toLowerCase();
-      const platformFilter = document.getElementById('var_filter_platform').value;
-      const shopFilter = document.getElementById('var_filter_shop').value;
-      const statusFilter = document.getElementById('var_filter_status').value;
+    window.currentVarPage = page;
+    const kw = (document.getElementById('var_search')?.value || '').toLowerCase().trim();
+    const platformFilter = document.getElementById('var_filter_platform')?.value || '';
+    const shopFilter = document.getElementById('var_filter_shop')?.value || '';
+    const statusFilter = document.getElementById('var_filter_status')?.value || '';
 
-      const list = window.allVariations.filter(v => {
-        const matchKw = !kw || (v.platform_sku || '').toLowerCase().includes(kw) || (v.product_name || '').toLowerCase().includes(kw) || (v.variation_name || '').toLowerCase().includes(kw) || (v.internal_sku || '').toLowerCase().includes(kw);
-        const matchPlatform = !platformFilter || v.platform === platformFilter;
-        const matchShop = !shopFilter || v.shop === shopFilter;
-        const matchStatus = !statusFilter || v.map_status === statusFilter;
-        return matchKw && matchPlatform && matchShop && matchStatus;
-      });
+    const list = (window.allVariations || []).filter(v => {
+      const matchKw = !kw ||
+        (v.platform_sku || '').toLowerCase().includes(kw) ||
+        (v.product_name || '').toLowerCase().includes(kw) ||
+        (v.variation_name || '').toLowerCase().includes(kw) ||
+        (v.internal_sku || '').toLowerCase().includes(kw);
+      const matchPlatform = !platformFilter || v.platform === platformFilter;
+      const matchShop = !shopFilter || v.shop === shopFilter;
+      const matchStatus = !statusFilter || v.map_status === statusFilter;
+      return matchKw && matchPlatform && matchShop && matchStatus;
+    });
 
-      const container = document.getElementById('var-list-wrapper') || document.getElementById('variationsTable');
-      const paginationWrap = document.getElementById('varPaginationWrap');
+    const container = document.getElementById('var-list-wrapper') || document.getElementById('variationsTable');
+    const paginationWrap = document.getElementById('varPaginationWrap');
 
-      if (!list.length) {
-        if (container) container.innerHTML = '<p style="text-align:center;color:#888;padding:40px; border:1px dashed #cbd5e1; border-radius:8px; background:white;">🔍 Không tìm thấy sản phẩm nào phù hợp</p>';
-        if (paginationWrap) paginationWrap.innerHTML = '';
-        return;
+    if (!list.length) {
+      if (container) container.innerHTML = '<div class="variation-empty">Không tìm thấy sản phẩm phù hợp.</div>';
+      if (paginationWrap) paginationWrap.innerHTML = '';
+      return;
+    }
+
+    const groupedList = [];
+    const groupMap = new Map();
+    list.forEach(v => {
+      const keyId = (v.platform_item_id || v.product_name || '').toString().replace(/[^a-zA-Z0-9]/g, '');
+      const key = `${v.platform}_${v.shop}_${keyId}`;
+      if (!groupMap.has(key)) {
+        const parentObj = {
+          key,
+          platform: v.platform,
+          shop: v.shop,
+          product_name: v.product_name,
+          platform_item_id: v.platform_item_id,
+          item_sku: v.item_sku || v.platform_sku,
+          image_url: v.image_url,
+          total_stock: 0,
+          variations: []
+        };
+        groupMap.set(key, parentObj);
+        groupedList.push(parentObj);
       }
+      const parent = groupMap.get(key);
+      parent.total_stock += Number(v.stock || 0);
+      parent.variations.push(v);
+    });
 
-      const groupedList = []; const groupMap = new Map();
-      list.forEach(v => {
-          const keyId = (v.platform_item_id || v.product_name || '').toString().replace(/[^a-zA-Z0-9]/g, '');
-          const key = `${v.platform}_${v.shop}_${keyId}`;
-          if (!groupMap.has(key)) {
-              const parentObj = { key: key, platform: v.platform, shop: v.shop, product_name: v.product_name, image_url: v.image_url, total_stock: 0, variations: [] };
-              groupMap.set(key, parentObj); groupedList.push(parentObj);
+    const groupsPerPage = 20;
+    const totalItems = groupedList.length;
+    const totalPages = Math.ceil(totalItems / groupsPerPage) || 1;
+    if (window.currentVarPage > totalPages) window.currentVarPage = totalPages;
+    const startIndex = (window.currentVarPage - 1) * groupsPerPage;
+    const pagedGroups = groupedList.slice(startIndex, startIndex + groupsPerPage);
+
+    window.skuOptionsHtml = (window.allSkus || [])
+      .filter(s => !s.is_combo)
+      .map(s => `<option value="${escapeHtml(s.sku)}">${escapeHtml(s.sku)} - ${escapeHtml(s.product_name)}</option>`)
+      .join('');
+
+    const rows = pagedGroups.map(parent => {
+      const productReviewRisk = findProductReviewRisk(parent);
+      const childHtml = parent.variations.map(v => {
+        let mappedHtml = '';
+        if (v.map_status === 'MAPPED') {
+          try {
+            const items = JSON.parse(v.mapped_items || '[]');
+            mappedHtml = items.length > 0
+              ? items.map(i => `<code style="font-size:11px;background:#dcfce7;padding:3px 7px;border-radius:6px;color:#15803d;font-weight:700">${escapeHtml(i.qty)} x ${escapeHtml(i.sku)}</code>`).join(' + ')
+              : `<code style="font-size:11px;background:#dcfce7;padding:3px 7px;border-radius:6px;color:#15803d;font-weight:700">${escapeHtml(v.internal_sku)}</code>`;
+          } catch (e) {
+            mappedHtml = `<code style="font-size:11px;background:#dcfce7;padding:3px 7px;border-radius:6px;color:#15803d;font-weight:700">${escapeHtml(v.internal_sku)}</code>`;
           }
-          const parent = groupMap.get(key);
-          parent.total_stock += (parseInt(v.stock) || 0); parent.variations.push(v);
-      });
+        }
 
-      const totalItems = groupedList.length; const VAR_GROUPS_PER_PAGE = 20; 
-      const totalPages = Math.ceil(totalItems / VAR_GROUPS_PER_PAGE) || 1;
-      const startIndex = (window.currentVarPage - 1) * VAR_GROUPS_PER_PAGE;
-      const pagedGroups = groupedList.slice(startIndex, startIndex + VAR_GROUPS_PER_PAGE);
+        const priceFormatted = formatVnd(v.price);
+        const discountFormatted = formatVnd(v.discount_price);
+        const hasDiscount = discountFormatted !== '0đ' && discountFormatted !== priceFormatted;
+        const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
 
-      window.skuOptionsHtml = (window.allSkus || []).filter(s => !s.is_combo).map(s => `<option value="${escapeHtml(s.sku)}">${escapeHtml(s.sku)} — ${escapeHtml(s.product_name)}</option>`).join('');
-
-      const statusBadge = s => ({
-        MAPPED:   '<span style="background:#dcfce7;color:#16a34a;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">✅ Đã map</span>',
-        UNMAPPED: '<span style="background:#fef3c7;color:#b45309;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">⚠️ Chưa map</span>',
-        IGNORED:  '<span style="background:#f3f4f6;color:#9ca3af;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700">🚫 Bỏ qua</span>',
-      })[s] || s;
-
-      const rows = pagedGroups.map(parent => {
-          const childHtml = parent.variations.map(v => {
-              let mappedHtml = '';
-              if (v.map_status === 'MAPPED') {
-                try {
-                  const items = JSON.parse(v.mapped_items || '[]');
-                  mappedHtml = items.length > 0 ? items.map(i => `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:6px;color:#15803d;font-weight:600">${i.qty} x ${escapeHtml(i.sku)}</code>`).join(' + ') : `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:6px;color:#15803d;font-weight:600">${escapeHtml(v.internal_sku)}</code>`;
-                } catch(e) { mappedHtml = `<code style="font-size:12px;background:#dcfce7;padding:3px 8px;border-radius:6px;color:#15803d;font-weight:600">${escapeHtml(v.internal_sku)}</code>`; }
-              }
-              const priceFormatted = v.price ? Number(v.price).toLocaleString('vi-VN') + 'đ' : '0đ';
-              const discountFormatted = v.discount_price ? Number(v.discount_price).toLocaleString('vi-VN') + 'đ' : '0đ';
-              const stockStr = v.stock !== null && v.stock !== undefined ? escapeHtml(v.stock) : '0';
-                
-              return `
-              <div style="display: flex; align-items: center; padding: 10px 16px 10px 60px; border-bottom: 1px solid #f1f5f9; background: #fff; transition: 0.2s;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='#fff'">
-                  <div style="margin-right: 12px; display: flex; align-items: center;" onclick="event.stopPropagation()">
-                      <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI()" style="transform:scale(1.1); cursor:pointer;">
-                  </div>
-                  <div style="flex: 2; min-width: 0;">
-                      <div style="font-size: 13px; font-weight: 600; color: #334155;">↳ ${escapeHtml(v.variation_name) || 'Mặc định'}</div>
-                      <div style="font-size: 11px; color: #94a3b8; font-family: monospace; margin-top: 2px;">Mã Sàn: ${escapeHtml(v.platform_sku) || '—'}</div>
-                      <div style="margin-top:4px;">${statusBadge(v.map_status)}</div>
-                  </div>
-                  <div style="flex: 1; text-align: center; font-size: 13px;">
-                      <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Giá gốc</div>
-                      <strong style="color:#64748b; text-decoration: ${discountFormatted !== '0đ' && discountFormatted !== priceFormatted ? 'line-through' : 'none'};">${priceFormatted}</strong>
-                  </div>
-                  <div style="flex: 1; text-align: center; font-size: 13px;">
-                      <div style="color: #ef4444; font-size:11px; font-weight:bold; margin-bottom:4px;">Giá KM</div>
-                      <strong style="color:#ef4444; font-size:13px;">${discountFormatted !== '0đ' ? discountFormatted : '—'}</strong>
-                  </div>
-                  <div style="flex: 1; text-align: center; font-size: 13px;">
-                      <div style="color: #64748b; font-size:11px; margin-bottom:4px;">Tồn kho</div>
-                      <strong style="color:#2563eb; font-size:14px;">📦 ${stockStr}</strong>
-                  </div>
-                  <div style="flex: 0 0 160px; display:flex; flex-direction:column; gap:6px; align-items:flex-end;" onclick="event.stopPropagation()">
-                          ${v.map_status === 'MAPPED' ? `
-                          <div style="font-size:11px; margin-bottom:4px;">${mappedHtml}</div>
-                          <div style="display:flex; gap:6px; width:100%;">
-                              <button onclick="resetVarMap(${v.id})" style="flex:1; padding:4px; background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">✕ Hủy Map</button>
-                              <button onclick="openEditVarModal(${v.id})" style="flex:1; padding:4px; background:#fef3c7; color:#d97706; border:1px solid #fde047; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600">✏️ Sửa SP</button>
-                          </div>
-                      ` : `
-                          <div style="display:flex; gap:6px; width:100%; margin-bottom:4px;">
-                              <button onclick="openQuickMapModal('${v.id}', '${escapeHtml(v.platform_sku)}')" style="flex:1; padding:4px 0; background:#3b82f6; color:white; border:none; border-radius:6px; font-size:10px; cursor:pointer; font-weight:bold;">🔗 Map</button>
-                              <button onclick="copyToInternalSku(${v.id})" style="flex:1; padding:4px 0; background:#10b981; color:white; border:none; border-radius:6px; font-size:10px; cursor:pointer; font-weight:bold;" title="Tạo SKU nội bộ và Map tự động">➕ Copy NB</button>
-                          </div>
-                          <div style="display:flex; gap:6px; width:100%;">
-                              <button onclick="ignoreVar(${v.id})" style="flex:1; padding:4px 0; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:4px; font-size:10px; cursor:pointer; font-weight:600">🚫 Bỏ qua</button>
-                              <button onclick="openEditVarModal(${v.id})" style="flex:1; padding:4px 0; background:#f59e0b; color:white; border:none; border-radius:4px; font-size:10px; cursor:pointer; font-weight:600">✏️ Sửa SP</button>
-                          </div>
-                      `}
-                  </div>
-              </div>`;
-          }).join('');
-
-          return `
-          <div style="border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
-              <div style="display: flex; align-items: center; padding: 12px 16px; background: #f8fafc; cursor: pointer; transition: 0.2s;" onclick="toggleVarGroup('${parent.key}')" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-                  <img src="${parent.image_url || 'https://placehold.co/60x60?text=No+Img'}" style="width: 48px; height: 48px; border-radius: 6px; object-fit: cover; border: 1px solid #cbd5e1; margin-right: 16px;">
-                  <div style="flex: 2; min-width: 0;">
-                      <div style="font-weight: 700; color: #0f172a; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(parent.product_name)}">${escapeHtml(parent.product_name) || 'Sản phẩm không tên'}</div>
-                      <div style="display:flex; gap:6px; margin-top:6px; align-items:center; flex-wrap:wrap;">
-                          <span style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;">🛒 ${escapeHtml(parent.platform)} - ${escapeHtml(parent.shop)}</span>
-                          <span style="background:#e0e7ff;color:#4338ca;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">${parent.variations.length} Phân loại</span>
-                      </div>
-                  </div>
-                  <div style="flex: 1; text-align: center; font-size: 13px;">
-                      <span style="color: #64748b;">Tổng Tồn Kho:</span> <span style="font-weight: 700; color: #16a34a; font-size: 15px;">${parent.total_stock}</span>
-                  </div>
-                  <div style="flex: 0 0 40px; text-align: right; color: #64748b;">
-                      <span id="icon-${parent.key}" style="font-size: 12px; transition: transform 0.3s; display: inline-block;">▼</span>
-                  </div>
-              </div>
-              <div id="vars-${parent.key}" style="display: none; border-top: 1px dashed #e2e8f0;">
-                  ${childHtml}
-              </div>
+        return `
+          <div class="variation-child-row">
+            <div onclick="event.stopPropagation()">
+              <input type="checkbox" class="var-checkbox" data-id="${v.id}" onchange="updateVarBulkDeleteUI(); updateShipXanhButtonsUI();" style="transform:scale(1.08);cursor:pointer;">
+            </div>
+            <div>
+              <div class="variation-name">${escapeHtml(v.variation_name) || 'Mặc định'}</div>
+              <div class="variation-code">Mã sàn: ${escapeHtml(v.platform_sku) || '-'}</div>
+              <div style="margin-top:5px;">${statusBadge(v.map_status)}</div>
+            </div>
+            <div class="variation-metric">
+              <span class="label">Giá gốc</span>
+              <strong style="color:#64748b;text-decoration:${hasDiscount ? 'line-through' : 'none'};">${priceFormatted}</strong>
+            </div>
+            <div class="variation-metric">
+              <span class="label" style="color:#ef4444;">Giá KM</span>
+              <strong style="color:#ef4444;">${discountFormatted !== '0đ' ? discountFormatted : '-'}</strong>
+            </div>
+            <div class="variation-metric">
+              <span class="label">Tồn kho</span>
+              <strong style="color:#2563eb;">${stockStr}</strong>
+            </div>
+            <div class="variation-actions" onclick="event.stopPropagation()">
+              ${v.map_status === 'MAPPED' ? `
+                <div style="font-size:11px;margin-bottom:2px;">${mappedHtml}</div>
+                <div class="variation-actions-row">
+                  <button onclick="resetVarMap(${v.id})" style="background:#fee2e2;color:#dc2626;border-color:#fca5a5;">Hủy map</button>
+                  <button onclick="openEditVarModal(${v.id})" style="background:#fef3c7;color:#d97706;border-color:#fde047;">Sửa</button>
+                </div>
+              ` : `
+                <div class="variation-actions-row">
+                  <button onclick="openQuickMapModal('${v.id}', '${escapeHtml(v.platform_sku)}')" style="background:#3b82f6;color:white;">Map</button>
+                  <button onclick="copyToInternalSku(${v.id})" style="background:#10b981;color:white;">Copy NB</button>
+                </div>
+                <div class="variation-actions-row">
+                  <button onclick="ignoreVar(${v.id})" style="background:#f1f5f9;color:#475569;border-color:#cbd5e1;">Bỏ qua</button>
+                  <button onclick="openEditVarModal(${v.id})" style="background:#f59e0b;color:white;">Sửa</button>
+                </div>
+              `}
+            </div>
           </div>`;
       }).join('');
 
-      if (container) container.innerHTML = `<datalist id="sku-datalist">${window.skuOptionsHtml}</datalist><div style="margin-bottom: 20px;">${rows}</div>`;
-        
-      if (paginationWrap) {
-          paginationWrap.innerHTML = `
-            <button onclick="renderVariations(${window.currentVarPage - 1})" ${window.currentVarPage === 1 ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${window.currentVarPage === 1 ? '#f8fafc' : 'white'}; color:${window.currentVarPage === 1 ? '#cbd5e1' : '#333'}; cursor:${window.currentVarPage === 1 ? 'not-allowed' : 'pointer'}; font-weight:bold;">‹ Trang trước</button>
-            <span style="padding:8px 16px; background:#eff6ff; color:#2563eb; border-radius:8px; font-weight:bold; font-size:14px; border:1px solid #bfdbfe;">Trang ${window.currentVarPage} / ${totalPages} (Tổng ${totalItems} SP)</span>
-            <button onclick="renderVariations(${window.currentVarPage + 1})" ${window.currentVarPage === totalPages ? 'disabled' : ''} style="padding:8px 16px; border:1px solid #cbd5e1; border-radius:8px; background:${window.currentVarPage === totalPages ? '#f8fafc' : 'white'}; color:${window.currentVarPage === totalPages ? '#cbd5e1' : '#333'}; cursor:${window.currentVarPage === totalPages ? 'not-allowed' : 'pointer'}; font-weight:bold;">Trang sau ›</button>
-          `;
-      }
-        
-      const titleEl = document.querySelector('#tab-variations .card-title');
-      if (titleEl && !document.getElementById('btnAutoSyncOld')) {
-          titleEl.innerHTML += ` <button id="btnAutoSyncOld" onclick="autoSyncOldUnmapped()" style="margin-left:12px; background:linear-gradient(135deg, #10b981, #059669); color:white; border:none; border-radius:8px; padding:6px 14px; font-size:12px; cursor:pointer; font-weight:bold; box-shadow:0 3px 6px rgba(16,185,129,0.3); transition:0.2s;" title="Biến toàn bộ mã Chưa Map thành SKU Nội bộ">⚡ Đẩy mã Chưa Map sang SKU Nội Bộ</button>`;
-      }
-      if(typeof window.injectEditModalUI === 'function') window.injectEditModalUI();
-  } catch(err) {
-      console.error("Lỗi khi render bảng:", err);
+      return `
+        <div class="variation-card">
+          <div class="variation-parent-row" onclick="toggleVarGroup('${parent.key}')">
+            <img src="${parent.image_url || 'https://placehold.co/60x60?text=No+Img'}" style="width:48px;height:48px;border-radius:6px;object-fit:cover;border:1px solid #cbd5e1;background:#f8fafc;">
+            <div style="min-width:0;">
+              <div style="font-weight:800;color:#0f172a;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(parent.product_name)}">${escapeHtml(parent.product_name) || 'Sản phẩm không tên'}</div>
+              <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap;">
+                <span class="variation-chip" style="background:#f1f5f9;color:#475569;text-transform:uppercase;">${escapeHtml(parent.platform)} - ${escapeHtml(parent.shop)}</span>
+                <span class="variation-chip" style="background:#e0e7ff;color:#4338ca;">${parent.variations.length} phân loại</span>
+                ${reviewRiskBadge(productReviewRisk)}
+              </div>
+            </div>
+            <div class="variation-stock-summary">
+              Tổng tồn
+              <strong>${parent.total_stock}</strong>
+            </div>
+            <div style="text-align:right;color:#64748b;">
+              <span id="icon-${parent.key}" style="font-size:12px;transition:transform 0.3s;display:inline-block;">▼</span>
+            </div>
+          </div>
+          <div id="vars-${parent.key}" style="display:none;border-top:1px solid #e2e8f0;">
+            ${childHtml}
+          </div>
+        </div>`;
+    }).join('');
+
+    if (container) {
+      container.innerHTML = `<datalist id="sku-datalist">${window.skuOptionsHtml}</datalist>${rows}`;
+    }
+
+    if (paginationWrap) {
+      paginationWrap.innerHTML = `
+        <button class="btn-outline" onclick="renderVariations(${window.currentVarPage - 1})" ${window.currentVarPage === 1 ? 'disabled' : ''}>Trang trước</button>
+        <span style="padding:8px 14px;background:#eff6ff;color:#2563eb;border-radius:8px;font-weight:700;font-size:13px;border:1px solid #bfdbfe;">Trang ${window.currentVarPage} / ${totalPages} - ${totalItems} sản phẩm</span>
+        <button class="btn-outline" onclick="renderVariations(${window.currentVarPage + 1})" ${window.currentVarPage === totalPages ? 'disabled' : ''}>Trang sau</button>
+      `;
+    }
+
+    if (typeof window.injectEditModalUI === 'function') window.injectEditModalUI();
+  } catch (err) {
+    console.error('Lỗi render bảng variation:', err);
   }
-}
+};
 
 window.toggleVarGroup = function(key) {
-    const el = document.getElementById('vars-' + key); const icon = document.getElementById('icon-' + key);
-    if (el.style.display === 'none') { el.style.display = 'block'; if (icon) icon.style.transform = 'rotate(180deg)'; } 
-    else { el.style.display = 'none'; if (icon) icon.style.transform = 'rotate(0deg)'; }
-}
+  const el = document.getElementById('vars-' + key);
+  const icon = document.getElementById('icon-' + key);
+  if (!el) return;
+  const open = el.style.display === 'none';
+  el.style.display = open ? 'block' : 'none';
+  if (icon) icon.style.transform = open ? 'rotate(180deg)' : 'rotate(0deg)';
+};
 
 const _origSwitchTab = window.switchTab;
 window.switchTab = function(tab) {
-  if(_origSwitchTab) _origSwitchTab(tab);
+  if (_origSwitchTab) _origSwitchTab(tab);
   if (tab === 'variations' && (!window.allVariations || window.allVariations.length === 0)) window.loadVariations();
   if (tab === 'shops' && typeof window.loadShopWarehouses === 'function') window.loadShopWarehouses();
-}
+};
 
-// ==========================================
-// 🌟 GIAO DIỆN SHIPXANH & SAO CHÉP VỀ KHO TỔNG
-// ==========================================
 window.switchShipXanhTab = function(status, btnElement) {
-    // 1. Cập nhật CSS cho các Tab
-    document.querySelectorAll('.shipxanh-tab').forEach(btn => {
-        btn.classList.remove('active');
-        btn.style.color = '#64748b';
-        btn.style.borderBottom = '2px solid transparent';
-        btn.style.fontWeight = '600';
-    });
-    btnElement.classList.add('active');
-    btnElement.style.color = '#2563eb';
-    btnElement.style.borderBottom = '2px solid #2563eb';
-    btnElement.style.fontWeight = '700';
+  document.querySelectorAll('.shipxanh-tab').forEach(btn => btn.classList.remove('active'));
+  if (btnElement) btnElement.classList.add('active');
+  const statusInput = document.getElementById('var_filter_status');
+  if (statusInput) statusInput.value = status;
+  window.renderVariations(1);
+  const btnCopy = document.getElementById('btnBulkCopyToWarehouse');
+  if (btnCopy) btnCopy.style.display = 'none';
+};
 
-    // 2. Gán biến trạng thái và tải lại bảng
-    document.getElementById('var_filter_status').value = status;
-    window.renderVariations(1);
-    
-    // 3. Reset nút thao tác hàng loạt
-    const btnCopy = document.getElementById('btnBulkCopyToWarehouse');
-    if(btnCopy) btnCopy.style.display = 'none';
-}
-
-// Hàm theo dõi việc click vào ô Checkbox để hiện nút Sao Chép
 window.updateShipXanhButtonsUI = function() {
-    const checkedBoxes = document.querySelectorAll('.var-checkbox:checked');
-    const btnCopy = document.getElementById('btnBulkCopyToWarehouse');
-    const countSpan = document.getElementById('selectedCopyCount');
-    
-    if (checkedBoxes.length > 0) {
-        if(btnCopy) btnCopy.style.display = 'inline-block';
-        if(countSpan) countSpan.textContent = checkedBoxes.length;
-    } else {
-        if(btnCopy) btnCopy.style.display = 'none';
-    }
-}
+  const count = selectedVariationIds().length;
+  const btnCopy = document.getElementById('btnBulkCopyToWarehouse');
+  const countSpan = document.getElementById('selectedCopyCount');
+  if (btnCopy) btnCopy.style.display = count > 0 ? 'inline-flex' : 'none';
+  if (countSpan) countSpan.textContent = count;
+};
 
-// Lắng nghe sự kiện click checkbox toàn cục (Hỗ trợ tốt việc check lẻ)
 document.addEventListener('change', function(e) {
-    if (e.target && e.target.classList.contains('var-checkbox') || e.target.id === 'selectAllVarChk') {
-        setTimeout(window.updateShipXanhButtonsUI, 50);
-    }
+  const target = e.target;
+  if ((target && target.classList && target.classList.contains('var-checkbox')) || target?.id === 'selectAllVarChk') {
+    setTimeout(window.updateShipXanhButtonsUI, 50);
+  }
 });
 
-// Hàm Bơm Data lên Cloudflare API
 window.copySelectedToWarehouse = async function() {
-    const checked = document.querySelectorAll('.var-checkbox:checked');
-    if (checked.length === 0) return;
-    
-    const ids = Array.from(checked).map(cb => cb.getAttribute('data-id'));
-    if (!confirm(`Tạo SKU nội bộ và sao chép ${ids.length} sản phẩm này về Kho Tổng?`)) return;
+  const ids = selectedVariationIds();
+  if (!ids.length) return;
+  if (!confirm(`Tạo SKU nội bộ và sao chép ${ids.length} sản phẩm này về Kho Tổng?`)) return;
 
-    const btn = document.getElementById('btnBulkCopyToWarehouse');
-    const oldText = btn.innerHTML;
-    btn.innerHTML = '⏳ Đang xử lý...';
+  const btn = document.getElementById('btnBulkCopyToWarehouse');
+  const oldText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.innerHTML = 'Đang xử lý...';
     btn.disabled = true;
+  }
 
-    try {
-        const res = await fetch(API + '/api/sync-variations?action=copy-to-warehouse', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: ids })
-        });
-        
-        const data = await res.json();
-        if (data.status === 'ok') {
-            showToast(`✅ Đã khai sinh thành công ${data.copied} SKU nội bộ mới!`);
-            // Reset UI và tải lại danh sách
-            btn.style.display = 'none';
-            document.querySelectorAll('.var-checkbox:checked').forEach(cb => cb.checked = false);
-            await loadVariations(); 
-        } else {
-            showToast('❌ Lỗi: ' + (data.error || 'Server từ chối'), true);
-        }
-    } catch (err) {
-        showToast('❌ Đứt cáp/Lỗi mạng: ' + err.message, true);
-    } finally {
-        btn.innerHTML = oldText;
-        btn.disabled = false;
+  try {
+    const res = await fetch(API + '/api/sync-variations?action=copy-to-warehouse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast(`Đã tạo ${data.copied} SKU nội bộ mới.`);
+      document.querySelectorAll('.var-checkbox:checked').forEach(cb => { cb.checked = false; });
+      await loadVariations();
+    } else {
+      showToast('Lỗi: ' + (data.error || 'Server từ chối'), true);
     }
-}
+  } catch (err) {
+    showToast('Lỗi mạng: ' + err.message, true);
+  } finally {
+    if (btn) {
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+    }
+  }
+};

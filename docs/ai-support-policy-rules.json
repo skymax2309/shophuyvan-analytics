@@ -1,0 +1,97 @@
+{
+  "version": "2026-05-10-q01-q50",
+  "scope": "ShopHuyVan AI Support chat",
+  "rollout": {
+    "phase_1": "shopee_first",
+    "customer_facing_platform_label": "sàn",
+    "do_not_write_platform_names": ["Shopee", "TikTok", "Lazada"]
+  },
+  "automation": {
+    "normal_auto_send": true,
+    "guard_mode": "strict_allow_only_when_certain_safe",
+    "on_policy_violation": "block_reply_and_send_nothing",
+    "lock_conversation_after_policy_violation_count": 1,
+    "blocked_reply_log": ["content", "reason", "conversation_id", "shop", "time", "risk_level", "rule_source"]
+  },
+  "safe_replies": {
+    "contact_policy": "Dạ shop hỗ trợ mình trực tiếp trên sàn. Mình nhắn giúp shop vấn đề cần hỗ trợ, shop kiểm tra và phản hồi tại đây ạ.",
+    "payment_policy": "Dạ shop chỉ hỗ trợ giao dịch và thanh toán trực tiếp trên sàn. Mình thao tác ngay trên sàn giúp shop để được ghi nhận và bảo vệ quyền lợi ạ.",
+    "review_policy": "Dạ shop ghi nhận phản hồi của mình và sẽ kiểm tra để hỗ trợ đúng theo chính sách của sàn.",
+    "installation_policy": "Dạ mình đọc và làm theo hướng dẫn sử dụng gửi kèm sản phẩm giúp shop. Nếu phần lắp đặt liên quan đến điện hoặc mình chưa chắc, mình nên gặp kỹ thuật viên để được hướng dẫn an toàn ạ."
+  },
+  "forbidden_customer_reply_topics": [
+    "outside_contact_channel",
+    "shop_address_or_direct_pickup",
+    "outside_payment_or_deposit",
+    "external_website_or_link",
+    "specific_platform_name",
+    "price_promotion_voucher_shipping_fee",
+    "absolute_product_claim",
+    "refund_return_warranty_promise",
+    "review_manipulation",
+    "policy_bypass_instruction",
+    "sensitive_data_echo_or_use",
+    "dangerous_electrical_instruction"
+  ],
+  "forbidden_patterns_global": [
+    "zalo",
+    "facebook",
+    "messenger",
+    "telegram",
+    "whatsapp",
+    "momo",
+    "chuyển khoản",
+    "số tài khoản",
+    "tài khoản ngân hàng",
+    "thanh toán ngoài",
+    "đặt cọc",
+    "mua ngoài sàn",
+    "đặt ngoài sàn",
+    "website riêng",
+    "địa chỉ shop",
+    "qua lấy trực tiếp",
+    "cam kết 100%",
+    "chắc chắn dùng được",
+    "không bao giờ lỗi",
+    "bảo hành đổi mới ngay",
+    "hoàn tiền ngay",
+    "đổi mới ngay",
+    "đánh giá tốt",
+    "sửa đánh giá",
+    "xóa đánh giá",
+    "5 sao",
+    "lách chính sách",
+    "ghi lý do thế nào",
+    "dễ được duyệt",
+    "mã OTP",
+    "căn cước",
+    "CCCD",
+    "CMND",
+    "đấu dây trực tiếp",
+    "nối nguồn",
+    "sửa mạch",
+    "điện đang cấp nguồn"
+  ],
+  "rewrite_before_guard": [
+    {
+      "match": ["Shopee", "TikTok", "Lazada"],
+      "replace_with": "sàn",
+      "reason": "Không đọc đúng tên sàn trong câu trả lời gửi khách."
+    }
+  ],
+  "prompt_contract": {
+    "language": "Vietnamese with full diacritics",
+    "pronoun": "neutral",
+    "no_emoji": true,
+    "output_format": "{\"reply\":\"\",\"warnings\":[],\"needs_review\":true}",
+    "needs_review_when": [
+      "missing_data",
+      "policy_risk",
+      "high_risk_customer",
+      "refund_return_warranty",
+      "review_pressure",
+      "sensitive_data",
+      "electrical_installation"
+    ]
+  }
+}

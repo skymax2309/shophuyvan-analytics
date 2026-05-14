@@ -1,12 +1,15 @@
 window.toggleAllVarCheck = function(checked) {
-  document.querySelectorAll('.var-checkbox').forEach(cb => cb.checked = checked); updateVarBulkDeleteUI();
+  document.querySelectorAll('.var-checkbox').forEach(cb => cb.checked = checked);
+  updateVarBulkDeleteUI();
+  if (typeof window.updateShipXanhButtonsUI === 'function') window.updateShipXanhButtonsUI();
 }
 
 window.updateVarBulkDeleteUI = function() {
   const count = document.querySelectorAll('.var-checkbox:checked').length;
   const btnBulk = document.getElementById('btnBulkDeleteVar');
   const countSpan = document.getElementById('selectedVarCount');
-  if (count > 0) { btnBulk.style.display = 'inline-block'; countSpan.textContent = count; } 
+  if (!btnBulk || !countSpan) return;
+  if (count > 0) { btnBulk.style.display = 'inline-flex'; countSpan.textContent = count; }
   else { btnBulk.style.display = 'none'; }
 }
 
@@ -75,4 +78,46 @@ window.autoSyncOldUnmapped = async function() {
    } catch(e) { showToast("❌ Lỗi đồng bộ: " + e.message, true); } finally {
        if (btn) { btn.innerHTML = "⚡ Đẩy mã Chưa Map sang SKU Nội Bộ"; btn.disabled = false; }
    }
+}
+
+window.syncApiProductsFromDashboard = async function() {
+  const btn = document.getElementById('btnSyncApiProducts');
+  const oldText = btn ? btn.innerHTML : '';
+  const platform = document.getElementById('var_filter_platform')?.value || '';
+  const shop = document.getElementById('var_filter_shop')?.value || '';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = 'Đang đồng bộ...';
+  }
+  showToast('Đang kéo sản phẩm và tồn kho chuẩn từ các shop có API...');
+
+  try {
+    const res = await fetch(API + '/api/products/sync-api-products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform,
+        shop,
+        limit: 180,
+        ...(typeof getProductSyncOptions === 'function' ? getProductSyncOptions() : { includeOutOfStock: false })
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || 'Server từ chối đồng bộ');
+
+    const skipped = Number(data.skipped_out_of_stock || 0);
+    const skippedVars = Number(data.skipped_zero_stock_variations || 0);
+    const skippedText = skipped || skippedVars ? ` Bỏ qua ${skipped} sản phẩm hết hàng, ${skippedVars} phân loại hết hàng.` : '';
+    showToast(`Đã đồng bộ ${data.synced_variations || 0} SKU từ ${data.shops?.length || 0} shop API.${skippedText}`);
+    await loadVariations();
+    if (typeof window.loadSkus === 'function') window.loadSkus();
+  } catch (err) {
+    showToast('Lỗi đồng bộ API: ' + err.message, true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
 }

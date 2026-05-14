@@ -1,0 +1,51 @@
+/* Mặc định Máy tính */
+    .mobile-menu-btn { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 4px; align-items: center; justify-content: center; }
+    .top-nav-links { display: flex; align-items: center; gap: 12px; }
+    .nav-vip-link { color: #00CED1 !important; font-weight: bold; margin-left: 10px; }
+    .nav-vip-link2 { color: #00FF88 !important; font-weight: bold; margin-left: 5px; }
+    .nav-api-btn { border: 1px dashed var(--accent) !important; color: var(--accent) !important; font-weight: bold; }
+    .btn-auto-settings { background-color: #0f766e !important; border-color: #14b8a6 !important; color: white !important; }
+    .btn-api-advanced { background-color: #1d4ed8 !important; border-color: #60a5fa !important; color: white !important; }
+    .btn-new-api { background-color: #2563eb !important; border-color: #60a5fa !important; color: white !important; font-weight: 900; }
+    .api-advanced-short { display: none; }
+    
+    @media (min-width: 769px) {
+      .mobile-menu-btn { display: none !important; }
+    }
+
+    /* Giao diện Điện thoại */
+    @media (max-width: 768px) {
+      .hide-on-mobile { display: none; }
+      .btn-api-advanced .api-advanced-full { display: none; }
+      .btn-api-advanced .api-advanced-short { display: inline; font-weight: 900; font-size: 11px; }
+      .topbar-right button { padding: 6px 8px; }
+      
+      /* Kích hoạt nút Hamburger */
+      .mobile-menu-btn { display: block !important; margin-right: 8px; }
+      
+      /* Biến Menu ngang thành Popup thả xuống */
+      .top-nav-links {
+        display: none; /* Ẩn mặc định */
+        position: absolute;
+        top: 52px; /* Nằm ngay dưới topbar */
+        left: 0;
+        width: 260px;
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        border-bottom-right-radius: 12px;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+        gap: 12px;
+        box-shadow: 4px 10px 24px rgba(0,0,0,0.6);
+        z-index: 999;
+      }
+      .top-nav-links.open { display: flex; animation: slideDown 0.2s ease; }
+      
+      /* Định dạng lại các nút bên trong Menu để dễ bấm bằng ngón tay */
+      .top-nav-links a { margin: 0 !important; width: 100%; padding: 12px 14px !important; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); }
+      .nav-api-btn { margin: 0 !important; width: 100%; text-align: left; padding: 12px 14px !important; display: block; }
+      
+      @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    }

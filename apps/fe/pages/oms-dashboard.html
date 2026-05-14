@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OMS — Quản lý Đơn Hàng</title>
-<link rel="stylesheet" href="../css/oms-dashboard.css">
-<style>
-</style>
+<link rel="stylesheet" href="../css/oms-dashboard.css?v=label-real-preview2-20260509">
+<link rel="stylesheet" href="../css/oms-dashboard-inline-a.css?v=core-first-20260514a">
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="../js/auth-guard.js?v=toolbar-clean-20260508"></script>
 </head>
 <body>
 
@@ -20,11 +21,12 @@
     
     <div class="top-nav-links" id="topNavMenu">
       <a href="profit-dashboard.html">← Dashboard</a>
-      <a href="admin-products.html">📦 Sản phẩm</a>
+      <a href="admin-products.html#variations">📦 Sản phẩm</a>
+      <a href="admin-users.html">🔐 Phân quyền</a>
       <a href="cctv_packing.html" class="nav-vip-link">🎥 Trạm Quét Mã</a>
-      <a href="dashboard_video.html" class="nav-vip-link2">🎞️ Kho Video</a>
+      <a href="dashboard_video.html" class="nav-vip-link2">🎞️ Trung tâm video</a>
       
-      <button class="btn btn-ghost nav-api-btn" onclick="document.getElementById('apiAuthModal').style.display='flex'">
+      <button class="btn btn-ghost nav-api-btn" onclick="openApiAuthModal()">
         🔌 Kết nối API Sàn (VIP)
       </button>
     </div>
@@ -32,10 +34,16 @@
   
   <div class="topbar-right" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
     <span id="lastSync" style="font-size:11px;color:var(--muted); display: none;">Chưa đồng bộ</span>
-    
-    <button class="btn-sync" onclick="triggerBotStatus()" style="background-color: #8b5cf6; border-color: #7c3aed;" title="Cập nhật Hành trình">
+    <div id="notifyControls" class="notify-controls"></div>
+
+    <button class="btn-sync btn-auto-settings" onclick="openBotSettings()" title="Cài đặt thời gian tự động kéo đơn/cập nhật trạng thái">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+      <span class="hide-on-mobile">Auto</span>
+    </button>
+
+    <button class="btn-sync" onclick="triggerBotStatus()" style="background-color: #8b5cf6; border-color: #7c3aed;" title="Quét trạng thái: shop API đối soát bằng API, shop không API đánh thức Radar Chrome. Đơn đã rời kho sẽ tự sang Đang giao.">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-      <span class="hide-on-mobile">Cập nhật</span>
+      <span class="hide-on-mobile">Quét trạng thái</span>
     </button>
 
     <button class="btn-sync" onclick="triggerBotScrape()" style="background-color: #3b82f6; border-color: #2563eb;" title="Kéo Đơn Mới">
@@ -49,53 +57,7 @@
     </button>
   </div>
 
-  <style>
-    /* Mặc định Máy tính */
-    .mobile-menu-btn { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 4px; align-items: center; justify-content: center; }
-    .top-nav-links { display: flex; align-items: center; gap: 12px; }
-    .nav-vip-link { color: #00CED1 !important; font-weight: bold; margin-left: 10px; }
-    .nav-vip-link2 { color: #00FF88 !important; font-weight: bold; margin-left: 5px; }
-    .nav-api-btn { border: 1px dashed var(--accent) !important; color: var(--accent) !important; font-weight: bold; }
-    
-    @media (min-width: 769px) {
-      .mobile-menu-btn { display: none !important; }
-    }
-
-    /* Giao diện Điện thoại */
-    @media (max-width: 768px) {
-      .hide-on-mobile { display: none; }
-      .topbar-right button { padding: 6px 8px; }
-      
-      /* Kích hoạt nút Hamburger */
-      .mobile-menu-btn { display: block !important; margin-right: 8px; }
-      
-      /* Biến Menu ngang thành Popup thả xuống */
-      .top-nav-links {
-        display: none; /* Ẩn mặc định */
-        position: absolute;
-        top: 52px; /* Nằm ngay dưới topbar */
-        left: 0;
-        width: 260px;
-        background: var(--surface);
-        border-right: 1px solid var(--border);
-        border-bottom: 1px solid var(--border);
-        border-bottom-right-radius: 12px;
-        flex-direction: column;
-        align-items: stretch;
-        padding: 16px;
-        gap: 12px;
-        box-shadow: 4px 10px 24px rgba(0,0,0,0.6);
-        z-index: 999;
-      }
-      .top-nav-links.open { display: flex; animation: slideDown 0.2s ease; }
-      
-      /* Định dạng lại các nút bên trong Menu để dễ bấm bằng ngón tay */
-      .top-nav-links a { margin: 0 !important; width: 100%; padding: 12px 14px !important; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); }
-      .nav-api-btn { margin: 0 !important; width: 100%; text-align: left; padding: 12px 14px !important; display: block; }
-      
-      @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-    }
-  </style>
+  <link rel="stylesheet" href="../css/oms-dashboard-inline-b.css?v=core-first-20260514a">
 </div>
 
 <!-- LAYOUT -->
@@ -127,6 +89,8 @@
   </div>
   <!-- /sidebar -->
 
+  <div id="sub-tabs-bar" class="sub-tabs-container" aria-label="Loc chi tiet trang thai"></div>
+
   <!-- MAIN -->
 <div class="main">
 
@@ -135,48 +99,39 @@
     <div class="toolbar">
       <div class="toolbar-actions">
         <button class="btn btn-warning" id="btnPrepare" onclick="markPrepare()" disabled>🖨️ Chuẩn bị hàng + In PDF</button>
-        <button class="btn btn-primary" id="btnBatchPrint" onclick="printBatchLabels()" style="background-color: var(--blue); border-color: var(--blue);" disabled>🖨️ In Bill Hàng Loạt</button>
         <button class="btn btn-primary" id="btnPacked" onclick="markPacked()" disabled>📦 Đã đóng gói</button>
+        <button class="btn btn-success" id="btnHandedOver" onclick="markHandedOver()" disabled title="Dùng sau khi đã giao kiện cho bưu tá/ĐVVC. Shop có API sẽ được đối soát lại ở lần đồng bộ sau, shop không API dùng đây là xác nhận tay.">🚚 Bàn giao ĐVVC</button>
+        <button class="btn btn-warning" id="btnAcceptBuyerCancel" onclick="decideBuyerCancellation('ACCEPT')" disabled title="Chỉ dùng cho đơn đang ở trạng thái Khách yêu cầu hủy. Shop có API sẽ xác nhận hủy thật lên sàn.">Đồng ý hủy</button>
+        <button class="btn btn-ghost" id="btnRejectBuyerCancel" onclick="decideBuyerCancellation('REJECT')" disabled title="Chỉ dùng cho đơn đang ở trạng thái Khách yêu cầu hủy. Shop có API sẽ từ chối yêu cầu hủy thật lên sàn.">Từ chối hủy</button>
         <div class="divider"></div>
         <button class="btn btn-ghost" id="btnPickList" onclick="showPickList()" disabled>📋 Bảng soạn hàng</button>
-        <div class="divider"></div>
-        <button class="btn btn-ghost" style="background:var(--red); color:white; border: 1px solid var(--red);" id="btnDeleteOrders" onclick="deleteErrorOrders()" disabled>🗑️ Xóa Đơn Lỗi</button>
-        
-        <button class="btn btn-ghost" style="color:var(--muted); margin-left:auto; border: 1px dashed var(--border);" onclick="archiveOldOrders()">✨ Chuẩn hóa dữ liệu cũ</button>
-        <button class="btn btn-ghost" style="color:var(--accent); margin-left:8px; border: 1px dashed var(--accent);" onclick="recalcAllCosts()">🔄 Tính lại Giá Vốn</button>
+        <button class="btn btn-ghost" id="btnLabelSettings" onclick="openLabelSettings()">Kho tem in</button>
       </div>
     </div>
 
     <!-- FILTER BAR -->
     <div class="filterbar" style="align-items: center;">
-      <span class="filter-label">Từ:</span>
-      <input type="date" class="filter-input filter-date" id="f_from">
-      <span class="filter-label">Đến:</span>
-      <input type="date" class="filter-input filter-date" id="f_to">
-      
-      <select class="filter-select" id="f_platform" onchange="filterShopDropdown(this.value); loadOrders(1)" style="width: 130px;">
+      <select class="filter-select" id="f_platform" onchange="onPlatformFilterChange(this.value)" style="width: 130px;">
         <option value="">Tất cả Sàn</option>
         <option value="shopee">Shopee</option>
         <option value="tiktok">TikTok</option>
         <option value="lazada">Lazada</option>
       </select>
-      <select class="filter-select" id="f_shop" onchange="loadOrders(1)">
+      <select class="filter-select" id="f_shop" onchange="onShopFilterChange()">
         <option value="">Tất cả shop</option>
       </select>
       
-      <input type="text" class="filter-input" id="f_search"
+      <input type="search" class="filter-input" id="f_search" name="oms_order_lookup_20260509"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        data-lpignore="true" data-form-type="other" inputmode="search" readonly
         placeholder="🔍 Tìm mã đơn, tên KH, SKU..."
+        onfocus="this.removeAttribute('readonly')"
+        onmousedown="this.removeAttribute('readonly')"
+        ontouchstart="this.removeAttribute('readonly')"
         oninput="debounceLoad()">
         
       <select class="filter-select" id="f_carrier" onchange="loadOrders(1)">
         <option value="">Tất cả ĐVVC</option>
-        <option value="SPX">SPX Express</option>
-        <option value="J&T">J&T Express</option>
-        <option value="GHN">Giao Hàng Nhanh</option>
-        <option value="GHTK">Giao Hàng Tiết Kiệm</option>
-        <option value="Ninja">Ninja Van</option>
-        <option value="Viettel">Viettel Post</option>
-        <option value="LEX">Lazada Express</option>
       </select>
       
       <select class="filter-select" id="f_shipping" onchange="loadOrders(1)" style="display:none;">
@@ -189,9 +144,31 @@
         <option value="no_cost">🚨 Thiếu Giá Vốn</option>
       </select>
 
+      <select class="filter-select" id="f_customer_risk" onchange="loadOrders(1)" style="width: 150px; border-color: var(--orange); color: var(--orange); font-weight: bold;">
+        <option value="" style="color: var(--text)">Khách: tất cả</option>
+        <option value="warning">Khách rủi ro</option>
+        <option value="high">Rủi ro cao</option>
+        <option value="return">Hay trả hàng</option>
+        <option value="failed_delivery">Hay không nhận</option>
+      </select>
+
+      <select class="filter-select" id="f_return_scope" onchange="loadOrders(1)" style="display:none; width: 150px;">
+        <option value="30">Hoàn: 30 ngày</option>
+        <option value="7">Hoàn: 7 ngày</option>
+        <option value="45">Hoàn: 45 ngày</option>
+        <option value="all">Hoàn: tất cả lịch sử</option>
+      </select>
+
       <label style="color:var(--orange); font-weight:bold; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:12px; background: rgba(249,115,22,0.1); padding: 5px 10px; border-radius: 6px; border: 1px solid var(--orange);">
         <input type="checkbox" id="f_express" onchange="loadOrders(1)" style="accent-color: var(--orange);"> ⚡ Hỏa Tốc
       </label>
+
+      <select class="filter-select" id="f_page_size" onchange="setPageSize(this.value)" style="width: 120px;">
+        <option value="50">50 đơn/trang</option>
+        <option value="100">100 đơn/trang</option>
+        <option value="200">200 đơn/trang</option>
+        <option value="500">500 đơn/trang</option>
+      </select>
 
       <button class="btn btn-ghost" style="font-size:12px;color:var(--muted)" onclick="resetFilter()">✕ Reset</button>
     </div>
@@ -214,14 +191,11 @@
             <th>Trạng Thái Giao</th>
             <th>Doanh thu</th>
             <th>Lãi thực</th>
-            <th>Kho (OMS)</th>
-            <th>Loại</th>
-            <th>Thời gian</th>
             <th>Shop / KH</th>
           </tr>
         </thead>
         <tbody id="omsTable">
-          <tr><td colspan="10">
+          <tr><td colspan="9">
             <div class="empty-state">
               <div class="icon">📦</div>
               <p>Nhấn <b>Đồng bộ</b> để tải đơn hàng mới nhất từ Bot</p>
@@ -258,21 +232,8 @@
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<script type="module">
-  import { loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
-           showPickList, resetFilter, debounceLoad, toggleAllCheck, 
-           closeModal, copyText, onCheck, printBatchLabels } from '../js/oms-main.js';
-
-  // Expose to global scope (vì HTML dùng onclick="...")
-  Object.assign(window, {
-    loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
-    showPickList, resetFilter, debounceLoad, toggleAllCheck, 
-    closeModal, copyText, onCheck, printBatchLabels
-  });
-
-  loadShopList();
-  loadOrders(1);
-</script>
+<script src="../js/dashboard/order-status-core.js?v=customer-risk-phase1-fix-20260509"></script>
+<script type="module" src="../js/features/oms-dashboard/oms-dashboard-inline-1.js?v=fe-split-20260514"></script>
 <div class="modal-overlay" id="mapSkuModal">
   <div class="modal" style="max-width: 500px;">
     <div class="modal-header">
@@ -333,16 +294,7 @@
   </div>
 </div>
 
-<script>
-  // Kiểm tra trạng thái sau khi Redirect về từ Sàn
-  window.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('api_status') === 'success') {
-      alert("🎉 TẤT TAY! Đã đúc Chìa Khóa API thành công và lưu vào Database!");
-      window.history.replaceState({}, document.title, window.location.pathname);
-      if (window.loadShopList) window.loadShopList();
-    }
-  });
-</script>
+<script src="../js/oms-dashboard/api-auth-core.js?v=core-first-20260514a"></script>
+<script src="../js/oms-dashboard/api-auth-actions.js?v=core-first-20260514a"></script>
 </body>
 </html>

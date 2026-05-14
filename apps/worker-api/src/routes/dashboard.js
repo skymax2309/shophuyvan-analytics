@@ -3,39 +3,178 @@
 // ════════════════════════════════════════════════════════════════════
 
 import { getFilters, buildWhere } from '../utils/filters.js'
-import { getCostSettings, calcProfit } from '../utils/db.js'
+import { ensureReturnReverseLedgerTable } from '../core/return-reverse-core.js'
+import { moneyNumber, dashboardStatusAggregate } from '../core/dashboard-summary-core.js'
 
+function buildAdsSnapshotWhere(filters) {
+  const conds = [`COALESCE(spend, 0) > 0`]
+  const params = []
+
+  if (filters.from) {
+    conds.push(`date(snapshot_date) >= ?`)
+    params.push(filters.from)
+  }
+  if (filters.to) {
+    conds.push(`date(snapshot_date) <= ?`)
+    params.push(filters.to)
+  }
+  if (filters.platform) {
+    conds.push(`platform = ?`)
+    params.push(filters.platform)
+  }
+  if (filters.shops && filters.shops.length > 0) {
+    const placeholders = filters.shops.map(() => '?').join(',')
+    conds.push(`shop IN (${placeholders})`)
+    filters.shops.forEach(shop => params.push(shop))
+  } else if (filters.shop) {
+    conds.push(`shop = ?`)
+    params.push(filters.shop)
+  }
+
+  return { where: 'WHERE ' + conds.join(' AND '), params }
+}
+
+function buildAllOrderWhere(filters, prefix = '') {
+  const { where, params } = buildWhere(filters, prefix)
+  const normalClause = `${prefix}order_type = 'normal'`
+  // Dashboard tổng hợp hủy/hoàn cần đọc cả đơn không còn normal, nhưng vẫn phải giữ alias khi query có JOIN.
+  const allOrderWhere = where
+    .replace(`WHERE ${normalClause} AND `, 'WHERE ')
+    .replace(`WHERE ${normalClause}`, 'WHERE 1=1')
+  return { where: allOrderWhere, params }
+}
 
 async function dashboard(request, env, cors) {
+  await ensureReturnReverseLedgerTable(env)
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
-
-  // Dùng orders_v2 — mỗi dòng = 1 đơn hàng (đúng hơn)
-  const whereV2        = where.replace(/\borders\b/g, "orders_v2")
-  const whereV2NoType  = whereV2.replace("order_type = 'normal' AND ", "").replace("WHERE order_type = 'normal'", "WHERE 1=1")
+  const { where: whereAlias, params: aliasParams } = buildWhere(filters, 'o.')
+  const { where: whereAllOrders, params: allOrderParams } = buildAllOrderWhere(filters)
+  const { where: whereAliasAllOrders, params: aliasAllOrderParams } = buildAllOrderWhere(filters, 'o.')
 
   const row = await env.DB.prepare(`
     SELECT
-      COUNT(DISTINCT order_id)   AS total_orders,
-      SUM(revenue)               AS total_revenue,
-      SUM(fee)                   AS total_fee,
-      SUM(cost_invoice)          AS total_cost_invoice,
-      SUM(cost_real)             AS total_cost_real,
-      SUM(profit_invoice)        AS total_profit_invoice,
-      SUM(profit_real)           AS total_profit_real,
-      SUM(tax_flat)              AS total_tax_flat,
-      SUM(tax_income)            AS total_tax_income,
-      SUM(tax_flat + tax_income) AS total_tax,
-      SUM(fee_platform)          AS total_platform_fee,
-      SUM(fee_payment)           AS total_payment_fee,
-      SUM(fee_affiliate)         AS total_affiliate_fee,
-      SUM(fee_ads)               AS total_ads_fee,
-      SUM(fee_piship)            AS total_piship_fee,
-      SUM(fee_service)           AS total_service_fee,
-      SUM(fee_packaging + fee_operation + fee_labor) AS total_fixed_fee
-    FROM orders_v2
-    ${whereV2}
-  `).bind(...params).first()
+      COUNT(DISTINCT o.order_id)   AS total_orders,
+      SUM(o.revenue)               AS total_revenue,
+      SUM(o.fee)                   AS total_fee,
+      SUM(o.cost_invoice)          AS total_cost_invoice,
+      SUM(o.cost_real)             AS total_cost_real,
+      SUM(o.profit_invoice)        AS total_profit_invoice_before_returns,
+      SUM(o.profit_real)           AS total_profit_real_before_returns,
+      SUM(o.profit_invoice - COALESCE(r.refund_amount, 0)) AS total_profit_invoice,
+      SUM(o.profit_real - COALESCE(r.refund_amount, 0))    AS total_profit_real,
+      SUM(COALESCE(r.refund_amount, 0)) AS total_return_refund,
+      COUNT(DISTINCT CASE WHEN r.order_id IS NOT NULL THEN o.order_id END) AS api_return_orders,
+      SUM(o.tax_flat)              AS total_tax_flat,
+      SUM(o.tax_income)            AS total_tax_income,
+      SUM(o.tax_flat + o.tax_income) AS total_tax,
+      SUM(o.fee_platform)          AS total_platform_fee,
+      SUM(o.fee_payment)           AS total_payment_fee,
+      SUM(o.fee_affiliate)         AS total_affiliate_fee,
+      SUM(o.fee_ads)               AS total_ads_fee,
+      SUM(o.fee_piship)            AS total_piship_fee,
+      SUM(o.fee_service)           AS total_service_fee,
+      SUM(o.fee_packaging + o.fee_operation + o.fee_labor) AS total_fixed_fee
+    FROM orders_v2 o
+    LEFT JOIN (
+      SELECT LOWER(COALESCE(platform, '')) AS platform,
+             order_id,
+             SUM(COALESCE(effective_refund_amount, 0)) AS refund_amount
+      FROM marketplace_return_reverse_ledger
+      WHERE is_finance_closed = 1
+      GROUP BY LOWER(COALESCE(platform, '')), order_id
+    ) r ON r.platform = LOWER(COALESCE(o.platform, '')) AND r.order_id = o.order_id
+    ${whereAlias}
+  `).bind(...aliasParams).first()
+
+  let feeBucketRow = {}
+  try {
+    feeBucketRow = await env.DB.prepare(`
+      SELECT
+        COUNT(DISTINCT o.order_id) AS fee_scope_orders,
+        COUNT(DISTINCT CASE WHEN f.order_id IS NOT NULL THEN o.order_id END) AS fee_detail_orders,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_commission, 0) ELSE COALESCE(o.fee_platform, 0) END) AS total_platform_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_payment, 0) ELSE COALESCE(o.fee_payment, 0) END) AS total_payment_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_service, 0) ELSE COALESCE(o.fee_service, 0) END) AS total_service_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_affiliate, 0) ELSE COALESCE(o.fee_affiliate, 0) END) AS total_affiliate_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_ads, 0) ELSE COALESCE(o.fee_ads, 0) END) AS total_ads_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_piship, 0) ELSE COALESCE(o.fee_piship, 0) END) AS total_piship_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_handling, 0) ELSE 0 END) AS total_handling_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_shipping, 0) ELSE 0 END) AS total_shipping_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.tax_vat, 0) ELSE 0 END) AS total_fee_tax_vat,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.tax_pit, 0) ELSE 0 END) AS total_fee_tax_pit,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN
+          COALESCE(NULLIF(f.total_fees, 0),
+            COALESCE(f.fee_commission, 0) + COALESCE(f.fee_payment, 0) + COALESCE(f.fee_service, 0) +
+            COALESCE(f.fee_affiliate, 0) + COALESCE(f.fee_ads, 0) + COALESCE(f.fee_piship, 0) +
+            COALESCE(f.fee_handling, 0) + COALESCE(f.fee_shipping, 0) + COALESCE(f.tax_vat, 0) +
+            COALESCE(f.tax_pit, 0)
+          )
+        ELSE 0 END) AS total_fee_from_details,
+        SUM(CASE WHEN f.order_id IS NULL THEN COALESCE(o.fee, 0) ELSE 0 END) AS total_fee_without_detail
+      FROM orders_v2 o
+      LEFT JOIN (
+        SELECT
+          LOWER(COALESCE(platform, '')) AS platform_key,
+          order_id,
+          SUM(COALESCE(fee_commission, 0)) AS fee_commission,
+          SUM(COALESCE(fee_payment, 0)) AS fee_payment,
+          SUM(COALESCE(fee_service, 0)) AS fee_service,
+          SUM(COALESCE(fee_affiliate, 0)) AS fee_affiliate,
+          SUM(COALESCE(fee_ads, 0)) AS fee_ads,
+          SUM(COALESCE(fee_piship, 0)) AS fee_piship,
+          SUM(COALESCE(fee_handling, 0)) AS fee_handling,
+          SUM(COALESCE(fee_shipping, 0)) AS fee_shipping,
+          SUM(COALESCE(tax_vat, 0)) AS tax_vat,
+          SUM(COALESCE(tax_pit, 0)) AS tax_pit,
+          SUM(COALESCE(total_fees, 0)) AS total_fees
+        FROM order_fee_details
+        GROUP BY LOWER(COALESCE(platform, '')), order_id
+      ) f ON f.platform_key = LOWER(COALESCE(o.platform, '')) AND f.order_id = o.order_id
+      ${whereAlias}
+    `).bind(...aliasParams).first() || {}
+  } catch (err) {
+    // Nếu bảng chi tiết phí chưa sẵn sàng, Dashboard vẫn dùng tổng phí trong orders_v2 để không làm sai lợi nhuận.
+    console.warn('Không gom được order_fee_details cho Dashboard:', err?.message || err)
+  }
+
+  let adsSnapshotRow = {}
+  try {
+    const adsWhere = buildAdsSnapshotWhere(filters)
+    adsSnapshotRow = await env.DB.prepare(`
+      SELECT
+        COUNT(*) AS ads_snapshot_rows,
+        SUM(COALESCE(spend, 0)) AS total_ads_fee
+      FROM marketplace_ads_campaign_snapshots
+      ${adsWhere.where}
+    `).bind(...adsWhere.params).first() || {}
+  } catch (err) {
+    // ADS là nguồn chi phí bổ sung; lỗi đọc snapshot không được làm hỏng Dashboard chính.
+    console.warn('Không gom được ADS snapshot cho Dashboard:', err?.message || err)
+  }
+
+  const dashboardRow = { ...row }
+  const feeBucketKeys = [
+    'total_platform_fee',
+    'total_payment_fee',
+    'total_service_fee',
+    'total_affiliate_fee',
+    'total_ads_fee',
+    'total_piship_fee',
+    'total_handling_fee',
+    'total_shipping_fee',
+    'total_fee_tax_vat',
+    'total_fee_tax_pit'
+  ]
+  feeBucketKeys.forEach(key => {
+    dashboardRow[key] = moneyNumber(feeBucketRow[key] ?? dashboardRow[key])
+  })
+  dashboardRow.total_ads_fee = Math.max(moneyNumber(dashboardRow.total_ads_fee), moneyNumber(adsSnapshotRow.total_ads_fee))
+  dashboardRow.total_ads_snapshot_rows = moneyNumber(adsSnapshotRow.ads_snapshot_rows)
+  dashboardRow.total_fee_from_orders = moneyNumber(row?.total_fee)
+  dashboardRow.total_fee_from_details = moneyNumber(feeBucketRow.total_fee_from_details)
+  dashboardRow.total_fee_without_detail = moneyNumber(feeBucketRow.total_fee_without_detail)
+  dashboardRow.total_fee_detail_orders = moneyNumber(feeBucketRow.fee_detail_orders)
+  dashboardRow.total_fee_scope_orders = moneyNumber(feeBucketRow.fee_scope_orders)
 
 const cancelRow = await env.DB.prepare(`
     SELECT
@@ -69,8 +208,8 @@ const cancelRow = await env.DB.prepare(`
       SUM(CASE WHEN platform='lazada' AND order_type='cancel' AND return_fee > 0 THEN return_fee ELSE 0 END) AS lazada_failed_delivery_fee,
       SUM(CASE WHEN platform='lazada' AND order_type='return' THEN return_fee ELSE 0 END) AS lazada_return_fee
     FROM orders_v2
-    ${whereV2NoType}
-  `).bind(...params).first()
+    ${whereAllOrders}
+  `).bind(...allOrderParams).first()
 
   const breakdownRow = await env.DB.prepare(`
     SELECT
@@ -90,22 +229,50 @@ const cancelRow = await env.DB.prepare(`
       COUNT(DISTINCT CASE WHEN COALESCE(discount_shopee,0) > 0 THEN order_id END) AS orders_with_discount_shopee,
       COUNT(DISTINCT CASE WHEN COALESCE(discount_combo,0) > 0 THEN order_id END)  AS orders_with_discount_combo
     FROM orders_v2
-    ${whereV2NoType}
-  `).bind(...params).first()
+    ${whereAllOrders}
+  `).bind(...allOrderParams).first()
 
-  // Bổ sung query gom nhóm chi tiết theo từng shop để hiển thị tooltip
+  // Bổ sung query gom nhóm chi tiết theo từng shop để hiển thị tooltip.
+  // Query này cần cả đơn hủy/hoàn để người dùng thấy đủ tổng đơn theo shop.
   const shopBreakdownRow = await env.DB.prepare(`
     SELECT
       shop,
-      COUNT(DISTINCT order_id) AS shop_orders,
-      SUM(revenue) AS shop_revenue
+      COUNT(DISTINCT CASE WHEN order_type='normal' THEN order_id END) AS shop_orders,
+      COUNT(DISTINCT CASE WHEN order_type='normal' THEN order_id END) AS shop_success_orders,
+      COUNT(DISTINCT CASE WHEN order_type='cancel' THEN order_id END) AS shop_cancel_orders,
+      COUNT(DISTINCT CASE WHEN order_type='return' THEN order_id END) AS shop_return_orders,
+      COUNT(DISTINCT order_id) AS shop_total_orders,
+      SUM(CASE WHEN order_type='normal' THEN revenue ELSE 0 END) AS shop_revenue
     FROM orders_v2
-    ${whereV2}
+    ${whereAllOrders}
     GROUP BY shop
-    ORDER BY shop_revenue DESC
-  `).bind(...params).all()
+    ORDER BY shop_total_orders DESC, shop_revenue DESC
+  `).bind(...allOrderParams).all()
 
-  return Response.json({ ...row, ...cancelRow, ...breakdownRow, shop_breakdown: shopBreakdownRow.results }, { headers: cors })
+  const statusRows = await env.DB.prepare(`
+    SELECT o.order_id, o.platform, o.shop, o.order_type, o.revenue, o.raw_revenue, o.return_fee,
+        cancel_reason, oms_status, shipping_status,
+        '' AS logistics_status, '' AS delivery_status,
+           discount_shop, discount_shopee, discount_combo, shipping_return_fee,
+           COALESCE(r.ledger_kind, '') AS ledger_kind,
+           COALESCE(r.return_status, '') AS return_status,
+           COALESCE(r.return_status, '') AS ledger_status
+    FROM orders_v2 o
+    LEFT JOIN (
+      SELECT LOWER(COALESCE(platform, '')) AS platform,
+             order_id,
+             GROUP_CONCAT(DISTINCT COALESCE(NULLIF(ledger_kind, ''), 'return')) AS ledger_kind,
+             GROUP_CONCAT(DISTINCT COALESCE(NULLIF(reverse_status, ''), NULLIF(line_status, ''), normalized_status, '')) AS return_status
+      FROM marketplace_return_reverse_ledger
+      GROUP BY LOWER(COALESCE(platform, '')), order_id
+    ) r ON r.platform = LOWER(COALESCE(o.platform, '')) AND r.order_id = o.order_id
+    ${whereAliasAllOrders}
+  `).bind(...aliasAllOrderParams).all()
+  // Dashboard hủy/hoàn dùng core trạng thái chung thay vì chỉ nhìn order_type thô.
+  // Nhờ vậy đơn API đã cập nhật CANCELLED/RETURN/FAILED_DELIVERY vẫn hiện đúng dù file import cũ chưa set order_type.
+  const statusSummary = dashboardStatusAggregate(statusRows.results || [])
+
+  return Response.json({ ...dashboardRow, ...cancelRow, ...breakdownRow, ...statusSummary }, { headers: cors })
 }
 
 
@@ -134,17 +301,32 @@ async function revenueByDay(request, env, cors) {
 // ════════════════════════════════════════════════════════════════════
 // PROFIT BY DAY
 async function profitByDay(request, env, cors) {
+  await ensureReturnReverseLedgerTable(env)
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
+  const { where, params } = buildWhere(filters, 'o.')
 
   const rows = await env.DB.prepare(`
     SELECT
-      date(order_date)     AS d,
-      SUM(profit_invoice)  AS profit_invoice,
-      SUM(profit_real)     AS profit_real,
-      SUM(tax_flat)        AS tax_flat,
-      SUM(tax_income)      AS tax_income
-    FROM orders_v2
+      date(o.order_date)     AS d,
+      COUNT(DISTINCT o.order_id) AS orders,
+      SUM(o.revenue)         AS revenue,
+      SUM(o.cost_invoice)    AS cost_invoice,
+      SUM(o.cost_real)       AS cost_real,
+      SUM(o.fee)             AS fee,
+      SUM(o.profit_invoice - COALESCE(r.refund_amount, 0)) AS profit_invoice,
+      SUM(o.profit_real - COALESCE(r.refund_amount, 0))    AS profit_real,
+      SUM(COALESCE(r.refund_amount, 0)) AS return_refund,
+      SUM(o.tax_flat)        AS tax_flat,
+      SUM(o.tax_income)      AS tax_income
+    FROM orders_v2 o
+    LEFT JOIN (
+      SELECT LOWER(COALESCE(platform, '')) AS platform,
+             order_id,
+             SUM(COALESCE(effective_refund_amount, 0)) AS refund_amount
+      FROM marketplace_return_reverse_ledger
+      WHERE is_finance_closed = 1
+      GROUP BY LOWER(COALESCE(platform, '')), order_id
+    ) r ON r.platform = LOWER(COALESCE(o.platform, '')) AND r.order_id = o.order_id
     ${where}
     GROUP BY d
     ORDER BY d
@@ -153,255 +335,4 @@ async function profitByDay(request, env, cors) {
   return Response.json(rows.results, { headers: cors })
 }
 
-// ════════════════════════════════════════════════════════════════════
-// UNIQUE SKUS — danh sách SKU + tên SP duy nhất từ orders
-// Dùng cho: đồng bộ SKU, dropdown chọn SKU
-// ════════════════════════════════════════════════════════════════════
-async function uniqueSkus(request, env, cors) {
-  const rows = await env.DB.prepare(`
-    SELECT
-      sku,
-      product_name,
-      MAX(order_date) AS last_order_date
-    FROM order_items oi
-    JOIN orders_v2 o ON oi.order_id = o.order_id
-    WHERE oi.sku IS NOT NULL AND oi.sku != ''
-      AND o.order_type != 'cancel'
-    GROUP BY oi.sku
-    ORDER BY oi.sku
-  `).all()
-
-  return Response.json(rows.results, { headers: cors })
-}
-
-// ════════════════════════════════════════════════════════════════════
-// TOP SKU
-// ════════════════════════════════════════════════════════════════════
-async function topSku(request, env, cors) {
-  const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
-  const limit = new URL(request.url).searchParams.get("limit") || 20
-
-  const rows = await env.DB.prepare(`
-    SELECT
-      oi.sku,
-      SUM(oi.qty)                    AS total_qty,
-      SUM(oi.revenue_line)           AS total_revenue,
-      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS total_profit,
-      COUNT(DISTINCT oi.order_id)    AS total_orders
-    FROM order_items oi
-    JOIN orders_v2 o ON oi.order_id = o.order_id
-    ${where.replace("WHERE", "WHERE o.order_type='normal' AND").replace("orders_v2","o")}
-    GROUP BY oi.sku
-    ORDER BY total_revenue DESC
-    LIMIT ${limit}
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
-}
-
-
-// ════════════════════════════════════════════════════════════════════
-// TOP PRODUCT (by product_name)
-// ════════════════════════════════════════════════════════════════════
-async function topProduct(request, env, cors) {
-  const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
-  const limit = new URL(request.url).searchParams.get("limit") || 20
-
-  const rows = await env.DB.prepare(`
-    SELECT
-      oi.product_name,
-      SUM(oi.qty)                    AS total_qty,
-      SUM(oi.revenue_line)           AS total_revenue,
-      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS total_profit,
-      COUNT(DISTINCT oi.order_id)    AS total_orders
-    FROM order_items oi
-    JOIN orders_v2 o ON oi.order_id = o.order_id
-    ${where.replace("WHERE", "WHERE o.order_type='normal' AND").replace("orders_v2","o")}
-    GROUP BY oi.product_name
-    ORDER BY total_revenue DESC
-    LIMIT ${limit}
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
-}
-
-
-// ════════════════════════════════════════════════════════════════════
-// TOP SHOP
-// ════════════════════════════════════════════════════════════════════
-async function topShop(request, env, cors) {
-  const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
-
-  const rows = await env.DB.prepare(`
-    SELECT
-      shop,
-      platform,
-      SUM(revenue)             AS total_revenue,
-      SUM(profit_real)         AS total_profit,
-      COUNT(DISTINCT order_id) AS total_orders
-    FROM orders_v2
-    ${where}
-    GROUP BY shop, platform
-    ORDER BY total_revenue DESC
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
-}
-
-
-// ════════════════════════════════════════════════════════════════════
-// TOP PLATFORM
-// ════════════════════════════════════════════════════════════════════
-async function topPlatform(request, env, cors) {
-  const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
-
-  const rows = await env.DB.prepare(`
-    SELECT
-      o.platform,
-      SUM(o.revenue)             AS total_revenue,
-      SUM(o.profit_real)         AS total_profit,
-      COUNT(DISTINCT o.order_id) AS total_orders,
-      SUM(oi.qty)                AS total_qty
-    FROM orders_v2 o
-    LEFT JOIN order_items oi ON oi.order_id = o.order_id
-    ${where.replace("order_id","o.order_id").replace("order_date","o.order_date").replace("platform","o.platform").replace("shop","o.shop")}
-    GROUP BY o.platform
-    ORDER BY total_revenue DESC
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
-}
-
-
-// ════════════════════════════════════════════════════════════════════
-// CANCEL / RETURN STATS
-// ════════════════════════════════════════════════════════════════════
-async function cancelStats(request, env, cors) {
-  const url = new URL(request.url)
-  const filters = getFilters(url)
-
-  // Build WHERE không có filter order_type
-  const conds = ["1=1"]
-  const params = []
-  if (filters.from)     { conds.push(`date(order_date) >= ?`); params.push(filters.from) }
-  if (filters.to)       { conds.push(`date(order_date) <= ?`); params.push(filters.to) }
-  if (filters.platform) { conds.push(`platform = ?`);          params.push(filters.platform) }
-  if (filters.shop)     { conds.push(`shop = ?`);              params.push(filters.shop) }
-  const where = "WHERE " + conds.join(" AND ")
-
-  const rows = await env.DB.prepare(`
-    SELECT
-      order_type,
-      platform,
-      COUNT(DISTINCT order_id) AS total_orders,
-      SUM(raw_revenue)         AS total_revenue,
-      cancel_reason
-    FROM orders_v2
-    ${where}
-    GROUP BY order_type, platform, cancel_reason
-    ORDER BY total_orders DESC
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
-}
-
-
-// ════════════════════════════════════════════════════════════════════
-// PRICE CALCULATOR
-// POST { sku, sell_price, platform }
-// ════════════════════════════════════════════════════════════════════
-async function priceCalc(request, env, cors) {
-  const { sku, sell_price, platform } = await request.json()
-
-  const product = await env.DB.prepare(`
-    SELECT cost_invoice, cost_real, product_name FROM products WHERE sku = ?
-  `).bind(sku).first()
-
-  if (!product) {
-    return Response.json({ error: "SKU không tìm thấy" }, { status: 404, headers: cors })
-  }
-
-  const cfg = await getCostSettings(env)
-
-  const orderSim = {
-    revenue:       sell_price,
-    qty:           1,
-    platform:      platform || "tiktok",
-    cost_invoice:  product.cost_invoice,
-    cost_real:     product.cost_real,
-  }
-
-  const p = calcProfit(orderSim, cfg)
-
-  return Response.json({
-    sku,
-    product_name:    product.product_name,
-    sell_price,
-    cost_invoice:    product.cost_invoice,
-    cost_real:       product.cost_real,
-    total_fee:       p.total_fee,
-    profit_invoice:  p.profit_invoice,
-    profit_real:     p.profit_real,
-    tax_flat:        p.tax_flat,
-    tax_income:      p.tax_income,
-    profit_after_tax: p.profit_after_tax,
-    is_loss:         p.profit_real < 0,
-    fee_platform:    p.fee_platform   || 0,
-    fee_payment:     p.fee_payment    || 0,
-    fee_affiliate:   p.fee_affiliate  || 0,
-    fee_ads:         p.fee_ads        || 0,
-    fee_piship:      p.fee_piship     || 0,
-    fee_service:     p.fee_service    || 0,
-  }, { headers: cors })
-}
-
-// ════════════════════════════════════════════════════════════════════
-// TOP SKU FULL — Toàn bộ SKU, sort theo số lượng bán
-// Hỗ trợ filter: platform, shop, from, to
-// ════════════════════════════════════════════════════════════════════
-async function topSkuFull(request, env, cors) {
-  const url     = new URL(request.url)
-  const from     = url.searchParams.get("from")     || ""
-  const to       = url.searchParams.get("to")       || ""
-  const platform = url.searchParams.get("platform") || ""
-  const shop     = url.searchParams.get("shop")     || ""
-  const sortBy   = url.searchParams.get("sort")     || "qty"  // qty | revenue | profit
-
-  const conds  = ["o.order_type = 'normal'"]
-  const params = []
-  if (from)     { conds.push("date(o.order_date) >= ?"); params.push(from) }
-  if (to)       { conds.push("date(o.order_date) <= ?"); params.push(to) }
-  if (platform) { conds.push("o.platform = ?");          params.push(platform) }
-  if (shop)     { conds.push("o.shop = ?");              params.push(shop) }
-  const where = "WHERE " + conds.join(" AND ")
-
-  const orderCol = sortBy === "revenue" ? "total_revenue"
-                 : sortBy === "profit"  ? "total_profit"
-                 : "total_qty"
-
-  const rows = await env.DB.prepare(`
-    SELECT
-      oi.sku,
-      oi.product_name,
-      SUM(oi.qty)                                                          AS total_qty,
-      SUM(oi.revenue_line)                                                 AS total_revenue,
-      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue, 0))         AS total_profit,
-      COUNT(DISTINCT oi.order_id)                                          AS total_orders,
-      GROUP_CONCAT(DISTINCT o.platform)                                    AS platforms,
-      GROUP_CONCAT(DISTINCT o.shop)                                        AS shops
-    FROM order_items oi
-    JOIN orders_v2 o ON oi.order_id = o.order_id
-    ${where}
-    GROUP BY oi.sku
-    ORDER BY ${orderCol} DESC
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
-}
-
-export { dashboard, revenueByDay, profitByDay, uniqueSkus,
-         topSku, topProduct, topShop, topPlatform, cancelStats, priceCalc, topSkuFull }
+export { dashboard, revenueByDay, profitByDay }

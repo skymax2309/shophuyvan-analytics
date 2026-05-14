@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#17172b">
+  <title>ShopHuyVan - Đánh giá khách hàng</title>
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" href="../icons/shophuyvan-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/shophuyvan-icon.svg">
+  <link rel="stylesheet" href="../css/dashboard.css?v=reviews-phase-123-20260509">
+  <script src="../js/auth-guard.js?v=reviews-phase-123-20260509"></script>
+  <link rel="stylesheet" href="../css/features/reviews/reviews-inline-1.css?v=fe-split-20260514">
+</head>
+<body data-active-tab="reviews">
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">🛒 ShopHuyVan</div>
+        <button class="btn-close-sidebar" onclick="toggleSidebar()">✕</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="profit-dashboard.html">📊 Doanh thu Ngày</a>
+        <a href="profit-dashboard.html#monthly">📈 Doanh thu Tháng</a>
+        <a href="profit-dashboard.html#income">💳 Số dư doanh thu</a>
+        <a href="profit-dashboard.html#top">🔥 Top SKU</a>
+        <a href="reviews.html" class="active">⭐ Đánh giá</a>
+        <a href="chat-marketplace.html">💬 Chat sàn</a>
+        <a href="ads.html">📣 ADS quảng cáo</a>
+        <a href="admin-products.html#variations">📦 Sản phẩm</a>
+        <a href="oms-dashboard.html">📦 Đơn hàng</a>
+        <a href="report-upload.html">📁 Báo cáo</a>
+      </nav>
+    </aside>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <div class="main-wrapper">
+      <div class="mobile-topbar">
+        <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div class="logo">⭐ Đánh giá</div>
+        <a class="mobile-back-dashboard" href="profit-dashboard.html">Dashboard</a>
+      </div>
+
+      <main class="reviews-main">
+        <div class="reviews-topbar">
+          <a href="profit-dashboard.html" class="chat-back-link">← Dashboard</a>
+          <a href="reviews.html" class="active">Đánh giá sàn</a>
+          <a href="admin-products.html#variations">Sản phẩm/SKU</a>
+        </div>
+
+        <div class="reviews-shell">
+          <section class="reviews-card reviews-hero">
+            <div>
+              <h1>Đánh giá khách hàng</h1>
+              <p>Phase 1 xem review/rủi ro sản phẩm, phase 2 tạo gợi ý phản hồi, phase 3 đưa nháp vào hàng đợi duyệt và log thao tác.</p>
+            </div>
+            <div class="reviews-actions">
+              <button type="button" class="primary" onclick="syncReviewPlatform('shopee')">Đồng bộ Shopee</button>
+              <button type="button" class="good" onclick="syncReviewPlatform('lazada')">Batch Lazada</button>
+              <button type="button" onclick="repairReviewMapping()">Sửa map review</button>
+            </div>
+          </section>
+
+          <section class="reviews-card">
+            <div class="reviews-filters">
+              <select id="reviewPlatformFilter" onchange="reloadReviews()">
+                <option value="">Tất cả sàn</option>
+                <option value="shopee">Shopee</option>
+                <option value="lazada">Lazada</option>
+              </select>
+              <select id="reviewShopFilter" onchange="reloadReviews()">
+                <option value="">Tất cả shop</option>
+              </select>
+              <input id="reviewSearchInput" type="search" placeholder="Tìm tên sản phẩm, SKU, mã review, nội dung..." oninput="renderReviewPage()">
+              <select id="reviewLimitSelect" onchange="reloadReviews()">
+                <option value="30">30 dòng</option>
+                <option value="60">60 dòng</option>
+                <option value="100">100 dòng</option>
+              </select>
+            </div>
+          </section>
+
+          <section id="reviewStatus" class="reviews-status">Đang tải dữ liệu đánh giá...</section>
+
+          <section id="reviewSummaryCards" class="reviews-grid"></section>
+
+          <section class="reviews-card">
+            <div class="reviews-tabs" id="reviewTabs">
+              <button type="button" class="active" data-tab="overview" onclick="switchReviewTab('overview')">Phase 1: Tổng quan</button>
+              <button type="button" data-tab="attention" onclick="switchReviewTab('attention')">Cần xử lý</button>
+              <button type="button" data-tab="ai" onclick="switchReviewTab('ai')">Phase 2: AI phản hồi</button>
+              <button type="button" data-tab="queue" onclick="switchReviewTab('queue')">Phase 3: Hàng đợi</button>
+              <button type="button" data-tab="sync" onclick="switchReviewTab('sync')">Đồng bộ/API</button>
+            </div>
+
+            <div id="reviewPanelOverview" class="review-panel"></div>
+            <div id="reviewPanelAttention" class="review-panel" hidden></div>
+            <div id="reviewPanelAi" class="review-panel" hidden></div>
+            <div id="reviewPanelQueue" class="review-panel" hidden></div>
+            <div id="reviewPanelSync" class="review-panel" hidden></div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/reviews.js?v=reviews-phase-123-20260509"></script>
+</body>
+</html>

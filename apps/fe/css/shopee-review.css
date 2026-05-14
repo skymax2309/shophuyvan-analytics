@@ -1,0 +1,392 @@
+:root {
+  color-scheme: light;
+  --review-bg: #f5f7fb;
+  --review-panel: #ffffff;
+  --review-border: #dbe3ef;
+  --review-text: #0f172a;
+  --review-muted: #536179;
+  --review-blue: #1d4ed8;
+  --review-green: #047857;
+  --review-amber: #b45309;
+  --review-red: #b91c1c;
+  --review-shadow: 0 10px 28px rgba(15, 23, 42, .08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body.review-body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--review-bg);
+  color: var(--review-text);
+  font-family: Inter, "Be Vietnam Pro", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.review-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 16px 12px 28px;
+}
+
+.review-hero,
+.review-panel {
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+  background: var(--review-panel);
+  box-shadow: var(--review-shadow);
+}
+
+.review-hero {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.review-kicker {
+  margin: 0 0 6px;
+  color: var(--review-blue);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.review-hero h1,
+.review-panel h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.review-hero h1 {
+  font-size: 24px;
+  line-height: 1.18;
+}
+
+.review-lead,
+.review-panel p,
+.review-user-card span,
+.review-user-card small,
+.review-info-grid span,
+.review-link-card small {
+  color: var(--review-muted);
+}
+
+.review-lead,
+.review-panel p {
+  margin: 6px 0 0;
+}
+
+.review-user-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #eef2ff;
+}
+
+.review-body .shv-account-floating {
+  display: none;
+}
+
+.review-logout-btn {
+  width: fit-content;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.review-logout-btn:hover {
+  background: #fecaca;
+}
+
+.review-user-card strong,
+.review-info-grid strong {
+  overflow-wrap: anywhere;
+}
+
+.review-panel {
+  margin-top: 12px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.review-summary-panel {
+  box-shadow: none;
+}
+
+.review-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.review-panel h2 {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.review-grid .review-panel {
+  margin-top: 12px;
+}
+
+.review-info-grid,
+.review-status-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.review-info-grid article,
+.review-status-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.review-info-grid span,
+.review-status-card span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.review-info-grid strong,
+.review-status-card strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.review-status-card small {
+  display: block;
+  margin-top: 6px;
+  color: var(--review-muted);
+  overflow-wrap: anywhere;
+}
+
+.review-status-card.success {
+  border-left: 4px solid var(--review-green);
+}
+
+.review-status-card.warning {
+  border-left: 4px solid var(--review-amber);
+}
+
+.review-status-card.danger {
+  border-left: 4px solid var(--review-red);
+}
+
+.review-status-card.muted {
+  border-left: 4px solid #64748b;
+}
+
+.review-lazada-proof {
+  display: grid;
+  gap: 12px;
+}
+
+.review-lazada-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.review-lazada-samples {
+  display: grid;
+  gap: 12px;
+}
+
+.review-lazada-samples h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.review-lazada-table {
+  margin-top: 0;
+}
+
+.review-action-list {
+  display: grid;
+  gap: 8px;
+}
+
+.review-link-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+  color: var(--review-text);
+  text-decoration: none;
+  background: #ffffff;
+}
+
+.review-link-card:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.review-link-card > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: #dbeafe;
+  color: var(--review-blue);
+  font-weight: 900;
+}
+
+.review-link-card strong,
+.review-link-card small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.review-loading,
+.review-empty {
+  padding: 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: var(--review-muted);
+  text-align: center;
+}
+
+.review-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+}
+
+.review-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.review-table th,
+.review-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--review-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.review-table th {
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.review-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.review-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 12px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.review-pill.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.review-pill.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.review-pill.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.review-check-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.review-check-list li {
+  padding-left: 2px;
+}
+
+.review-remarks {
+  padding: 12px;
+  border: 1px solid var(--review-border);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 720px) {
+  .review-shell {
+    padding: 22px 18px 36px;
+  }
+
+  .review-hero {
+    grid-template-columns: minmax(0, 1fr) 270px;
+    align-items: stretch;
+    padding: 22px;
+  }
+
+  .review-info-grid,
+  .review-status-grid,
+  .review-lazada-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 980px) {
+  .review-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .review-summary-panel .review-info-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .review-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,5 @@
+/* NEO: Video dashboard CSS tách theo shell, card/search, thư viện và phân tích/upload để không phình file chính. */
+@import url('./video-dashboard/base-shell.css?v=core-first-20260513a');
+@import url('./video-dashboard/cards-search.css?v=core-first-20260513a');
+@import url('./video-dashboard/library-management.css?v=core-first-20260513a');
+@import url('./video-dashboard/analysis-upload.css?v=core-first-20260513a');

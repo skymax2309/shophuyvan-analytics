@@ -271,7 +271,7 @@ async function saveProduct() {
             body: JSON.stringify({
                 sku: parentSku, product_name: name, description: desc, video_url: videoUrl,
                 image_url: mainImg, images: JSON.stringify(extraImg),
-                is_parent: 1, stock: 0, cost_invoice: 0, cost_real: 0
+                is_parent: 1, cost_invoice: 0, cost_real: 0
             })
         });
         if (!resParent.ok) throw new Error(await resParent.text()); // 🌟 Gắn bắt lỗi Server

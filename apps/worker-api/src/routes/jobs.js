@@ -37,6 +37,8 @@ export async function getJobs(req, env, cors) {
   const { results } = await env.DB.prepare(`
     SELECT * FROM jobs 
     WHERE status = 'pending' 
+      -- scheduled_at được nhập từ ô datetime-local trên web theo giờ Việt Nam, nên so với now +7 để bot không chạy trễ 7 tiếng.
+      AND (scheduled_at IS NULL OR scheduled_at = '' OR datetime(scheduled_at) <= datetime('now', '+7 hours'))
     ORDER BY created_at ASC
   `).all()
 
@@ -45,6 +47,7 @@ export async function getJobs(req, env, cors) {
 
 export async function updateJob(req, env, cors, id) {
   const body = await req.json()
+  const logText = body.log_text || body.error || body.message || null
 
   await env.DB.prepare(`
     UPDATE jobs SET
@@ -52,12 +55,12 @@ export async function updateJob(req, env, cors, id) {
       file_url     = ?,
       log_text     = ?,
       completed_at = CASE WHEN ? IN ('completed','failed') THEN datetime('now') ELSE completed_at END,
-      started_at   = CASE WHEN ? = 'running' THEN datetime('now') ELSE started_at END
+      started_at   = CASE WHEN ? IN ('running','processing') THEN datetime('now') ELSE started_at END
     WHERE id = ?
   `).bind(
     body.status,
     body.file_url  || null,
-    body.log_text  || null,
+    logText,
     body.status,
     body.status,
     id

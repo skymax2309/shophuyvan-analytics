@@ -74,3 +74,153 @@ body { background: #f6f6f6; min-height: 100vh; margin: 0; padding-bottom: 80px; 
 .pd-topbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 16px 24px; display: flex; align-items: center; gap: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
 .pd-topbar a { color: #ee4d2d; text-decoration: none; font-size: 16px; display: flex; align-items: center; gap: 6px; }
 .pd-topbar .title { font-size: 18px; font-weight: 500; color: #333; margin-left: 10px; border-left: 1px solid #e5e7eb; padding-left: 16px; }
+
+/* ===== 2026 layout polish: không để trang cập nhật SKU bị thụt sâu ===== */
+.pd-wrapper {
+  width: min(1320px, calc(100vw - 32px));
+  max-width: none;
+  padding: 18px 0 96px;
+}
+
+.pd-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+.pd-section-header {
+  min-height: 52px;
+  padding: 14px 20px;
+  background: #fff;
+}
+
+.pd-section-header h3 {
+  font-weight: 700;
+}
+
+.pd-section-body {
+  padding: 20px 24px;
+}
+
+.var-table-wrap {
+  border-radius: 10px;
+  background: #fff;
+}
+
+.var-table {
+  min-width: 980px;
+}
+
+.var-table td input[type="text"],
+.var-table td input[type="number"] {
+  min-height: 34px;
+}
+
+.bulk-setup-wrap {
+  gap: 10px;
+}
+
+.pd-action-bar {
+  border-top: 1px solid #dbe3ef;
+}
+
+@media (max-width: 900px) {
+  .pd-wrapper {
+    width: 100%;
+    padding: 12px 12px 92px;
+  }
+
+  .pd-section-body {
+    padding: 16px;
+    gap: 18px;
+  }
+
+  .pd-field {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .pd-field > label {
+    width: auto;
+    padding-top: 0;
+    text-align: left;
+    font-weight: 700;
+  }
+
+  .bulk-setup-wrap {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bulk-setup-wrap h4,
+  .bulk-setup-wrap button {
+    grid-column: 1 / -1;
+  }
+
+  .bulk-setup-wrap input {
+    width: 100%;
+  }
+
+  .pd-action-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .pd-action-bar button {
+    width: 100%;
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .pd-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .pd-topbar a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .pd-topbar .title {
+    flex: 1 1 auto;
+    overflow: hidden;
+    min-width: 0;
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-left: 0;
+    padding-left: 10px;
+  }
+
+  .pd-section-header {
+    padding: 12px 14px;
+  }
+
+  .pd-section-body {
+    padding: 14px;
+  }
+
+  .img-thumb-wrap,
+  .img-add-btn {
+    width: 68px;
+    height: 68px;
+  }
+
+  .bulk-setup-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .pd-action-bar .btn-save-main {
+    grid-column: 1 / -1;
+  }
+}

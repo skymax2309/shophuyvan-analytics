@@ -1,0 +1,311 @@
+import { ensureOrderTransportColumns, resolveOrderSourceMeta } from '../../core/order-transport-core.js'
+import { calcProfit, getCostSettings } from '../../utils/db.js'
+import { notifyOrderSubscribers } from '../worker-chat-marketplace-route.js'
+import { buildProductLookup, feeFieldsFromPayload, firstOrderText, getImportCarrier, getImportShippingStatus, getImportTracking, loadSkuResolutionMaps, normalizeCarrierByTracking, resolveItemProduct, skuLookupKeys } from './cost-resolution.js'
+import { applyInventoryMovements, loadOrderPushRows, orderPushSignature } from './export-cost-stock.js'
+import { cleanOrderText, compactOrderItemsByIdentity, dedupeIncomingItemsByOrder, ensureOrderBuyerIdentityColumns, normalizeImportedWorkflowStatus, orderTypeFromWorkflowStatus } from './status-workflow.js'
+
+export async function importOrdersV2(request, env, cors) {
+  const url = new URL(request.url)
+  await ensureOrderTransportColumns(env)
+  await ensureOrderBuyerIdentityColumns(env)
+  const payload = await request.json()
+  const importMode = cleanOrderText(payload.mode || payload.scrape_mode || payload.scrapeMode || url.searchParams.get('mode')).toLowerCase()
+  // Radar quét hành trình chỉ cập nhật trạng thái, nên bỏ các bước tốn CPU như push realtime và trừ kho.
+  const statusOnly = payload.status_only === true
+    || url.searchParams.get('status_only') === '1'
+    || ['status_only', 'status', 'journey', 'auto_status'].includes(importMode)
+  const suppressPush = payload.suppress_push === true || url.searchParams.get('suppress_push') === '1' || statusOnly
+  const skipInventory = payload.skip_inventory === true || url.searchParams.get('skip_inventory') === '1' || statusOnly
+  const { orders, items } = payload
+  const orderRows = Array.isArray(orders) ? orders : []
+  const itemRows = dedupeIncomingItemsByOrder(Array.isArray(items) ? items : [], orderRows)
+  const sourceMeta = await resolveOrderSourceMeta(env, payload, orderRows)
+  
+  // --- [QUY TẮC 14] LOG SERVER ĐỂ BẮT BỆNH ---
+  console.log(`[IMPORT_V2] 📥 Nhận payload: ${orderRows.length} đơn hàng, ${items?.length || 0} sản phẩm`);
+  if ((items?.length || 0) !== itemRows.length) {
+      console.log(`[IMPORT_V2] 🧹 Đã bỏ ${items.length - itemRows.length} dòng sản phẩm lặp do tổng item vượt tổng tiền đơn.`);
+  }
+  if (itemRows.length > 0) {
+      console.log(`[IMPORT_V2] 📦 Dữ liệu SP mẫu đầu tiên:`, JSON.stringify(itemRows[0]));
+  } else {
+      console.log(`[IMPORT_V2] ⚠️ CẢNH BÁO: Không nhận được mảng items nào từ Bot gửi lên!`);
+  }
+
+  const cfg = await getCostSettings(env)
+
+// Lấy thêm cột combo_items chứa chuỗi JSON
+  const productRows = await env.DB.prepare(`SELECT sku, product_name, image_url, cost_invoice, cost_real, stock, stock_main, stock_sub, is_combo, combo_items FROM products`).all()
+  const productMap = {}
+  for (const p of productRows.results) productMap[p.sku] = p
+
+  // TÍNH LẠI GIÁ VỐN CHO SẢN PHẨM COMBO TỪ CHUỖI JSON
+  for (const p of productRows.results) {
+    if (p.is_combo === 1 && p.combo_items) {
+      try {
+        const components = JSON.parse(p.combo_items);
+        if (components.length > 0) {
+          let comboCostReal = 0;
+          let comboCostInvoice = 0;
+          for (const comp of components) {
+            // Trong JSON của bạn, key là 'sku' và 'qty'
+            const compData = productMap[comp.sku] || { cost_real: 0, cost_invoice: 0 };
+            comboCostReal += (compData.cost_real * (comp.qty || 1));
+            comboCostInvoice += (compData.cost_invoice * (comp.qty || 1));
+          }
+          productMap[p.sku].cost_real = comboCostReal;
+          productMap[p.sku].cost_invoice = comboCostInvoice;
+        }
+      } catch(e) {
+        // Bỏ qua nếu lỗi parse JSON để không sập API
+        console.error("Lỗi parse combo_items cho SKU:", p.sku);
+      }
+    }
+  }
+
+  // 1. DỊCH SẢN PHẨM & MAP SKU TRƯỚC ĐỂ TÌM GIÁ VỐN
+  const productLookup = buildProductLookup(productRows)
+  const { varMap, aliasMap } = await loadSkuResolutionMaps(env)
+
+  const rawProcessedItems = itemRows.map(i => {
+    const keys = skuLookupKeys(i)
+    const mapped = keys.map(key => varMap[key]).find(Boolean)
+    const aliasSku = keys.map(key => aliasMap[key]).find(Boolean)
+    const finalSku = mapped?.internal_sku || aliasSku || i.sku || ''
+    const prod = resolveItemProduct(productLookup, i, varMap, aliasMap)
+    const itemQty = i.qty || 1
+    const finalImage = firstOrderText(i.image_url, mapped?.image_url, prod.image_url)
+    
+    return { 
+      ...i, 
+      sku: finalSku,
+      image_url: finalImage,
+      cost_real: Number(prod.cost_real || 0) * itemQty,
+      cost_invoice: Number(prod.cost_invoice || 0) * itemQty
+    }
+  })
+  const processedItems = compactOrderItemsByIdentity(rawProcessedItems)
+
+  // 2. TÍNH LỢI NHUẬN DỰA TRÊN SẢN PHẨM ĐÃ CÓ GIÁ VỐN
+  const processedOrders = orderRows.map(o => {
+    const orderItems = processedItems.filter(i => i.order_id === o.order_id)
+    const totalCostReal = orderItems.reduce((s, i) => s + i.cost_real, 0)
+    const totalCostInvoice = orderItems.reduce((s, i) => s + i.cost_invoice, 0)
+
+    let return_fee = o.return_fee || 0
+    if (o.order_type === "return") {
+      return_fee = o.platform === "tiktok" ? (cfg["tiktok_return_fee"]?.value ?? 4620) : (cfg["shopee_return_fee"]?.value ?? 1620)
+    } else if (o.order_type === "cancel" && /giao.*thất bại|không giao được|failed delivery/i.test(o.cancel_reason || "")) {
+      return_fee = o.platform === "tiktok" ? (cfg["tiktok_failed_delivery_fee"]?.value ?? 1620) : (cfg["shopee_failed_delivery_fee"]?.value ?? 1620)
+    }
+
+    const realFee = feeFieldsFromPayload(o)
+    const p = calcProfit({ ...o, cost_invoice: totalCostInvoice, cost_real: totalCostReal, is_first_sku: 1, return_fee, ...realFee }, cfg)
+    const workflowStatus = normalizeImportedWorkflowStatus(o, getImportShippingStatus(o))
+    const workflowOrderType = orderTypeFromWorkflowStatus(workflowStatus, o.order_type)
+    return { ...o, order_type: workflowOrderType, cost_invoice: p.cost_invoice, cost_real: p.cost_real, fee: p.total_fee, profit_invoice: p.profit_invoice, profit_real: p.profit_real, tax_flat: p.tax_flat, tax_income: p.tax_income, fee_platform: p.fee_platform || 0, fee_payment: p.fee_payment || 0, fee_affiliate: p.fee_affiliate || 0, fee_ads: p.fee_ads || 0, fee_piship: p.fee_piship || 0, fee_service: p.fee_service || 0, fee_packaging: p.fee_packaging || 0, fee_operation: p.fee_operation || 0, fee_labor: p.fee_labor || 0, return_fee, oms_status: workflowStatus.oms, shipping_status: workflowStatus.shipping }
+  })
+
+  const importOrderIds = [...new Set(processedOrders.map(o => cleanOrderText(o.order_id)).filter(Boolean))]
+  const pushBeforeRows = suppressPush ? [] : await loadOrderPushRows(env, importOrderIds).catch(error => {
+    console.error("[IMPORT_V2] ORDER_PUSH_BEFORE:", error.message)
+    return []
+  })
+  const pushBefore = new Map(pushBeforeRows.map(row => [cleanOrderText(row.order_id), orderPushSignature(row)]))
+
+  const BATCH = 50
+  let importedOrders = 0, importedItems = 0, skipped = 0
+
+  for (let i = 0; i < processedOrders.length; i += BATCH) {
+    const chunk = processedOrders.slice(i, i + BATCH)
+    const stmts = chunk.map(o => {
+      const rawShippingStatus = getImportShippingStatus(o)
+      const trackingNumber = getImportTracking(o)
+      const shippingCarrier = normalizeCarrierByTracking(getImportCarrier(o), trackingNumber)
+      const workflowStatus = normalizeImportedWorkflowStatus(o, rawShippingStatus)
+      const shippingStatus = workflowStatus.shipping
+      const omsStatus = workflowStatus.oms
+      const orderType = orderTypeFromWorkflowStatus(workflowStatus, o.order_type)
+      const sourceMode = cleanOrderText(o.source_mode || o.sourceMode || sourceMeta.source_mode || '')
+      const sourceDetail = cleanOrderText(o.source_detail || o.sourceDetail || sourceMeta.source_detail || '')
+      const sourceUpdatedAt = cleanOrderText(o.source_updated_at || o.sourceUpdatedAt || sourceMeta.source_updated_at || '')
+
+      return env.DB.prepare(`
+        INSERT INTO orders_v2
+          (order_id, platform, shop, order_date, order_type, revenue, raw_revenue, cost_invoice, cost_real, fee, profit_invoice, profit_real, tax_flat, tax_income, fee_platform, fee_payment, fee_affiliate, fee_ads, fee_piship, fee_service, fee_packaging, fee_operation, fee_labor, cancel_reason, return_fee, shipped, discount_shop, discount_shopee, discount_combo, shipping_return_fee, shipping_status, shipping_carrier, tracking_number, customer_name, buyer_id, buyer_username, oms_status, source_mode, source_detail, source_updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(order_id) DO UPDATE SET
+          order_date = CASE WHEN excluded.order_date != '' AND excluded.order_date IS NOT NULL THEN excluded.order_date ELSE orders_v2.order_date END,
+          platform = excluded.platform,
+          shop = excluded.shop,
+          order_type = CASE
+            WHEN excluded.order_type IN ('cancel', 'return') THEN excluded.order_type
+            WHEN excluded.oms_status = 'PENDING' AND orders_v2.order_type IN ('cancel', 'return') THEN orders_v2.order_type
+            ELSE excluded.order_type
+          END,
+          revenue = excluded.revenue,
+          raw_revenue = excluded.raw_revenue,
+          cost_invoice = excluded.cost_invoice,
+          cost_real = excluded.cost_real,
+          fee = excluded.fee,
+          profit_invoice = excluded.profit_invoice,
+          profit_real = excluded.profit_real,
+          tax_flat = excluded.tax_flat,
+          tax_income = excluded.tax_income,
+          fee_platform = excluded.fee_platform,
+          fee_payment = excluded.fee_payment,
+          fee_affiliate = excluded.fee_affiliate,
+          fee_ads = excluded.fee_ads,
+          fee_piship = excluded.fee_piship,
+          fee_service = excluded.fee_service,
+          fee_packaging = excluded.fee_packaging,
+          fee_operation = excluded.fee_operation,
+          fee_labor = excluded.fee_labor,
+          cancel_reason = excluded.cancel_reason,
+          return_fee = excluded.return_fee,
+          shipped = excluded.shipped,
+          discount_shop = excluded.discount_shop,
+          discount_shopee = excluded.discount_shopee,
+          discount_combo = excluded.discount_combo,
+          shipping_return_fee = excluded.shipping_return_fee,
+          tracking_number = CASE WHEN excluded.tracking_number != '' THEN excluded.tracking_number ELSE orders_v2.tracking_number END,
+          customer_name = excluded.customer_name,
+          buyer_id = CASE WHEN excluded.buyer_id != '' THEN excluded.buyer_id ELSE orders_v2.buyer_id END,
+          buyer_username = CASE WHEN excluded.buyer_username != '' THEN excluded.buyer_username ELSE orders_v2.buyer_username END,
+          shipping_status = CASE
+            WHEN orders_v2.oms_status = 'PENDING'
+             AND orders_v2.shipping_status = 'LOGISTICS_PACKAGED'
+             AND excluded.shipping_status IN ('', 'LOGISTICS_PENDING_ARRANGE', 'READY_TO_SHIP', 'LOGISTICS_REQUEST_CREATED', 'PROCESSED') THEN orders_v2.shipping_status
+            WHEN orders_v2.oms_status = 'PENDING'
+             AND orders_v2.shipping_status = 'LOGISTICS_REQUEST_CREATED'
+             AND excluded.shipping_status IN ('', 'LOGISTICS_PENDING_ARRANGE', 'READY_TO_SHIP') THEN orders_v2.shipping_status
+            WHEN excluded.shipping_status IN ('', 'LOGISTICS_PENDING_ARRANGE')
+             AND orders_v2.oms_status = 'COMPLETED' THEN 'COMPLETED'
+            WHEN excluded.shipping_status IN ('', 'LOGISTICS_PENDING_ARRANGE')
+             AND orders_v2.oms_status = 'CANCELLED' THEN 'CANCELLED'
+            WHEN excluded.shipping_status IN ('', 'LOGISTICS_PENDING_ARRANGE')
+             AND orders_v2.oms_status = 'RETURN' THEN CASE
+                WHEN orders_v2.shipping_status IN ('RETURN', 'RETURN_REFUND', 'FAILED_DELIVERY', 'LOGISTICS_IN_RETURN', 'LOGISTICS_RETURNED_BY_SHIPPER', 'LOGISTICS_RETURN_PACKAGE_RECEIVED', 'LOGISTICS_LOST') THEN orders_v2.shipping_status
+                ELSE 'RETURN'
+              END
+            WHEN excluded.shipping_status IN ('', 'LOGISTICS_PENDING_ARRANGE')
+             AND orders_v2.oms_status IN ('SHIPPING', 'SHIPPED') THEN CASE
+                WHEN orders_v2.shipping_status IN ('SHIPPED', 'TO_CONFIRM_RECEIVE') THEN orders_v2.shipping_status
+                ELSE 'SHIPPED'
+              END
+            WHEN excluded.shipping_status IN ('', 'LOGISTICS_PENDING_ARRANGE')
+             AND orders_v2.oms_status NOT IN ('', 'PENDING') THEN orders_v2.shipping_status
+            WHEN excluded.shipping_status != '' THEN excluded.shipping_status
+            ELSE orders_v2.shipping_status
+          END,
+          shipping_carrier = CASE WHEN excluded.shipping_carrier != '' THEN excluded.shipping_carrier ELSE orders_v2.shipping_carrier END,
+          source_mode = CASE WHEN excluded.source_mode != '' THEN excluded.source_mode ELSE orders_v2.source_mode END,
+          source_detail = CASE WHEN excluded.source_detail != '' THEN excluded.source_detail ELSE orders_v2.source_detail END,
+          source_updated_at = CASE WHEN excluded.source_updated_at != '' THEN excluded.source_updated_at ELSE orders_v2.source_updated_at END,
+          oms_status = CASE
+            WHEN excluded.oms_status = 'PENDING'
+             AND orders_v2.oms_status NOT IN ('', 'PENDING') THEN orders_v2.oms_status
+            ELSE excluded.oms_status
+          END,
+          oms_updated_at = CASE
+            WHEN (
+              excluded.shipping_status NOT IN ('', 'LOGISTICS_PENDING_ARRANGE')
+              AND COALESCE(orders_v2.shipping_status, '') != excluded.shipping_status
+            ) OR (
+              excluded.oms_status != ''
+              AND NOT (excluded.oms_status = 'PENDING' AND orders_v2.oms_status NOT IN ('', 'PENDING'))
+              AND COALESCE(orders_v2.oms_status, '') != excluded.oms_status
+            ) OR (
+              excluded.tracking_number != ''
+              AND COALESCE(orders_v2.tracking_number, '') != excluded.tracking_number
+            ) OR (
+              excluded.shipping_carrier != ''
+              AND COALESCE(orders_v2.shipping_carrier, '') != excluded.shipping_carrier
+            ) THEN datetime('now', '+7 hours')
+            ELSE orders_v2.oms_updated_at
+          END
+      `).bind(
+        o.order_id ?? null, o.platform ?? '', o.shop ?? '', o.order_date ?? null, orderType, o.revenue ?? 0, o.raw_revenue ?? 0, o.cost_invoice ?? 0, o.cost_real ?? 0, o.fee ?? 0, o.profit_invoice ?? 0, o.profit_real ?? 0, o.tax_flat ?? 0, o.tax_income ?? 0, o.fee_platform ?? 0, o.fee_payment ?? 0, o.fee_affiliate ?? 0, o.fee_ads ?? 0, o.fee_piship ?? 0, o.fee_service ?? 0, o.fee_packaging ?? 0, o.fee_operation ?? 0, o.fee_labor ?? 0, o.cancel_reason ?? null, o.return_fee ?? 0, o.shipped ?? 0, o.discount_shop ?? 0, o.discount_shopee ?? 0, o.discount_combo ?? 0, o.shipping_return_fee ?? 0, shippingStatus, shippingCarrier, trackingNumber, o.customer_name ?? '', o.buyer_id ?? '', o.buyer_username ?? '', omsStatus, sourceMode, sourceDetail, sourceUpdatedAt
+      )
+    })
+    try { 
+      await env.DB.batch(stmts); 
+      importedOrders += chunk.length;
+    } catch(e) { 
+      console.error("[IMPORT_V2] ❌ LỖI BATCH ORDERS_V2:", e.message);
+      return Response.json({ error: "LỖI DB D1 (Orders): " + e.message }, { status: 500, headers: cors });
+    }
+  }
+
+  const orderIds = [...new Set(processedItems.map(i => i.order_id))]
+  for (let i = 0; i < orderIds.length; i += BATCH) {
+    const chunk = orderIds.slice(i, i + BATCH)
+    const placeholders = chunk.map(() => "?").join(",")
+    await env.DB.prepare(`DELETE FROM order_items WHERE order_id IN (${placeholders})`).bind(...chunk).run()
+  }
+
+  for (let i = 0; i < processedItems.length; i += BATCH) {
+    const chunk = processedItems.slice(i, i + BATCH)
+    const stmts = chunk.map(item => env.DB.prepare(`
+      INSERT INTO order_items (order_id, sku, variation_name, product_name, qty, revenue_line, cost_real, cost_invoice, image_url)
+      VALUES (?,?,?,?,?,?,?,?,?)
+    `).bind(
+      item.order_id, item.sku, item.variation_name || "", item.product_name || "", item.qty || 1, item.revenue_line || 0, item.cost_real || 0, item.cost_invoice || 0, item.image_url || ""
+    ))
+    try { 
+        await env.DB.batch(stmts); 
+        importedItems += chunk.length;
+    } catch(e) { 
+        console.error("[IMPORT_V2] ❌ LỖI INSERT SẢN PHẨM:", e.message);
+        return Response.json({ error: "LỖI DB D1 (Items): " + e.message }, { status: 500, headers: cors });
+    }
+  }
+
+  let inventory = skipInventory ? { adjusted: 0, restored: 0, skipped: true } : { adjusted: 0, restored: 0 }
+  if (!skipInventory) {
+    try {
+      inventory = await applyInventoryMovements(env, processedOrders, processedItems)
+    } catch (e) {
+      console.error("[IMPORT_V2] INVENTORY_MOVEMENTS:", e.message)
+    }
+  }
+
+  let orderPush = suppressPush
+    ? { sent: 0, total: 0, notified: 0, suppressed: true }
+    : { sent: 0, total: 0, notified: 0 }
+  try {
+    if (!suppressPush) {
+      const pushAfterRows = await loadOrderPushRows(env, importOrderIds)
+      const changedRows = []
+      for (const row of pushAfterRows) {
+        const id = cleanOrderText(row.order_id)
+        const before = pushBefore.get(id)
+        const after = orderPushSignature(row)
+        if (!before) changedRows.push({ ...row, _push_reason: 'new' })
+        else if (before !== after) changedRows.push({ ...row, _push_reason: 'changed' })
+      }
+      if (changedRows.length) {
+        orderPush = await notifyOrderSubscribers(env, changedRows, {
+          reason: changedRows.some(row => row._push_reason === 'new') ? 'new' : 'changed'
+        })
+      }
+    }
+  } catch (e) {
+    console.error("[IMPORT_V2] ORDER_PUSH:", e.message)
+    orderPush = { sent: 0, total: 0, notified: 0, error: e.message }
+  }
+
+  return Response.json({
+    status: "ok",
+    imported_orders: importedOrders,
+    imported_items: importedItems,
+    skipped,
+    mode: importMode || 'full',
+    status_only: statusOnly,
+    inventory_adjusted: inventory.adjusted,
+    inventory_restored: inventory.restored,
+    inventory_skipped: Boolean(inventory.skipped),
+    order_push: orderPush
+  }, { headers: cors })
+}

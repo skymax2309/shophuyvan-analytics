@@ -1,0 +1,571 @@
+@media (min-width: 720px) {
+  .chat-heading,
+  .ads-heading {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  .chat-sync-btn,
+  .ads-refresh-btn {
+    flex-shrink: 0;
+  }
+  .chat-heading-actions {
+    justify-content: flex-end;
+  }
+  .chat-filters {
+    grid-template-columns: 150px minmax(180px, 240px) minmax(220px, 1fr) auto;
+  }
+  .ads-filters {
+    grid-template-columns: 150px minmax(180px, 240px) minmax(220px, 1fr) minmax(150px, 180px);
+  }
+  .ads-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .chat-reply-box {
+    grid-template-columns: 1fr;
+  }
+  .chat-reply-actions button {
+    flex: 0 1 140px;
+  }
+  .chat-notify-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 901px) {
+  body[data-active-tab="chat"] .chat-reply-box {
+    gap: 6px;
+    padding: 10px;
+  }
+  body[data-active-tab="chat"] .chat-reply-box textarea {
+    min-height: 54px;
+    resize: none;
+  }
+  body[data-active-tab="chat"] .chat-reply-actions {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  body[data-active-tab="chat"] .chat-reply-actions button,
+  body[data-active-tab="chat"] .chat-reply-actions .chat-media-pick {
+    font-size: 12px;
+    min-height: 34px;
+    min-width: 0;
+    overflow: hidden;
+    padding: 7px 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 1100px) {
+  .chat-workspace {
+    grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr) minmax(250px, 300px);
+  }
+  .ads-workspace {
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+  }
+  .ads-bottom-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, .9fr);
+  }
+}
+
+.netprofit-page {
+  display: grid;
+  gap: 12px;
+}
+
+.netprofit-heading,
+.netprofit-panel,
+.netprofit-status {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+}
+
+.netprofit-heading {
+  align-items: start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 18px;
+}
+
+.netprofit-eyebrow {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin-bottom: 6px;
+}
+
+.netprofit-heading h2 {
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.25;
+  margin: 0 0 6px;
+}
+
+.netprofit-heading p {
+  color: #52627a;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 780px;
+}
+
+.netprofit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.netprofit-actions button,
+.netprofit-table-actions button {
+  background: #2563eb;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+.netprofit-actions button.secondary,
+.netprofit-table-actions button.secondary {
+  background: #e8eefc;
+  color: #1d4ed8;
+}
+
+.netprofit-actions button.strong {
+  background: #7c3aed;
+}
+
+.netprofit-status {
+  color: #475569;
+  font-size: 13px;
+  padding: 10px 14px;
+}
+
+.netprofit-status.ok {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.netprofit-status.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.netprofit-kpi-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.netprofit-kpi {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.netprofit-kpi.danger {
+  border-left-color: #ef4444;
+}
+
+.netprofit-kpi span,
+.netprofit-kpi small {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+}
+
+.netprofit-kpi strong {
+  color: #0f172a;
+  display: block;
+  font-size: 22px;
+  margin: 5px 0 4px;
+}
+
+.netprofit-layout {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.netprofit-panel {
+  min-width: 0;
+}
+
+.netprofit-panel-title {
+  align-items: center;
+  border-bottom: 1px solid #e5edf7;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.netprofit-panel-title span {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.netprofit-panel-title small {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.netprofit-table-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.netprofit-empty {
+  color: #64748b;
+  font-size: 13px;
+  padding: 18px;
+  text-align: center;
+}
+
+.netprofit-loss-list,
+.netprofit-sku-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.netprofit-loss-row,
+.netprofit-sku-row,
+.netprofit-loss-item-row {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e5edf7;
+  border-radius: 7px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.netprofit-loss-row b,
+.netprofit-sku-row b {
+  color: #0f172a;
+  display: block;
+  font-size: 13px;
+}
+
+.netprofit-loss-row span,
+.netprofit-sku-row span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.netprofit-sku-row small {
+  color: #2563eb;
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.netprofit-loss-row strong,
+.danger-text {
+  color: #dc2626;
+}
+
+.netprofit-subtabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.netprofit-subtabs button {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe7f5;
+  border-radius: 7px;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.netprofit-subtabs button.active {
+  background: #eaf2ff;
+  border-color: #2563eb;
+  color: #1746a2;
+}
+
+.netprofit-tab-body {
+  display: grid;
+  gap: 8px;
+}
+
+.netprofit-sku-row.rich,
+.netprofit-loss-item-row {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) minmax(160px, auto);
+}
+
+.netprofit-thumb {
+  background: #eef4fb;
+  border: 1px solid #dbe7f5;
+  border-radius: 7px;
+  height: 44px;
+  object-fit: cover;
+  width: 44px;
+}
+
+.netprofit-thumb.empty {
+  align-items: center;
+  color: #64748b;
+  display: flex;
+  font-size: 11px;
+  font-weight: 900;
+  justify-content: center;
+}
+
+.netprofit-row-copy,
+.netprofit-row-metrics {
+  min-width: 0;
+}
+
+.netprofit-row-copy b {
+  color: #0f172a;
+  display: block;
+  font-size: 12px;
+}
+
+.netprofit-row-copy span,
+.netprofit-row-copy small,
+.netprofit-row-metrics span {
+  color: #64748b;
+  display: block;
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.netprofit-row-copy b,
+.netprofit-row-copy span,
+.netprofit-row-copy small,
+.netprofit-row-metrics span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.netprofit-row-metrics {
+  text-align: right;
+}
+
+.netprofit-row-metrics strong {
+  display: block;
+  font-size: 13px;
+}
+
+.netprofit-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.netprofit-chip-list em {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  padding: 2px 6px;
+}
+
+.netprofit-mini-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.netprofit-mini-grid > div {
+  background: #f8fafc;
+  border: 1px solid #e5edf7;
+  border-radius: 7px;
+  padding: 10px;
+}
+
+.netprofit-mini-grid span,
+.netprofit-mini-grid small {
+  color: #64748b;
+  display: block;
+  font-size: 11px;
+}
+
+.netprofit-mini-grid b {
+  color: #0f172a;
+  display: block;
+  font-size: 14px;
+  margin: 4px 0 2px;
+}
+
+.netprofit-source-note {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 7px;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 10px;
+}
+
+@media (max-width: 860px) {
+  .netprofit-sku-row.rich,
+  .netprofit-loss-item-row {
+    align-items: start;
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .netprofit-row-metrics {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .netprofit-mini-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.netprofit-table-wrap {
+  overflow: auto;
+}
+
+.netprofit-table {
+  border-collapse: collapse;
+  min-width: 1180px;
+  width: 100%;
+}
+
+.netprofit-table th,
+.netprofit-table td {
+  border-bottom: 1px solid #e5edf7;
+  color: #334155;
+  font-size: 12px;
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.netprofit-table th {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 800;
+  text-align: left;
+}
+
+.netprofit-table tr.is-loss td {
+  background: #fff7ed;
+}
+
+.netprofit-table td small {
+  color: #64748b;
+  display: block;
+  margin-top: 2px;
+}
+
+.netprofit-source {
+  color: #475569;
+  display: grid;
+  font-size: 13px;
+  gap: 6px;
+  line-height: 1.45;
+  padding: 12px 14px;
+}
+
+@media (max-width: 860px) {
+  .netprofit-heading,
+  .netprofit-layout {
+    grid-template-columns: 1fr;
+  }
+  .netprofit-heading {
+    display: grid;
+  }
+  .netprofit-actions {
+    justify-content: stretch;
+  }
+  .netprofit-actions button {
+    flex: 1 1 160px;
+  }
+}
+
+@media (max-width: 760px) {
+  .chat-knowledge-dialog {
+    border-radius: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: 100vw;
+  }
+
+  .chat-advisory-modal-body {
+    padding: 12px;
+  }
+
+  .chat-advisory-product-row,
+  .chat-advisory-selected {
+    grid-template-columns: 48px minmax(0, 1fr);
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .chat-advisory-product-row img,
+  .chat-advisory-selected img {
+    height: 48px;
+    width: 48px;
+  }
+
+  .chat-advisory-product-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+    min-width: 0;
+  }
+
+  .chat-advisory-selected button {
+    grid-column: 1 / -1;
+  }
+
+  .chat-advisory-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-quick-head,
+  .chat-quick-actions {
+    align-items: stretch;
+  }
+
+  .chat-quick-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .chat-quick-actions .chat-settings-save {
+    min-width: 0;
+    width: 100%;
+  }
+}

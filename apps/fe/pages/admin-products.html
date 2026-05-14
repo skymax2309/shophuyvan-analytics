@@ -5,66 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quản lý Sản phẩm & SKU</title>
 <link rel="stylesheet" href="../css/admin.css">
+<script src="../js/auth-guard.js?v=account-widget-20260504"></script>
 </head>
 <body>
 
-<style>
-  /* Layout mới: Trái Sidebar - Phải Nội dung */
-  .app-wrapper { display: flex; min-height: 100vh; background: #f8fafc; }
-  
-  .side-nav { width: 260px; background: #ffffff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
-  .side-header { padding: 20px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; }
-  .side-header a { text-decoration: none; background: #f1f5f9; padding: 8px 12px; border-radius: 8px; color: #475569; font-weight: 700; font-size: 13px; transition: 0.2s; }
-  .side-header a:hover { background: #e2e8f0; color: #0f172a; }
-  .side-header span { font-weight: 800; font-size: 15px; color: #0f172a; }
-  
-  .side-menu { padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
-  .side-menu .tab-btn { text-align: left; padding: 12px 16px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 600; color: #64748b; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
-  .side-menu .tab-btn:hover { background: #f1f5f9; color: #0f172a; }
-  .side-menu .tab-btn.active { background: #eff6ff; color: #2563eb; border-right: 4px solid #2563eb; border-radius: 8px 4px 4px 8px; }
-  
-  /* Ghi đè Container cũ để nằm gọn bên phải Sidebar */
-  .container { flex: 1; padding: 24px 32px; max-width: 100%; overflow-x: hidden; box-sizing: border-box; }
-  
-  /* Ẩn topbar cũ nếu css cũ còn sót */
-  .topbar, .tabs { display: none !important; }
-
-  /* --- GIAO DIỆN MOBILE RESPONSIVE (MỚI) --- */
-  .mobile-header, .sidebar-overlay { display: none; }
-  
-  /* Layout Card cho SKU (Dùng chung cho cả Mobile và Desktop để tối ưu UX) */
-  .sku-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 12px; }
-  .sku-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: 0.2s; }
-  .sku-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-2px); }
-  .sku-card-header { display: flex; gap: 12px; align-items: flex-start; }
-  .sku-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; border: 1px solid #e2e8f0; }
-  .sku-info { flex: 1; min-width: 0; }
-  .sku-title { font-size: 14px; font-weight: 700; color: #1e293b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 6px; line-height: 1.4; }
-  .sku-code { font-family: monospace; font-size: 12px; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; color: #475569; font-weight: 700; }
-  .sku-prices { display: flex; justify-content: space-between; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; }
-  .sku-price-item { display: flex; flex-direction: column; }
-  .sku-price-label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
-  .sku-price-val { font-size: 15px; font-weight: 800; }
-  .sku-actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 14px; margin-top: auto; }
-
-  @media (max-width: 768px) {
-    .app-wrapper { flex-direction: column; }
-    /* Mobile Header có nút Hamburger */
-    .mobile-header { display: flex; padding: 12px 16px; background: white; border-bottom: 1px solid #e2e8f0; align-items: center; position: sticky; top: 0; z-index: 900; }
-    .mobile-menu-btn { background: none; border: none; font-size: 24px; cursor: pointer; margin-right: 12px; color: #0f172a; display: block; padding: 0;}
-    
-    /* Sidebar ẩn thành Off-canvas */
-    .side-nav { position: fixed; top: 0; left: -280px; width: 260px; height: 100vh; z-index: 1000; transition: left 0.3s ease; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
-    .side-nav.open { left: 0; }
-    .sidebar-overlay.show { display: block; }
-    .sidebar-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
-    
-    .container { padding: 12px; }
-    .card { padding: 12px; }
-    .form-grid { grid-template-columns: 1fr; }
-    .sku-grid { grid-template-columns: 1fr; }
-  }
-</style>
+<link rel="stylesheet" href="../css/admin-products-page.css?v=core-first-20260514a">
 
 <div class="app-wrapper">
 
@@ -80,25 +25,32 @@
       <span>📦 Quản lý Hệ thống</span>
     </div>
     <div class="side-menu">
-      <a href="sku.html" class="tab-btn" style="text-decoration:none"><span>📦 Sản phẩm / SKU</span></a>
-	   <a href="product-detail.html" class="tab-btn" style="text-decoration:none"><span>📦 Chi Tiết Sản Phẩm</span></a>
+      <a href="sku.html" class="tab-btn" style="text-decoration:none"><span>📦 Sản phẩm kho</span></a>
       <button class="tab-btn active" onclick="switchTab('variations')">
-        <span>🔗 Map SKU Đa Sàn</span>
+        <span>🔗 Kết nối SKU đa sàn</span>
         <span id="badge-unmapped" style="background:#ef4444;color:white;border-radius:10px;padding:2px 8px;font-size:11px;display:none">0</span>
       </button>
-      <button class="tab-btn" onclick="switchTab('invoice')"><span>🧾 Hóa Đơn Nhập</span></button>
+      <button class="tab-btn" onclick="openMultiPublishDraft()"><span>🚀 Đăng sản phẩm đa sàn</span></button>
+      <a href="sku.html#combo" class="tab-btn" style="text-decoration:none"><span>📦 Tạo combo</span></a>
+      <button id="sideShopConnect" class="tab-btn" onclick="switchTab('shops'); setShopApiView('overview')"><span>🏪 Kết nối & Đồng bộ</span></button>
+      <button class="tab-btn" onclick="switchTab('invoice')"><span>🧾 Hóa đơn nhập</span></button>
       <button class="tab-btn" onclick="switchTab('loss')"><span>🔴 Đơn âm tiền</span></button>
-      <button class="tab-btn" onclick="switchTab('shops')"><span>🏪 Cửa Hàng & Phân Kho</span></button>
     </div>
   </aside>
 
   <div class="container">
+    <div class="shipxanh-reference-strip">
+      <div>
+        <strong>Tham chiếu Sản phẩm kho ShipXanh</strong>
+        <span>Bấm mở cửa sổ riêng, bạn tự đăng nhập để mình xem giao diện kho. Hệ thống không lưu tài khoản hoặc mật khẩu.</span>
+      </div>
+      <button type="button" onclick="openShipXanhReference()">Mở cửa sổ ShipXanh</button>
+    </div>
 
 <div id="tab-variations" class="tab-pane active">
     <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-        
-        <div style="display:flex; align-items:center; gap:16px;">
+      <div class="admin-action-row" style="margin-bottom:14px">
+        <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
             <div class="card-title" style="margin:0">🔗 Variation Đa Sàn & Map SKU</div>
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:600; color:#0f172a; background:#f1f5f9; padding:6px 12px; border-radius:6px; border:1px solid #cbd5e1;">
                 <input type="checkbox" id="selectAllVarChk" onchange="toggleAllVarCheck(this.checked)" style="transform:scale(1.2); cursor:pointer;">
@@ -107,34 +59,57 @@
         </div>
 
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-<select id="var_filter_platform" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="updateShopDropdown(); renderVariations()">
+          <button id="btnOpenPublishDraft" class="btn-strong" onclick="openMultiPublishDraft()">Đăng đa sàn</button>
+        </div>
+      </div>
+
+      <div class="review-risk-panel" id="productReviewRiskPanel">
+        <div class="review-risk-head">
+          <div>
+            <b>Review xấu theo sản phẩm</b>
+            <span>Đọc từ review_core, ưu tiên khớp item_id rồi tới SKU/tên để biết sản phẩm nào cần xử lý trước khi tối ưu tồn kho hoặc ADS.</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" onclick="location.href='reviews.html'">Mở trang đánh giá</button>
+            <button type="button" onclick="loadProductReviewRisk({ force: true })">Làm mới review</button>
+          </div>
+        </div>
+        <div id="productReviewRiskList" class="review-risk-list">
+          <div class="variation-empty">Đang kiểm tra review xấu...</div>
+        </div>
+      </div>
+
+      <div class="variation-toolbar">
+        <div class="filter-group">
+<select id="var_filter_platform" onchange="updateShopDropdown(); renderVariations()">
             <option value="">🌐 Tất cả Sàn</option>
             <option value="shopee">Shopee</option>
             <option value="tiktok">TikTok</option>
             <option value="lazada">Lazada</option>
           </select>
-          <select id="var_filter_shop" style="padding:8px;border:1px solid #e5e7eb;border-radius:8px" onchange="renderVariations()">
+          <select id="var_filter_shop" onchange="renderVariations()">
             <option value="">🛒 Tất cả Shop</option>
           </select>
           <input type="hidden" id="var_filter_status" value="">
           
           <input id="var_search" type="text" placeholder="🔍 Tìm SKU, tên SP..." oninput="renderVariations()"
-            style="border:1px solid #e5e7eb;border-radius:8px;padding:7px 12px;font-size:13px;width:220px">
-          
-          <button id="btnBulkCopyToWarehouse" style="display:none; background:#10b981; color:white; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 2px 4px rgba(16,185,129,0.2);" onclick="copySelectedToWarehouse()">
+            style="width:260px">
+        </div>
+        <div class="action-group">
+          <button id="btnBulkCopyToWarehouse" class="btn-soft" style="display:none" onclick="copySelectedToWarehouse()">
             📥 Sao chép về Kho Tổng (<span id="selectedCopyCount">0</span>)
           </button>
 
-          <button id="btnBulkDeleteVar" style="display:none; background:#ef4444; color:white; border:none; border-radius:8px; padding:7px 15px; font-size:13px; font-weight:600; cursor:pointer" onclick="bulkDeleteVariations()">
+          <button id="btnBulkDeleteVar" class="btn-danger-soft" style="display:none" onclick="bulkDeleteVariations()">
             🗑️ Xóa (<span id="selectedVarCount">0</span>)
           </button>
         </div>
       </div>
 
-      <div style="display:flex; gap:16px; margin-bottom:16px; border-bottom:1px solid #e2e8f0;">
-        <button class="shipxanh-tab active" onclick="switchShipXanhTab('', this)" style="padding:10px 16px; border:none; background:none; font-size:14px; font-weight:700; color:#2563eb; border-bottom:2px solid #2563eb; cursor:pointer;">📦 Tất cả sản phẩm</button>
-        <button class="shipxanh-tab" onclick="switchShipXanhTab('UNMAPPED', this)" style="padding:10px 16px; border:none; background:none; font-size:14px; font-weight:600; color:#64748b; border-bottom:2px solid transparent; cursor:pointer;">⚠️ Chưa liên kết SKU</button>
-        <button class="shipxanh-tab" onclick="switchShipXanhTab('MAPPED', this)" style="padding:10px 16px; border:none; background:none; font-size:14px; font-weight:600; color:#64748b; border-bottom:2px solid transparent; cursor:pointer;">✅ Đã liên kết SKU</button>
+      <div class="variation-tabs">
+        <button class="shipxanh-tab active" onclick="switchShipXanhTab('', this)">📦 Tất cả sản phẩm</button>
+        <button class="shipxanh-tab" onclick="switchShipXanhTab('UNMAPPED', this)">⚠️ Chưa liên kết SKU</button>
+        <button class="shipxanh-tab" onclick="switchShipXanhTab('MAPPED', this)">✅ Đã liên kết SKU</button>
       </div>
 
       <div id="var-list-wrapper">
@@ -156,10 +131,10 @@
         <div style="font-weight:600;margin-top:6px">Kéo thả hoặc nhấn để chọn PDF hóa đơn</div>
         <div id="inv-filename" style="font-size:12px;color:#888;margin-top:4px">Hỗ trợ hóa đơn từ mọi nhà cung cấp</div>
       </div>
-<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+<div class="invoice-actions">
         <button onclick="uploadInvoice()" id="inv-btn"
           style="background:#4f46e5;color:white;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;font-weight:600">
-          🤖 Phân tích bằng AI
+          Đọc hóa đơn
         </button>
         <button id="btn-download-all-inv" onclick="downloadAllInvoicesZip()"
           style="background:#0d9488;color:white;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:14px;font-weight:600">
@@ -171,8 +146,9 @@
     </div>
     <div class="card" id="inv-confirm-card" style="display:none">
       <div class="card-title">✅ Xác nhận sản phẩm & SKU</div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px">AI đã phân tích hóa đơn. Chọn SKU tương ứng cho từng sản phẩm rồi nhấn Lưu.</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <div style="font-size:12px;color:#888;margin-bottom:10px">Hệ thống đã đọc hóa đơn bằng parser nội bộ. Chọn SKU tương ứng cho từng sản phẩm rồi nhấn Lưu.</div>
+      <div class="invoice-table-wrap">
+      <table class="invoice-confirm-table" style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="background:#f3f4f6">
             <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb">Tên SP trong HĐ</th>
@@ -184,6 +160,7 @@
         </thead>
         <tbody id="inv-items-table"></tbody>
       </table>
+      </div>
       <div style="margin-top:14px;display:flex;gap:10px">
         <button onclick="confirmInvoice()"
           style="background:#16a34a;color:white;border:none;border-radius:8px;padding:10px 20px;cursor:pointer;font-weight:600">
@@ -201,38 +178,8 @@
     </div>
   </div>
   
-  <div id="tab-shops" class="tab-pane">
-    <div class="card">
-      <div class="card-title">🏪 Thiết lập Nguồn Kho xuất hàng cho từng Shop</div>
-      <div style="font-size:13px;color:#64748b;margin-bottom:16px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
-        💡 <b>Quy tắc:</b> Chọn kho vật lý mà mỗi cửa hàng sẽ trừ tồn kho khi có đơn, và đồng bộ số lượng lên sàn.
-      </div>
-      
-      <div style="margin-bottom: 16px; display: flex; gap: 10px;">
-        <button onclick="window.location.href = API + '/api/auth/shopee/url'" style="background:#f97316; color:white; border:none; padding:10px 16px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(249,115,22,0.3);">🔗 + Cấp quyền Shopee Mới</button>
-        <button onclick="window.location.href = API + '/api/auth/lazada/url'" style="background:#0ea5e9; color:white; border:none; padding:10px 16px; border-radius:8px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(14,165,233,0.3);">🔗 + Cấp quyền Lazada Mới</button>
-      </div>
-
-      <table style="width:100%;border-collapse:collapse;font-size:14px;">
-        <thead>
-<tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
-            <th style="padding:12px;text-align:left;color:#475569;">Nền tảng</th>
-            <th style="padding:12px;text-align:left;color:#475569;">Tên Cửa Hàng (Shop)</th>
-            <th style="padding:12px;text-align:left;color:#475569;">Nguồn Kho Lấy Hàng 📦</th>
-            <th style="padding:12px;text-align:left;color:#475569;">Trạng Thái API 🔌</th>
-            <th style="padding:12px;text-align:right;color:#475569;">Thao tác</th>
-          </tr>
-        </thead>
-        <tbody id="shop-warehouse-list">
-            <tr><td colspan="3" style="padding:20px; text-align:center; color:#888;">⏳ Đang tải danh sách cửa hàng...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-     
-
-<!-- ══════════ TAB: LOSS ORDERS ══════════ -->
-  <div id="tab-loss" class="tab-pane">
+  <div id="tab-shops-slot"></div>
+<div id="tab-loss" class="tab-pane">
     <div class="card">
       <div class="card-title">🔴 Đơn hàng bị âm tiền</div>
       <div class="order-filter">
@@ -294,31 +241,137 @@
      2. admin managers — phụ thuộc utils
      3. admin/main — phụ thuộc tất cả (init cuối cùng)
 ═══════════════════════════════════════════════════════ -->
+<div id="multiPublishModal" class="modal-backdrop publish-modal">
+  <div class="modal-panel publish-panel">
+    <div class="modal-head">
+      <div>
+        <h3 style="margin:0;font-size:16px;color:#0f172a;">Đăng sản phẩm đa sàn</h3>
+        <div style="font-size:12px;color:#64748b;margin-top:4px;">Tạo bài đăng nháp đầy đủ như ShipXanh: tên, mô tả, ảnh, phân loại, giá, tồn kho và shop đích.</div>
+      </div>
+      <button onclick="closeMultiPublishDraft()" style="border:0;background:transparent;font-size:24px;color:#64748b;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="publish-steps">
+        <div><strong>1. Sàn đăng</strong><span>Chọn sàn đích</span></div>
+        <div><strong>2. Shop đăng</strong><span>Chọn shop nhận bài</span></div>
+        <div><strong>3. Sản phẩm</strong><span><b id="multiPublishCount">0</b> SKU đã chọn</span></div>
+        <div><strong>4. Nội dung</strong><span>Kiểm tra trước khi lưu</span></div>
+      </div>
+
+      <div class="publish-layout">
+        <section class="publish-section">
+          <div class="publish-section-title">Sàn và shop đích</div>
+          <div class="publish-targets">
+            <label><input type="checkbox" class="publish-target" value="shopee" checked onchange="onPublishTargetPlatformChange()"> Shopee</label>
+            <label><input type="checkbox" class="publish-target" value="lazada" checked onchange="onPublishTargetPlatformChange()"> Lazada</label>
+            <label><input type="checkbox" class="publish-target" value="tiktok" onchange="onPublishTargetPlatformChange()"> TikTok</label>
+          </div>
+          <div class="publish-field">
+            <span>Shop đăng lên</span>
+            <div id="publishTargetShopList" class="publish-shop-list">
+              <div class="publish-note">Chọn sàn để tải danh sách shop đích.</div>
+            </div>
+          </div>
+          <input id="publishTargetShopInput" type="hidden">
+          <div id="publishDraftSummary" class="publish-note">Đang chờ chọn SKU từ danh sách kết nối đa sàn.</div>
+        </section>
+
+        <section class="publish-section">
+          <div class="publish-section-title">Nguồn lấy thông tin bài đăng</div>
+          <div id="publishSourceShopList" class="publish-shop-list">
+            <div class="publish-note">Tick SKU để hiện shop nguồn.</div>
+          </div>
+          <label class="publish-field publish-source-search">
+            <span>Tìm bài đăng trong shop nguồn</span>
+            <input id="publishSourceSearchInput" type="search" placeholder="Tìm tên sản phẩm, SKU, mã bài đăng..." oninput="onPublishSourceSearchInput()">
+          </label>
+          <div id="publishSelectedList" class="publish-selected-list"></div>
+          <div id="publishSourceSummary" class="publish-note">Chọn bài đăng nguồn bên trên để lấy tên, mô tả, ảnh và video.</div>
+        </section>
+
+        <section class="publish-section publish-editor">
+          <div class="publish-section-title">Nội dung bài đăng</div>
+          <div id="publishPreviewStatus" class="publish-note">Preview sẽ tự lấy mô tả, ảnh và video đã đồng bộ từ API nếu có.</div>
+          <div class="publish-ai-panel">
+            <label class="publish-ai-toggle">
+              <input id="publishAiRewriteToggle" type="checkbox" checked>
+              <span>AI viết khác tiêu đề/mô tả cho từng shop đích, SKU giữ nguyên</span>
+            </label>
+            <button id="btnPublishAiVariants" type="button" class="btn-outline" onclick="generatePublishAiVariants()">Tạo nội dung AI</button>
+            <div id="publishAiStatus" class="publish-note">Chọn bài đăng nguồn và shop đích, rồi tạo nội dung AI trước khi lưu nháp.</div>
+            <div id="publishAiVariantList" class="publish-ai-variant-list"></div>
+          </div>
+          <label class="publish-field">
+            <span>Tên bài đăng</span>
+            <textarea id="publishTitleInput" rows="2" placeholder="Tên sản phẩm hiển thị trên sàn"></textarea>
+          </label>
+          <label class="publish-field">
+            <span>Mô tả sản phẩm</span>
+            <textarea id="publishDescInput" rows="7" placeholder="Mô tả đầy đủ, thông số, hướng dẫn sử dụng, lưu ý..."></textarea>
+          </label>
+          <div class="publish-field-grid">
+            <label class="publish-field">
+              <span>Ngành hàng</span>
+              <input id="publishCategoryInput" placeholder="Chọn/ngành hàng đích">
+            </label>
+            <label class="publish-field">
+              <span>Thương hiệu</span>
+              <input id="publishBrandInput" placeholder="No Brand hoặc thương hiệu">
+            </label>
+          </div>
+          <label class="publish-field publish-attributes-field">
+            <span>Thuộc tính ngành hàng</span>
+            <textarea id="publishAttributesInput" rows="5" placeholder="Tự lấy từ bài đăng nguồn. Có thể sửa dạng: Tên thuộc tính: Giá trị"></textarea>
+          </label>
+          <div class="publish-field-grid publish-dimensions">
+            <label class="publish-field"><span>Khối lượng kg</span><input id="publishWeightInput" type="number" min="0" step="0.01"></label>
+            <label class="publish-field"><span>Dài cm</span><input id="publishLengthInput" type="number" min="0" step="0.1"></label>
+            <label class="publish-field"><span>Rộng cm</span><input id="publishWidthInput" type="number" min="0" step="0.1"></label>
+            <label class="publish-field"><span>Cao cm</span><input id="publishHeightInput" type="number" min="0" step="0.1"></label>
+          </div>
+          <label class="publish-field">
+            <span>Video</span>
+            <input id="publishVideoInput" placeholder="URL video nếu có">
+          </label>
+          <label class="publish-field">
+            <span>Ảnh bài đăng</span>
+            <textarea id="publishImagesInput" rows="4" placeholder="Mỗi dòng là một URL ảnh. Hệ thống sẽ tự điền ảnh từ API nếu đã có."></textarea>
+          </label>
+          <div id="publishListingEditor" class="publish-listing-preview"></div>
+        </section>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-outline" onclick="closeMultiPublishDraft()">Đóng</button>
+      <button id="btnSavePublishDraft" class="btn-strong" onclick="saveMultiPublishDraft()">Tạo bản nháp</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="../js/utils/api.js"></script>
 <script src="../js/utils/format.js"></script>
-<script src="../js/admin/invoice-manager.js"></script>
-<script src="../js/admin/main.js"></script>
-<script src="../js/admin/var-core.js"></script>
-<script src="../js/admin/var-actions.js"></script>
+<script src="../js/admin/invoice-manager.js?v=core-first-20260514a"></script>
+<script src="../js/admin/invoice/invoice-sku-match.js?v=core-first-20260514a"></script>
+<script src="../js/admin/invoice/invoice-confirm.js?v=core-first-20260514a"></script>
+<script src="../js/admin/invoice/invoice-list.js?v=core-first-20260514a"></script>
+<script src="../js/admin/shops/shop-api-template.js?v=core-first-20260514a"></script>
+<script src="../js/admin/main.js?v=product-warnings-wide-20260508"></script>
+<script src="../js/admin/var-core.js?v=review-risk-20260507"></script>
+<script src="../js/admin/var-actions.js?v=core-first-20260514b"></script>
+<script src="../js/admin/variations/publish-core.js?v=core-first-20260514b"></script>
+<script src="../js/admin/variations/publish-render.js?v=core-first-20260514b"></script>
+<script src="../js/admin/variations/publish-actions.js?v=core-first-20260514b"></script>
+<script src="../js/admin/variations/copy-internal-sku.js?v=core-first-20260514a"></script>
 <script src="../js/admin/var-modals.js"></script>
-<script src="../js/admin/var-shops.js"></script>
-<script>
-    // Hàm hiển thị thông báo pop-up (Toast) góc màn hình
-    function showToast(msg, isErr = false) {
-      const t = document.getElementById("toast");
-      if (!t) return;
-      t.textContent = msg;
-      t.style.background = isErr ? "#dc2626" : "#16a34a"; // Đỏ nếu lỗi, Xanh nếu thành công
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 2500);
-    }
-
-    // Khởi chạy tải dữ liệu khi vào trang
-    document.addEventListener("DOMContentLoaded", loadVariations);
-</script>
+<script src="../js/admin/shops/catalog-summary.js?v=core-first-20260513a"></script>
+<script src="../js/admin/shops/catalog-preview.js?v=core-first-20260513a"></script>
+<script src="../js/admin/shops/catalog-editors.js?v=core-first-20260513a"></script>
+<script src="../js/admin/shops/shop-status-render.js?v=core-first-20260513a"></script>
+<script src="../js/admin/shops/shop-api-actions.js?v=core-first-20260513a"></script>
+<script src="../js/features/admin-products/admin-products-inline-1.js?v=fe-split-20260514"></script>
 
 </body>
 </html>

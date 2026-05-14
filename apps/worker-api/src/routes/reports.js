@@ -5,6 +5,7 @@
 
 import { detectReportMonth, extractPdfText, autoDetectAndParse,
          parseTiktokReport } from '../handlers/report-parsers.js'
+import { calculateOperationCosts } from '../core/operation-cost-core.js'
 		 
 // ── Parse và lưu phí từng đơn TikTok vào tiktok_order_fees ──────────
 async function saveTiktokOrderFees(env, parsedJson, reportMonth) {
@@ -53,6 +54,49 @@ async function saveTiktokOrderFees(env, parsedJson, reportMonth) {
   }
 }
 
+function reportMonthFromDate(value) {
+  return /^\d{4}-\d{2}/.test(value || "") ? value.slice(0, 7) : ""
+}
+
+function appendReportFilters(url, conds, params) {
+  const month = url.searchParams.get("month") || ""
+  const fromMonth = reportMonthFromDate(url.searchParams.get("from") || "")
+  const toMonth = reportMonthFromDate(url.searchParams.get("to") || "")
+  const platform = url.searchParams.get("platform") || ""
+  const shopList = url.searchParams.getAll("shop")
+    .flatMap(value => String(value || "").split(","))
+    .map(value => value.trim())
+    .filter(Boolean)
+
+  // Bộ lọc báo cáo dùng report_month làm nguồn chuẩn vì file đối soát chỉ chốt theo tháng.
+  if (month) {
+    conds.push("report_month = ?")
+    params.push(month)
+  } else {
+    if (fromMonth) {
+      conds.push("report_month >= ?")
+      params.push(fromMonth)
+    }
+    if (toMonth) {
+      conds.push("report_month <= ?")
+      params.push(toMonth)
+    }
+  }
+
+  if (platform) {
+    conds.push("platform = ?")
+    params.push(platform)
+  }
+
+  if (shopList.length === 1) {
+    conds.push("shop = ?")
+    params.push(shopList[0])
+  } else if (shopList.length > 1) {
+    conds.push(`shop IN (${shopList.map(() => "?").join(",")})`)
+    shopList.forEach(shop => params.push(shop))
+  }
+}
+
 async function uploadReport(request, env, cors) {
   if (request.method !== "POST")
     return new Response("Method not allowed", { status: 405, headers: cors })
@@ -76,7 +120,7 @@ async function uploadReport(request, env, cors) {
   const ext = fileName.split(".").pop().toLowerCase()
 
   const parsedJson = formData.get("parsed_json")
-  if (parsedJson) {
+  if (parsedJson && platform === 'tiktok' && ext !== 'pdf') {
     parsed = parseTiktokReport(JSON.parse(parsedJson))
   } else if (ext === "pdf") {
     const clientText = formData.get("pdf_text") || ""
@@ -193,24 +237,10 @@ async function uploadReport(request, env, cors) {
 
 async function getReportSummary(request, env, cors) {
   const url2 = new URL(request.url)
-  const month    = url2.searchParams.get("month")    || ""
-  const platform = url2.searchParams.get("platform") || ""
-  const shop     = url2.searchParams.get("shop")     || ""
 
   const baseParams = []
   const baseConds  = []
-  if (month)    { baseConds.push("report_month = ?"); baseParams.push(month) }
-  if (platform) { baseConds.push("platform = ?");     baseParams.push(platform) }
-  if (shop) {
-    const shopList = shop.split(",").map(s => s.trim()).filter(Boolean)
-    if (shopList.length === 1) {
-      baseConds.push("shop = ?")
-      baseParams.push(shopList[0])
-    } else {
-      baseConds.push(`shop IN (${shopList.map(() => "?").join(",")})`)
-      shopList.forEach(s => baseParams.push(s))
-    }
-  }
+  appendReportFilters(url2, baseConds, baseParams)
 
   const baseWhere = baseConds.length ? "AND " + baseConds.join(" AND ") : ""
 
@@ -218,6 +248,7 @@ async function getReportSummary(request, env, cors) {
   const row = await env.DB.prepare(`
     SELECT
       SUM(gross_revenue)          AS total_gross_revenue,
+      SUM(net_product_revenue)    AS total_net_product_revenue,
       SUM(refund_amount)          AS total_refund,
       SUM(co_funded_voucher)      AS total_co_funded_voucher,
       SUM(fee_commission)         AS total_fee_commission,
@@ -252,6 +283,8 @@ async function getReportSummary(request, env, cors) {
     SELECT
       shop, platform,
       SUM(gross_revenue)  AS gross_revenue,
+      SUM(net_product_revenue) AS net_product_revenue,
+      SUM(refund_amount) AS refund_amount,
       SUM(fee_total)      AS fee_total,
       SUM(tax_total)      AS tax_total,
       SUM(total_payout)   AS total_payout
@@ -272,127 +305,8 @@ async function getReportSummary(request, env, cors) {
 }
 
 async function getOperationCosts(request, env, cors) {
-  const url3   = new URL(request.url)
-  const from   = url3.searchParams.get("from")     || ""
-  const to     = url3.searchParams.get("to")       || ""
-  const platform = url3.searchParams.get("platform") || ""
-  const shopList = url3.searchParams.getAll("shop").filter(Boolean)
-  const shop   = shopList.join(",")
-
-  const rows = await env.DB.prepare(`
-    SELECT cost_key, cost_value, cost_name, calc_type, platform, shop
-    FROM cost_settings
-    WHERE cost_key LIKE 'custom_%'
-    ORDER BY cost_name
-  `).all()
-
-  // Đếm số đơn thành công trong kỳ lọc (để tính per_order)
-const orderConds = ["order_type = 'normal'"]
-  const orderParams = []
-  if (from)     { orderConds.push("order_date >= ?"); orderParams.push(from) }
-  if (to)       { orderConds.push("order_date <= ?"); orderParams.push(to) }
-  if (platform) { orderConds.push("platform = ?");   orderParams.push(platform) }
-  if (shopList.length === 1) {
-    orderConds.push("shop = ?"); orderParams.push(shopList[0])
-  } else if (shopList.length > 1) {
-    orderConds.push(`shop IN (${shopList.map(() => "?").join(",")})`);
-    shopList.forEach(s => orderParams.push(s))
-  }
-
-  const orderRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT order_id) AS total_orders
-    FROM orders_v2 WHERE ${orderConds.join(" AND ")}
-  `).bind(...orderParams).first()
-  const totalOrders = orderRow?.total_orders || 0
-
-  // Tính số tháng theo tỷ lệ ngày thực tế trong kỳ lọc
-  let months = 1
-  if (from && to) {
-    const d1 = new Date(from), d2 = new Date(to)
-    const totalDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1
-    months = totalDays / 30
-  }
-
-  // Đếm số shop duy nhất trong kỳ (để chia đều chi phí chung)
-  // Đếm tổng số shop thực tế KHÔNG phân biệt sàn, KHÔNG filter shop
-  // Đây là mẫu số để chia đều chi phí chung
-  const allShopCountParams = []
-  const allShopCountConds = ["order_type = 'normal'"]
-  if (from) { allShopCountConds.push("order_date >= ?"); allShopCountParams.push(from) }
-  if (to)   { allShopCountConds.push("order_date <= ?"); allShopCountParams.push(to) }
-  // KHÔNG filter platform, KHÔNG filter shop — đếm tất cả shop có đơn trong kỳ
-  const allShopCountRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT shop || '|' || platform) AS total FROM orders_v2
-    WHERE ${allShopCountConds.join(" AND ")}
-  `).bind(...allShopCountParams).first()
-  const totalShops = allShopCountRow?.total || 1
-
-  // shopRatio: tỷ lệ chi phí chung được phân bổ cho shop/sàn đang filter
-  let shopRatio = 1
-  if (shopList.length > 0) {
-    shopRatio = shopList.length / totalShops
-  } else if (platform) {
-    // Lọc theo sàn: đếm số shop của sàn đó / tổng shop
-    const platShopRow = await env.DB.prepare(`
-      SELECT COUNT(DISTINCT shop) AS total FROM orders_v2
-      WHERE order_type = 'normal' AND platform = ?
-      ${from ? "AND order_date >= '" + from + "'" : ""}
-      ${to   ? "AND order_date <= '" + to   + "'" : ""}
-    `).bind(platform).first()
-    const platShops = platShopRow?.total || 1
-    shopRatio = platShops / totalShops
-  }
-
-  // Đếm tổng đơn TẤT CẢ shop KHÔNG filter shop/platform (để tính per_order chung)
-  const allOrdConds = ["order_type = 'normal'"]
-  const allOrdParams = []
-  if (from) { allOrdConds.push("order_date >= ?"); allOrdParams.push(from) }
-  if (to)   { allOrdConds.push("order_date <= ?"); allOrdParams.push(to) }
-  // Nếu không có điều kiện ngày, vẫn đảm bảo query hợp lệ
-  const allOrdRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT order_id) AS total FROM orders_v2
-    WHERE ${allOrdConds.join(" AND ")}
-  `).bind(...allOrdParams).first()
-  const totalOrdersAll = allOrdRow?.total || totalOrders
-
-  const costs = (rows.results || []).map(c => {
-    // Chi phí gán riêng cho shop/sàn cụ thể → chỉ hiện khi đúng filter
-    const costHasShop     = c.shop     && c.shop !== ""
-    const costHasPlatform = c.platform && c.platform !== ""
-    if (costHasPlatform && platform && c.platform !== platform) return null
-    if (costHasShop     && shop     && c.shop     !== shop)     return null
-
-    let actualAmount = 0
-    let note = ""
-
-    if (costHasShop) {
-      // Chi phí gán cho shop cụ thể → tính 100%
-      actualAmount = c.calc_type === "per_month"
-        ? c.cost_value * months
-        : c.cost_value * totalOrders
-      note = "riêng shop này"
-    } else {
-      // Chi phí chung → phân bổ theo tỷ lệ doanh thu (per_month) hoặc số đơn (per_order)
-      if (c.calc_type === "per_month") {
-        const baseAmount = c.cost_value * months
-        actualAmount = shop ? Math.round(baseAmount * shopRatio) : baseAmount
-        note = shop
-          ? `chia đều ${totalShops} shop`
-          : "toàn bộ"
-      } else {
-        // per_order: nếu filter shop thì tính theo đơn của shop, không filter thì tính tổng đơn
-        const ordersForCalc = shop ? totalOrders : totalOrdersAll
-        actualAmount = c.cost_value * ordersForCalc
-        note = shop
-          ? `${totalOrders} đơn shop này`
-          : `${totalOrdersAll} đơn tổng`
-      }
-    }
-
-    return { ...c, actual_amount: actualAmount, total_orders: costHasShop ? totalOrders : totalOrdersAll, months, note, shop_ratio: shopRatio }
-  }).filter(Boolean)
-
-  return Response.json({ costs, total_orders: totalOrders, months }, { headers: cors })
+  const result = await calculateOperationCosts(env, new URL(request.url))
+  return Response.json(result, { headers: cors })
 }
 
 function fmtNum(n) { return Number(n||0).toLocaleString("vi-VN") }
@@ -402,13 +316,10 @@ function fmtNum(n) { return Number(n||0).toLocaleString("vi-VN") }
 // ════════════════════════════════════════════════════════════════════
 async function getReports(request, env, cors) {
   const url   = new URL(request.url)
-  const month = url.searchParams.get("month") || null
-  const platform = url.searchParams.get("platform") || null
 
   const conds  = ["1=1"]
   const params = []
-  if (month)    { conds.push("report_month = ?"); params.push(month) }
-  if (platform) { conds.push("platform = ?");     params.push(platform) }
+  appendReportFilters(url, conds, params)
 
   const rows = await env.DB.prepare(`
     SELECT * FROM platform_reports

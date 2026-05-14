@@ -1,0 +1,136 @@
+/* Trang cầu nối Zalo tách riêng để tránh trộn luồng chat sàn và chat nội địa. */
+    body {
+      background: #eef2f7;
+    }
+    .zalo-main {
+      padding: 16px;
+    }
+    .zalo-quick-nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .zalo-quick-link {
+      border: 1px solid #dbe3ef;
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #1d4ed8;
+      text-decoration: none;
+    }
+    .zalo-quick-link.active {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+      color: #fff;
+    }
+    .zalo-card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #dbe3ef;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .zalo-head {
+      display: grid;
+      gap: 6px;
+    }
+    .zalo-head h2 {
+      font-size: 24px;
+      line-height: 1.2;
+    }
+    .zalo-head p {
+      color: #5b6475;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .zalo-bridge-bar {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr;
+    }
+    .zalo-bridge-bar input {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      width: 100%;
+    }
+    .zalo-bridge-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .zalo-bridge-actions button {
+      border: none;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #1d4ed8;
+      color: #fff;
+    }
+    .zalo-bridge-actions .secondary {
+      background: #0f766e;
+    }
+    .zalo-bridge-status {
+      font-size: 13px;
+      border-radius: 8px;
+      padding: 10px 12px;
+      border: 1px solid #dbe3ef;
+      background: #f8fafc;
+      color: #334155;
+    }
+    .zalo-bridge-status.ok {
+      background: #ecfdf5;
+      color: #166534;
+      border-color: #86efac;
+    }
+    .zalo-bridge-status.warn {
+      background: #fffbeb;
+      color: #92400e;
+      border-color: #fcd34d;
+    }
+    .zalo-bridge-status.blocked {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
+    .zalo-frame-note {
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .zalo-frame-wrap {
+      border: 1px solid #dbe3ef;
+      border-radius: 8px;
+      overflow: hidden;
+      min-height: 60vh;
+      background: #f8fafc;
+    }
+    .zalo-frame-wrap iframe {
+      width: 100%;
+      min-height: 60vh;
+      border: 0;
+      display: block;
+      background: #fff;
+    }
+    @media (min-width: 901px) {
+      .zalo-main {
+        padding: 20px 24px;
+      }
+      .zalo-bridge-bar {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+      }
+      .zalo-head h2 {
+        font-size: 28px;
+      }
+    }

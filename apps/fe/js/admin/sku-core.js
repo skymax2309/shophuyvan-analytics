@@ -1,9 +1,14 @@
 window.allSkus = [];
 window.skuTree = [];
-window._currentSkuTab = "no-price";
+window._currentSkuTab = "has-price";
 window.currentSkuPage = 1;
 window.SKU_PER_PAGE = 30;
 window.totalShopCount = 0;
+window.productCatalogSettings = window.productCatalogSettings || null;
+
+window.canEditInternalStock = function() {
+    return Number(window.productCatalogSettings?.manual_internal_stock_edit_enabled || 0) === 1;
+}
 
 window.buildSkuTree = function(flatData) {
     const tree = []; const parentMap = {};
@@ -21,15 +26,29 @@ window.toggleChildRow = function(safeSku) {
     const el = document.getElementById('vars-' + safeSku);
     const icon = document.getElementById('icon-' + safeSku);
     const label = document.getElementById('toggle-label-' + safeSku);
-    if (el.style.display === 'none') {
-        el.style.display = 'block';
+    if (!el) return;
+    const willOpen = !el.classList.contains('is-open');
+    el.classList.toggle('is-open', willOpen);
+    const isOpen = willOpen;
+    if (isOpen) {
         if (icon) icon.style.transform = 'rotate(180deg)';
         if (label) label.textContent = 'Ẩn phân loại';
     } else {
-        el.style.display = 'none';
         if (icon) icon.style.transform = 'rotate(0deg)';
         if (label) label.textContent = 'Xem phân loại';
     }
+}
+
+window.collapseSkuMobilePanels = function(root = document) {
+    if (!window.matchMedia || !window.matchMedia('(max-width: 720px)').matches) return;
+    root.querySelectorAll('.stock-variant-panel.is-open').forEach(panel => {
+        panel.classList.remove('is-open');
+        const safeSku = panel.id ? panel.id.replace(/^vars-/, '') : '';
+        const icon = safeSku ? document.getElementById('icon-' + safeSku) : null;
+        const label = safeSku ? document.getElementById('toggle-label-' + safeSku) : null;
+        if (icon) icon.style.transform = 'rotate(0deg)';
+        if (label) label.textContent = 'Xem phân loại';
+    });
 }
 
 window.escapeHtml = function(unsafe) {
@@ -38,6 +57,8 @@ window.escapeHtml = function(unsafe) {
 
 window.loadSkus = async function() {
   try {
+    const catalogRes = await fetch(API + "/api/products/catalog-settings").then(r => r.json()).catch(() => ({}));
+    window.productCatalogSettings = catalogRes.settings || window.productCatalogSettings || {};
     const shops = await fetch(API + "/api/shops").then(r => r.json()).catch(() => []);
     window.totalShopCount = shops.length || 0;
     const data = await fetch(API + "/api/products").then(r => r.json());
@@ -52,10 +73,18 @@ window.loadSkus = async function() {
 
 window.switchSkuTab = function(tab) {
   window._currentSkuTab = tab;
-  document.querySelectorAll(".sku-tab-btn").forEach(b => { b.style.borderBottomColor = "transparent"; b.style.color = "#888"; });
+  document.querySelectorAll(".sku-tab-btn").forEach(b => {
+    b.classList.remove("active");
+    b.style.borderBottomColor = "transparent";
+    b.style.color = "#888";
+  });
   const colors = { "no-price": "#f59e0b", "has-price": "#16a34a", "missing-map": "#ea580c" };
   const btn = document.getElementById("stab-" + tab);
-  if(btn) { btn.style.borderBottomColor = colors[tab] || "#4f46e5"; btn.style.color = "#333"; }
+  if(btn) {
+    btn.classList.add("active");
+    btn.style.borderBottomColor = colors[tab] || "#4f46e5";
+    btn.style.color = "#333";
+  }
   document.querySelectorAll(".sku-list-container").forEach(el => el.style.display = "none");
   const targetTab = document.getElementById("sku-tab-" + tab);
   if (targetTab) targetTab.style.display = "block";
@@ -65,7 +94,7 @@ window.switchSkuTab = function(tab) {
 window.generateRowHtml = function(p) {
     const tplParent = document.getElementById('tpl-parent-card').innerHTML;
     const tplChild = document.getElementById('tpl-child-row').innerHTML;
-const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
+    const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
     const validImg = p.image_url && p.image_url !== "undefined" && p.image_url.trim() !== "";
     let imgUrl = validImg ? p.image_url.trim() : "https://placehold.co/80x80?text=No+Image";
     if (imgUrl.startsWith('blob:')) imgUrl = "https://placehold.co/80x80?text=Loi+Blob";
@@ -77,7 +106,7 @@ const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
         if (Array.isArray(imgs) && imgs.length > 0) {
             galleryHtml = imgs.map(url => {
                 const safeUrl = url.startsWith('blob:') ? "https://placehold.co/40x40?text=Loi" : escapeHtml(url);
-                return `<img src="${safeUrl}" onclick="event.stopPropagation(); document.getElementById('img-${p.sku}').src=this.src" title="Nhấn để đặt làm ảnh đại diện">`;
+                return `<img src="${safeUrl}" onclick="event.stopPropagation(); document.getElementById('img-${safeSku}').src=this.src" title="Nhấn để đặt làm ảnh đại diện">`;
             }).join('');
         }
     } catch(e) {}
@@ -107,7 +136,32 @@ const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
 
     const genBadge = (skuStr) => `<div style="font-size:10px; color:#cbd5e1; margin-top:4px;">ID: ${skuStr}</div>`;
 
-    const totalStock = (p.stock || 0) + (p.children ? p.children.reduce((sum, c) => sum + (c.stock || 0), 0) : 0);
+    const children = Array.isArray(p.children) ? p.children : [];
+    const toNumber = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+    const getStockTotal = (item) => {
+        const main = toNumber(item.stock_main);
+        const sub = toNumber(item.stock_sub);
+        if (main || sub) return main + sub;
+        return toNumber(item.stock);
+    };
+    const formatMoney = (value) => {
+        const n = toNumber(value);
+        return n > 0 ? n.toLocaleString('vi-VN') : 'Chưa có giá';
+    };
+    const stockValues = children.length ? children.map(getStockTotal) : [getStockTotal(p)];
+    const totalStock = stockValues.reduce((sum, value) => sum + value, 0);
+    const minStock = stockValues.length ? Math.min(...stockValues) : 0;
+    const maxStock = stockValues.length ? Math.max(...stockValues) : 0;
+    const stockLabel = stockValues.length > 1 ? `Tồn: ${minStock} - ${maxStock} (${totalStock})` : `Tồn: ${totalStock}`;
+    const costValues = (children.length ? children : [p])
+        .map(item => toNumber(item.cost_real) || toNumber(item.cost_invoice))
+        .filter(value => value > 0);
+    const minCost = costValues.length ? Math.min(...costValues) : 0;
+    const maxCost = costValues.length ? Math.max(...costValues) : 0;
+    const priceRange = !costValues.length ? 'Chưa có giá' : (minCost === maxCost ? formatMoney(minCost) : `${formatMoney(minCost)} - ${formatMoney(maxCost)}`);
+    const variantCount = children.length || 1;
+    const firstChildSku = children[0]?.sku || p.sku;
+
     let html = tplParent
         .replace(/{{safe_sku}}/g, safeSku)
         .replace(/{{sku}}/g, p.sku)
@@ -115,12 +169,16 @@ const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
         .replace(/{{image}}/g, imgUrl)
         .replace(/{{mapped_badge}}/g, genBadge(p.sku, p.mapped_shops))
         .replace(/{{total_stock}}/g, totalStock)
+        .replace(/{{stock_label}}/g, escapeHtml(stockLabel))
+        .replace(/{{price_range}}/g, escapeHtml(priceRange))
+        .replace(/{{variant_count}}/g, variantCount)
+        .replace(/{{first_child_sku}}/g, escapeHtml(firstChildSku))
         .replace(/{{gallery_html}}/g, galleryHtml)
         .replace(/{{video_html}}/g, videoHtml)
         .replace(/{{desc_text}}/g, descText);
 
-    if (p.children && p.children.length > 0) {
-        const childrenHtml = p.children.map(c => {
+    if (children.length > 0) {
+        const childrenHtml = children.map(c => {
             const cValidImg = c.image_url && c.image_url !== "undefined" && c.image_url.trim() !== "";
             let cImgUrl = cValidImg ? c.image_url.trim() : "https://placehold.co/40x40?text=No+Img";
             if (cImgUrl.startsWith('blob:')) cImgUrl = "https://placehold.co/40x40?text=Loi+Blob";
@@ -167,9 +225,17 @@ const safeSku = p.sku.replace(/[^a-zA-Z0-9]/g, "_");
             
             const realHtml = isCombo ? `<div style="font-size:13px; font-weight:700; color:#94a3b8; padding:4px 6px; text-align:right;" title="Tự động tính từ thành phần">🔒 ${displayReal}</div>` : `<input type="number" class="inline-edit-input right v-real" value="${displayReal}" onblur="inlineUpdateProduct('${c.sku}', 'cost_real', this.value)">`;
             
-            const stockMainHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${displayStockMain}</div>` : `<input type="number" class="inline-edit-input center" value="${displayStockMain}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`;
+            const stockLocked = isCombo || !canEditInternalStock();
+            const stockLockTitle = isCombo
+                ? 'Tự động tính từ thành phần'
+                : 'Core tồn kho đang khóa vì kho thật đang tham chiếu ShipXanh';
+            const stockMainHtml = stockLocked
+                ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="${stockLockTitle}">🔒 ${displayStockMain}</div>`
+                : `<input type="number" class="inline-edit-input center" value="${displayStockMain}" onblur="inlineUpdateProduct('${c.sku}', 'stock_main', this.value)">`;
             
-            const stockSubHtml = isCombo ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="Tự động tính từ thành phần">🔒 ${displayStockSub}</div>` : `<input type="number" class="inline-edit-input center" value="${displayStockSub}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`;
+            const stockSubHtml = stockLocked
+                ? `<div style="font-size:13px; font-weight:800; color:#94a3b8; padding:4px 6px; text-align:center;" title="${stockLockTitle}">🔒 ${displayStockSub}</div>`
+                : `<input type="number" class="inline-edit-input center" value="${displayStockSub}" onblur="inlineUpdateProduct('${c.sku}', 'stock_sub', this.value)">`;
 
             return tplChild.replace(/{{c_sku}}/g, c.sku)
                 .replace(/{{c_name}}/g, escapeHtml(c.product_name || "Phân loại"))
@@ -260,7 +326,10 @@ window.renderSkuTables = function(page = null) {
   const containerId = window._currentSkuTab === 'combo' ? 'skuComboTable' : (window._currentSkuTab === 'has-price' ? 'skuHasPriceTable' : (window._currentSkuTab === 'missing-map' ? 'skuMissingMapTable' : 'skuNoPriceTable'));
   const container = document.getElementById(containerId);
   
-  if(container) container.innerHTML = pagedData.length ? pagedData.map(generateRowHtml).join("") : `<div style="text-align:center; padding:40px; color:#888; background:white; border-radius:12px; border:1px dashed #cbd5e1;">🎉 Không có sản phẩm nào ở mục này!</div>`;
+  if(container) {
+    container.innerHTML = pagedData.length ? pagedData.map(generateRowHtml).join("") : `<div style="text-align:center; padding:40px; color:#888; background:white; border-radius:12px; border:1px dashed #cbd5e1;">🎉 Không có sản phẩm nào ở mục này!</div>`;
+    collapseSkuMobilePanels(container);
+  }
   renderSkuPagination(totalItems, totalPages);
 }
 
@@ -279,6 +348,10 @@ window.renderSkuPagination = function(totalItems, totalPages) {
 // ===== HÀM DÒ MÌN: TỰ ĐỘNG CẬP NHẬT TRỰC TIẾP (INLINE SAVE) =====
 window.inlineUpdateProduct = async function(sku, field, value) {
     console.log(`[Dò mìn] Đang cập nhật ${field} cho SKU: ${sku} với giá trị: ${value}`);
+    if ((field === 'stock_main' || field === 'stock_sub') && !canEditInternalStock()) {
+        if (typeof showToast === 'function') showToast('Kho nội bộ đang khóa vì đang tham chiếu ShipXanh.', true);
+        return;
+    }
     
     try {
         // 1. Tìm dữ liệu gốc để giữ lại các thông tin khác

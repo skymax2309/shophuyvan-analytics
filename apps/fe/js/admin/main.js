@@ -11,11 +11,15 @@ function switchTab(name) {
   
   // Cách mới: Tự động tìm đúng nút được bấm dựa vào thuộc tính onclick, không cần đếm thứ tự nữa
   document.querySelectorAll(".tab-btn").forEach(btn => {
+    if (name === "shops" && btn.id === "sideShopConnect") return;
     const onClickAttr = btn.getAttribute("onclick") || "";
     if (onClickAttr.includes(`'${name}'`) || onClickAttr.includes(`"${name}"`)) {
       btn.classList.add("active");
     }
   });
+  if (name === "shops" && typeof window.setShopApiView === "function") {
+    window.setShopApiView(window.shopApiView || "overview");
+  }
   
   if (name === "combo")   loadCombos()
   if (name === "orders")  { populateOrderShops(); loadOrders(1) }

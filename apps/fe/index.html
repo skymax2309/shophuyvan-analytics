@@ -1,167 +1,34 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="UTF-8">
-<title>Import Orders</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-<style>
-body { font-family: Arial; padding: 40px; background: #f5f5f5; }
-.box { background: white; padding: 24px; border-radius: 10px; max-width: 560px; }
-h2 { margin-top: 0; }
-input[type="file"] { margin-bottom: 10px; }
-button { padding: 10px 24px; margin-top: 6px; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; }
-button:disabled { background: #aaa; cursor: not-allowed; }
-#log { margin-top: 20px; font-size: 14px; line-height: 1.8; }
-.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: bold; margin-right: 4px; }
-.tag-shopee  { background: #ff6633; color: white; }
-.tag-tiktok  { background: #010101; color: white; }
-.tag-lazada  { background: #0f146d; color: white; }
-.tag-normal  { background: #34a853; color: white; }
-.tag-cancel  { background: #ea4335; color: white; }
-.tag-return  { background: #fbbc04; color: #333; }
-.summary-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
-.summary-label { color: #555; }
-.summary-value { font-weight: bold; }
-.error { color: #c62828; }
-.success { color: #2e7d32; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import đơn hàng</title>
+  <link rel="stylesheet" href="css/import-orders.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
+  <main class="import-shell">
+    <section class="import-panel">
+      <header class="import-header">
+        <h1>Upload file bán hàng</h1>
+        <nav class="import-links" aria-label="Điều hướng nhanh">
+          <a href="pages/profit-dashboard.html">Dashboard</a>
+          <a href="pages/cost-settings.html">Cài đặt chi phí</a>
+          <a href="pages/admin-products.html">Sản phẩm</a>
+        </nav>
+      </header>
 
-<div class="box">
-  <h2>📦 Upload File Bán Hàng</h2>
-  <div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">
-    <a href="pages/profit-dashboard.html" style="background:#4f46e5;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">📊 Dashboard</a>
-    <a href="pages/cost-settings.html"    style="background:#6b7280;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">⚙️ Cài đặt chi phí</a>
-    <a href="pages/admin-products.html"   style="background:#6b7280;color:white;padding:7px 14px;border-radius:7px;text-decoration:none;font-size:13px">📦 Sản phẩm</a>
-  </div>
+      <label class="file-box" for="file">
+        <span>Chọn file Excel đơn hàng</span>
+        <input type="file" id="file" accept=".xlsx">
+      </label>
 
-  <input type="file" id="file" accept=".xlsx">
-  <br>
-  <button id="btnImport">Import Excel</button>
-  <div id="log"></div>
-</div>
+      <button id="btnImport" class="primary-button" type="button">Import Excel</button>
+      <div id="log" class="import-log" aria-live="polite"></div>
+    </section>
+  </main>
 
-<script type="module">
-import { normalizeOrder, parseFileMeta, fillFirstSku, mergeOrderLines, loadCostConfig, buildOrdersV2 } from "./js/parser.js"
-
-const API = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
-const btn = document.getElementById("btnImport")
-const log = document.getElementById("log")
-
-function setLog(html) { log.innerHTML = html }
-function addLog(html) { log.innerHTML += html }
-
-btn.addEventListener("click", importFile)
-
-async function importFile() {
-  const file = document.getElementById("file").files[0]
-  if (!file) { alert("Vui lòng chọn file trước!"); return }
-
-  btn.disabled = true
-  setLog("⏳ Đang đọc file <b>" + file.name + "</b>...")
-
-  try {
-    // 0. Load cost config để parser dùng phí hoàn/thất bại từ settings
-    await loadCostConfig(API)
-
-    // 1. Đọc meta từ tên file
-    const meta = parseFileMeta(file.name)
-
-    // 2. Parse Excel
-    const data     = await file.arrayBuffer()
-    const workbook = XLSX.read(data)
-    const sheet    = workbook.Sheets[workbook.SheetNames[0]]
-    const rows     = XLSX.utils.sheet_to_json(sheet)
-
-    // 3. Normalize từng dòng
-    const rawOrders = []
-    const skipped   = []
-    rows.forEach((r, i) => {
-      const order = normalizeOrder(r, meta)
-      if (order) rawOrders.push(order)
-      else skipped.push(i + 2)
-    })
-
-    const merged = mergeOrderLines(rawOrders)  // gộp dòng trùng order_id+sku
-    const orders = fillFirstSku(merged)
-
-    // 4. Thống kê
-    const normal  = orders.filter(o => o.order_type === "normal")
-    const cancel  = orders.filter(o => o.order_type === "cancel")
-    const returns = orders.filter(o => o.order_type === "return")
-
-    const uniqueNormal = [...new Set(normal.map(o => o.order_id))].length
-    const uniqueCancel = [...new Set(cancel.map(o => o.order_id))].length
-    const uniqueReturn = [...new Set(returns.map(o => o.order_id))].length
-    const totalUnique  = uniqueNormal + uniqueCancel + uniqueReturn
-
-    const allNonCancel   = orders.filter(o => o.order_type !== "cancel")
-    const totalA         = allNonCancel.reduce((s, o) => s + (o.raw_revenue    || 0), 0)
-    const totalB         = 0
-    const totalC         = 0
-    const totalD         = returns.reduce((s, o)     => s + (o.raw_revenue     || 0), 0)
-    const totalAF        = allNonCancel.reduce((s, o) => s + (o.shop_discount  || 0), 0)
-    const totalAK        = allNonCancel.reduce((s, o) => s + (o.combo_discount || 0), 0)
-    const totalRevenue   = totalA + totalB + totalC - totalD
-    const totalReturnFee = returns.reduce((s, o) => s + (o.return_fee || 0), 0)
-    const cancelRate     = totalUnique > 0 ? ((uniqueCancel / totalUnique) * 100).toFixed(1) : 0
-
-    // 5. Hiển thị tóm tắt
-    const platformTag = `<span class="tag tag-${meta.platform}">${meta.platform.toUpperCase()}</span>`
-    setLog(`
-      <b>Sàn:</b> ${platformTag} &nbsp; <b>Shop:</b> ${meta.shop}<br><br>
-      <div class="summary-row"><span class="summary-label">📦 Tổng dòng đọc được</span><span class="summary-value">${orders.length} dòng</span></div>
-      <div class="summary-row"><span class="summary-label"><span class="tag tag-normal">✓</span> Đơn thành công</span><span class="summary-value">${uniqueNormal} đơn</span></div>
-      <div class="summary-row"><span class="summary-label"><span class="tag tag-cancel">✗</span> Đơn hủy</span><span class="summary-value">${uniqueCancel} đơn (${cancelRate}%)</span></div>
-      <div class="summary-row"><span class="summary-label"><span class="tag tag-return">↩</span> Trả hàng / Hoàn tiền</span><span class="summary-value">${uniqueReturn} đơn</span></div>
-      <div class="summary-row"><span class="summary-label">💰 [A] Tổng giá bán (không hủy)</span><span class="summary-value">${fmt(totalA)} đ</span></div>
-      ${totalAF > 0 ? `
-      <div class="summary-row"><span class="summary-label">🏷️ Mã giảm giá của Shop</span><span class="summary-value" style="color:#ea580c">${fmt(totalAF)} đ (${orders.filter(o=>o.shop_discount>0).length} đơn)</span></div>` : ""}
-      ${totalAK > 0 ? `
-      <div class="summary-row"><span class="summary-label">📦 Giảm giá Combo Shop</span><span class="summary-value" style="color:#7c3aed">${fmt(totalAK)} đ (${orders.filter(o=>o.combo_discount>0).length} đơn)</span></div>` : ""}
-      ${allNonCancel.reduce((s,o)=>s+(o.shopee_voucher||0),0) > 0 ? `
-      <div class="summary-row"><span class="summary-label">🎁 Mã giảm giá Shopee</span><span class="summary-value" style="color:#ee4d2d">${fmt(allNonCancel.reduce((s,o)=>s+(o.shopee_voucher||0),0))} đ (${allNonCancel.filter(o=>o.shopee_voucher>0).length} đơn)</span></div>` : ""}
-      ${totalD > 0 ? `
-      <div class="summary-row"><span class="summary-label">↩️ [D] Tiền hoàn trả</span><span class="summary-value" style="color:#ef4444">-${fmt(totalD)} đ (${uniqueReturn} đơn)</span></div>` : ""}
-      ${totalReturnFee > 0 ? `
-      <div class="summary-row"><span class="summary-label">🚚 Phí vận chuyển trả hàng</span><span class="summary-value" style="color:#ef4444">-${fmt(totalReturnFee)} đ (${returns.length} dòng)</span></div>` : ""}
-      <div class="summary-row" style="border-top:2px solid #e0e0e0;margin-top:6px;padding-top:8px">
-        <span class="summary-label" style="font-weight:700">✅ Doanh thu = A - D</span>
-        <span class="summary-value" style="color:#10b981;font-size:15px">${fmt(totalRevenue)} đ</span>
-      </div>
-      ${skipped.length > 0 ? `<br><small style="color:#999">⚠️ Bỏ qua ${skipped.length} dòng không hợp lệ</small>` : ""}
-      <br>⏳ Đang upload lên server...
-    `)
-
-    // 6. Upload lên worker — gọi cả 2 API song song
-    const v2Data = buildOrdersV2(orders)
-
-const resV2 = await fetch(API + "/api/import-orders-v2", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(v2Data)
-    })
-
-    if (!resV2.ok) throw new Error("Server lỗi " + resV2.status + ": " + await resV2.text())
-
-    const resultV2 = await resV2.json()
-
-    addLog(`<br><span class="success">
-      ✅ Upload thành công!<br>
-      &nbsp;&nbsp;• <b>${resultV2.imported_orders}</b> đơn + <b>${resultV2.imported_items}</b> SKU items
-    </span>`)
-
-  } catch (err) {
-    addLog(`<br><span class="error">❌ Lỗi: ${err.message}</span>`)
-    console.error(err)
-  }
-
-  btn.disabled = false
-}
-
-function fmt(n) { return Number(n).toLocaleString("vi-VN") }
-</script>
-
+  <script type="module" src="js/import-orders.js"></script>
 </body>
 </html>

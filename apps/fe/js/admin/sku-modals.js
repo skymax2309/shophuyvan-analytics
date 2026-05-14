@@ -59,6 +59,158 @@ window.openProductDetail = function(parentSku) {
     document.getElementById('productDetailModal').style.display = 'flex';
 }
 
+window.stockQuickEditState = { sku: "", mode: "cost" };
+
+function findStockProductNode(sku) {
+    return (window.skuTree || []).find(p => p.sku === sku) || (window.skuTree || []).find(p => (p.children || []).some(c => c.sku === sku));
+}
+
+function getStockEditItems(parentSku) {
+    const parent = findStockProductNode(parentSku);
+    if (!parent) return [];
+    return Array.isArray(parent.children) && parent.children.length ? parent.children : [parent];
+}
+
+function getStockChildSku(parentSku) {
+    const items = getStockEditItems(parentSku);
+    return items[0]?.sku || parentSku;
+}
+
+function stockNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function stockQuickFields(mode) {
+    if (mode === "stock") {
+        return [
+            { key: "stock_main", label: "Kho BT" },
+            { key: "stock_sub", label: "Kho phụ" }
+        ];
+    }
+    return [
+        { key: "cost_invoice", label: "Vốn HĐ" },
+        { key: "cost_real", label: "Vốn thực" }
+    ];
+}
+
+window.openStockQuickEdit = function(parentSku, mode = "cost") {
+    const modal = document.getElementById("stockQuickEditModal");
+    const list = document.getElementById("stockQuickEditList");
+    if (!modal || !list) return;
+    if (mode === "stock" && typeof canEditInternalStock === "function" && !canEditInternalStock()) {
+        if (typeof showToast === "function") showToast("Kho nội bộ đang khóa vì đang tham chiếu ShipXanh.", true);
+        return;
+    }
+
+    const parent = findStockProductNode(parentSku);
+    const items = getStockEditItems(parentSku);
+    if (!parent || !items.length) {
+        if (typeof showToast === "function") showToast("Không tìm thấy sản phẩm để cập nhật", true);
+        return;
+    }
+
+    window.stockQuickEditState = { sku: parent.sku, mode };
+    const isStock = mode === "stock";
+    const fields = stockQuickFields(mode);
+    const title = document.getElementById("stockQuickEditTitle");
+    const sub = document.getElementById("stockQuickEditSub");
+    if (title) title.textContent = isStock ? "Nhập kho / điều chỉnh tồn kho" : "Sửa giá vốn";
+    if (sub) sub.textContent = parent.product_name || parent.sku;
+
+    list.innerHTML = items.map(item => {
+        const image = item.image_url || parent.image_url || "https://placehold.co/64x64?text=SKU";
+        const inputs = fields.map(field => `
+            <label class="stock-quick-field">
+                <span>${field.label}</span>
+                <input type="number" inputmode="numeric" data-sku="${escapeHtml(item.sku)}" data-field="${field.key}" value="${stockNumber(item[field.key])}">
+            </label>
+        `).join("");
+        return `
+            <div class="stock-quick-row">
+                <img src="${escapeHtml(image)}" alt="">
+                <div class="stock-quick-info">
+                    <strong>${escapeHtml(item.product_name || parent.product_name || item.sku)}</strong>
+                    <span>${escapeHtml(item.sku)}</span>
+                </div>
+                <div class="stock-quick-fields">${inputs}</div>
+            </div>
+        `;
+    }).join("");
+
+    modal.style.display = "flex";
+};
+
+window.closeStockQuickEditModal = function() {
+    const modal = document.getElementById("stockQuickEditModal");
+    if (modal) modal.style.display = "none";
+};
+
+window.saveStockQuickEdit = async function() {
+    const inputs = Array.from(document.querySelectorAll("#stockQuickEditList input[data-sku][data-field]"));
+    if (!inputs.length) return closeStockQuickEditModal();
+    if (window.stockQuickEditState.mode === "stock" && typeof canEditInternalStock === "function" && !canEditInternalStock()) {
+        if (typeof showToast === "function") showToast("Kho nội bộ đang khóa vì đang tham chiếu ShipXanh.", true);
+        closeStockQuickEditModal();
+        return;
+    }
+
+    try {
+        for (const input of inputs) {
+            await inlineUpdateProduct(input.dataset.sku, input.dataset.field, input.value);
+        }
+        closeStockQuickEditModal();
+        renderSkuTables();
+    } catch (error) {
+        if (typeof showToast === "function") showToast("Lỗi khi lưu cập nhật nhanh: " + error.message, true);
+    }
+};
+
+window.closeStockActionMenu = function() {
+    const menu = document.getElementById("stockActionMenu");
+    if (menu) menu.style.display = "none";
+};
+
+window.openStockActionMenu = function(parentSku, trigger) {
+    const menu = document.getElementById("stockActionMenu");
+    const parent = findStockProductNode(parentSku);
+    if (!menu || !parent) return;
+    const childSku = getStockChildSku(parentSku);
+    const safeSku = parent.sku.replace(/[^a-zA-Z0-9]/g, "_");
+    const actions = [
+        { label: "Sửa giá vốn", detail: "$", run: () => openStockQuickEdit(parent.sku, "cost") },
+        { label: "Điều chỉnh tồn kho", detail: "▤", run: () => openStockQuickEdit(parent.sku, "stock") },
+        { label: "Sửa chi tiết sản phẩm", detail: "✎", run: () => { window.location.href = "product-detail.html?sku=" + encodeURIComponent(parent.sku); } },
+        { label: "Map SKU đa sàn", detail: "🔗", run: () => openQuickMapModal(childSku) },
+        { label: "Tạo / sửa combo", detail: "📦", run: () => openComboModal(childSku) },
+        { label: "Xem / ẩn phân loại", detail: "⌄", run: () => toggleChildRow(safeSku) }
+    ];
+
+    menu.innerHTML = "";
+    actions.forEach(action => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.innerHTML = `<span>${escapeHtml(action.label)}</span><b>${action.detail}</b>`;
+        btn.onclick = (event) => {
+            event.stopPropagation();
+            closeStockActionMenu();
+            action.run();
+        };
+        menu.appendChild(btn);
+    });
+
+    const rect = trigger?.getBoundingClientRect ? trigger.getBoundingClientRect() : { left: 16, bottom: 48 };
+    const width = 226;
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 280)) + "px";
+    menu.style.display = "block";
+};
+
+document.addEventListener("click", (event) => {
+    const menu = document.getElementById("stockActionMenu");
+    if (menu && menu.style.display !== "none" && !menu.contains(event.target)) closeStockActionMenu();
+});
+
 // =======================================================
 // MODULE QUẢN LÝ GÓI COMBO
 // =======================================================

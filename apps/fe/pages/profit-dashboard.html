@@ -3,10 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#17172b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ShopHuyVan">
 <title>ShopHuyVan — Profit Dashboard</title>
 <!-- Chart.js phải load TRƯỚC main.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link rel="stylesheet" href="../css/dashboard.css">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/shophuyvan-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../icons/shophuyvan-icon.svg">
+  <link rel="stylesheet" href="../css/dashboard.css?v=chat-media-ui-status-20260510a">
+<script src="../js/auth-guard.js?v=account-widget-20260504"></script>
+<script src="../js/features/profit-dashboard/profit-dashboard-inline-1.js?v=fe-split-20260514"></script>
 </head>
 <body>
 
@@ -18,13 +26,19 @@
     </div>
 <nav class="sidebar-nav">
       <a href="#" class="active" onclick="showTab('daily')">📊 Doanh thu Ngày</a>
-      <a href="#" onclick="showTab('monthly')">📈 Doanh thu Tháng</a>
+      <a href="#" onclick="showTab('monthly')">📈 Doanh thu Năm</a>
+      <a href="#" onclick="showTab('income')">💳 Số dư doanh thu</a>
+      <a href="#" onclick="showTab('netprofit')">💹 Lãi ròng API</a>
       <a href="#" onclick="showTab('top')">🔥 Top SKU</a>
       <a href="#" onclick="showTab('cancel')">⚠️ Hủy / Hoàn</a>
+      <a href="reviews.html">⭐ Đánh giá khách hàng</a>
+      <a href="chat-marketplace.html">💬 Chat khách hàng</a>
+      <a href="ads.html">📣 ADS quảng cáo</a>
       <a href="#" onclick="showTab('calc')">🧮 Máy tính</a>
-      <a href="admin-products.html">📦 Sản phẩm</a>
+      <a href="admin-products.html#variations">📦 Sản phẩm</a>
       <a href="oms-dashboard.html">📦 Đơn Hàng</a>
       <a href="report-upload.html">📁 Báo Cáo</a>
+      <a href="admin-users.html">🔐 Quản trị phân quyền</a>
       <a href="../index.html">⬆️ Import</a>
       <a href="import-sku-tool.html">📁 UP SẢN PHẨM BẰNG EXCEL</a>
       <a href="admin-purchase.html">🚢 Nhập Hàng Chính Ngạch</a>
@@ -46,6 +60,12 @@
 
 <!-- FILTER BAR -->
 <div class="filter-bar">
+  <div class="date-quick-actions" aria-label="Chọn nhanh khoảng ngày">
+    <button type="button" class="date-quick-btn" data-date-preset="today" onclick="setQuickDateRange('today')">Hôm nay</button>
+    <button type="button" class="date-quick-btn" data-date-preset="yesterday" onclick="setQuickDateRange('yesterday')">Hôm qua</button>
+    <button type="button" class="date-quick-btn" data-date-preset="last7" onclick="setQuickDateRange('last7')">7 ngày</button>
+    <button type="button" class="date-quick-btn" data-date-preset="lastmonth" onclick="setQuickDateRange('lastmonth')">Tháng trước</button>
+  </div>
   <!-- DATE RANGE PICKER — đơn giản 2 input date -->
   <input type="date" id="filterFrom" style="padding:6px 10px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;cursor:pointer">
   <span style="color:#aaa;font-size:13px">→</span>
@@ -65,6 +85,7 @@
   <input type="hidden" id="filterShop">
   
   <select id="monthSelector" onchange="onMonthSelectChange(this)" style="padding:6px 12px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:13px;background:white;cursor:pointer;outline:none">
+    <option value="">Chọn tháng</option>
     <option value="current">📅 Tháng này</option>
     <option value="1">Tháng 1</option>
     <option value="2">Tháng 2</option>
@@ -105,6 +126,28 @@
         <canvas id="chartProfit"></canvas>
       </div>
     </div>
+    <div class="table-card daily-profit-card">
+      <div class="card-title">📅 Bán hàng & lợi nhuận theo ngày</div>
+      <div class="daily-profit-scroll">
+        <table class="daily-profit-table">
+          <thead>
+            <tr>
+              <th>Ngày</th>
+              <th style="text-align:right">Đơn</th>
+              <th style="text-align:right">Doanh thu</th>
+              <th style="text-align:right">Vốn thực</th>
+              <th style="text-align:right">Phí sàn</th>
+              <th style="text-align:right">Vận hành</th>
+              <th style="text-align:right">Lãi thực</th>
+              <th style="text-align:right">Biên lãi</th>
+            </tr>
+          </thead>
+          <tbody id="dailyProfitTable">
+            <tr><td colspan="8" class="loading">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
     <div class="col2">
       <div class="chart-card">
         <div class="card-title">🏪 Tỷ trọng Doanh thu theo sàn</div>
@@ -118,8 +161,8 @@
   </div>
 
   <div id="tab-monthly" class="tab-content">
-    <div style="background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a; padding:12px 16px; border-radius:8px; margin-bottom:20px; font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px;">
-      <span>🔒</span> Dữ liệu tại tab này được tổng hợp 100% từ file đối soát của sàn. Đây là con số lợi nhuận chốt sổ cuối cùng.
+    <div class="monthly-notice">
+      <span>🔒</span> Doanh thu năm được gom theo tháng từ file đối soát của sàn, có tách phí sàn, ADS, hoàn/refund, vốn, vận hành và thuế để nhìn nhanh lãi bỏ túi.
     </div>
     
     <div class="kpi-grid" id="kpiGridMonthly">
@@ -128,37 +171,44 @@
     
     <div class="col2">
       <div class="chart-card">
-        <div class="card-title">📈 Xu hướng Doanh thu Tháng</div>
+        <div class="card-title">📈 Xu hướng doanh thu theo tháng trong năm</div>
         <canvas id="chartMonthlyRevenue"></canvas>
       </div>
       <div class="chart-card">
-        <div class="card-title">💰 Lợi nhuận Thực tế (Đã cấn trừ mọi phí)</div>
+        <div class="card-title">💰 Lợi nhuận năm sau phí, ADS, vốn và vận hành</div>
         <canvas id="chartMonthlyProfit"></canvas>
       </div>
     </div>
     
     <div class="table-card" style="margin-top:16px;">
-      <div class="card-title">📋 Bảng Tổng Kết Lợi Nhuận Tháng</div>
+      <div class="card-title">📋 Bảng tổng kết doanh thu năm theo tháng</div>
       <table style="width:100%">
         <thead>
           <tr style="background:#f8fafc">
             <th>Tháng</th>
             <th>Sàn</th>
             <th style="text-align:right">Doanh thu chốt</th>
-            <th style="text-align:right">Tổng phí sàn</th>
-            <th style="text-align:right">Chi phí Ads/Hoàn</th>
-            <th style="text-align:right">Lãi thực bỏ túi</th>
+            <th style="text-align:right">Tiền sàn trả</th>
+            <th style="text-align:right">Phí sàn</th>
+            <th style="text-align:right">ADS</th>
+            <th style="text-align:right">Hoàn/refund</th>
+            <th style="text-align:right">Vốn phân bổ</th>
+            <th style="text-align:right">Vận hành</th>
+            <th style="text-align:right">Thuế</th>
+            <th style="text-align:right">Lãi bỏ túi</th>
           </tr>
         </thead>
         <tbody id="tableMonthlySettlement">
-          <tr><td colspan="6" style="text-align:center;padding:20px;color:#9ca3af">Chưa có dữ liệu. Vui lòng tải file đối soát lên hệ thống!</td></tr>
+          <tr><td colspan="11" style="text-align:center;padding:20px;color:#9ca3af">Chưa có dữ liệu. Vui lòng tải file đối soát lên hệ thống!</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
   <!-- ── TOP TAB ── -->
-  <div id="tab-top" class="tab-content">
+  <div id="tab-income-slot"></div>
+<div id="tab-netprofit-slot"></div>
+<div id="tab-top" class="tab-content">
 
     <!-- Filter riêng cho tab Top SKU -->
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:white;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
@@ -236,6 +286,23 @@
 
   <!-- ── CANCEL TAB ── -->
   <div id="tab-cancel" class="tab-content">
+    <section class="return-sync-panel">
+      <div class="return-sync-heading">
+        <div>
+          <div class="return-sync-eyebrow">Return / Reverse Core</div>
+          <h2>Nguồn dữ liệu hoàn trả</h2>
+          <p>Shop có API đồng bộ từ Shopee Returns và Lazada Reverse vào ledger chung. Shop không có API dùng dữ liệu import/browser/manual và không gắn nhãn đồng bộ API.</p>
+        </div>
+        <div class="return-sync-actions">
+          <button type="button" id="syncShopeeReturnsBtn" onclick="syncReturnLedger('shopee')">Đồng bộ Shopee 24h</button>
+          <button type="button" id="syncLazadaReturnsBtn" onclick="syncReturnLedger('lazada')">Đồng bộ Lazada 30 ngày</button>
+          <button type="button" class="secondary" onclick="loadReturnLedger()">Tải ledger</button>
+        </div>
+      </div>
+      <div id="returnLedgerStatus" class="return-ledger-status">Chưa tải ledger hoàn trả.</div>
+      <div id="returnLedgerSummary" class="return-ledger-grid"></div>
+      <div id="returnLedgerRecent" class="return-ledger-recent"></div>
+    </section>
     <div class="col2">
       <div class="chart-card">
         <div class="card-title">⚠️ Tỷ lệ hủy / hoàn theo sàn</div>
@@ -243,6 +310,99 @@
       </div>
       <div class="table-card" style="box-shadow:none;padding:0">
         <div id="cancelStats" class="loading">Đang tải...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CHAT TAB ── -->
+  <div id="tab-chat" class="tab-content">
+    <div class="chat-page">
+      <div class="chat-heading">
+        <div>
+          <div class="chat-eyebrow">CSKH realtime</div>
+          <h2>Chat khách hàng tất cả shop</h2>
+          <p>Theo dõi nội dung khách nhắn theo từng shop, ưu tiên hội thoại chưa đọc và kiểm tra trạng thái kết nối webhook.</p>
+        </div>
+        <div class="chat-heading-actions">
+          <button class="chat-sync-btn" id="chatRefreshNowBtn" onclick="refreshChatNow()">Làm mới tin nhắn</button>
+          <button class="chat-sync-btn secondary" id="chatAutomationSettingsBtn" onclick="openChatAutomationSettings()">Cài đặt chat</button>
+        </div>
+      </div>
+
+      <div class="chat-filters">
+        <select id="chatPlatform" onchange="loadChatConversations()">
+          <option value="">Tất cả sàn</option>
+          <option value="shopee">Shopee</option>
+          <option value="lazada">Lazada</option>
+          <option value="tiktok">TikTok</option>
+        </select>
+        <select id="chatShop" onchange="loadChatConversations()">
+          <option value="">Tất cả shop</option>
+        </select>
+        <input id="chatSearch" type="search" placeholder="Tìm khách, nội dung chat, mã hội thoại..." onkeydown="if(event.key==='Enter') loadChatConversations()">
+        <button onclick="loadChatConversations()">Lọc chat</button>
+      </div>
+
+      <div class="chat-workspace">
+        <section class="chat-panel chat-list-panel">
+          <div class="chat-panel-title">
+            <span>Cuộc trò chuyện</span>
+            <small id="chatSummary">Đang tải...</small>
+          </div>
+          <div id="chatConversationList" class="chat-conversation-list">
+            <div class="chat-empty">Đang tải chat...</div>
+          </div>
+        </section>
+
+        <section class="chat-panel chat-thread-panel">
+          <div id="chatThreadHeader" class="chat-thread-header">
+            <div>
+              <strong>Chọn một cuộc trò chuyện</strong>
+              <small>Nội dung tin nhắn sẽ hiện ở đây.</small>
+            </div>
+          </div>
+          <div id="chatMessages" class="chat-messages">
+            <div class="chat-empty">Chưa chọn hội thoại.</div>
+          </div>
+          <div class="chat-reply-box">
+            <div class="chat-mobile-tools" aria-label="Thao tác nhanh">
+              <button type="button" onclick="focusChatReply()">Dịch</button>
+              <button type="button" onclick="insertChatQuickReply()">Trả lời nhanh</button>
+              <button type="button" onclick="openChatMobileContext('orders')">Đơn hàng</button>
+              <button type="button" onclick="openChatMobileContext('products')">Sản phẩm</button>
+              <button type="button" onclick="toggleChatMobileAttachments()">Ảnh/video API</button>
+            </div>
+            <textarea id="chatReplyText" rows="3" disabled placeholder="Chọn hội thoại để soạn trả lời. Nội dung sẽ được kiểm duyệt từ khóa trước khi gửi." oninput="onChatReplyInput()"></textarea>
+            <div id="chatMediaApiStatus" class="chat-media-api-status disabled">Ảnh/video API: chọn hội thoại để gửi.</div>
+            <div id="chatMediaPreview" class="chat-media-preview" hidden></div>
+            <div id="chatReplyGuardStatus" class="chat-guard-status muted">Bộ lọc sẽ kiểm tra nội dung trước khi gửi.</div>
+            <div class="chat-mobile-attach-grid" aria-label="Gửi nội dung nhanh">
+              <label for="chatMediaInput">Album API</label>
+              <label for="chatCameraInput">Chụp API</label>
+              <button type="button" onclick="setChatTaskDraft()">Giao việc</button>
+            </div>
+            <div class="chat-reply-actions">
+              <button id="chatQuickReplyBtn" class="chat-quick-reply-action" type="button" onclick="insertChatQuickReply()">Trả lời nhanh</button>
+              <label id="chatMediaPickBtn" class="chat-media-pick disabled" for="chatMediaInput">Ảnh/video API</label>
+              <input id="chatMediaInput" class="chat-hidden-file" type="file" accept="image/*,video/*" multiple disabled onchange="onChatMediaSelected(event)">
+              <input id="chatCameraInput" class="chat-hidden-file" type="file" accept="image/*,video/*" capture="environment" disabled onchange="onChatMediaSelected(event)">
+              <button id="chatAiBtn" type="button" disabled onclick="generateChatAiReply()">AI gợi ý</button>
+              <button id="chatGuardBtn" type="button" disabled onclick="validateChatReplyContent()">Kiểm tra</button>
+              <button id="chatSendBtn" type="button" disabled onclick="sendChatReply()">Gửi</button>
+            </div>
+          </div>
+        </section>
+
+        <aside class="chat-panel chat-setup-panel">
+          <div class="chat-panel-title">
+            <span>Thông tin chat</span>
+            <small id="chatSetupStatus">Đang kiểm tra...</small>
+          </div>
+          <div id="chatSetupList" class="chat-setup-list">
+            <div class="chat-empty">Đang tải shop...</div>
+          </div>
+        </aside>
+        <button class="chat-mobile-context-backdrop" type="button" onclick="closeChatMobileContext()" aria-label="Đóng thông tin chat"></button>
       </div>
     </div>
   </div>
@@ -328,25 +488,35 @@
   </div>
 
 </div>
-  </div> </div> <script>
-  function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
-    document.getElementById('sidebarOverlay').classList.toggle('show');
-  }
-</script>
+  </div> </div> <script src="../js/features/profit-dashboard/profit-dashboard-inline-2.js?v=fe-split-20260514"></script>
 
 <script src="../js/utils/api.js"></script>
 <script src="../js/utils/format.js"></script>
 <script src="../js/components/ChartRenderer.js"></script>
-<script src="../js/components/DateRangePicker.js"></script>
-<script src="../js/components/ShopTreePicker.js"></script>
-<script src="../js/dashboard/filters.js"></script>
+<script src="../js/components/DateRangePicker.js?v=lazada-status-20260504"></script>
+<script src="../js/components/ShopTreePicker.js?v=shop-tree-all-shops-20260513"></script>
+<script src="../js/dashboard/filters.js?v=dashboard-filter-platform-20260511"></script>
 <script src="../js/dashboard/calc.js"></script>
-<script src="../js/dashboard/cancel.js"></script>
+<script src="../js/dashboard/cancel.js?v=cancel-reason-vi-20260509"></script>
 <script src="../js/dashboard/top.js"></script>
-<script src="../js/dashboard/kpi.js"></script>
-<script src="../js/dashboard/monthly.js"></script>
-<script src="../js/dashboard/main.js"></script>
+<script src="../js/dashboard/kpi-cost-core.js?v=dashboard-fee-core-20260512"></script>
+<script src="../js/dashboard/kpi-card-render.js?v=dashboard-render-core-20260512"></script>
+<script src="../js/dashboard/kpi-daily-render.js?v=shop-tree-all-shops-20260513"></script>
+<script src="../js/dashboard/kpi.js?v=shop-tree-all-shops-20260513"></script>
+<script src="../js/dashboard/monthly.js?v=yearly-revenue-ads-20260509b"></script>
+<script src="../js/dashboard/templates/income-template-a.js?v=core-first-20260514a"></script>
+<script src="../js/dashboard/templates/income-template-b.js?v=core-first-20260514a"></script>
+<script src="../js/dashboard/income/income-core-query.js?v=core-first-20260513a"></script>
+<script src="../js/dashboard/income/income-render-overview-shops.js?v=core-first-20260513a"></script>
+<script src="../js/dashboard/income/income-render-marketplace-docs.js?v=core-first-20260513a"></script>
+<script src="../js/dashboard/income/income-actions-shopee-main.js?v=core-first-20260513a"></script>
+<script src="../js/dashboard/income/income-actions-escrow-fee.js?v=core-first-20260513a"></script>
+<script src="../js/dashboard/income/income-actions-report-statement.js?v=core-first-20260513a"></script>
+<script src="../js/dashboard/order-status-core.js?v=order-status-core-20260506"></script>
+<script src="../js/dashboard/fe-chat-marketplace-loader.js?v=fe-chat-marketplace-20260513f"></script>
+<script src="../js/dashboard/templates/netprofit-template.js?v=core-first-20260514a"></script>
+<script src="../js/dashboard/order-analytics.js?v=netprofit-escrow-fix-20260513"></script>
+<script src="../js/dashboard/main.js?v=ads-page-redirect-20260506"></script>
 
 </body>
 </html>

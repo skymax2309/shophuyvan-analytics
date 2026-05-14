@@ -1,0 +1,243 @@
+/* =========================================
+   TỐI ƯU GIAO DIỆN MOBILE 3 TẦNG (CHUẨN SHIPXANH)
+   ========================================= */
+/* Mặc định Máy tính: Giấu Tầng 2 ngang đi */
+.sub-tabs-container { display: none !important; }
+
+@media (max-width: 768px) {
+  body { overflow-x: hidden; }
+  .layout { flex-direction: column; height: auto; min-height: calc(100vh - 52px); overflow: visible; }
+  .main { width: 100%; min-width: 0; overflow: visible; }
+  .topbar { padding: 0 8px; gap: 6px; }
+  .topbar-left { min-width: 0; gap: 6px; flex: 0 0 auto; }
+  .topbar .top-nav-links:not(.open) { display: none !important; }
+  .topbar-logo { font-size: 13px; white-space: nowrap; }
+  .topbar,
+  .sidebar,
+  .sub-tabs-container,
+  .main,
+  .toolbar,
+  .api-dashboard,
+  .api-dashboard-tabs,
+  .api-dashboard-panel,
+  .filterbar,
+  .summary-bar,
+  .table-wrap,
+  .pagination {
+    width: 100%;
+    max-width: 100vw;
+  }
+  .topbar-right {
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: calc(100vw - 118px);
+    overflow: hidden;
+    justify-content: flex-end !important;
+  }
+  .topbar-right .btn-sync { width: 34px; height: 34px; padding: 0 !important; justify-content: center; flex: 0 0 34px; }
+  
+  /* Mặc định Điện thoại: Giấu Menu Cây thò thụt đi */
+  .sidebar-sub-menu { display: none !important; }
+  
+  /* ── TẦNG 1: SIDEBAR MAIN TABS ── */
+  .sidebar { 
+    width: 100%; display: flex; flex-direction: row; align-items: center;
+    overflow-x: auto; white-space: nowrap; padding: 10px 10px 5px 10px; 
+    border-right: none; border-bottom: none; 
+    background: var(--surface);
+    scrollbar-width: none; position: sticky; top: 52px; z-index: 30;
+  }
+  .sidebar::-webkit-scrollbar { display: none; }
+  .sidebar-label { display: none; } 
+  .status-tab { margin-right: 8px; margin-bottom: 0; padding: 8px 12px; flex-shrink: 0; border: 1px solid var(--border); }
+  .status-tab.active { border-color: var(--accent); background: rgba(59,130,246,.12); }
+  
+  /* ── TẦNG 2: SUB-TABS CHI TIẾT ── */
+  .sub-tabs-container.has-tabs {
+    display: flex !important;
+    overflow-x: auto; white-space: nowrap;
+    background: var(--bg); padding: 8px 12px 10px 12px; 
+    border-bottom: 1px solid var(--border);
+    gap: 8px; scrollbar-width: none; width: 100%; flex-shrink: 0;
+    position: sticky; top: 102px; z-index: 29;
+  }
+  .sub-tabs-container::-webkit-scrollbar { display: none; }
+  .sub-tabs-container .sub-tab { padding: 6px 14px; border-radius: 20px; font-size: 12px; border-color: transparent; }
+  .sub-tabs-container .sub-tab.active { border-color: var(--accent); }
+
+  /* ── TẦNG 3: TOOLBAR (NÚT BẤM) ── */
+  .toolbar { 
+    padding: 10px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; min-width: 0;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar-actions { display: flex !important; flex-wrap: nowrap !important; gap: 8px; width: max-content; }
+  .toolbar-actions .btn { flex-shrink: 0; padding: 8px 14px; border-radius: 6px; }
+  .toolbar .divider { display: none; }
+
+  .api-dashboard-tabs {
+    padding: 8px 10px 0;
+  }
+  .api-dashboard-tab {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+  .api-dashboard-panel {
+    max-height: 48vh;
+    padding: 10px;
+  }
+  .api-dashboard-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .api-dashboard-action {
+    width: 100%;
+    justify-content: center;
+  }
+  .api-dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .api-dashboard-split {
+    grid-template-columns: 1fr;
+  }
+  .api-dashboard-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  /* Bẻ khung bộ lọc */
+  .filterbar {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 12px;
+    align-items: stretch !important;
+  }
+  .filter-label { display: none; }
+  .filterbar .filter-input,
+  .filterbar .filter-select,
+  .filterbar .btn {
+    width: 100% !important;
+    min-width: 0;
+    height: 38px;
+    margin: 0 !important;
+    flex: initial !important;
+  }
+  #f_shop,
+  #f_search,
+  #f_carrier {
+    grid-column: 1 / -1;
+  }
+  .filterbar label {
+    width: 100%;
+    min-height: 38px;
+    justify-content: center;
+    margin: 0 !important;
+  }
+  .summary-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 10px;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .summary-bar::-webkit-scrollbar { display: none; }
+  .table-wrap {
+    overflow-x: hidden;
+    overflow-y: visible;
+    padding: 0 10px 16px;
+  }
+  .table-responsive { overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  .notify-controls {
+    order: 9;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .notify-toggle { flex: 1 1 auto; justify-content: center; }
+  .notify-volume { flex: 1 1 130px; justify-content: center; }
+  .notify-volume input { width: 68px; }
+  .notify-test { flex: 0 0 auto; }
+  .topbar-right .notify-controls {
+    order: 0;
+    width: auto;
+    min-height: 34px;
+    padding: 3px;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .topbar-right .notify-volume,
+  .topbar-right .notify-test {
+    display: none;
+  }
+  .topbar-right .notify-toggle {
+    width: 28px;
+    min-width: 28px;
+    height: 28px;
+    padding: 0;
+    justify-content: center;
+    font-size: 0;
+    gap: 0;
+  }
+  .label-settings-body { max-height: 68vh; }
+  .label-vault-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .label-vault-filters,
+  .label-vault-action-grid,
+  .label-template-layout,
+  .label-template-workspace {
+    grid-template-columns: 1fr;
+  }
+  .label-template-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .label-vault-modal .modal-header {
+    grid-template-columns: 1fr auto;
+  }
+  .label-vault-tip {
+    display: none;
+  }
+  .label-template-togglebar {
+    justify-content: flex-start;
+  }
+  .label-template-togglebar b {
+    font-size: 12px;
+  }
+  .label-template-add {
+    width: 100%;
+  }
+  .label-vault-table-head { display: none; }
+  .label-vault-row {
+    grid-template-columns: 28px 1fr;
+  }
+  .label-vault-row > div {
+    grid-column: 2;
+  }
+  .label-vault-row-actions {
+    grid-column: 2;
+  }
+  .label-template-list-head { display: none; }
+  .label-template-row {
+    grid-template-columns: 34px 1fr;
+    gap: 6px;
+  }
+  .label-template-row i,
+  .label-template-row-actions,
+  .label-template-row strong {
+    grid-column: 2;
+  }
+  .label-settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .label-platform-row {
+    grid-template-columns: 72px 1fr 42px;
+  }
+  .label-platform-watermark {
+    grid-column: 2 / 4;
+  }
+  .label-preview-card {
+    max-width: 280px;
+    min-height: 398px;
+  }
+}

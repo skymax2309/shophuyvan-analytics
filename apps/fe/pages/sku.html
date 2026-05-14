@@ -6,129 +6,129 @@
 <title>Quản lý Sản phẩm & SKU</title>
 <link rel="stylesheet" href="../css/admin.css">
 <link rel="stylesheet" href="../css/sku.css">
+<script src="../js/auth-guard.js?v=account-widget-20260504"></script>
 </head>
 <body>
 
 <template id="tpl-parent-card">
-<div class="shopee-parent-card" style="border:1px solid #e2e8f0; border-radius:12px; margin-bottom:16px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden;">
+<article class="stock-product-card shopee-parent-card">
+  <div class="sku-parent-row">
+    <label class="stock-check" onclick="event.stopPropagation()">
+      <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()">
+    </label>
 
-  <!-- ====== HEADER: ẢNH + TÊN + ACTION ====== -->
-  <div class="parent-product-header responsive-flex" style="display:flex; align-items:flex-start; flex-wrap:wrap; gap:16px; padding:16px 20px; background:linear-gradient(135deg,#f8fafc 0%,#f1f5f9 100%); border-bottom:1px solid #e2e8f0;">
-    
-    <!-- Checkbox -->
-    <div style="padding-top:4px;" onclick="event.stopPropagation()">
-      <input type="checkbox" class="sku-chk product-checkbox" data-sku="{{sku}}" onchange="if(typeof updateSkuBulkDeleteUI==='function') updateSkuBulkDeleteUI()" style="transform:scale(1.2); cursor:pointer;">
+    <div class="stock-card-media">
+      <button type="button" class="stock-photo-button" onclick="document.getElementById('file-{{safe_sku}}').click(); event.stopPropagation();" aria-label="Đổi ảnh sản phẩm">
+        <img src="{{image}}" id="img-{{safe_sku}}" class="responsive-img-parent" alt="">
+      </button>
+      <input type="file" id="file-{{safe_sku}}" accept="image/*" hidden onchange="previewImgInline('{{sku}}', this)">
     </div>
 
-    <!-- Ảnh đại diện + gallery -->
-    <div style="flex-shrink:0; display:flex; flex-direction:column; gap:6px;">
-      <div style="position:relative; cursor:pointer;" onclick="document.getElementById('file-{{sku}}').click()">
-        <img src="{{image}}" id="img-{{sku}}" class="responsive-img-parent" style="width:80px; height:80px; object-fit:cover; border-radius:10px; border:2px solid #e2e8f0; background:#f1f5f9; display:block;">
-        <input type="file" id="file-{{sku}}" accept="image/*" style="display:none" onchange="previewImgInline('{{sku}}', this)">
-        <div style="position:absolute; bottom:0; background:rgba(0,0,0,0.5); color:white; font-size:8px; width:100%; text-align:center; border-radius:0 0 8px 8px; padding:2px 0; letter-spacing:0.5px;">ĐỔI ẢNH</div>
+    <div class="stock-card-body">
+      <h3 title="{{name}}">{{name}}</h3>
+      <button type="button" class="stock-sku-selector" onclick="toggleChildRow('{{safe_sku}}'); event.stopPropagation();" title="Xem phân loại">
+        <span class="stock-sku-selector-icon">#</span>
+        <span>
+          <strong>{{first_child_sku}}</strong>
+          <em>{{variant_count}} phân loại</em>
+        </span>
+        <span id="icon-{{safe_sku}}" class="stock-sku-caret">⌄</span>
+      </button>
+      <div class="stock-card-extra">
+        <div class="stock-gallery sku-gallery" id="gallery-{{safe_sku}}">{{gallery_html}}</div>
+        <div id="desc-block-{{safe_sku}}" class="stock-desc sku-desc-block" onclick="this.classList.toggle('expanded')" title="Nhấn để mở rộng/thu gọn">{{desc_text}}</div>
+        {{video_html}}
+        {{mapped_badge}}
       </div>
-      <!-- Gallery ảnh phụ -->
-      <div class="sku-gallery" id="gallery-{{sku}}">{{gallery_html}}</div>
     </div>
 
-    <!-- Thông tin chính -->
-    <div class="responsive-info" style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:6px;">
-      <div style="font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Tên bài đăng</div>
-      <div style="font-size:16px; font-weight:800; color:#1e293b; margin-bottom:4px;">{{name}}</div>
-      
-      <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-        <span style="font-size:11px; color:#2563eb; background:#eff6ff; padding:2px 8px; border:1px solid #bfdbfe; border-radius:10px; font-weight:700;">🏷️ SKU gốc: {{sku}}</span>
-      </div>
+    <div class="sku-parent-stock">{{stock_label}}</div>
+    <div class="stock-card-price">{{price_range}}</div>
+    <div class="sku-parent-code">{{first_child_sku}}</div>
 
-      <!-- Mô tả sản phẩm inline -->
-      <div id="desc-block-{{sku}}" class="sku-desc-block" onclick="this.classList.toggle('expanded')" title="Nhấn để mở rộng/thu gọn">
-        {{desc_text}}
-      </div>
-
-      <!-- Video sản phẩm -->
-      {{video_html}}
-
-      <!-- Map shop badge -->
-      {{mapped_badge}}
-    </div>
-
-    <!-- Stats tồn kho + actions -->
-    <div style="display:flex; flex-direction:column; gap:8px; flex-shrink:0; align-items:flex-end;">
-      <div class="responsive-stats" style="text-align:center; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 20px;">
-        <div style="font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Tổng Tồn</div>
-        <div style="font-size:24px; font-weight:900; color:#16a34a; line-height:1.1;">{{total_stock}}</div>
-      </div>
-       <div class="responsive-actions" style="display:flex; gap:6px;">
-        <button class="btn-edit" onclick="window.location.href='product-detail.html?sku={{sku}}'; event.stopPropagation();" style="flex:1; padding:10px 16px; background:#2563eb; color:#fff; border:none; border-radius:7px; font-size:13px; font-weight:800; cursor:pointer; white-space:nowrap; box-shadow:0 4px 6px -1px rgba(37,99,235,0.2); transition: background 0.2s;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
-          ⚙️ CHI TIẾT & CHỈNH SỬA
-        </button>
-      </div>
+    <div class="stock-card-actions">
+      <button type="button" class="stock-action-price" title="Sửa giá/vốn" onclick="openStockQuickEdit('{{sku}}', 'cost'); event.stopPropagation();">$</button>
+      <button type="button" class="stock-action-stock" title="Nhập kho / điều chỉnh tồn kho" onclick="openStockQuickEdit('{{sku}}', 'stock'); event.stopPropagation();">▤</button>
+      <button type="button" class="stock-action-edit" title="Sửa chi tiết sản phẩm" onclick="window.location.href='product-detail.html?sku={{sku}}'; event.stopPropagation();">✎</button>
+      <button type="button" class="stock-action-menu-trigger" title="Thêm thao tác" onclick="openStockActionMenu('{{sku}}', this); event.stopPropagation();">⋮</button>
     </div>
   </div>
 
-  <!-- ====== DANH SÁCH PHÂN LOẠI ====== -->
-  <div id="vars-{{safe_sku}}" style="display:block; background:#fff; border-top:1px solid #e2e8f0;">
-    <div style="padding:9px 20px; background:#f8fafc; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; justify-content:space-between;">
-      <span style="font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">📊 Danh sách phân loại</span>
+  <div id="vars-{{safe_sku}}" class="stock-variant-panel is-open">
+    <div class="stock-variant-head">
+      <span>Danh sách phân loại</span>
+      <button type="button" id="toggle-label-{{safe_sku}}" onclick="toggleChildRow('{{safe_sku}}'); event.stopPropagation();">Ẩn phân loại</button>
     </div>
-{{children_list}}
-</div>
-
-</div>
+    {{children_list}}
+  </div>
+</article>
 </template>
 
 <template id="tpl-child-row">
-<div class="sku-item-row child-row" style="display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid #f1f5f9; background:#fff; transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#fff'">
+<article class="stock-variant-row sku-item-row child-row">
+  <span class="sku-child-select"></span>
+  <img src="{{c_img_url}}" class="stock-variant-img" alt="">
 
-    <div style="flex-shrink:0;">
-      <img src="{{c_img_url}}" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0; background:#f8fafc; display:block;">
-    </div>
-
-    <div class="responsive-info" style="flex:1; min-width:150px; display:flex; flex-direction:column; gap:2px;">
-      <div style="font-size:13px; font-weight:800; color:#334155;">{{c_name}}</div>
-      <div style="font-size:11px; color:#64748b; font-family:monospace;">SKU: <strong style="color:#475569;">{{c_sku}}</strong></div>
-      {{c_mapped_badge}}
-    </div>
-
-    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
-      <div style="text-align:right; min-width:85px;">
-        <div style="font-size:9px; color:#64748b; font-weight:800; text-transform:uppercase;">Vốn HĐ</div>
-        <div style="font-size:13px; font-weight:700;">{{c_raw_inv}}</div>
-      </div>
-      <div style="text-align:right; min-width:85px;">
-        <div style="font-size:9px; color:#7c3aed; font-weight:800; text-transform:uppercase;">Vốn Thực</div>
-        <div style="font-size:13px; font-weight:700;">{{c_raw_real}}</div>
-      </div>
-      <div style="text-align:center; min-width:65px; background:#eff6ff; padding:4px 8px; border-radius:6px;">
-        <div style="font-size:9px; color:#2563eb; font-weight:800; text-transform:uppercase;">Kho BT</div>
-        <div style="font-size:13px; font-weight:800;">{{c_raw_stock_main}}</div>
-      </div>
-       <div style="text-align:center; min-width:65px; background:#f8fafc; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0;">
-        <div style="font-size:9px; color:#64748b; font-weight:800; text-transform:uppercase;">Kho Phụ</div>
-        <div style="font-size:13px; font-weight:800;">{{c_raw_stock_sub}}</div>
-      </div>
-
-      <div style="min-width:85px; text-align:right; margin-left:4px;">
-        <button onclick="openComboModal('{{c_sku}}'); event.stopPropagation();" style="background:{{c_combo_bg}}; color:{{c_combo_color}}; border:1px solid {{c_combo_border}}; padding:6px 10px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer; text-transform:uppercase; transition:all 0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-          📦 {{c_combo_text}}
-        </button>
-      </div>
-    </div>
+  <div class="stock-variant-info responsive-info">
+    <strong>{{c_name}}</strong>
+    <span>SKU: {{c_sku}}</span>
+    {{c_mapped_badge}}
   </div>
+
+  <div class="stock-metric">
+    <span>Vốn HĐ</span>
+    {{c_raw_inv}}
+  </div>
+  <div class="stock-metric">
+    <span>Vốn thực</span>
+    {{c_raw_real}}
+  </div>
+  <div class="stock-metric stock-metric-main">
+    <span>Kho BT</span>
+    {{c_raw_stock_main}}
+  </div>
+  <div class="stock-metric">
+    <span>Kho phụ</span>
+    {{c_raw_stock_sub}}
+  </div>
+  <div class="sku-child-code">{{c_sku}}</div>
+
+  <button class="stock-combo-action" onclick="openComboModal('{{c_sku}}'); event.stopPropagation();" style="--combo-bg: {{c_combo_bg}}; --combo-color: {{c_combo_color}}; --combo-border: {{c_combo_border}};">
+    {{c_combo_text}}
+  </button>
+</article>
 </template>
+<div class="mobile-header sku-mobile-header">
+  <button class="mobile-menu-btn" type="button" onclick="document.querySelector('.side-nav').style.left='0px'; document.querySelector('.side-nav').classList.add('open'); document.querySelector('.sidebar-overlay').classList.add('show');" aria-label="Mở menu">☰</button>
+  <a class="mobile-back-btn" href="admin-products.html#variations" aria-label="Quay về quản lý sản phẩm">←</a>
+  <span>📦 Sản phẩm kho</span>
+</div>
+<div class="sidebar-overlay" onclick="document.querySelector('.side-nav').style.left='-282px'; document.querySelector('.side-nav').classList.remove('open'); document.querySelector('.sidebar-overlay').classList.remove('show');"></div>
+
 <div class="app-wrapper">
   <aside class="side-nav">
     <div class="side-header">
-      <a href="profit-dashboard.html">← Trở về</a>
+      <a href="admin-products.html#variations">← Trở về</a>
       <span>📦 Quản lý Hệ thống</span>
     </div>
     <div class="side-menu">
-      <a href="sku.html" class="tab-btn active"><span>📦 Sản phẩm / SKU</span></a>
-      <a href="admin-products.html" class="tab-btn"><span>🔗 Cài đặt khác...</span></a>
+      <a href="sku.html" class="tab-btn active"><span>📦 Sản phẩm kho</span></a>
+      <a href="admin-products.html#variations" class="tab-btn"><span>🔗 Kết nối SKU đa sàn</span></a>
+      <a href="admin-products.html#shops" class="tab-btn"><span>🏪 Kết nối Shop & phân kho</span></a>
+      <a href="admin-products.html#publish" class="tab-btn"><span>🚀 Đăng sản phẩm đa sàn</span></a>
+      <a href="sku.html#combo" class="tab-btn"><span>📦 Tạo combo</span></a>
     </div>
   </aside>
 
   <div class="container">
+    <section class="stock-page-hero">
+      <div>
+        <span>Kho sản phẩm</span>
+        <h1>Sản phẩm kho</h1>
+        <p>Quản lý tồn kho, giá vốn, combo và mapping SKU đa sàn theo một danh sách gọn để thao tác nhanh trên điện thoại. Khi core đang khóa tồn kho vì tham chiếu ShipXanh, màn hình này chỉ cho xem và đối soát.</p>
+      </div>
+      <button type="button" onclick="openShipXanhReference()">Mở ShipXanh tham chiếu</button>
+    </section>
     
     <div id="shopee-dropzone" style="border: 2px dashed #3b82f6; border-radius: 10px; padding: 24px; text-align: center; background: #f8fafc; cursor: pointer; transition: 0.2s; margin-bottom: 16px;" 
          onclick="document.getElementById('shopee-files-input').click()"
@@ -142,10 +142,16 @@
         <input type="file" id="shopee-files-input" accept=".csv, .xlsx" multiple style="display:none" onchange="processShopeeFiles(this.files)">
     </div>
 
-    
+    <div class="sku-reference-strip">
+      <div>
+        <strong>Tham chiếu Sản phẩm kho ShipXanh</strong>
+        <span>Bạn đăng nhập trực tiếp ở tab riêng để mình xem giao diện kho, hệ thống này không lưu tài khoản hay mật khẩu ShipXanh.</span>
+      </div>
+      <button type="button" onclick="openShipXanhReference()">Mở cửa sổ ShipXanh</button>
+    </div>
 
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div class="card sku-management-card">
+      <div class="sku-list-toolbar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
           <div class="card-title" style="margin:0">📋 Danh sách Sản phẩm (<span id="skuCount">0</span>)</div>
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:600; color:#0f172a; background:#f1f5f9; padding:6px 12px; border-radius:6px; border:1px solid #cbd5e1;">
@@ -166,6 +172,9 @@
             <button id="btnBulkDeleteSku" onclick="bulkDeleteSkus()" style="display: none; padding: 7px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
               🗑️ Xóa đã chọn (<span id="selectedSkuCount">0</span>)
             </button>
+            <a class="sku-create-product-btn" href="product-detail.html" title="Tạo sản phẩm kho mới">
+              ＋ Tạo sản phẩm
+            </a>
             <button onclick="exportSkuExcel()" style="padding: 7px 15px; background: #10b981; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
               📥 Export Full Data
             </button>
@@ -176,18 +185,29 @@
         </div>
       </div>
 
-      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0;flex-wrap:wrap;">
-        <button class="sku-tab-btn active" onclick="switchSkuTab('no-price')" id="stab-no-price" style="padding:7px 14px;border:none;border-bottom:2px solid #f59e0b;background:none;font-size:13px;font-weight:600;color:#92400e;cursor:pointer">⚠️ Chưa có giá (<span id="skuNoPriceCount">0</span>)</button>
-        <button class="sku-tab-btn" id="stab-has-price" onclick="switchSkuTab('has-price')" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">✅ Đã có Giá Vốn (<span id="skuHasPriceCount">0</span>)</button>
+      <div class="sku-filter-tabs" style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid #f0f0f0;padding-bottom:0;flex-wrap:wrap;">
+        <button class="sku-tab-btn" onclick="switchSkuTab('no-price')" id="stab-no-price" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">⚠️ Chưa có giá (<span id="skuNoPriceCount">0</span>)</button>
+        <button class="sku-tab-btn active" id="stab-has-price" onclick="switchSkuTab('has-price')" style="padding:7px 14px;border:none;border-bottom:2px solid #16a34a;background:none;font-size:13px;font-weight:600;color:#333;cursor:pointer">✅ Đã có Giá Vốn (<span id="skuHasPriceCount">0</span>)</button>
         <button class="sku-tab-btn" id="stab-missing-map" onclick="switchSkuTab('missing-map')" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">⚠️ Thiếu Map Shop (<span id="skuMissingMapCount">0</span>)</button>
         <button class="sku-tab-btn" id="stab-combo" onclick="switchSkuTab('combo')" style="padding:7px 14px;border:none;border-bottom:2px solid transparent;background:none;font-size:13px;font-weight:600;color:#888;cursor:pointer">📦 Combo (<span id="skuComboCount">0</span>)</button>
       </div>
         
-      <div style="flex: 1; background: #fff; padding: 20px 0;">
-          <div id="sku-tab-no-price" class="sku-list-container">
+      <div class="sku-list-area" style="flex: 1; background: #fff; padding: 20px 0;">
+          <div class="sku-stock-table-head">
+            <span></span>
+            <span>Ảnh</span>
+            <span>Sản phẩm</span>
+            <span>Tồn kho / Vốn HĐ</span>
+            <span>Vốn thực</span>
+            <span>Kho BT</span>
+            <span>Kho phụ</span>
+            <span>SKU</span>
+            <span>Thao tác</span>
+          </div>
+          <div id="sku-tab-no-price" class="sku-list-container" style="display:none;">
             <div id="skuNoPriceTable"></div>
           </div>
-          <div id="sku-tab-has-price" class="sku-list-container" style="display:none;">
+          <div id="sku-tab-has-price" class="sku-list-container">
             <div id="skuHasPriceTable"></div>
           </div>
           <div id="sku-tab-missing-map" class="sku-list-container" style="display:none;">
@@ -204,6 +224,25 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<div id="stockQuickEditModal" class="stock-modal-backdrop" style="display:none;">
+  <div class="stock-quick-modal">
+    <div class="stock-quick-modal-head">
+      <div>
+        <h3 id="stockQuickEditTitle">Cập nhật nhanh</h3>
+        <p id="stockQuickEditSub">Chỉnh sửa theo từng phân loại rồi bấm Lưu.</p>
+      </div>
+      <button type="button" onclick="closeStockQuickEditModal()" aria-label="Đóng">&times;</button>
+    </div>
+    <div id="stockQuickEditList" class="stock-quick-list"></div>
+    <div class="stock-quick-modal-foot">
+      <button type="button" class="btn-muted" onclick="closeStockQuickEditModal()">Đóng</button>
+      <button type="button" class="btn-primary" onclick="saveStockQuickEdit()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<div id="stockActionMenu" class="stock-action-menu" style="display:none;"></div>
 
 <div id="quickMapModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; backdrop-filter:blur(2px);">
   <div style="background:white; border-radius:12px; width:90%; max-width:650px; max-height:85vh; display:flex; flex-direction:column;">
@@ -276,6 +315,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="../js/features/sku/sku-inline-1.js?v=fe-split-20260514"></script>
 <script src="../js/utils/api.js"></script>
 <script src="../js/utils/format.js"></script>
 <script src="../js/admin/sku-core.js"></script>

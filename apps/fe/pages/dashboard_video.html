@@ -1,83 +1,361 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KHO VIDEO TRÊN MÂY - OMS</title>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; text-align: center; }
-        h2 { color: #00CED1; background: #1a1a1a; padding: 15px; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .search-box { margin: 20px auto; max-width: 600px; display: flex; gap: 10px; }
-        input { flex: 1; padding: 15px; font-size: 18px; border: 2px solid #ccc; border-radius: 8px; outline: none; transition: border 0.3s; }
-        input:focus { border-color: #00CED1; }
-        button { padding: 15px 25px; font-size: 18px; background: #00CED1; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #00a8a8; }
-        .grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-top: 30px; }
-        .card { background: #fff; padding: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px; text-align: left; }
-        .order-id { font-size: 20px; font-weight: bold; color: #333; margin-bottom: 5px; }
-        .time { font-size: 14px; color: #888; margin-bottom: 15px; }
-        .status { display: inline-block; padding: 5px 10px; background: #e0ffe0; color: #00aa00; font-size: 12px; font-weight: bold; border-radius: 4px; margin-bottom: 10px; }
-        video { width: 100%; border-radius: 8px; background: #000; outline: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trung tâm video | ShopHuyVan</title>
+  <link rel="stylesheet" href="../css/video-dashboard.css?v=video-multishop-split-20260512a">
+  <link rel="stylesheet" href="../css/video/multi-shop.css?v=video-multishop-split-20260512a">
+  <script src="../js/auth-guard.js?v=account-widget-20260506"></script>
 </head>
-<body>
+<body class="video-body">
+  <div class="video-shell">
+    <header class="video-topbar">
+      <div class="video-topbar-head">
+        <div class="video-title-wrap">
+          <a class="video-back-link" href="profit-dashboard.html">Kênh Marketing › Live & Video › Quản lý video</a>
+          <span class="video-eyebrow">Marketplace Video Center</span>
+          <h1>Quản lý video</h1>
+          <p>
+            Quản lý thư viện video, theo dõi hiệu quả kéo đơn và gắn video vào phân tích sản phẩm.
+            Shop có API và shop không có API được tách luồng rõ ràng để tránh thao tác nhầm.
+          </p>
+        </div>
+        <div class="video-actions-row">
+          <a class="video-link-btn" href="oms-dashboard.html">Về OMS</a>
+          <a class="video-link-btn" href="admin-products.html#shops">Về sản phẩm / SKU</a>
+        </div>
+      </div>
 
-    <h2>☁️ KHO CHỨA VIDEO ĐÓNG GÓI - CLOUDFLARE R2</h2>
-    
-    <div class="search-box">
-        <input type="text" id="searchInput" placeholder="Tít mã vạch hoặc gõ mã vận đơn vào đây..." onkeyup="if(event.key === 'Enter') fetchVideos()">
-        <button onclick="fetchVideos()">Tìm Kiếm</button>
-    </div>
+      <div class="video-tab-switch" role="tablist" aria-label="Chọn khu vực video">
+        <button class="video-tab-btn active" type="button" data-video-tab="center">Trung tâm video sàn</button>
+        <button class="video-tab-btn" type="button" data-video-tab="packing">Kho video đóng gói</button>
+      </div>
+      <div id="videoSubtabSwitch" class="video-subtab-switch" role="tablist" aria-label="Chọn tính năng video">
+        <button class="video-subtab-btn active" type="button" data-video-subtab="library">Video đã đăng</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="overview">Phân tích</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="detail">Chi tiết</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="upload">Đăng video</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="multi">Đa shop</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="lazada">Lazada video</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="shop">Shop / API</button>
+      </div>
+    </header>
 
-    <div class="grid" id="videoGrid">
-        <p style="color: #666; font-size: 18px;">Đang tải dữ liệu từ Đám mây...</p>
-    </div>
+    <main class="video-main">
+      <section class="video-panel" data-video-subview="shop">
+        <div class="video-panel-head">
+          <div>
+            <h2>Hướng dẫn sử dụng</h2>
+            <p class="video-panel-help">
+              Tất cả ghi chú đều viết bằng tiếng Việt có dấu. Luồng API chỉ áp dụng cho shop đủ điều kiện.
+              Shop không có API sẽ đi luồng tham chiếu tay hoặc browser hỗ trợ có log.
+            </p>
+          </div>
+        </div>
+        <div class="video-guide-grid">
+          <article class="video-guide-card">
+            <h3>Shop có API video</h3>
+            <ul>
+              <li>Đồng bộ thư viện video, dashboard hiệu quả, cover và chi tiết video trực tiếp từ Shopee Open Platform.</li>
+              <li>Có thể tải video mới, sửa caption, đổi cover, gắn sản phẩm và xóa video sau khi xác nhận.</li>
+              <li>Dữ liệu được lưu snapshot về core để giảm request và dùng lại cho phân tích sản phẩm / ads.</li>
+            </ul>
+          </article>
+          <article class="video-guide-card">
+            <h3>Shop không có API / Lazada chưa đủ quyền</h3>
+            <ul>
+              <li>Không giả lập đồng bộ video API.</li>
+              <li>Dùng tab <b>Kho video đóng gói</b> để xem video thực tế đã quay theo đơn.</li>
+              <li>Nếu cần theo dõi video bán hàng, lưu tham chiếu tay theo SKU và chỉ mở browser/Seller Center khi cần xác minh.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
 
-    <script>
-        const API_BASE = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api";
+      <section class="video-panel" data-video-subview="shop">
+        <div class="video-panel-head">
+          <div>
+            <h2>Khả năng video theo shop</h2>
+            <p class="video-panel-help">
+              Mỗi shop có một nhãn rõ ràng: có API video, thiếu user_id video, cần gia hạn API hoặc chỉ tham chiếu tay.
+            </p>
+          </div>
+        </div>
+        <div id="videoCapabilitySummary" class="video-kpi-grid"></div>
+        <div id="videoManualPlan" class="video-grid" style="margin-top:10px;"></div>
+        <div id="videoCapabilityRows" class="video-capability-list" style="margin-top:10px;"></div>
+      </section>
 
-        async function fetchVideos() {
-            const searchObj = document.getElementById("searchInput").value.trim();
-            const grid = document.getElementById("videoGrid");
-            grid.innerHTML = "<p style='color: #666; font-size: 18px;'>⏳ Đang chọc vào D1 và R2...</p>";
+      <section id="videoCenterTab">
+        <section class="video-panel video-control-panel" data-video-shopee-control>
+          <div class="video-panel-head">
+            <div>
+              <h2>Bộ lọc và đồng bộ</h2>
+              <p class="video-panel-help">
+                Chọn đúng shop Shopee rồi mới đồng bộ. Nếu Shopee Video API chưa kết nối riêng hoặc chưa Test quyền video OK,
+                hệ thống sẽ khóa thao tác thật thay vì chạy giả.
+              </p>
+            </div>
+          </div>
+          <div class="video-form-grid two">
+            <div class="video-field">
+              <label for="videoShopSelect">Shop Shopee</label>
+              <select id="videoShopSelect"></select>
+            </div>
+            <div class="video-field">
+              <label for="videoPeriodType">Chu kỳ dashboard</label>
+              <select id="videoPeriodType">
+                <option value="Last7d">7 ngày gần nhất</option>
+                <option value="Last15d">15 ngày gần nhất</option>
+                <option value="Last30d">30 ngày gần nhất</option>
+                <option value="Day">Theo ngày</option>
+                <option value="Week">Theo tuần</option>
+                <option value="Month">Theo tháng</option>
+              </select>
+            </div>
+            <div class="video-field">
+              <label for="videoEndDate">Ngày chốt dữ liệu</label>
+              <input id="videoEndDate" type="date">
+            </div>
+            <div class="video-field">
+              <label>Thao tác</label>
+              <div class="video-actions-row">
+                <button id="videoSyncBtn" class="video-btn" type="button">Đồng bộ video</button>
+                <button id="videoRefreshBtn" class="video-btn secondary" type="button">Đọc cache hiện có</button>
+              </div>
+            </div>
+          </div>
+          <div id="videoStatusBox" class="video-status-box" style="margin-top:12px;">Sẵn sàng thao tác.</div>
+        </section>
 
-            try {
-                // Gọi API lấy danh sách Sổ tay từ D1
-                const response = await fetch(`${API_BASE}/cctv/videos?search=${searchObj}`);
-                const data = await response.json();
+        <section class="video-panel" data-video-subview="lazada">
+          <div class="video-panel-head">
+            <div>
+              <h2>Lazada Media Center video</h2>
+              <p class="video-panel-help">
+                Shop Lazada có API dùng endpoint Media Center để đọc quota, upload ảnh cover, upload video theo block và tra trạng thái bằng video_id.
+                Lazada chưa có analytics/list video đồng cấp Shopee nên kho Lazada đọc từ video đã upload hoặc đã tra bằng video_id.
+              </p>
+            </div>
+          </div>
+          <div id="lazadaVideoPanel"></div>
+        </section>
 
-                if (data.length === 0) {
-                    grid.innerHTML = `<p style='color: red; font-size: 18px;'>❌ Không tìm thấy video nào cho đơn "${searchObj}"</p>`;
-                    return;
-                }
+        <section class="video-panel" data-video-subview="overview">
+          <div class="video-panel-head">
+            <div>
+              <h2>Phân tích hiệu quả video</h2>
+              <p class="video-panel-help">Số liệu được đọc từ snapshot API video. Dùng bộ sắp xếp để tìm nhanh video hoặc sản phẩm đang bán được.</p>
+            </div>
+            <div class="video-analysis-controls">
+              <div>
+                <label for="videoAnalysisSort">Lọc / sắp xếp theo</label>
+                <select id="videoAnalysisSort">
+                  <option value="sales">Doanh số</option>
+                  <option value="orders">Đơn đặt</option>
+                  <option value="views">Lượt xem</option>
+                </select>
+              </div>
+              <div>
+                <label for="videoAnalysisMin">Ngưỡng tối thiểu</label>
+                <input id="videoAnalysisMin" type="number" min="0" step="1" placeholder="Ví dụ: 1000">
+              </div>
+            </div>
+          </div>
+          <div id="videoOverviewGrid" class="video-kpi-grid"></div>
+        </section>
 
-                grid.innerHTML = "";
-                data.forEach(item => {
-                    // Lấy link video trực tiếp từ API đọc file của bạn
-                    const videoLink = `${API_BASE}/file/${encodeURIComponent(item.video_url)}`;
-                    const timeString = new Date(item.created_at).toLocaleString('vi-VN');
+        <section id="videoWarningsPanel" class="video-panel" data-video-subview="overview" hidden>
+          <div class="video-panel-head">
+            <div>
+              <h2>Cảnh báo đồng bộ video</h2>
+              <p class="video-panel-help">Các cảnh báo này thường đến từ token, quyền Shopee Video hoặc dữ liệu shop chưa đủ.</p>
+            </div>
+          </div>
+          <div id="videoWarningsList" class="video-warning-list"></div>
+        </section>
 
-                    const card = `
-                        <div class="card">
-                            <div class="status">✔ ĐÃ ĐÓNG GÓI (PACKED)</div>
-                            <div class="order-id">Mã: ${item.order_id}</div>
-                            <div class="time">🕒 Quét lúc: ${timeString}</div>
-                            <video controls preload="none">
-                                <source src="${videoLink}" type="video/mp4">
-                                Trình duyệt không hỗ trợ video.
-                            </video>
-                            <a href="${videoLink}" download="HuyVan_${item.order_id}.mp4" style="display: block; margin-top: 10px; text-align: center; text-decoration: none; color: #007bff; font-weight: bold;">📥 Tải Video gửi Sàn</a>
-                        </div>
-                    `;
-                    grid.innerHTML += card;
-                });
-            } catch (error) {
-                grid.innerHTML = `<p style='color: red;'>Lỗi kết nối mạng: ${error.message}</p>`;
-            }
-        }
+        <div class="video-grid" data-video-subview="overview">
+          <section class="video-panel">
+            <div class="video-panel-head">
+              <div>
+                <h2>Trend theo ngày</h2>
+                <p class="video-panel-help">Dùng để xem video kéo view, đơn và doanh thu biến động như thế nào theo kỳ.</p>
+              </div>
+            </div>
+            <div class="video-table-wrap">
+              <table class="video-table">
+                <thead>
+                  <tr>
+                    <th>Ngày / kỳ</th>
+                    <th>Lượt xem</th>
+                    <th>Lượt thích</th>
+                    <th>Đơn đặt</th>
+                    <th>Doanh thu đặt</th>
+                  </tr>
+                </thead>
+                <tbody id="videoTrendBody"></tbody>
+              </table>
+            </div>
+          </section>
 
-        // Tự động tải 50 video mới nhất khi vừa mở trang
-        fetchVideos();
-    </script>
+          <section class="video-panel">
+            <div class="video-panel-head">
+              <div>
+                <h2>Audience / demographics</h2>
+                <p class="video-panel-help">Tệp người xem giúp quyết định video nào nên ưu tiên làm lại hoặc đẩy ads.</p>
+              </div>
+            </div>
+            <div id="videoAudienceGrid" class="video-grid"></div>
+          </section>
+        </div>
+
+        <div class="video-grid" data-video-subview="overview">
+          <section class="video-panel">
+            <div class="video-panel-head">
+              <div>
+                <h2>Video theo hiệu quả</h2>
+                <p class="video-panel-help">Bảng này không phóng ảnh lớn, ưu tiên số view, đơn và doanh số.</p>
+              </div>
+            </div>
+            <div id="videoTopList" class="video-card-grid"></div>
+          </section>
+
+          <section class="video-panel">
+            <div class="video-panel-head">
+              <div>
+                <h2>Sản phẩm bán được từ video</h2>
+                <p class="video-panel-help">Dùng để thấy sản phẩm nào đang kéo đơn/doanh số từ video.</p>
+              </div>
+            </div>
+            <div id="videoTopProductList" class="video-card-grid"></div>
+          </section>
+        </div>
+
+        <section class="video-panel" data-video-subview="overview">
+          <div class="video-panel-head">
+            <div>
+              <h2>Gắn video vào phân tích sản phẩm</h2>
+              <p class="video-panel-help">
+                Tập trung vào 3 nhóm: SKU đã có video, video kéo view nhưng không kéo đơn, và video nên ưu tiên ads / boost.
+              </p>
+            </div>
+          </div>
+          <div id="videoInsightsWrap" class="video-grid three"></div>
+        </section>
+
+        <div class="video-grid-stack main" id="videoWorkArea">
+          <section class="video-panel" data-video-subview="library">
+            <div class="video-panel-head">
+              <div>
+                <h2><span id="videoLibraryTitle">Video đã đăng</span> <span id="videoLibraryCount"></span></h2>
+                <p class="video-panel-help">Dạng bảng giống Seller Center: video, thời gian đăng, sản phẩm liên quan, hiệu suất và thao tác nằm cùng dòng.</p>
+              </div>
+            </div>
+            <div id="videoLibraryList" class="video-library-grid"></div>
+          </section>
+
+          <div class="video-grid-stack" id="videoDetailStack">
+            <section class="video-panel" data-video-subview="detail">
+              <div class="video-panel-head">
+                <div>
+                  <h2>Chi tiết video đang chọn</h2>
+                  <p class="video-panel-help">Bấm vào một video để xem sâu hơn về chỉ số, cover và sản phẩm kéo đơn.</p>
+                </div>
+              </div>
+              <div id="videoDetailWrap"></div>
+              <div style="margin-top:12px;" class="video-field">
+                <label>Ảnh cover của video</label>
+                <div id="videoCoverGrid" class="video-cover-grid"></div>
+              </div>
+              <div style="margin-top:12px;" class="video-field">
+                <label>Audience chi tiết của video</label>
+                <div id="videoDetailAudience" class="video-grid"></div>
+              </div>
+              <div style="margin-top:12px;" class="video-table-wrap">
+                <table class="video-table">
+                  <thead>
+                    <tr>
+                      <th>Sản phẩm</th>
+                      <th>Đơn đặt</th>
+                      <th>Doanh thu đặt</th>
+                      <th>Người mua xác nhận</th>
+                    </tr>
+                  </thead>
+                  <tbody id="videoDetailProductBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="video-panel" data-video-subview="detail">
+              <div class="video-panel-head">
+                <div>
+                  <h2>Sửa / xóa video</h2>
+                  <p class="video-panel-help">Chỉ bật cho shop Shopee đủ điều kiện API video. Mọi lệnh đều ghi log ở backend.</p>
+                </div>
+              </div>
+              <div id="videoEditPanel"></div>
+            </section>
+
+            <section class="video-panel" data-video-subview="upload">
+              <div class="video-panel-head">
+                <div>
+                  <h2>Đăng video</h2>
+                  <p class="video-panel-help">Một màn duy nhất cho cả đăng ngay và hẹn giờ. Hẹn giờ sẽ tạo queue có log, đăng ngay gửi lệnh thật lên Shopee.</p>
+                </div>
+              </div>
+              <div id="videoUploadPanel"></div>
+            </section>
+
+            <section class="video-panel" data-video-subview="multi">
+              <div class="video-panel-head">
+                <div>
+                  <h2>Đăng video đa shop</h2>
+                  <p class="video-panel-help">Tạo một chiến dịch video: chọn 1 file gốc, mỗi shop có tiêu đề, sản phẩm, giờ đăng và queue riêng.</p>
+                </div>
+              </div>
+              <div id="videoMultiShopPanel"></div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="videoPackingTab" hidden>
+        <section class="video-panel">
+          <div class="video-panel-head">
+            <div>
+              <h2>Kho video đóng gói</h2>
+              <p class="video-panel-help">
+                Luồng này giữ nguyên video quay thực tế theo đơn hàng. Đây là phương án tham chiếu quan trọng cho shop không có API video.
+              </p>
+            </div>
+          </div>
+          <div class="video-form-grid two">
+            <div class="video-field">
+              <label for="packingSearchInput">Tìm theo mã đơn / từ khóa</label>
+              <input id="packingSearchInput" type="text" placeholder="Ví dụ: 250506...">
+            </div>
+            <div class="video-field">
+              <label>Thao tác</label>
+              <div class="video-actions-row">
+                <button id="packingVerifyBtn" class="video-btn secondary" type="button">Kiểm tra mã đóng gói</button>
+                <button id="packingSearchBtn" class="video-btn" type="button">Tải video đóng gói</button>
+                <a class="video-link-btn" href="cctv_packing.html" target="_blank" rel="noopener">Mở trạm quét</a>
+              </div>
+            </div>
+          </div>
+          <div id="packingScanStatus" class="video-status-box compact" style="margin-top:10px;">
+            Quét hoặc nhập mã đơn để kiểm tra đơn, tem và video trước khi đóng gói.
+          </div>
+          <div id="packingVideoList" class="video-packing-list" style="margin-top:12px;">
+            <div class="video-empty"><strong>Chuyển sang tab này để tải kho video đóng gói.</strong></div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="../js/video-dashboard.js?v=video-tab-init-20260513a"></script>
 </body>
 </html>

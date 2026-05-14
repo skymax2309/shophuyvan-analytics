@@ -1,0 +1,10 @@
+.wrangler/
+.wrangler/**
+node_modules/
+node_modules/**
+*.log
+*.pdf
+*.xlsx
+debug_payload_*.json
+cache_orders_*.json
+temp_print_jobs*.json

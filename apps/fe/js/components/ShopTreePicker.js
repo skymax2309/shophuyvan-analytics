@@ -11,14 +11,33 @@ const PLAT_ICONS = {
   lazada: { bg: "#0f146d", icon: "🛒" },
 }
 
+function normalizeShopTreeRow(row) {
+  // NEO: Cây shop phải đọc được cả nguồn doanh thu (`shop`) và nguồn cấu hình (`shop_name/user_name`) để không làm mất shop chưa API.
+  if (!row || typeof row !== "object") return null
+  const platform = String(row.platform || row.marketplace || "other").trim().toLowerCase() || "other"
+  const shop = String(row.shop || row.shop_name || row.user_name || row.display_name || row.api_shop_id || "").trim()
+  if (!shop) return null
+  return { platform, shop }
+}
+
 function buildShopTree(shops) {
   const map = {}
-  shops.forEach(s => {
-    const p = s.platform || "other"
+  ;(Array.isArray(shops) ? shops : []).forEach(s => {
+    const row = normalizeShopTreeRow(s)
+    if (!row) return
+    const p = row.platform || "other"
     if (!map[p]) map[p] = []
-    if (!map[p].includes(s.shop)) map[p].push(s.shop)
+    if (!map[p].includes(row.shop)) map[p].push(row.shop)
   })
-  shopTreeData = Object.keys(map).map(p => ({ platform: p, shops: map[p] }))
+  const platformOrder = { shopee: 1, lazada: 2, tiktok: 3 }
+  shopTreeData = Object.keys(map)
+    .sort((a, b) => (platformOrder[a] || 99) - (platformOrder[b] || 99) || a.localeCompare(b))
+    .map(p => ({ platform: p, shops: map[p].filter(Boolean).sort((a, b) => a.localeCompare(b)) }))
+  shopTreeData.forEach(({ platform: p, shops }) => {
+    if (platformOpen[p] === undefined) {
+      platformOpen[p] = shops.some(s => selectedShops[p + "::" + s])
+    }
+  })
   renderShopPanel()
 }
 
@@ -116,14 +135,20 @@ function renderShopTags() {
     ph.className = "shop-picker-placeholder"
     ph.textContent = "Tất cả shop"
     input.appendChild(ph)
+  } else if (keys.length === 1) {
+    const k = keys[0]
+    const shop = k.split("::")[1]
+    const tag = document.createElement("span")
+    tag.className = "shop-tag"
+    tag.innerHTML = `<span>${shop}</span><span class="tag-x" onclick="removeShopTag('${k}', event)">×</span>`
+    input.appendChild(tag)
   } else {
-    keys.forEach(k => {
-      const shop = k.split("::")[1]
-      const tag  = document.createElement("span")
-      tag.className = "shop-tag"
-      tag.innerHTML = `<span>${shop}</span><span class="tag-x" onclick="removeShopTag('${k}', event)">×</span>`
-      input.appendChild(tag)
-    })
+    const platforms = [...new Set(keys.map(k => k.split("::")[0]))]
+    const tag = document.createElement("span")
+    tag.className = "shop-tag shop-tag-count"
+    // Khi chọn nhiều shop, gom thành một nhãn đếm để thanh lọc không bị rối trên mobile.
+    tag.textContent = `Đã chọn ${keys.length} shop${platforms.length === 1 ? ` · ${platforms[0]}` : ''}`
+    input.appendChild(tag)
   }
 
   const clr     = document.createElement("span")

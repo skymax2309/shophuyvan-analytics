@@ -3,171 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>Cài Đặt Chi Phí</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f0f2f5;
-  color: #1a1a2e;
-}
-
-.topbar {
-  background: #1a1a2e;
-  color: white;
-  padding: 14px 28px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.topbar a { color: #aaa; text-decoration: none; font-size: 14px; }
-.topbar a:hover { color: white; }
-
-.container { max-width: 900px; margin: 32px auto; padding: 0 20px; }
-
-.card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-
-.card-title {
-  font-size: 15px;
-  font-weight: 700;
-  margin-bottom: 18px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #f0f2f5;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.platform-tag {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
-  color: white;
-}
-.tag-shopee  { background: #ee4d2d; }
-.tag-tiktok  { background: #010101; }
-.tag-lazada  { background: #0f146d; }
-.tag-chung   { background: #6b7280; }
-
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-
-.field { display: flex; flex-direction: column; gap: 4px; }
-
-.field label {
-  font-size: 13px;
-  color: #555;
-  font-weight: 500;
-}
-
-.field .hint {
-  font-size: 11px;
-  color: #999;
-}
-
-.input-wrap {
-  display: flex;
-  align-items: center;
-  border: 1.5px solid #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: border-color 0.2s;
-}
-
-.input-wrap:focus-within { border-color: #4f46e5; }
-
-.input-wrap input {
-  flex: 1;
-  border: none;
-  outline: none;
-  padding: 9px 12px;
-  font-size: 14px;
-  background: transparent;
-}
-
-.input-wrap .unit {
-  padding: 9px 12px;
-  background: #f8f8f8;
-  font-size: 13px;
-  color: #888;
-  border-left: 1px solid #e0e0e0;
-  min-width: 48px;
-  text-align: center;
-}
-
-.btn-save {
-  background: #4f46e5;
-  color: white;
-  border: none;
-  padding: 12px 32px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: background 0.2s;
-}
-
-.btn-save:hover { background: #4338ca; }
-.btn-save:disabled { background: #a5b4fc; cursor: not-allowed; }
-
-.toast {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  background: #16a34a;
-  color: white;
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-}
-
-.toast.show { opacity: 1; }
-
-.note {
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  border-radius: 8px;
-  padding: 12px 16px;
-  font-size: 13px;
-  color: #92400e;
-  margin-bottom: 20px;
-}
-.fixed-cost-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.fixed-cost-row input,
-.fixed-cost-row select {
-  border: 1.5px solid #e0e0e0;
-  border-radius: 7px;
-  padding: 7px 10px;
-  font-size: 13px;
-  outline: none;
-  width: 100%;
-}
-.fixed-cost-row input:focus,
-.fixed-cost-row select:focus { border-color: #4f46e5; }
-</style>
+<link rel="stylesheet" href="../css/features/cost-settings/cost-settings-inline-1.css?v=fe-split-20260514">
+<script src="../js/auth-guard.js?v=account-widget-20260504"></script>
 </head>
 <body>
 
@@ -380,6 +217,14 @@ body {
         <span class="hint">% trên doanh thu — thường 0.15%</span>
         <div class="input-wrap">
           <input type="number" id="lazada_shipping_diff" step="0.01" min="0" max="100" placeholder="0.15">
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phí Tiếp Thị Liên Kết (Affiliate)</label>
+        <span class="hint">% trên doanh thu — dùng khi API không trả phí thực tế</span>
+        <div class="input-wrap">
+          <input type="number" id="lazada_affiliate" step="0.01" min="0" max="100" placeholder="0">
           <span class="unit">%</span>
         </div>
       </div>

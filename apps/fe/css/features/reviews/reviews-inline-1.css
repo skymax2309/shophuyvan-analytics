@@ -1,0 +1,81 @@
+/* Trang đánh giá tách khỏi SKU để đội CSKH xử lý review theo từng bước, dễ dùng trên mobile. */
+    body { background:#eef2f7; }
+    .reviews-main { padding:14px; }
+    .reviews-topbar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+    .reviews-topbar a, .reviews-topbar button {
+      border:1px solid #dbe3ef; background:#fff; border-radius:8px; color:#1d4ed8;
+      font-size:13px; font-weight:800; min-height:38px; padding:8px 12px; text-decoration:none;
+    }
+    .reviews-topbar .active { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+    .reviews-shell { display:grid; gap:12px; }
+    .reviews-card {
+      background:#fff; border:1px solid #dbe3ef; border-radius:8px; box-shadow:0 6px 18px rgba(15,23,42,.06);
+      min-width:0; padding:12px;
+    }
+    .reviews-hero { display:grid; gap:10px; }
+    .reviews-hero h1 { font-size:22px; line-height:1.2; margin:0; color:#0f172a; }
+    .reviews-hero p { color:#64748b; font-size:13px; line-height:1.45; margin:0; }
+    .reviews-actions, .reviews-filters, .reviews-tabs { display:flex; flex-wrap:wrap; gap:8px; }
+    .reviews-actions button, .reviews-filters select, .reviews-filters input, .reviews-tabs button, .review-row button, .review-queue-row button {
+      border:1px solid #cbd5e1; border-radius:8px; font-size:13px; min-height:36px; padding:7px 10px;
+    }
+    .reviews-actions button, .reviews-tabs button, .review-row button, .review-queue-row button {
+      background:#fff; color:#1d4ed8; cursor:pointer; font-weight:800;
+    }
+    .reviews-actions .primary, .review-row .primary, .review-queue-row .primary { background:#2563eb; border-color:#2563eb; color:#fff; }
+    .reviews-actions .good { background:#0f766e; border-color:#0f766e; color:#fff; }
+    .reviews-actions .danger, .review-queue-row .danger { background:#fee2e2; border-color:#fecaca; color:#b91c1c; }
+    .reviews-filters input { flex:1 1 220px; }
+    .reviews-filters select { background:#fff; flex:1 1 150px; }
+    .reviews-tabs { border-bottom:1px solid #e2e8f0; padding-bottom:8px; }
+    .reviews-tabs button.active { background:#eef2ff; border-color:#3b82f6; color:#1d4ed8; }
+    .reviews-grid { display:grid; gap:10px; grid-template-columns:1fr; }
+    .review-stat {
+      background:#f8fafc; border:1px solid #dbe3ef; border-radius:8px; display:grid; gap:4px; min-width:0; padding:10px;
+    }
+    .review-stat span { color:#64748b; font-size:12px; font-weight:800; }
+    .review-stat strong { color:#0f172a; font-size:22px; line-height:1; }
+    .review-section-title { align-items:center; display:flex; gap:8px; justify-content:space-between; margin-bottom:8px; }
+    .review-section-title h2 { color:#0f172a; font-size:16px; margin:0; }
+    .review-help { color:#64748b; font-size:12px; }
+    .review-help summary { cursor:pointer; font-weight:800; }
+    .review-list, .review-risk-list, .review-queue-list { display:grid; gap:8px; }
+    .review-row, .review-risk-row, .review-queue-row {
+      border:1px solid #dbe3ef; border-radius:8px; display:grid; gap:8px; min-width:0; padding:10px;
+    }
+    .review-row-head, .review-queue-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .review-row b, .review-risk-row b, .review-queue-row b { color:#0f172a; overflow-wrap:anywhere; }
+    .review-meta, .review-badges, .review-row-actions, .review-queue-actions { display:flex; flex-wrap:wrap; gap:6px; }
+    .review-meta { color:#64748b; font-size:12px; }
+    .review-pill {
+      align-items:center; border-radius:999px; display:inline-flex; font-size:11px; font-weight:900; line-height:1.2;
+      padding:4px 7px; white-space:nowrap;
+    }
+    .review-pill.bad { background:#fee2e2; color:#b91c1c; }
+    .review-pill.warn { background:#fff7ed; color:#c2410c; }
+    .review-pill.good { background:#dcfce7; color:#15803d; }
+    .review-pill.info { background:#dbeafe; color:#1d4ed8; }
+    .review-text { color:#334155; font-size:13px; line-height:1.45; overflow-wrap:anywhere; }
+    .review-empty, .reviews-status {
+      border:1px dashed #cbd5e1; border-radius:8px; color:#64748b; font-size:13px; padding:16px; text-align:center;
+    }
+    .review-composer { display:grid; gap:10px; }
+    .review-composer textarea {
+      border:1px solid #cbd5e1; border-radius:8px; font-size:13px; min-height:130px; padding:10px; resize:vertical;
+      width:100%;
+    }
+    .review-split { display:grid; gap:12px; grid-template-columns:1fr; }
+    .review-table-wrap { overflow:auto; border:1px solid #dbe3ef; border-radius:8px; }
+    .review-table { border-collapse:collapse; min-width:720px; width:100%; }
+    .review-table th, .review-table td { border-bottom:1px solid #e2e8f0; font-size:12px; padding:9px; text-align:left; vertical-align:top; }
+    .review-table th { background:#f8fafc; color:#475569; font-weight:900; }
+    @media (min-width: 760px) {
+      .reviews-main { padding:18px; }
+      .reviews-hero { align-items:start; grid-template-columns:minmax(0,1fr) auto; }
+      .reviews-grid { grid-template-columns:repeat(4, minmax(0,1fr)); }
+      .review-split { grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr); }
+    }
+    @media (min-width: 1100px) {
+      .reviews-main { padding:20px 24px; }
+      .reviews-grid { grid-template-columns:repeat(6, minmax(0,1fr)); }
+    }

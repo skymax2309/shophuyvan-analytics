@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E-commerce App Review | ShopHuyVan OMS</title>
+  <link rel="stylesheet" href="../css/shopee-review.css?v=shopee-review-lazada-20260512a">
+  <script src="../js/auth-guard.js?v=shopee-review-lazada-20260512a"></script>
+</head>
+<body class="review-body">
+  <main class="review-shell">
+    <header class="review-hero">
+      <div>
+        <p class="review-kicker">Open Platform Review Mode</p>
+        <h1>Trang kiểm duyệt tích hợp Lazada và Shopee</h1>
+        <p class="review-lead">
+          Tài khoản reviewer chỉ đọc dữ liệu và dùng để Shopee kiểm tra sản phẩm OMS đang chạy thật:
+          Lazada đã có API live, Shopee là module đang xin Open Platform để mở rộng cùng hệ thống.
+        </p>
+      </div>
+      <div class="review-user-card" data-reviewer-allow="true">
+        <span>Tài khoản đang đăng nhập</span>
+        <strong id="reviewUserName">Đang kiểm tra...</strong>
+        <small id="reviewUserRole">Chỉ đọc</small>
+        <button type="button" class="review-logout-btn" data-reviewer-allow="true" onclick="SHV_AUTH.logout()">Đăng xuất</button>
+      </div>
+    </header>
+
+    <section class="review-panel review-summary-panel">
+      <div class="review-panel-head">
+        <div>
+          <h2>Thông tin nên điền lại trong form Shopee</h2>
+          <p>URL này đưa reviewer vào đúng màn chứng minh sản phẩm live với Lazada API và module Shopee đang xin quyền.</p>
+        </div>
+      </div>
+      <div class="review-info-grid">
+        <article>
+          <span>Business Product URL</span>
+          <strong id="reviewProductUrl">Đang tải...</strong>
+        </article>
+        <article>
+          <span>Live Test Username</span>
+          <strong>shopee_reviewer</strong>
+        </article>
+        <article>
+          <span>Service</span>
+          <strong>Live Lazada API, Shopee OMS, Product, Video</strong>
+        </article>
+        <article>
+          <span>Safety Mode</span>
+          <strong>Reviewer read-only, no write API</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="review-grid">
+      <article class="review-panel">
+        <div class="review-panel-head">
+          <div>
+            <h2>Luồng kiểm thử nhanh</h2>
+            <p>Reviewer có thể bấm từng màn để thấy Lazada live module và Shopee module trong cùng OMS.</p>
+          </div>
+        </div>
+        <div class="review-action-list" data-reviewer-allow="true">
+          <a href="dashboard_video.html?view=lazada&review=shopee" class="review-link-card">
+            <span>1</span>
+            <div><strong>Lazada Video Live</strong><small>Media Center API, quota, video library và log đọc dữ liệu.</small></div>
+          </a>
+          <a href="admin-products.html?review=shopee#shops" class="review-link-card">
+            <span>2</span>
+            <div><strong>Lazada API / Product</strong><small>Shop Lazada, token API, catalog và module sản phẩm.</small></div>
+          </a>
+          <a href="profit-dashboard.html?review=shopee" class="review-link-card">
+            <span>3</span>
+            <div><strong>Dashboard</strong><small>Doanh thu, lãi, shop, dữ liệu vận hành.</small></div>
+          </a>
+          <a href="oms-dashboard.html?review=shopee" class="review-link-card">
+            <span>4</span>
+            <div><strong>Order Management</strong><small>Danh sách đơn, trạng thái xử lý, vận đơn.</small></div>
+          </a>
+          <a href="admin-products.html?review=shopee#products" class="review-link-card">
+            <span>5</span>
+            <div><strong>Product / SKU</strong><small>Catalog, tồn kho, SKU và mapping sàn.</small></div>
+          </a>
+          <a href="dashboard_video.html?view=library&shop=chihuy1984&review=shopee" class="review-link-card">
+            <span>6</span>
+            <div><strong>Shopee Video</strong><small>Thư viện video, hiệu quả, quyền Video API.</small></div>
+          </a>
+        </div>
+      </article>
+
+      <article class="review-panel">
+        <div class="review-panel-head">
+          <div>
+            <h2>Trạng thái tích hợp Lazada / Shopee</h2>
+            <p>Dữ liệu đọc trực tiếp từ API production/cache core, không phải ảnh tĩnh.</p>
+          </div>
+        </div>
+        <div id="reviewStatusGrid" class="review-status-grid">
+          <div class="review-loading">Đang tải trạng thái API...</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="review-panel">
+      <div class="review-panel-head">
+        <div>
+          <h2>Lazada live module cho Profile Verification</h2>
+          <p>Shopee yêu cầu chứng minh sản phẩm đã có ít nhất một tích hợp e-commerce live; phần này hiển thị Lazada API đang chạy thật.</p>
+        </div>
+      </div>
+      <div id="lazadaLiveProof" class="review-lazada-proof">
+        <div class="review-loading">Đang tải bằng chứng Lazada live...</div>
+      </div>
+    </section>
+
+    <section class="review-panel">
+      <div class="review-panel-head">
+        <div>
+          <h2>Bằng chứng vận hành live</h2>
+          <p>Phần này giúp reviewer thấy app có module thật và shop thật đang kết nối.</p>
+        </div>
+      </div>
+      <div class="review-table-wrap">
+        <table class="review-table">
+          <thead>
+            <tr>
+              <th>Hạng mục</th>
+              <th>Dữ liệu hiện có</th>
+              <th>Ghi chú kiểm duyệt</th>
+            </tr>
+          </thead>
+          <tbody id="reviewEvidenceBody">
+            <tr><td colspan="3">Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="review-grid">
+      <article class="review-panel">
+        <div class="review-panel-head">
+          <div>
+            <h2>Quyền reviewer</h2>
+            <p>Tài khoản này không được phép tạo, sửa, xóa, đồng bộ hoặc gửi lệnh lên sàn.</p>
+          </div>
+        </div>
+        <ul class="review-check-list">
+          <li>Chỉ gọi API đọc bằng phương thức GET.</li>
+          <li>Mọi POST/PUT/PATCH/DELETE đều bị chặn ở frontend và Worker.</li>
+          <li>Nút nguy hiểm trên dashboard bị làm mờ/khóa tự động.</li>
+          <li>Không hiển thị hoặc lưu Partner Key, token, mật khẩu trong trang này.</li>
+        </ul>
+      </article>
+
+      <article class="review-panel">
+        <div class="review-panel-head">
+          <div>
+          <h2>Remarks gợi ý cho Shopee</h2>
+          <p>Có thể dùng nội dung này trong ô Remarks khi nộp lại Go Live.</p>
+          </div>
+        </div>
+        <div class="review-remarks">
+          Please use the provided test account to log in. After login, the account opens the review page where Shopee can
+          verify that our OMS product is already live with Lazada API integration, including Lazada API status, live modules,
+          video/media workflow and operation evidence. We are applying for Shopee Open Platform access to add Shopee
+          integration into the same live OMS product. The reviewer role is read-only and cannot create, update, delete,
+          sync, upload, or send any write command to any marketplace.
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="../js/shopee-review.js?v=shopee-review-lazada-20260512a"></script>
+</body>
+</html>

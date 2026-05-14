@@ -142,7 +142,12 @@ const stock_main = parseInt(document.getElementById("s_stock_main").value) || 0;
               if (cSku) comboItems.push({ sku: cSku, qty: parseInt(row.querySelector('.combo-qty-input').value) || 1 });
           });
       }
-      await fetch(API + "/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg, stock: stock, stock_main: stock_main, stock_sub: stock_sub, is_combo: isCombo ? 1 : 0, combo_items: isCombo ? JSON.stringify(comboItems) : null }) });
+      const canSendStock = typeof canEditInternalStock === 'function' ? canEditInternalStock() : true;
+      const payload = { sku, product_name: name, cost_invoice: cinv, cost_real: creal, image_url: finalImg, is_combo: isCombo ? 1 : 0, combo_items: isCombo ? JSON.stringify(comboItems) : null };
+      // NEO: Khi tồn nội bộ đang khóa theo ShipXanh, form chỉ lưu thông tin/vốn và để backend giữ nguyên số tồn hiện có.
+      if (canSendStock) Object.assign(payload, { stock, stock_main, stock_sub });
+      const resSave = await fetch(API + "/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!resSave.ok) throw new Error(await resSave.text());
 
       if (applyAllCost && window.allSkus) {
           const currentItem = window.allSkus.find(x => x.sku === sku);
@@ -150,7 +155,12 @@ const stock_main = parseInt(document.getElementById("s_stock_main").value) || 0;
               const targetParentSku = currentItem.parent_sku ? currentItem.parent_sku : (currentItem.is_parent == 1 ? currentItem.sku : null);
               if (targetParentSku) {
                   const others = window.allSkus.filter(x => (x.parent_sku === targetParentSku || x.sku === targetParentSku) && x.sku !== sku);
-                  for (const sibling of others) await fetch(API + "/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sku: sibling.sku, product_name: sibling.product_name, cost_invoice: cinv, cost_real: creal, image_url: sibling.image_url, stock: sibling.stock }) });
+                  for (const sibling of others) {
+                      const siblingPayload = { sku: sibling.sku, product_name: sibling.product_name, cost_invoice: cinv, cost_real: creal, image_url: sibling.image_url };
+                      if (canSendStock) siblingPayload.stock = sibling.stock;
+                      const resSibling = await fetch(API + "/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(siblingPayload) });
+                      if (!resSibling.ok) throw new Error(await resSibling.text());
+                  }
               }
           }
       }
@@ -253,7 +263,11 @@ window.inlineUpdateStock = async function(sku, value, type) {
 window.previewImgInline = function(sku, input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = (e) => document.getElementById(`img-${sku}`).src = e.target.result;
+        reader.onload = (e) => {
+            const safeSku = sku.replace(/[^a-zA-Z0-9]/g, "_");
+            const target = document.getElementById(`img-${safeSku}`) || document.getElementById(`img-${sku}`);
+            if (target) target.src = e.target.result;
+        };
         reader.readAsDataURL(input.files[0]);
     }
 }

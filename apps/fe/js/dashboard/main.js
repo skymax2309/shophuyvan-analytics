@@ -9,9 +9,17 @@ let currentFilters = {}
 
 // ── TABS ─────────────────────────────────────────────────────────────
 window.showTab = function(name) {
+  if (name === "ads") {
+    // ADS đã tách thành trang riêng để phần quảng cáo có luồng bảo trì độc lập với dashboard doanh thu.
+    window.location.href = 'ads.html'
+    return
+  }
   document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"))
   const targetTab = document.getElementById("tab-" + name);
   if (targetTab) targetTab.classList.add("active");
+  document.body.dataset.activeTab = name;
+  const filterBar = document.querySelector(".filter-bar");
+  if (filterBar) filterBar.hidden = name === "chat" || name === "income";
   
   // Highlight menu tương ứng trên Sidebar
   document.querySelectorAll(".sidebar-nav a").forEach(a => {
@@ -26,12 +34,18 @@ window.showTab = function(name) {
     if (typeof loadDaily === 'function') loadDaily();
   } else if (name === "monthly") {
     if (typeof loadMonthly === 'function') loadMonthly();
+  } else if (name === "income") {
+    if (typeof loadIncome === 'function') loadIncome();
+  } else if (name === "netprofit") {
+    if (typeof loadOrderAnalytics === 'function') loadOrderAnalytics();
   } else if (name === "top") {
     if(typeof loadTop === 'function') loadTop();
     if(typeof populateSkuShopFilter === 'function') populateSkuShopFilter();
     if(typeof loadTopSkuFull === 'function') loadTopSkuFull();
   } else if (name === "cancel") {
     if(typeof loadCancel === 'function') loadCancel();
+  } else if (name === "chat") {
+    if(typeof loadChat === 'function') loadChat();
   }
 }
 
@@ -104,8 +118,27 @@ function onSkuChange() {
 
 // ── INIT ─────────────────────────────────────────────────────────────
 window.init = async function() {
-  if (typeof applyPreset === 'function') applyPreset("thismonth");
-  if (typeof loadProducts === 'function') await loadProducts();
+  if (typeof applyPreset === 'function') applyPreset("today");
+  if (typeof setActiveDatePreset === 'function') setActiveDatePreset("today");
+  const monthSelector = document.getElementById("monthSelector");
+  if (monthSelector) monthSelector.value = "";
+  const initialTab = (window.location.hash || '').replace('#', '').trim();
+  // Giữ tương thích link cũ bằng cách chuyển sang các trang đã tách riêng.
+  if (initialTab === 'chat') {
+    window.location.href = 'chat-marketplace.html'
+    return
+  }
+  if (initialTab === 'ads') {
+    window.location.href = 'ads.html'
+    return
+  }
+  if (initialTab && document.getElementById("tab-" + initialTab)) {
+    showTab(initialTab);
+    return;
+  }
+  if (typeof loadProducts === 'function') {
+    await loadProducts().catch(error => console.warn('[MAIN] Không tải được sản phẩm cho máy tính:', error?.message || error));
+  }
   
   // Mặc định khởi động vào Tab Doanh thu Ngày
   if (typeof loadDaily === 'function') {
