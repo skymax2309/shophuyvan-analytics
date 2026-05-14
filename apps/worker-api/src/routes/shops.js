@@ -23,6 +23,10 @@ function json(data, cors, status = 200) {
   return Response.json(data, { status, headers: cors })
 }
 
+function cleanText(value) {
+  return String(value ?? '').replace(/\u00a0/g, ' ').trim()
+}
+
 function syntheticShopApiId(value) {
   const text = cleanText(value)
   const match = text.match(/^(shopee|lazada)\s+(\d+)$/i)
@@ -483,22 +487,22 @@ export async function handleShopsWarehouse(request, env, cors) {
 
       const apiShopIdFromName = syntheticShopApiId(shopName)
 
-const existing = await env.DB.prepare(`
-  SELECT id, shop_name, api_partner_id, api_partner_key
-  FROM shops
-  WHERE platform = 'shopee'
-    AND (
-      shop_name = ?
-      OR user_name = ?
-      OR (? != '' AND api_shop_id = ?)
-    )
-  ORDER BY
-    CASE WHEN shop_name = ? THEN 0 ELSE 1 END,
-    CASE WHEN user_name = ? THEN 0 ELSE 1 END,
-    CASE WHEN shop_name LIKE 'Shopee %' THEN 1 ELSE 0 END,
-    id ASC
-  LIMIT 1
-`).bind(shopName, shopName, apiShopIdFromName, apiShopIdFromName, shopName, shopName).first()
+      const existing = await env.DB.prepare(`
+        SELECT id, shop_name, api_partner_id, api_partner_key
+        FROM shops
+        WHERE platform = 'shopee'
+          AND (
+            shop_name = ?
+            OR user_name = ?
+            OR (? != '' AND api_shop_id = ?)
+          )
+        ORDER BY
+          CASE WHEN shop_name = ? THEN 0 ELSE 1 END,
+          CASE WHEN user_name = ? THEN 0 ELSE 1 END,
+          CASE WHEN shop_name LIKE 'Shopee %' THEN 1 ELSE 0 END,
+          id ASC
+        LIMIT 1
+      `).bind(shopName, shopName, apiShopIdFromName, apiShopIdFromName, shopName, shopName).first()
 
       if (!existing && !partnerKey) {
         return json({ error: 'Shop mới cần nhập Partner Key' }, cors, 400)
