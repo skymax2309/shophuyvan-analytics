@@ -23,28 +23,51 @@ function json(data, cors, status = 200) {
   return Response.json(data, { status, headers: cors })
 }
 
-function cleanText(value) {
-  return String(value ?? '').replace(/\u00a0/g, ' ').trim()
+function syntheticShopApiId(value) {
+  const text = cleanText(value)
+  const match = text.match(/^(shopee|lazada)\s+(\d+)$/i)
+  if (match?.[2]) return match[2]
+  return /^\d{6,}$/.test(text) ? text : ''
+}
+
+function isSyntheticShopName(value) {
+  return /^(shopee|lazada)\s+\d+$/i.test(cleanText(value))
 }
 
 async function loadShopeeShop(env, { shopId, shopName }) {
+  const selectColumns = `
+    id, shop_name, user_name, api_shop_id, api_user_id, api_partner_id, api_partner_key,
+    api_redirect_url, access_token, refresh_token, token_expire_at, api_refresh_expire_at
+  `
+
   if (shopId) {
     return env.DB.prepare(`
-      SELECT id, shop_name, user_name, api_shop_id, api_user_id, api_partner_id, api_partner_key,
-             api_redirect_url, access_token, refresh_token, token_expire_at, api_refresh_expire_at
+      SELECT ${selectColumns}
       FROM shops
       WHERE id = ?
     `).bind(shopId).first()
   }
 
-  if (shopName) {
+  const name = cleanText(shopName)
+  if (name) {
+    const apiShopId = syntheticShopApiId(name)
+
     return env.DB.prepare(`
-      SELECT id, shop_name, user_name, api_shop_id, api_user_id, api_partner_id, api_partner_key,
-             api_redirect_url, access_token, refresh_token, token_expire_at, api_refresh_expire_at
+      SELECT ${selectColumns}
       FROM shops
-      WHERE platform = 'shopee' AND (shop_name = ? OR user_name = ?)
+      WHERE platform = 'shopee'
+        AND (
+          shop_name = ?
+          OR user_name = ?
+          OR (? != '' AND api_shop_id = ?)
+        )
+      ORDER BY
+        CASE WHEN shop_name = ? THEN 0 ELSE 1 END,
+        CASE WHEN user_name = ? THEN 0 ELSE 1 END,
+        CASE WHEN shop_name LIKE 'Shopee %' THEN 1 ELSE 0 END,
+        id ASC
       LIMIT 1
-    `).bind(shopName, shopName).first()
+    `).bind(name, name, apiShopId, apiShopId, name, name).first()
   }
 
   return null
@@ -448,7 +471,8 @@ export async function handleShopsWarehouse(request, env, cors) {
   if (request.method === 'POST' && url.pathname.endsWith('/shopee-app-config')) {
     try {
       const body = await request.json()
-      const shopName = String(body.shop_name || body.shop || body.user_name || '').trim()
+      const rawShopName = String(body.shop_name || body.shop || body.user_name || '').trim()
+      const shopName = rawShopName
       const partnerId = String(body.partner_id || body.partnerId || '').trim()
       const partnerKey = String(body.partner_key || body.partnerKey || '').trim()
       const redirectUrl = String(body.redirect || body.redirect_url || DEFAULT_SHOPEE_CALLBACK).trim()
@@ -457,12 +481,24 @@ export async function handleShopsWarehouse(request, env, cors) {
         return json({ error: 'Thiếu shop hoặc Partner ID' }, cors, 400)
       }
 
-      const existing = await env.DB.prepare(`
-        SELECT id, api_partner_id, api_partner_key
-        FROM shops
-        WHERE platform = 'shopee' AND (shop_name = ? OR user_name = ?)
-        LIMIT 1
-      `).bind(shopName, shopName).first()
+      const apiShopIdFromName = syntheticShopApiId(shopName)
+
+const existing = await env.DB.prepare(`
+  SELECT id, shop_name, api_partner_id, api_partner_key
+  FROM shops
+  WHERE platform = 'shopee'
+    AND (
+      shop_name = ?
+      OR user_name = ?
+      OR (? != '' AND api_shop_id = ?)
+    )
+  ORDER BY
+    CASE WHEN shop_name = ? THEN 0 ELSE 1 END,
+    CASE WHEN user_name = ? THEN 0 ELSE 1 END,
+    CASE WHEN shop_name LIKE 'Shopee %' THEN 1 ELSE 0 END,
+    id ASC
+  LIMIT 1
+`).bind(shopName, shopName, apiShopIdFromName, apiShopIdFromName, shopName, shopName).first()
 
       if (!existing && !partnerKey) {
         return json({ error: 'Shop mới cần nhập Partner Key' }, cors, 400)
@@ -498,10 +534,17 @@ export async function handleShopsWarehouse(request, env, cors) {
           existing.id
         ).run()
       } else {
-        await env.DB.prepare(`
-          INSERT INTO shops (shop_name, platform, user_name, api_partner_id, api_partner_key, api_redirect_url)
-          VALUES (?, 'shopee', ?, ?, ?, ?)
-        `).bind(shopName, shopName, partnerId, partnerKey, redirectUrl).run()
+        if (isSyntheticShopName(shopName)) {
+  return json({
+    error: 'Tên shop dạng Shopee <shop_id> là tên tạm. Hãy chọn hoặc tạo shop bằng tên thật trước khi lưu cấu hình API.',
+    shop_name: shopName
+  }, cors, 400)
+}
+
+await env.DB.prepare(`
+  INSERT INTO shops (shop_name, platform, user_name, api_partner_id, api_partner_key, api_redirect_url)
+  VALUES (?, 'shopee', ?, ?, ?, ?)
+`).bind(shopName, shopName, partnerId, partnerKey, redirectUrl).run()
       }
 
       return json({
