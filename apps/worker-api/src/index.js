@@ -11,7 +11,7 @@ import { uploadReport, getReportSummary, getOperationCosts,
          getReports, getReportFile }     from './routes/reports.js'
 import { createJob, getJobs, updateJob, deleteJob } from './routes/jobs.js'
 import { handleBotSettings } from './routes/bot-settings.js'
-import { getApiShops, handleApiOrderSync, handleApiStatusSync, handleApiProductSync, handleBuyerCancellationDecision, syncApiOrders, syncApiOrderStatuses, syncAdsCampaignSnapshots, syncLazadaReverseOrders, syncShopeeReturns } from './routes/api-sync.js'
+import { getApiShops, handleApiOrderSync, handleApiStatusSync, handleApiProductSync, handleBackfillMissingOrderItems, handleBuyerCancellationDecision, syncApiOrders, syncApiOrderStatuses, syncAdsCampaignSnapshots, syncLazadaReverseOrders, syncShopeeReturns } from './routes/api-sync.js'
 import { getOrderLabel, getLabelStatus, refreshOrderLabel, recordLabelFile } from './routes/labels.js'
 import { handleShopeeMarketplaceWebhook, handleLazadaMarketplaceWebhook, handleWebhookEventsStatus, handleWebhookSyncQueue, runMarketplacePushSyncQueueBatch } from './routes/marketplace-webhooks.js'
 import { handleAdvancedApiFeatures } from './routes/api-features.js'
@@ -59,6 +59,7 @@ const WORKER_ROUTE_DEPS = {
   handleApiOrderSync,
   handleApiStatusSync,
   handleApiProductSync,
+  handleBackfillMissingOrderItems,
   handleAdvancedApiFeatures,
   handleAdvancedModules,
   handleChat,

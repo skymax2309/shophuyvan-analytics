@@ -9,6 +9,7 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
     handleApiOrderSync,
     handleApiStatusSync,
     handleApiProductSync,
+    handleBackfillMissingOrderItems,
     handleAdvancedApiFeatures,
     handleAdvancedModules,
     handleChat,
@@ -169,6 +170,9 @@ url.pathname === "/api/products/publish-draft" ||
   // ── Import Orders ─────────────────────────────────────────────
   if (url.pathname === "/api/import-orders-v2")
     return importOrdersV2(request, env, cors)
+
+  if (url.pathname === "/api/orders/backfill-missing-items")
+    return handleBackfillMissingOrderItems(request, env, cors)
 
   if (url.pathname === "/api/orders/sync-api-orders")
     return handleApiOrderSync(request, env, cors)

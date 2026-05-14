@@ -1,5 +1,28 @@
 # Nhật Ký Tiến Độ Checklist Endpoint Marketplace
 
+# 2026-05-14 - Repair order_items thiếu và gom route Worker theo feature
+
+## Việc đã làm
+
+- Thêm endpoint `GET/POST /api/orders/backfill-missing-items` cho Shopee: đọc `orders_v2` đang thiếu `order_items`, gọi Shopee `/api/v2/order/get_order_detail` theo danh sách `order_id`, chỉ import detail có `item_list`.
+- Endpoint repair dùng lại `fetchShopeeOrderDetails()`, `buildShopeeImportPayload()` và luồng `importOrdersV2`; đặt `suppress_push=true`, `skip_inventory=true` để không đẩy realtime hoặc trừ kho cho đơn lịch sử.
+- Gom route Worker root vào folder theo feature và giữ wrapper mỏng để public API/import cũ không đổi; bản đồ nằm ở `docs/refactor-file-map.md`.
+- Ghi báo cáo cleanup dữ liệu tại `docs/data-cleanup-report.md`.
+
+## Trạng thái vận hành
+
+- Shop có API: Shopee có thể backfill item thiếu bằng endpoint repair riêng, không phụ thuộc `get_order_list` theo `update_time`.
+- Shop không API: không đổi luồng; không insert placeholder và không gắn nhãn đồng bộ API.
+- An toàn dữ liệu: không xóa `orders_v2`, không xóa `order_items` hợp lệ, không xóa đơn có revenue.
+
+## Đã deploy và kiểm production thật
+
+- Worker production đã deploy version `8fa2cd50-0ccc-4ee7-ab06-734fee038596`.
+- Production `GET /api/orders/backfill-missing-items?platform=shopee&shop=chihuy1984&limit=50` trả `status=ok`, `missing_before=47`, `fetched_details=47`, `details_with_items=47`, `imported_orders=47`, `imported_items=61`, `missing_after=0`.
+- Gọi lại endpoint repair cùng tham số trả `missing_before=0`, `selected_orders=0`, `missing_after=0`.
+- D1 remote sau backfill chỉ còn nhóm thiếu item của `chihuy1984` có `revenue=0`: `CANCELLED/CANCELLED` 13 đơn và `COMPLETED/COMPLETED` 3 đơn.
+- Route cũ `/api/orders/sync-api-orders` vẫn hoạt động khi smoke test giới hạn `platform=shopee&shop=chihuy1984&limit=1&fetch_fees=0&fetch_tracking=0`, trả `status=ok`, `fetched=1`, `imported_orders=1`, `imported_items=1`.
+
 # 2026-05-14 - Sửa doanh thu báo cáo, đơn hoàn âm tiền, SKU và quét đóng gói
 
 ## Việc đã làm

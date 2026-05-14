@@ -35,6 +35,7 @@ import { installApiSyncShopeeReturnsProfitImpact } from './api-sync/shopee/retur
 import { installApiSyncShopeeFinancePayoutInfo } from './api-sync/shopee/finance/payout-info.js'
 import { installApiSyncShopeeFinanceIncomeReports } from './api-sync/shopee/finance/income-reports.js'
 import { installApiSyncShopeeOrdersSync } from './api-sync/shopee/orders/sync.js'
+import { installApiSyncShopeeOrdersBackfillMissingItems } from './api-sync/shopee/orders/backfill-missing-items.js'
 import { installApiSyncAdsCommonDatesMetrics } from './api-sync/ads/common/dates-metrics.js'
 import { installApiSyncAdsCommonStorage } from './api-sync/ads/common/storage.js'
 import { installApiSyncAdsShopeeNormalizePerformance } from './api-sync/ads/shopee/normalize-performance.js'
@@ -66,6 +67,7 @@ installApiSyncShopeeReturnsProfitImpact(core)
 installApiSyncShopeeFinancePayoutInfo(core)
 installApiSyncShopeeFinanceIncomeReports(core)
 installApiSyncShopeeOrdersSync(core)
+installApiSyncShopeeOrdersBackfillMissingItems(core)
 installApiSyncAdsCommonDatesMetrics(core)
 installApiSyncAdsCommonStorage(core)
 installApiSyncAdsShopeeNormalizePerformance(core)
@@ -145,5 +147,6 @@ export const syncAdsCampaignSnapshots = (...args) => core.syncAdsCampaignSnapsho
 export const probeShopeeAdsApi = (...args) => core.probeShopeeAdsApi(...args)
 export const handleApiStatusSync = (...args) => core.handleApiStatusSync(...args)
 export const handleApiOrderSync = (...args) => core.handleApiOrderSync(...args)
+export const handleBackfillMissingOrderItems = (...args) => core.handleBackfillMissingOrderItems(...args)
 export const handleApiProductSync = (...args) => core.handleApiProductSync(...args)
 export const __test__ = core.__test__

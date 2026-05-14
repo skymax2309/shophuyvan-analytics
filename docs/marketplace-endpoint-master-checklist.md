@@ -78,6 +78,7 @@ File này là checklist sống để hoàn thiện dần toàn bộ tính năng 
 ### Tính năng có thể làm
 
 - Đồng bộ đơn thật từ API về `orders_v2`
+- 2026-05-14: thêm endpoint repair `GET/POST /api/orders/backfill-missing-items` cho Shopee shop có API; lấy order thiếu `order_items` từ DB rồi gọi `/api/v2/order/get_order_detail` theo đúng `order_id`, không chạy sync tổng và không xóa đơn có revenue. Production Worker `8fa2cd50-0ccc-4ee7-ab06-734fee038596` đã backfill shop `chihuy1984`: `47` đơn, `61` dòng item, `missing_after=0` cho nhóm có revenue.
 - Đồng bộ trạng thái chi tiết theo cập nhật mới nhất
 - Tách ledger hoàn/hủy/reverse riêng, không chỉ nhìn `order_status`
 - Phân tích lý do hủy theo shop, sàn, SKU, người bán hủy hay khách hủy
