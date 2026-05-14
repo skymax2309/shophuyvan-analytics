@@ -4,6 +4,7 @@
     └── .gitignore
     └── AGENTS.md
     └── project_tree_full.txt
+    └── schema_huyvan-analytics-db.sql
     ├── .github/
         ├── workflows/
             └── code-size-guard.yml
@@ -41,6 +42,15 @@
                     └── chat-thread.css
                     └── marketplace-mobile.css
                     └── shared-controls.css
+                ├── features/
+                    ├── chat-zalo/
+                        └── chat-zalo-inline-1.css
+                    ├── cost-settings/
+                        └── cost-settings-inline-1.css
+                    ├── import-sku-tool/
+                        └── import-sku-tool-inline-1.css
+                    ├── reviews/
+                        └── reviews-inline-1.css
                 ├── oms-dashboard/
                     └── label-printing.css
                     └── layout-api.css
@@ -176,6 +186,22 @@
                         └── income-template-a.js
                         └── income-template-b.js
                         └── netprofit-template.js
+                ├── features/
+                    ├── admin-products/
+                        └── admin-products-inline-1.js
+                    ├── chat-zalo/
+                        └── chat-zalo-inline-1.js
+                    ├── import-sku-tool/
+                        └── import-sku-tool-inline-1.js
+                    ├── oms-dashboard/
+                        └── oms-dashboard-inline-1.js
+                    ├── profit-dashboard/
+                        └── profit-dashboard-inline-1.js
+                        └── profit-dashboard-inline-2.js
+                    ├── report-upload/
+                        └── report-upload-inline-1.js
+                    ├── sku/
+                        └── sku-inline-1.js
                 ├── modules/
                     └── handler-lazada.js
                     └── handler-shopee.js
@@ -299,6 +325,9 @@
                 ├── handlers/
                     └── auth.js
                     └── report-parsers.js
+                ├── modules/
+                    ├── api-sync/
+                        └── sync-diagnostics.js
                 ├── routes/
                     └── admin-auth.js
                     └── ads.js
@@ -483,19 +512,28 @@
                     └── file-routes.js
                     └── order-routes.js
                     └── primary-routes.js
+    ├── artifacts/
+        └── prod-oms_dashboard-mobile.png
+        └── prod-shop_api_status-mobile.png
+        └── prod-smoke-20260514.json
     ├── docs/
         └── ai-support-policy-rules.json
         └── ai-support-policy.md
         └── api-endpoint-notes.txt
         └── d1-data-hygiene-audit.md
+        └── database-cleanup-plan.md
         └── file-structure-kb-2026-05-13-promotion-chat-video.txt
         └── marketplace-endpoint-master-checklist.md
         └── marketplace-endpoint-progress.md
         └── python-automation.md
-        └── schema_huyvan-analytics-db.sql
+        └── sql-optimization-report.md
+        ├── migrations/
+            └── 001_refactor_api_sync_realtime_indexes.sql
     ├── scripts/
         └── check-ads-guard-cdp.mjs
         └── check-code-size.mjs
+        └── check-fe-separation.mjs
+        └── check-file-size.mjs
         └── check-oms-fee-phase1-cdp.mjs
         └── check-oms-logistics-browser.mjs
         └── check-order-analytics-browser.mjs
@@ -504,6 +542,7 @@
         └── check-video-dashboard-cdp.mjs
         └── ensure-oms-radar.ps1
         └── export-project-tree-kb.mjs
+        └── extract-fe-inline-assets.mjs
         └── inspect-admin-products-cdp.mjs
         └── inspect-admin-products-shop-mobile-cdp.mjs
         └── inspect-product-detail-cdp.mjs

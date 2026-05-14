@@ -6,6 +6,17 @@ import { buildOrderTransportSummary, ensureOrderTransportColumns } from '../../c
 import { actualCarrierSql, ensureOrderFeeDetailsReadTable, feeRawNumberSql, getImportCarrier, getImportTracking, loadOrderFeePhase1Context, normalizeCarrierByTracking } from './cost-resolution.js'
 import { refreshInventoryMovementsForOrders } from './export-cost-stock.js'
 import { addCancelledWorkflowCondition, addReturnWorkflowCondition, cleanOrderText, ensureOrderReturnComplaintColumns, expandOmsStatusFilter, keepHigherPendingProgress, normalizeDisplayItemsForOrder, normalizeImportedWorkflowStatus, normalizeOmsStatusPair, normalizePlatform, orderTypeFromWorkflowStatus, shouldLimitActivePendingWindow } from './status-workflow.js'
+function cleanYmdParam(value) {
+  const text = cleanOrderText(value)
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
+function addDaysYmd(ymd, days = 1) {
+  const [year, month, day] = String(ymd || '').split('-').map(Number)
+  if (!year || !month || !day) return ymd
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return date.toISOString().slice(0, 10)
+}
 
 export async function normalizeOrderWorkflowStatuses(request, env, cors) {
   const url = new URL(request.url)
@@ -129,10 +140,28 @@ export async function getOrders(request, env, cors) {
   const conds  = ["1=1"]
   const params = []
 
-  if (from)   { conds.push(`date(o.order_date) >= ?`); params.push(from) }
-  if (to)     { conds.push(`date(o.order_date) <= ?`); params.push(to) }
-  if (plt)    { conds.push(`o.platform = ?`);          params.push(plt) }
-  if (shop)   { conds.push(`LOWER(TRIM(o.shop)) = LOWER(TRIM(?))`); params.push(shop) }
+    const fromYmd = cleanYmdParam(from)
+  const toYmd = cleanYmdParam(to)
+
+  if (fromYmd) {
+    conds.push(`o.order_date >= ?`)
+    params.push(fromYmd)
+  }
+
+  if (toYmd) {
+    conds.push(`o.order_date < ?`)
+    params.push(addDaysYmd(toYmd, 1))
+  }
+
+  if (plt) {
+    conds.push(`o.platform = ?`)
+    params.push(plt)
+  }
+
+  if (shop) {
+    conds.push(`o.shop = ?`)
+    params.push(shop)
+  }
   if (type) {
     // Lọc theo loại đơn dựa trên core trạng thái, nên đơn RETURN/CANCELLED từ API vẫn lọt đúng tab dù order_type cũ chưa sạch.
     const normalizedType = cleanOrderText(type).toLowerCase()
@@ -536,7 +565,7 @@ export async function getOrderChanges(request, env, cors) {
       cost_real,
       oms_updated_at
     FROM orders_v2
-    ORDER BY datetime(COALESCE(oms_updated_at, order_date)) DESC, datetime(order_date) DESC, order_id DESC
+    ORDER BY oms_updated_at DESC, order_date DESC, order_id DESC
     LIMIT ?
   `).bind(limit).all()
 
