@@ -15,6 +15,13 @@ export function cleanDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
 }
 
+export function addDaysYmd(ymd, days = 1) {
+  const [year, month, day] = String(ymd || '').split('-').map(Number)
+  if (!year || !month || !day) return ymd
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return date.toISOString().slice(0, 10)
+}
+
 export function dateYmd(date) {
   // NEO: Chuẩn ngày báo cáo theo múi giờ vận hành Việt Nam, tránh lệch ngày khi Worker chạy UTC.
   const shifted = new Date(date.getTime() + 7 * 3600 * 1000)
@@ -57,14 +64,28 @@ export function buildAnalyticsWhere(options, alias = 'oa') {
   const prefix = alias ? `${alias}.` : ''
   const conds = ['1=1']
   const params = []
-  if (options.from) { conds.push(`date(${prefix}order_date) >= ?`); params.push(options.from) }
-  if (options.to) { conds.push(`date(${prefix}order_date) <= ?`); params.push(options.to) }
-  if (options.platform) { conds.push(`${prefix}platform = ?`); params.push(options.platform) }
+
+  if (options.from) {
+    conds.push(`${prefix}order_date >= ?`)
+    params.push(options.from)
+  }
+
+  if (options.to) {
+    conds.push(`${prefix}order_date < ?`)
+    params.push(addDaysYmd(options.to, 1))
+  }
+
+  if (options.platform) {
+    conds.push(`${prefix}platform = ?`)
+    params.push(options.platform)
+  }
+
   const shops = options.shops?.length ? options.shops : (options.shop ? [options.shop] : [])
   if (shops.length) {
     conds.push(`${prefix}shop IN (${shops.map(() => '?').join(',')})`)
     params.push(...shops)
   }
+
   return { where: `WHERE ${conds.join(' AND ')}`, params }
 }
 
@@ -72,14 +93,28 @@ export function buildOrderWhere(options, alias = 'o') {
   const prefix = alias ? `${alias}.` : ''
   const conds = [`${prefix}order_type = 'normal'`]
   const params = []
-  if (options.from) { conds.push(`date(${prefix}order_date) >= ?`); params.push(options.from) }
-  if (options.to) { conds.push(`date(${prefix}order_date) <= ?`); params.push(options.to) }
-  if (options.platform) { conds.push(`${prefix}platform = ?`); params.push(options.platform) }
+
+  if (options.from) {
+    conds.push(`${prefix}order_date >= ?`)
+    params.push(options.from)
+  }
+
+  if (options.to) {
+    conds.push(`${prefix}order_date < ?`)
+    params.push(addDaysYmd(options.to, 1))
+  }
+
+  if (options.platform) {
+    conds.push(`${prefix}platform = ?`)
+    params.push(options.platform)
+  }
+
   const shops = options.shops?.length ? options.shops : (options.shop ? [options.shop] : [])
   if (shops.length) {
     conds.push(`${prefix}shop IN (${shops.map(() => '?').join(',')})`)
     params.push(...shops)
   }
+
   return { where: `WHERE ${conds.join(' AND ')}`, params }
 }
 
