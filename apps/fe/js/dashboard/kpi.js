@@ -104,7 +104,7 @@ async function loadDashboard() {
   const t1_fee_tax_pit = dash.total_fee_tax_pit     || 0
   const t1_fixed_from_order = dash.total_fixed_fee  || 0
   const t1_fixed = t1_fixed_from_order + opPackagingTotal
-  const t1_fee_detail = t1_disc + t1_comm + t1_svc + t1_pay + t1_aff + t1_ads + t1_pish + t1_handling + t1_shipping + t1_fee_tax_vat + t1_fee_tax_pit + t1_fixed
+  const t1_fee_detail = t1_disc + t1_disc_shopee + t1_disc_combo + t1_comm + t1_svc + t1_pay + t1_aff + t1_ads + t1_pish + t1_handling + t1_shipping + t1_fee_tax_vat + t1_fee_tax_pit + t1_fixed
   const t1_fee_fallback = (dash.total_fee || 0) + opPackagingTotal
   // Một số ngày đã có tổng phí thật trong orders_v2.fee nhưng chưa tách được từng bucket phí.
   // Khi đó card lợi nhuận phải dùng tổng lớn hơn để không hiển thị 0 và không làm sai lãi.

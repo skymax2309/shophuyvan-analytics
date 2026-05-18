@@ -27,3 +27,10 @@ Ngày cập nhật: 2026-05-14.
 - Không insert placeholder cho shop có API.
 - Không chạy sync tổng `/api/orders/sync-api-orders` trong endpoint repair.
 - Không dùng fallback phí/vốn để thay thế dữ liệu tài chính thật khi endpoint sàn chưa đủ.
+
+## Cập nhật kiểm tra 2026-05-14
+
+- Endpoint repair `GET/POST /api/orders/backfill-missing-items` đã được giữ làm luồng riêng cho đơn cũ thiếu item, không gọi sync tổng theo `update_time`.
+- Kết quả production gần nhất với shop Shopee `chihuy1984`: `missing_before=47`, `imported_items=61`, `missing_after=0`.
+- Nhóm còn trùng theo SKU nhưng khác `revenue_line` hoặc `image_url` vẫn không xóa tiếp vì có thể là dòng hàng thật khác nguồn giá/ảnh.
+- Đơn có `revenue > 0` tiếp tục được giữ để đối soát; nếu thiếu item thì backfill bằng detail API theo đúng `order_id`.

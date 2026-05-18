@@ -213,9 +213,82 @@ async function ensureChatTablesFresh(env) {
     )
   `).run()
 
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "buyer_id_masked TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "inbound_text_masked TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "final_sent_text TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "ai_confidence REAL DEFAULT 0")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "send_status TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "skipped_reason TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "shopee_message_id TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "shopee_response_code TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "shopee_response_message TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "error_code TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "error_message TEXT DEFAULT ''")
+  await addColumnIfMissing(env, 'marketplace_chat_ai_auto_reply_logs', "sent_at TEXT DEFAULT ''")
+
   await env.DB.prepare(`
     CREATE INDEX IF NOT EXISTS idx_marketplace_chat_ai_auto_reply_logs_lookup
     ON marketplace_chat_ai_auto_reply_logs(platform, shop, conversation_id, source_message_id, mode, created_at)
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS marketplace_chat_shop_auto_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shop_id TEXT DEFAULT '',
+      shop_name TEXT DEFAULT '',
+      platform TEXT DEFAULT 'shopee',
+      ai_auto_reply_enabled INTEGER DEFAULT 0,
+      ghn_auto_message_enabled INTEGER DEFAULT 0,
+      chat_api_status TEXT DEFAULT 'disconnected',
+      marketplace_api_status TEXT DEFAULT '',
+      last_chat_sync_at TEXT DEFAULT '',
+      last_ai_reply_at TEXT DEFAULT '',
+      daily_ai_reply_count INTEGER DEFAULT 0,
+      max_ai_reply_per_day INTEGER DEFAULT 20,
+      business_hours_enabled INTEGER DEFAULT 0,
+      business_hours_config TEXT DEFAULT '{}',
+      manual_takeover_enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now', '+7 hours')),
+      updated_at TEXT DEFAULT (datetime('now', '+7 hours')),
+      UNIQUE(platform, shop_id, shop_name)
+    )
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_marketplace_chat_shop_auto_settings_scope
+    ON marketplace_chat_shop_auto_settings(platform, shop_id, shop_name)
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS marketplace_chat_ghn_message_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_sn TEXT DEFAULT '',
+      shop_id TEXT DEFAULT '',
+      shop_name TEXT DEFAULT '',
+      platform TEXT DEFAULT 'shopee',
+      carrier TEXT DEFAULT '',
+      logistics_channel_id TEXT DEFAULT '',
+      package_number TEXT DEFAULT '',
+      tracking_number TEXT DEFAULT '',
+      message_type TEXT DEFAULT 'ghn_notice',
+      message_template_id TEXT DEFAULT '',
+      message_text TEXT DEFAULT '',
+      send_status TEXT DEFAULT 'pending',
+      shopee_message_id TEXT DEFAULT '',
+      shopee_response_code TEXT DEFAULT '',
+      shopee_response_message TEXT DEFAULT '',
+      error_code TEXT DEFAULT '',
+      error_message TEXT DEFAULT '',
+      raw_response_masked TEXT DEFAULT '{}',
+      sent_at TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', '+7 hours')),
+      UNIQUE(platform, shop_id, order_sn, message_type)
+    )
+  `).run()
+
+  await env.DB.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_marketplace_chat_ghn_message_logs_lookup
+    ON marketplace_chat_ghn_message_logs(platform, shop_id, send_status, created_at)
   `).run()
 
   await env.DB.prepare(`

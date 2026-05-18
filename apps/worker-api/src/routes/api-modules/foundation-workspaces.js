@@ -1,4 +1,4 @@
-import { listMarketplaceShopCapabilities } from '../../core/marketplace-shop-capability-core.js'
+import { listMarketplaceShopCapabilities } from '../../core/marketplace/shop-capability-core.js'
 
 export function json(data, cors, status = 200) {
   return Response.json(data, { status, headers: cors })

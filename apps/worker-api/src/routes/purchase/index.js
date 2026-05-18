@@ -1,4 +1,4 @@
-// src/routes/purchase.js
+// Route mua hàng nội bộ, đã chuyển vào feature purchase.
 
 export async function handlePurchase(request, env, cors) {
   const url = new URL(request.url);

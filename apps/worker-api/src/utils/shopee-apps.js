@@ -1,6 +1,6 @@
 const DEFAULT_SHOPEE_APP = {
-  partnerId: "2013730",
-  partnerKey: "shpk66746e4845745341714d6b63656a5a6c7049524b7444486c4a686c4d4a4d",
+  partnerId: "",
+  partnerKey: "",
   redirect: "https://huyvan-worker-api.nghiemchihuy.workers.dev/channels/shopee/callback"
 }
 
@@ -31,6 +31,35 @@ export function getShopeeAppFromRow(env, row, fallbackHint = "") {
     partnerKey,
     redirect: clean(row?.api_redirect_url) || fallback.redirect
   }
+}
+
+function clientEnvApp(env, clientType) {
+  const type = clean(clientType).toLowerCase()
+  if (type === 'ads' || type === 'ads_client') {
+    return normalizeAppConfig({
+      partner_id: env.SHOPEE_ADS_PARTNER_ID,
+      partner_key: env.SHOPEE_ADS_PARTNER_KEY,
+      redirect: env.SHOPEE_ADS_REDIRECT_URL
+    })
+  }
+  if (type === 'chat' || type === 'chat_client' || type === 'sellerchat') {
+    return normalizeAppConfig({
+      partner_id: env.SHOPEE_CHAT_PARTNER_ID || env.SHOPEE_MARKETPLACE_PARTNER_ID,
+      partner_key: env.SHOPEE_CHAT_PARTNER_KEY || env.SHOPEE_MARKETPLACE_PARTNER_KEY,
+      redirect: env.SHOPEE_CHAT_REDIRECT_URL || env.SHOPEE_MARKETPLACE_REDIRECT_URL
+    })
+  }
+  return normalizeAppConfig({
+    partner_id: env.SHOPEE_MARKETPLACE_PARTNER_ID,
+    partner_key: env.SHOPEE_MARKETPLACE_PARTNER_KEY,
+    redirect: env.SHOPEE_MARKETPLACE_REDIRECT_URL
+  })
+}
+
+export function getShopeeAppFromRowForClient(env, row, clientType = 'marketplace_client', fallbackHint = "") {
+  const separated = clientEnvApp(env, clientType)
+  if (separated) return separated
+  return getShopeeAppFromRow(env, row, fallbackHint)
 }
 
 export async function getShopeeAppForShop(env, db, shopOrPartnerId = "") {
@@ -96,6 +125,7 @@ export function buildShopeeCallbackUrl(baseUrl, shopName = "") {
 }
 
 export async function signHmacHex(keyStr, message) {
+  if (!clean(keyStr)) throw new Error("Missing Shopee partner_key. Configure SHOPEE_PARTNER_KEY or shop api_partner_key.")
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey("raw", encoder.encode(keyStr), { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(message))

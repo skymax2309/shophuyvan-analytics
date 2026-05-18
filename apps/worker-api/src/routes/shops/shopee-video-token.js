@@ -4,7 +4,7 @@ import {
   cleanShopeeVideoAuthText,
   ensureShopeeVideoAuthColumns,
   getShopeeVideoAppFromRow
-} from '../../core/shopee-video-auth-core.js'
+} from '../../core/shops/shopee-video-auth-core.js'
 
 const SHOPEE_REFRESH_DAYS = 30
 

@@ -1,5 +1,5 @@
-import { listMarketplaceShopCapabilities } from '../../core/marketplace-shop-capability-core.js'
-import { ensureVideoAnalyticsTables, readMarketplaceVideoLibrary } from '../../core/video-analytics-core.js'
+import { listMarketplaceShopCapabilities } from '../../core/marketplace/shop-capability-core.js'
+import { ensureVideoAnalyticsTables, readMarketplaceVideoLibrary } from '../../core/video/analytics-core.js'
 import { listVideoCatalogProducts } from '../../core/video/catalog-core.js'
 import { loadShopeeVideoShop } from './lazada-media.js'
 import { canUseShopeeVideoApi, shopeeVideoIdentityWarning } from './shared-api-client.js'

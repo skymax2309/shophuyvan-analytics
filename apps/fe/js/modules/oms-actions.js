@@ -1,7 +1,7 @@
 // ==========================================
 // MODULE: QUẢN LÝ CÁC HÀNH ĐỘNG (ACTION LAYER)
 // ==========================================
-import { API } from '../oms-api.js';
+import { API } from '../oms-dashboard/oms-api.js';
 import { showToast } from '../utils/helpers.js';
 import { wakeRadarLocal } from './oms-radar-helper.js';
 const CHAT_ORDER_JUMP_STORAGE_PREFIX = `shv_chat_order_jump:${location.origin}:`
@@ -96,10 +96,11 @@ async function patchOmsStatus(ids, omsStatus, shippingStatus) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ order_ids: ids, oms_status: omsStatus, shipping_status: shippingStatus })
   });
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const msg = await res.text().catch(() => '');
-    throw new Error(msg || 'Không cập nhật được trạng thái OMS');
+    throw new Error(data.error || data.message || 'Không cập nhật được trạng thái OMS');
   }
+  return data;
 }
 
 async function loadLabelStatus(orderId) {
@@ -108,6 +109,13 @@ async function loadLabelStatus(orderId) {
   if (!res.ok || data.error && data.error !== 'not_found') {
     return { order_id: orderId, has_label: false, error: data.error || 'Không kiểm tra được tem.' }
   }
+  return data
+}
+
+async function refreshLabelByApi(orderId) {
+  const res = await fetch(`${API}/api/labels/refresh/${encodeURIComponent(orderId)}`, { method: 'POST' })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) throw new Error(data.error || 'Không tải lại được tem bằng API.')
   return data
 }
 
@@ -170,16 +178,37 @@ async function requestLabelRefresh(rows) {
 async function ensureLabelsBeforePacked(ids) {
   const cache = Array.isArray(getCacheFn?.()) ? getCacheFn() : []
   const selected = ids.map(id => cache.find(order => String(order.order_id || '') === String(id)) || { order_id: id })
-  const rowsNeedLabel = selected.filter(order => ['shopee', 'tiktok'].includes(normalizePlatform(order.platform)))
+  const rowsNeedLabel = selected.filter(order => ['shopee', 'lazada', 'tiktok'].includes(normalizePlatform(order.platform)))
   if (!rowsNeedLabel.length) return true
 
-  // Đơn Shopee/TikTok phải có tem đã lưu trước khi chốt đóng gói để khiếu nại/video đóng gói có đủ bằng chứng.
+  // Đơn sàn có tem vận chuyển phải có file thật trước khi chốt đóng gói để khiếu nại/video đóng gói có đủ bằng chứng.
   const statuses = await Promise.all(rowsNeedLabel.map(async order => ({
     ...order,
     ...(await loadLabelStatus(order.order_id))
   })))
-  const missing = statuses.filter(row => !row.has_label)
+  let missing = statuses.filter(row => !row.has_label)
   if (!missing.length) return true
+
+  const apiMissing = missing.filter(row => row.refresh_mode === 'api')
+  if (apiMissing.length) {
+    const refreshed = []
+    const failed = []
+    for (const row of apiMissing) {
+      try {
+        await refreshLabelByApi(row.order_id)
+        const latest = await loadLabelStatus(row.order_id)
+        if (latest.has_label) refreshed.push(row.order_id)
+        else failed.push({ ...row, error: latest.error || 'Tem chưa xuất hiện sau khi tải lại API.' })
+      } catch (error) {
+        failed.push({ ...row, error: error.message })
+      }
+    }
+    missing = missing.filter(row => row.refresh_mode !== 'api').concat(failed)
+    if (!missing.length) {
+      showToast(`Đã tự tải lại tem cho ${refreshed.length} đơn bằng API, tiếp tục chuyển Đã đóng gói.`, 5000)
+      return true
+    }
+  }
 
   const sample = missing.slice(0, 3).map(row => row.order_id).join(', ')
   const result = await requestLabelRefresh(missing)
@@ -368,7 +397,9 @@ export async function markPacked() {
   if (!confirm(`Xác nhận đã đóng gói xong ${ids.length} đơn?`)) return;
   try {
     if (!(await ensureLabelsBeforePacked(ids))) return;
-    await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_PACKAGED');
+    const statusResult = await patchOmsStatus(ids, 'PENDING', 'LOGISTICS_PACKAGED');
+    const firstRefreshJob = statusResult?.label_autofill?.jobs?.[0];
+    if (firstRefreshJob?.id) await wakeRadarLocal('refresh_label', firstRefreshJob.id);
     notifyStatusUpdated(ids, 'PENDING', 'LOGISTICS_PACKAGED', 'Đã chuyển sang Đã đóng gói.');
     showToast(`📦 Đã đóng gói xong ${ids.length} đơn`);
     if (clearCheckFn) clearCheckFn();

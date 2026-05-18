@@ -5,7 +5,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --check src/index.js && node --check src/worker-router/primary-routes.js && node --check src/routes/api/index.js && node --check src/routes/external/index.js && node --check src/core/external/response-core.js && node --check src/core/external/schema-core.js && node --check src/core/external/security-core.js && node --check src/core/external/product-core.js && node --check src/core/external/inventory-core.js && node --check src/core/external/order-core.js && node --check src/core/external/webhook-core.js",
+    "test:shopee-core": "node ../../scripts/test-shopee-api-core.mjs",
+    "shopee:audit": "node ../../scripts/shopee-live-api-audit.mjs",
+    "shopee:test:dry": "node ../../scripts/shopee-live-api-audit.mjs",
+    "shopee:test:live": "node ../../scripts/shopee-live-api-audit.mjs --live"
   },
   "keywords": [],
   "author": "",

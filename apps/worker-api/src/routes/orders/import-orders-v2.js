@@ -1,6 +1,6 @@
-import { ensureOrderTransportColumns, resolveOrderSourceMeta } from '../../core/order-transport-core.js'
+import { ensureOrderTransportColumns, resolveOrderSourceMeta } from '../../core/orders/transport-core.js'
 import { calcProfit, getCostSettings } from '../../utils/db.js'
-import { notifyOrderSubscribers } from '../worker-chat-marketplace-route.js'
+import { notifyOrderSubscribers } from '../marketplace-chat/index.js'
 import { buildProductLookup, feeFieldsFromPayload, firstOrderText, getImportCarrier, getImportShippingStatus, getImportTracking, loadSkuResolutionMaps, normalizeCarrierByTracking, resolveItemProduct, skuLookupKeys } from './cost-resolution.js'
 import { applyInventoryMovements, loadOrderPushRows, orderPushSignature } from './export-cost-stock.js'
 import { cleanOrderText, compactOrderItemsByIdentity, dedupeIncomingItemsByOrder, ensureOrderBuyerIdentityColumns, normalizeImportedWorkflowStatus, orderTypeFromWorkflowStatus } from './status-workflow.js'

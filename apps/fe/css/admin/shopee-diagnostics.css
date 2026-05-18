@@ -1,0 +1,186 @@
+.shopee-diagnostics-page {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.diag-hero,
+.diag-card {
+  background: #ffffff;
+  border: 1px solid #d9e2ee;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .08);
+  padding: 16px;
+}
+
+.diag-hero {
+  display: grid;
+  gap: 16px;
+}
+
+.diag-hero h1 {
+  font-size: 24px;
+  margin: 0 0 8px;
+}
+
+.diag-hero p {
+  color: #64748b;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.diag-form {
+  display: grid;
+  gap: 10px;
+}
+
+.diag-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.diag-form input {
+  border: 1px solid #d9e2ee;
+  border-radius: 8px;
+  font-size: 14px;
+  padding: 11px 12px;
+}
+
+.diag-status {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1d4ed8;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 12px 14px;
+}
+
+.diag-status.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.diag-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.diag-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.diag-card h2 {
+  font-size: 17px;
+  margin: 0;
+}
+
+.diag-kpis,
+.diag-list {
+  display: grid;
+  gap: 8px;
+}
+
+.diag-kpis {
+  grid-template-columns: 1fr;
+}
+
+.diag-kpi,
+.diag-row {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.diag-kpi span,
+.diag-row span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.diag-kpi b,
+.diag-row b {
+  overflow-wrap: anywhere;
+}
+
+.diag-badge {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 4px 8px;
+  width: fit-content;
+}
+
+.diag-badge.pass {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.diag-badge.fail {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.diag-badge.warn {
+  background: #fefce8;
+  color: #854d0e;
+}
+
+.diag-tests {
+  display: grid;
+  gap: 10px;
+}
+
+.diag-test {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.diag-test-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.diag-test code,
+.diag-json {
+  background: #0f172a;
+  border-radius: 8px;
+  color: #e2e8f0;
+  display: block;
+  font-size: 12px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+}
+
+@media (min-width: 760px) {
+  .shopee-diagnostics-page {
+    padding: 24px;
+  }
+
+  .diag-hero {
+    align-items: end;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  }
+
+  .diag-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

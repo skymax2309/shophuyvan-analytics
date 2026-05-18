@@ -14,7 +14,7 @@ export function installDiscountsShopeePromotionsSyncPrograms(core) {
   const fetchShopeeJsonGet = (...args) => core.fetchShopeeJsonGet(...args)
   const firstVoucherValue = (...args) => core.firstVoucherValue(...args)
   const getApiShops = core.getApiShops
-  const getShopeeAppFromRow = core.getShopeeAppFromRow
+  const getShopeeAppFromRowForClient = core.getShopeeAppFromRowForClient || core.getShopeeAppFromRow
   const makePromotionItem = (...args) => core.makePromotionItem(...args)
   const makePromotionProgram = (...args) => core.makePromotionProgram(...args)
   const num = (...args) => core.num(...args)
@@ -27,6 +27,13 @@ export function installDiscountsShopeePromotionsSyncPrograms(core) {
   const shopeeTimeStatus = (...args) => core.shopeeTimeStatus(...args)
   const signShopeeUrl = (...args) => core.signShopeeUrl(...args)
   const voucherShopName = (...args) => core.voucherShopName(...args)
+
+  function marketplaceRuntimeAuth(env, shop) {
+    return {
+      accessToken: cleanText(env?.SHOPEE_MARKETPLACE_ACCESS_TOKEN) || cleanText(shop.access_token),
+      shopId: cleanText(env?.SHOPEE_MARKETPLACE_SHOP_ID) || cleanText(shop.api_shop_id)
+    }
+  }
 
   function shopeePromotionProgramFromRow(shop, module, row, idKey, nameKey, requestId = '', detail = {}) {
     const start = Math.round(num(firstVoucherValue(row, 'start_time')))
@@ -162,10 +169,11 @@ export function installDiscountsShopeePromotionsSyncPrograms(core) {
     const itemLimit = Math.min(Math.max(Number(options.item_limit || options.itemLimit || 20) || 20, 0), 200)
     const status = cleanText(options.status || options.promotion_status || 'all').toLowerCase() || 'all'
     const resultBase = { shop: shopName, api_shop_id: String(shop.api_shop_id || ''), platform: 'shopee', module, status }
-    if (!shop.access_token || !shop.api_shop_id) return { ...resultBase, ok: false, error: 'missing_token_or_shop_id', programs: [], items: [] }
+    const runtimeAuth = marketplaceRuntimeAuth(env, shop)
+    if (!runtimeAuth.accessToken || !runtimeAuth.shopId) return { ...resultBase, ok: false, error: 'missing_token_or_shop_id', programs: [], items: [] }
 
     try {
-      const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shopName)
+      const app = getShopeeAppFromRowForClient(env, shop, 'marketplace_client', shop.api_partner_id || shopName)
       const listConfig = {
         bundle_deal: {
           path: SHOPEE_BUNDLE_DEAL_LIST_PATH,
@@ -201,7 +209,7 @@ export function installDiscountsShopeePromotionsSyncPrograms(core) {
       }[module]
       if (!listConfig) return { ...resultBase, ok: false, error: 'unknown_module', programs: [], items: [] }
 
-      const buildListUrl = signShopeeUrl(app, listConfig.path, shop.access_token, shop.api_shop_id)
+      const buildListUrl = signShopeeUrl(app, listConfig.path, runtimeAuth.accessToken, runtimeAuth.shopId)
       const programs = []
       const items = []
       let pageNo = 1
@@ -219,13 +227,13 @@ export function installDiscountsShopeePromotionsSyncPrograms(core) {
       if (includeDetail) {
         for (const program of programs.slice(0, detailLimit)) {
           try {
-            const buildDetailUrl = signShopeeUrl(app, listConfig.detailPath, shop.access_token, shop.api_shop_id)
+            const buildDetailUrl = signShopeeUrl(app, listConfig.detailPath, runtimeAuth.accessToken, runtimeAuth.shopId)
             const detailData = await fetchShopeeJsonGet(buildDetailUrl, listConfig.detailParams(program))
             const detail = listConfig.normalizeDetail(detailData, shop, parseJson(program.raw_data, {}))
             detailRows.push(detail)
             for (const call of listConfig.itemCalls(program).slice(0, itemLimit ? 3 : 0)) {
               try {
-                const buildItemUrl = signShopeeUrl(app, call.path, shop.access_token, shop.api_shop_id)
+                const buildItemUrl = signShopeeUrl(app, call.path, runtimeAuth.accessToken, runtimeAuth.shopId)
                 const itemData = await fetchShopeeJsonGet(buildItemUrl, call.params)
                 items.push(...call.normalize(itemData))
               } catch (itemError) {

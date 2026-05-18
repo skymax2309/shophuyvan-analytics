@@ -61,6 +61,32 @@ function setPromotionUpdateStatus(html, tone = 'empty') {
   box.innerHTML = `<div class="${className}">${html}</div>`
 }
 
+function normalizeShopeeRealActionStaticCopy() {
+  const replacements = new Map([
+    ['Cập nhật cache Discount', 'Đồng bộ Discount từ Shopee API'],
+    ['Phân tích không gọi Shopee API. Cập nhật cache dùng chế độ incremental từ lần đồng bộ gần nhất.', 'Phân tích đọc D1. Chỉ nút đồng bộ mới gọi Shopee API read-only; nếu lỗi quyền/token thì dữ liệu còn lại là cache cũ.'],
+    ['Shopee Voucher, Bundle, Add-On và Flash Sale đã có nút preview/apply ghi thật qua API. Luôn preview payload, nhập xác nhận rồi mới gửi lên Shopee.', 'Chưa coi Voucher, Bundle, Add-On và Flash Sale là ghi thật nếu diagnostics marketplace_client chưa PASS và chưa có refetch verify từ Shopee. App Ads Service không được dùng thay quyền Marketing/Seller.'],
+    ['Cập nhật cache', 'Đồng bộ API'],
+    ['Hàng đợi duyệt', 'Hàng đợi nội bộ'],
+    ['Mở cập nhật cache', 'Mở đồng bộ API'],
+    ['Cập nhật toàn bộ read-only', 'Đồng bộ read-only từ API sàn'],
+    ['Cập nhật theo bộ lọc', 'Đồng bộ theo bộ lọc'],
+    ['Xóa chi tiết', 'Ẩn chi tiết đang xem'],
+    ['Tải hàng đợi duyệt', 'Tải hàng đợi nội bộ']
+  ])
+  // Các nhãn HTML tĩnh cũ được thay ở runtime để người vận hành không hiểu nhầm cache/preview là thao tác thật.
+  document.querySelectorAll('button, span, .ads-promotion-warning, .ads-action-help').forEach(el => {
+    const nextText = replacements.get((el.textContent || '').trim())
+    if (nextText) el.textContent = nextText
+  })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', normalizeShopeeRealActionStaticCopy, { once: true })
+} else {
+  normalizeShopeeRealActionStaticCopy()
+}
+
 const PROMOTION_FEATURE_CATALOG = [
   {
     key: 'shopee_discount',
@@ -72,9 +98,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Discount',
     status: 'ongoing',
     description: 'Giảm giá trực tiếp theo sản phẩm/SKU, dùng để chỉnh giá KM theo tồn kho và hiệu quả ADS.',
-    readStatus: 'Đọc cache Discount, phân tích ADS/tồn và mở danh sách SKU.',
-    writeStatus: 'Đã mở đẩy giá thật qua update_discount_item sau hộp xác nhận OK.',
-    writeTone: 'write-open',
+    readStatus: 'Danh sách phải được đồng bộ từ Shopee API hoặc ghi rõ đang đọc cache cũ.',
+    writeStatus: 'Ghi thật chỉ mở khi marketplace_client diagnostics PASS, đủ item/model và SHOPEE_LIVE_WRITE_ENABLED=true.',
+    writeTone: 'write-guarded',
+    writeBadge: 'Ghi thật có guard',
     primaryAction: 'discount',
     secondaryAction: 'queue'
   },
@@ -88,9 +115,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Voucher',
     status: 'all',
     description: 'Mã giảm giá của shop hoặc sản phẩm, dùng để xem voucher nào đang gắn SKU và mức dùng.',
-    readStatus: 'Đã mở cập nhật danh sách, chi tiết và sản phẩm gắn voucher.',
-    writeStatus: 'Khóa tạo/sửa/kết thúc voucher thật.',
+    readStatus: 'Chỉ xem là live khi nút đồng bộ trả response Shopee API bằng marketplace_client.',
+    writeStatus: 'Chưa mở ghi thật. App Ads Service không đủ để kết luận có quyền Voucher API.',
     writeTone: 'write-locked',
+    writeBadge: 'Cần kiểm tra API',
     syncable: true,
     browsable: true
   },
@@ -104,9 +132,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Bundle Deal',
     status: 'all',
     description: 'Chương trình mua kèm/combo, dùng để kiểm sản phẩm đang bị ghép giá hoặc khuyến mãi kèm.',
-    readStatus: 'Đã mở cập nhật chương trình, chi tiết và item trong bundle.',
-    writeStatus: 'Khóa ghi thật; mới preview giá/tồn và đưa vào hàng đợi.',
+    readStatus: 'Read-only phải lấy từ Shopee API; nếu token/quyền fail thì chỉ là cache.',
+    writeStatus: 'Chưa mở ghi thật. Cần marketplace_client có quyền Bundle Deal và verify refetch.',
     writeTone: 'write-locked',
+    writeBadge: 'Cần kiểm tra API',
     syncable: true,
     browsable: true,
     previewable: true
@@ -121,9 +150,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Add-On Deal',
     status: 'all',
     description: 'Mua thêm deal, gồm main item và sub item; dùng để kiểm sản phẩm phụ đang chạy giá ưu đãi.',
-    readStatus: 'Đã mở cập nhật chương trình, main item và sub item.',
-    writeStatus: 'Khóa ghi thật vì cần adapter phân biệt main/sub item.',
+    readStatus: 'Read-only phải lấy từ Shopee API; nếu token/quyền fail thì chỉ là cache.',
+    writeStatus: 'Chưa mở ghi thật. Cần marketplace_client có quyền Add-On Deal và đủ main/sub item/model.',
     writeTone: 'write-locked',
+    writeBadge: 'Cần kiểm tra API',
     syncable: true,
     browsable: true,
     previewable: true
@@ -138,9 +168,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'ShopFlashSale',
     status: 'all',
     description: 'Sale theo khung giờ của shop, dùng để kiểm giá/tồn SKU đang chạy flash sale.',
-    readStatus: 'Đã mở cập nhật danh sách, chi tiết và item flash sale.',
-    writeStatus: 'Khóa tạo/sửa/xóa flash sale thật; chỉ preview và kiểm rủi ro.',
+    readStatus: 'Read-only phải lấy từ Shopee API; nếu token/quyền fail thì chỉ là cache.',
+    writeStatus: 'Chưa mở ghi thật. Cần xác nhận endpoint/quyền Flash Sale live và timeslot thật.',
     writeTone: 'write-locked',
+    writeBadge: 'Cần kiểm tra API',
     syncable: true,
     browsable: true,
     previewable: true
@@ -155,9 +186,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Seller Voucher API',
     status: 'all',
     description: 'Voucher Lazada của shop, dùng để đối soát sản phẩm áp dụng và trạng thái mã.',
-    readStatus: 'Đã mở cập nhật voucher, chi tiết và sản phẩm áp dụng.',
-    writeStatus: 'Khóa tạo/sửa/kích hoạt/tắt voucher thật.',
+    readStatus: 'Nếu chưa cấu hình Lazada API thì chỉ đọc cache/import, không phải live.',
+    writeStatus: 'Chưa kết nối Lazada API ghi thật; khóa tạo/sửa/kích hoạt/tắt voucher.',
     writeTone: 'write-locked',
+    writeBadge: 'Chưa kết nối API',
     syncable: true,
     browsable: true
   },
@@ -171,9 +203,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Free Shipping API',
     status: 'all',
     description: 'Chương trình miễn phí vận chuyển, dùng để xem sản phẩm/vùng đang được gắn freeship.',
-    readStatus: 'Đã mở cập nhật chương trình và sản phẩm gắn freeship.',
-    writeStatus: 'Khóa tạo/sửa/kích hoạt/tắt freeship thật.',
+    readStatus: 'Nếu chưa cấu hình Lazada API thì chỉ đọc cache/import, không phải live.',
+    writeStatus: 'Chưa kết nối Lazada API ghi thật; khóa tạo/sửa/kích hoạt/tắt freeship.',
     writeTone: 'write-locked',
+    writeBadge: 'Chưa kết nối API',
     syncable: true,
     browsable: true,
     previewable: true
@@ -188,9 +221,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Flexicombo API',
     status: 'all',
     description: 'Combo linh hoạt của Lazada, dùng để kiểm sản phẩm trong combo và điều kiện giảm giá.',
-    readStatus: 'Đã mở cập nhật danh sách, chi tiết và sản phẩm combo.',
-    writeStatus: 'Khóa tạo/sửa/kích hoạt/tắt combo thật.',
+    readStatus: 'Nếu chưa cấu hình Lazada API thì chỉ đọc cache/import, không phải live.',
+    writeStatus: 'Chưa kết nối Lazada API ghi thật; khóa tạo/sửa/kích hoạt/tắt combo.',
     writeTone: 'write-locked',
+    writeBadge: 'Chưa kết nối API',
     syncable: true,
     browsable: true,
     previewable: true
@@ -205,9 +239,10 @@ const PROMOTION_FEATURE_CATALOG = [
     coverageModule: 'Early Bird Price API',
     status: 'all',
     description: 'Giá đặt sớm của Lazada, là endpoint ghi giá thật nên không có luồng sync read-only riêng.',
-    readStatus: 'Chỉ hiển thị trạng thái endpoint trong core.',
-    writeStatus: 'Preview-only; chưa mở apply thật.',
+    readStatus: 'Chỉ hiển thị trạng thái endpoint trong core; chưa chứng minh kết nối API live.',
+    writeStatus: 'Preview-only; chưa mở apply thật và không ghi lên Lazada.',
     writeTone: 'preview-only',
+    writeBadge: 'Preview-only',
     lockedOnly: true
   }
 ]
@@ -241,10 +276,10 @@ function promotionFeatureCoverage(feature = {}) {
 
 function promotionFeatureTags(feature = {}, coverage = {}) {
   const writeBadge = feature.writeBadge
-    || (feature.writeTone === 'write-open' ? 'Ghi thật: đã mở' : feature.writeTone === 'preview-only' ? 'Preview-only' : 'Ghi thật: khóa')
+    || (feature.writeTone === 'write-open' ? 'Ghi có verify' : feature.writeTone === 'write-guarded' ? 'Ghi thật có guard' : feature.writeTone === 'preview-only' ? 'Preview-only' : 'Ghi thật: khóa')
   const tags = [
     { text: adsPlatformLabel(feature.platform), cls: 'read-only' },
-    { text: coverage.core_status || 'đã nối UI', cls: 'read-only' },
+    { text: coverage.core_status || 'cần diagnostics API', cls: 'read-only' },
     { text: writeBadge, cls: feature.writeTone || 'write-locked' }
   ]
   return tags.map(tag => `<code class="${adsEscape(tag.cls)}">${adsEscape(tag.text)}</code>`).join('')
@@ -254,19 +289,19 @@ function promotionFeatureActions(feature = {}, options = {}) {
   const mode = options.mode || 'hub'
   const buttons = []
   if (feature.primaryAction === 'discount') {
-    buttons.push('<button type="button" onclick="openShopeeDiscountApplyPanel()">Mở Discount & đẩy giá</button>')
+    buttons.push('<button type="button" onclick="openShopeeDiscountApplyPanel()">Mở Discount có guard</button>')
   }
   if (feature.syncable) {
-    buttons.push(`<button type="button" onclick="syncPromotionQuickFeature('${adsEscape(feature.key)}')">Cập nhật cache</button>`)
+    buttons.push(`<button type="button" onclick="syncPromotionQuickFeature('${adsEscape(feature.key)}')">Đồng bộ từ API sàn</button>`)
   }
   if (feature.browsable) {
     buttons.push(`<button type="button" class="secondary" onclick="openPromotionFeatureList('${adsEscape(feature.key)}')">Xem danh sách</button>`)
   }
   if (feature.previewable && mode !== 'quick') {
-    buttons.push(`<button type="button" class="secondary" onclick="openPromotionFeatureList('${adsEscape(feature.key)}')">Chọn SKU / preview</button>`)
+    buttons.push(`<button type="button" class="secondary" onclick="openPromotionFeatureList('${adsEscape(feature.key)}')">Kiểm tra payload</button>`)
   }
   if (feature.secondaryAction === 'queue' && mode !== 'quick') {
-    buttons.push('<button type="button" class="secondary" onclick="showPromotionTab(\'queue\')">Hàng đợi duyệt</button>')
+    buttons.push('<button type="button" class="secondary" onclick="showPromotionTab(\'queue\')">Hàng đợi nội bộ</button>')
   }
   if (!buttons.length) {
     buttons.push('<button type="button" class="secondary" onclick="showPromotionTab(\'core\')">Xem trạng thái endpoint</button>')
@@ -305,9 +340,9 @@ function renderPromotionQuickActions() {
   const utilityCards = `
     <article class="ads-promotion-quick-card">
       <b>Toàn bộ read-only</b>
-      <span>Chạy lần lượt các module đã nối để làm mới core khuyến mãi.</span>
-      <button type="button" onclick="syncPromotionCoreCache()">Cập nhật toàn bộ</button>
-      <small>Nên dùng khi vừa thêm shop API hoặc cần snapshot mới.</small>
+      <span>Chạy lần lượt các endpoint đọc dữ liệu; lỗi quyền/token sẽ hiện rõ và không được xem là đồng bộ live.</span>
+      <button type="button" onclick="syncPromotionCoreCache()">Đồng bộ read-only từ API sàn</button>
+      <small>Nên dùng khi vừa thêm shop API hoặc cần snapshot mới có nguồn rõ ràng.</small>
     </article>
     <article class="ads-promotion-quick-card">
       <b>Kiểm tra dữ liệu</b>
@@ -315,7 +350,7 @@ function renderPromotionQuickActions() {
       <div class="ads-promotion-browser-actions">
         <button type="button" class="secondary" onclick="runPromotionDeepBatch()">Batch sâu</button>
         <button type="button" class="secondary" onclick="repairPromotionPriceGaps()">Làm sạch giá 0đ</button>
-        <button type="button" class="secondary" onclick="showPromotionTab('queue')">Hàng đợi duyệt</button>
+        <button type="button" class="secondary" onclick="showPromotionTab('queue')">Hàng đợi nội bộ</button>
       </div>
       <small>Các bước này phục vụ kiểm tra, không tự ghi thay đổi lên sàn.</small>
     </article>

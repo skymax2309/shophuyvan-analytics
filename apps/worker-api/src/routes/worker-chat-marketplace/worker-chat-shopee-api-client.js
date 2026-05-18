@@ -39,8 +39,9 @@ async function loadShopeeChatShopForConversation(env, conversation) {
   if (!values.length) return null
   const placeholders = values.map(() => '?').join(',')
   const { results } = await env.DB.prepare(`
-    SELECT id, platform, shop_name, user_name, api_shop_id, access_token, token_expire_at,
-           api_partner_id, api_partner_key, api_redirect_url
+    SELECT id, platform, shop_name, user_name, api_shop_id, access_token, refresh_token,
+           chat_access_token, chat_refresh_token, token_expire_at, chat_token_expire_at,
+           api_partner_id, api_partner_key, api_redirect_url, chat_api_redirect_url
     FROM shops
     WHERE platform = 'shopee'
       AND access_token IS NOT NULL AND access_token != ''

@@ -391,7 +391,7 @@ File này là checklist sống để hoàn thiện dần toàn bộ tính năng 
   - Trang ADS đã chia thành các page con `Tổng quan / Guard ADS / TopPicks / Discount / Khuyến mãi sàn` để giảm kéo trang dài
   - Guard ADS đã chia thêm tab con `Quy trình chuẩn / Shop / API / Preview thao tác / Log đối soát`, có checklist thao tác đúng thứ tự để người vận hành biết cách check ADS trước khi đẩy thật
   - Guard preview `budget / trạng thái / keyword`
-  - Refactor 2026-05-13 đã tách ADS frontend theo core tự trị: `ads.js` chỉ còn loader, logic nằm trong `apps/fe/js/dashboard/ads/`, CSS riêng ở `apps/fe/css/ads-page.css`, `ads.html` dưới 30KB; production version `d84c66ad-5db2-4b01-9ce4-97450a6bc025` đã kiểm desktop/mobile.
+  - Refactor 2026-05-13 đã tách ADS frontend theo core tự trị: `ads.js` chỉ còn loader, logic nằm trong `apps/fe/js/dashboard/ads/`, CSS riêng ở `apps/fe/css/ads/ads-page.css`, `ads.html` dưới 30KB; production version `d84c66ad-5db2-4b01-9ce4-97450a6bc025` đã kiểm desktop/mobile.
   - Log request/preview ADS
   - Trang ADS đã có panel `Review xấu trùng ADS` và cột `Review` trong bảng SKU/campaign, đọc chung `review_core`
   - OMS Dashboard / Trung tâm API đã có action đọc `get_open_campaign_added_product` ở chế độ read-only
@@ -727,7 +727,7 @@ File này là checklist sống để hoàn thiện dần toàn bộ tính năng 
 ### Luồng shop có API
 
 - Dùng `promotion_tool_core` để đọc cache khuyến mãi chung.
-- Shopee có API: `Discount`, `Voucher`, `Bundle Deal`, `Add-On Deal`, `ShopFlashSale` đã có sync read-only, lưu vào D1; Discount mở `update_discount_item`, còn Voucher/Bundle/Add-On/Flash Sale mở route ghi thật có preview payload, quyền admin, chuỗi xác nhận và log action trước khi gửi Shopee.
+- Shopee có API: `Discount`, `Voucher`, `Bundle Deal`, `Add-On Deal`, `ShopFlashSale` đã có sync read-only, lưu vào D1; Discount là luồng duy nhất đang được phép execute thật qua queue khi diagnostics pass và `SHOPEE_LIVE_WRITE_ENABLED=true`. Voucher/Bundle/Add-On/Flash Sale chỉ được xem là có client/endpoint nền, chưa mở UI ghi thật nếu chưa có marketplace_client diagnostics + refetch verify.
 - Lazada có API: `Seller Voucher API`, `Free Shipping API`, `Flexicombo API` đã có sync read-only, lưu vào D1; Flexicombo production hiện chưa có chương trình phát sinh.
 
 ### Luồng shop không có API
@@ -747,8 +747,8 @@ File này là checklist sống để hoàn thiện dần toàn bộ tính năng 
   - Lazada Free Shipping/Flexicombo đã có sync read-only tại `/api/discounts/lazada/promotions/sync`, lưu cache chương trình khuyến mãi chung
   - ADS page đã có panel/page con `Khuyến mãi sàn`: tải core, cập nhật cache read-only, hiển thị voucher/program/SKU đang giảm giá + ADS + tồn
   - UI `Khuyến mãi sàn` 2026-05-10 đã tách thành tab con `Tổng quan core`, `Cập nhật cache`, `Danh sách`, `Chi tiết / giá`, `Hàng đợi duyệt`; thêm nút `Cập nhật theo bộ lọc` để cập nhật read-only đúng nguồn/sàn/module/trạng thái đang chọn
-  - UI `Khuyến mãi sàn` 2026-05-10 đã thêm tab `Tính năng`: hiển thị 9 nhóm Shopee/Lazada, trạng thái đọc cache, trạng thái ghi thật và nút mở đúng luồng cho từng module
-  - UI `Khuyến mãi sàn` 2026-05-10 đã thêm lưới nút nhanh theo từng tính năng có thể cập nhật: Shopee Voucher/Bundle/Add-On/Flash, Lazada Voucher/Freeship/Flexicombo, toàn bộ read-only, batch sâu, làm sạch giá và hàng đợi duyệt; Lazada Early Bird hiển thị nhưng disabled vì còn khóa ghi thật
+  - UI `Khuyến mãi sàn` 2026-05-10 đã thêm tab `Tính năng`: hiển thị 9 nhóm Shopee/Lazada, nhưng từ 2026-05-15 các badge ghi thật phải được hạ về `Cần kiểm tra API`, `Read-only`, `Thiếu quyền` hoặc `Ghi thật có guard` cho tới khi có diagnostics Shopee thật.
+  - UI `Khuyến mãi sàn` 2026-05-10 đã thêm lưới nút nhanh theo từng tính năng có thể cập nhật: Shopee Voucher/Bundle/Add-On/Flash, Lazada Voucher/Freeship/Flexicombo, toàn bộ read-only, batch sâu, làm sạch giá và hàng đợi nội bộ; từ 2026-05-15 các nút cache/preview phải ghi rõ đang đồng bộ API read-only hay chỉ kiểm payload.
   - UI danh sách chương trình đã tách `cache item/SKU` và `sàn báo` để không nhầm Flash Sale/Bundle/Add-On có số lượng từ list là đã có đủ item chi tiết trong cache
   - UI `Khuyến mãi sàn` đã có danh sách voucher/program, mở chi tiết chương trình và preview payload giá theo tồn kho ở chế độ khóa apply thật
   - `Khuyến mãi sàn` 2026-05-13 đã làm rõ tiếng Việt và thao tác vận hành: tab `Danh sách` hiện `Xóa cache` + nút trạng thái theo từng dòng, tab `Chi tiết / giá` có empty state rõ ràng, tab `Hàng đợi duyệt` đổi nhãn raw sang `Mua kèm deal · Quy tắc giá theo tồn kho`, và `promotion_tool_core` không còn dàn cùng một spend ADS vào mọi SKU khi campaign chưa map được SKU; phần chưa map được tách riêng `campaign ADS chưa map được SKU`.
@@ -758,8 +758,8 @@ File này là checklist sống để hoàn thiện dần toàn bộ tính năng 
   - route làm sạch cache `promotion-items/repair-prices` đã map giá/tồn từ `product_variations`; production đã cập nhật 5/8 dòng Shopee Bundle trong lượt kiểm
   - route chi tiết SKU `promotion-sku-detail` đã gom promotion + tồn + ADS + doanh thu + giá vốn để kiểm lãi trước khi duyệt
   - Refactor 2026-05-13 đã tách `discounts.js` thành wrapper và module theo `common`, `shopee/discounts`, `shopee/vouchers`, `shopee/promotions`, `lazada/vouchers`, `lazada/promotions`; toàn bộ file trong cụm này dưới 30KB, contract route cũ giữ nguyên.
-  - Shopee Voucher/Bundle/Add-On/Flash Sale 2026-05-13 đã mở adapter ghi thật qua `/api/discounts/shopee/promotion-action`: hỗ trợ preview, gửi thật sau xác nhận, xóa/kết thúc hàng loạt theo danh sách đã tick và form tạo Flash Sale theo giờ bắt đầu/kết thúc.
-  - hàng đợi duyệt apply `promotions/queue-apply` và `promotions/apply-queue` đã có quyền admin, risk summary, rollback payload và log `sent_to_platform=false`
+  - Shopee Voucher/Bundle/Add-On/Flash Sale 2026-05-15 được audit lại: code có endpoint/client nền và preview, nhưng UI không được ghi đã mở ghi thật cho đến khi `marketplace_client` diagnostics pass, có quyền Marketing/Seller, có payload đủ item/model/timeslot và refetch verify sau POST.
+  - hàng đợi nội bộ apply `promotions/queue-apply` và `promotions/apply-queue` đã có quyền admin, risk summary, rollback payload, `send_status`, `verify_status`, `client_type`, `shopee_endpoint` và log `sent_to_platform=false`
   - Lazada Early Bird đã chốt `preview_only_locked`: có preview endpoint ghi giá nhưng không mở apply thật
 - `Đang làm dở`
   - cache sâu cho toàn bộ lịch sử promotion tiếp tục được lấp bằng cron lát cắt; chưa ép một lượt lớn để tránh quota Worker
@@ -768,7 +768,9 @@ File này là checklist sống để hoàn thiện dần toàn bộ tính năng 
 - `Chưa làm`
   - màn hình duyệt hàng đợi nâng cao cho approve/reject nhiều dòng
 - `Bị khóa an toàn`
-  - Lazada freeshipping, flexicombo và Early Bird thật vẫn khóa ở tầng gửi sàn; Shopee Discount/Voucher/Bundle/Add-On/Flash Sale đã mở gửi thật nhưng vẫn bắt buộc preview, quyền admin, xác nhận và log.
+  - Lazada freeshipping, flexicombo và Early Bird thật vẫn khóa ở tầng gửi sàn.
+  - Shopee Voucher/Bundle/Add-On/Flash Sale bị khóa ghi thật trong UI nếu diagnostics chưa chứng minh app Marketplace/Marketing có quyền tương ứng. App Ads Service chỉ dùng cho ADS, không dùng để kết luận quyền promotion.
+  - Shopee Discount có guard ghi thật nhưng vẫn bị `SHOPEE_LIVE_WRITE_ENABLED=false` chặn cho tới khi bật live write và thao tác test nhỏ được xác nhận.
 
 ### Checklist phase tiếp theo
 
@@ -787,7 +789,7 @@ File này là checklist sống để hoàn thiện dần toàn bộ tính năng 
 - [x] Chốt Lazada Early Bird ở chế độ preview-only khóa an toàn
 - [x] Mở Shopee Discount `update_discount_item` có xác nhận OK và quyền admin
 - [x] Mở bảng tính năng khuyến mãi đầy đủ và kiểm một lượt sync read-only các module
-- [x] Adapter gửi thật Shopee Voucher/Bundle/Add-On/Flash Sale có preview, admin confirm và log
+- [ ] Chạy diagnostics thật và mở lại adapter ghi thật Shopee Voucher/Bundle/Add-On/Flash Sale sau khi chứng minh quyền Marketplace/Marketing + refetch verify; hiện chỉ giữ client/endpoint/preview nền, không ghi UI là đã xong.
 
 ---
 
@@ -1142,6 +1144,36 @@ Sau mỗi phase phải cập nhật:
 4. Phần nào bị chặn bởi quyền/app.
 5. Cách shop không API đang fallback.
 
+## Ghi chú 2026-05-14 - Refactor source và mở luồng vận hành ADS/Discount
+
+- [x] Route Worker đã gom theo feature folder (`routes/admin`, `routes/api`, `routes/ads`, `routes/orders`, `routes/products`, `routes/discounts`, `routes/marketplace-chat`...), public URL không đổi.
+- [x] Core Worker đã gom theo domain (`core/orders`, `core/products`, `core/ads`, `core/promotions`, `core/shops`, `core/chat`...), import nội bộ đã cập nhật.
+- [x] Frontend JS/CSS root đã gom theo feature, HTML đã trỏ sang đường dẫn mới.
+- [x] Product create/update dùng dữ liệu thật người dùng nhập, không dùng tên/SKU mặc định; hỗ trợ variant nhiều SKU.
+- [x] Đơn chuyển `Đã đóng gói` tự kiểm và retry tem: shop API gọi refresh label, shop không API tạo job local/helper có log.
+- [x] TopPicks đọc/phân tích cache không còn crash do thiếu dependency; dữ liệu trống trả empty state.
+- [x] ADS Guard tách Shopee/Lazada và lấy campaign/adgroup từ ADS snapshot theo shop; vẫn có manual advanced khi cần đối soát.
+- [x] Discount có bộ lọc shop/tồn/doanh thu/hiệu quả/trạng thái và nhãn tiếng Việt chuẩn.
+- [x] Shopee Voucher/Bundle/Add-On/Flash Sale hiển thị là luồng có preview/apply guard khi backend hỗ trợ; Lazada promotion write live giữ read-only nếu chưa có adapter chính thức.
+- Shop có API: chạy qua Open Platform/cache D1, có guard preview/apply và log.
+- Shop không API: không gắn nhãn API; dùng import/browser/helper hiện có cho label/cache khi có đường fallback, còn thao tác sàn không hỗ trợ thì hiện lý do rõ.
+
+## Ghi chú 2026-05-15 - Shopee promotion/ADS/TopPicks verify-first
+
+- [x] Shopee Discount, Voucher, Bundle, Add-On, Flash Sale, ADS Manual Product Ads và TopPicks đã chuyển sang kết quả action thống nhất: có endpoint, action, shop, object_id, request_id, payload đã che secret, raw error/response và `verify_result`.
+- [x] Mọi mutation Shopee trong các route đã sửa chỉ được coi là thành công khi refetch từ Shopee xác nhận `verified=true`; cache D1 chỉ cập nhật sau dữ liệu refetch, không dùng cache để giả lập thành công.
+- [x] Flash Sale create bị khóa nếu thiếu `timeslot_id` thật từ `/api/v2/shop_flash_sale/get_time_slot_id`; UI ghi rõ start/end chỉ để đối chiếu, không thay thế timeslot.
+- [x] ADS campaign status/budget/ROAS target đi qua `/api/v2/ads/edit_manual_product_ads`, sau đó refetch `/api/v2/ads/get_product_level_campaign_setting_info` để verify.
+- [x] TopPicks UI ghi rõ API Shopee không trả attribution đơn hàng trực tiếp; số mua kèm nếu có phải đến từ tracking/order nội bộ, không tự kết luận từ API.
+- [x] Tab `Cập nhật cache` và feature card không còn nhãn "Ghi thật: đã mở" nếu chưa có verify live; card tách read/cache với action ghi thật.
+- [ ] Live mutation an toàn chưa chạy trong phase này vì chưa có `SHOPEE_AUDIT_SHOP` và allowlist object đã được phép thao tác. Chưa được ghi là "đã kết nối Shopee thật" nếu thiếu live response + request_id + refetch verify.
+
+### Trạng thái shop
+
+- Shop có API: khi có token/quyền hợp lệ, route sẽ gọi Open Platform thật, tự refresh token ở luồng đã có helper, refetch verify và trả lỗi chi tiết nếu Shopee từ chối.
+- Shop thiếu quyền/token: UI/API phải hiển thị thiếu quyền hoặc lỗi endpoint cụ thể, không hiện nút gây hiểu nhầm là đã ghi thật.
+- Shop không API: chỉ được đọc cache/import/browser helper có log; không gắn nhãn đồng bộ API và không dùng cache để báo Shopee đã thay đổi.
+
 
 ### Ghi ch? phase chat UI ??n h?ng v? n?t nh?n kh?ch
 
@@ -1174,3 +1206,4 @@ Sau mỗi phase phải cập nhật:
 - [ ] Schema upload chính thức vẫn chưa chốt: sample probe `upload_image` đã tới endpoint nhưng mọi biến thể request hiện trả `param_error`; `upload_video`/`get_video_upload_result` cũng mới xác nhận endpoint tới được, còn thiếu schema chi tiết vì `doc/api` vẫn trả `error_auth`.
 - [ ] Endpoint Shopee chính thức mở thread từ `order_sn` vẫn chưa thấy trong public docs; text từ đơn đã gửi được bằng `send_message` kèm order context, còn endpoint mở thread riêng chỉ cần nếu sau này muốn tạo/lấy thread trước khi gửi.
 
+- 2026-05-18: OMS/Dashboard fee phase 1 đã chuẩn hóa `Sàn hỗ trợ khách` / `Voucher từ sàn/Shopee` là cùng một dữ liệu API từ `order_fee_details.raw_data` và cộng vào tổng phí trừ. Popup phí đơn hàng chuyển sang tab `Khách thanh toán`, `Sàn thanh toán`, `Lợi nhuận`, `Nguồn API`; shop có API dùng raw fee detail trước, shop không API vẫn fallback cost setting/import và phải hiện rõ nguồn.

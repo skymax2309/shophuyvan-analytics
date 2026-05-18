@@ -223,6 +223,10 @@ async function ensureChatSettingsTabData(tab) {
     await window.loadChatRuleViolations({ silent: true }).catch(() => null)
     await window.loadChatAutoReplyLogs({ silent: true }).catch(() => null)
   }
+  if (safeTab === 'ai-auto') {
+    await loadChatShopAutoSettings({ force: true }).catch(() => null)
+    await loadGhnAutoOrders({ limit: 30 }).catch(() => null)
+  }
   if (safeTab === 'knowledge') {
     await window.loadChatKnowledge({ silent: true }).catch(() => null)
   }

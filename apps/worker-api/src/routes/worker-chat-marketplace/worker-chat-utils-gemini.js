@@ -4,7 +4,7 @@ globalThis.LAZADA_DEFAULT_APP_KEY = '135731'
 
 globalThis.LAZADA_DEFAULT_SECRET = 'UHMS2CUNhAspEYgNMYZ1ywytbHhCx1wK'
 
-globalThis.CHAT_SCHEMA_VERSION = 6
+globalThis.CHAT_SCHEMA_VERSION = 7
 
 globalThis.CHAT_SCHEMA_VERSION_KEY = 'chat_schema_version'
 

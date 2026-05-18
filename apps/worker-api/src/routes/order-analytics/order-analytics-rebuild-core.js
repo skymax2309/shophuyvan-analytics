@@ -1,9 +1,9 @@
-import { fetchShopeeEscrowDetail, fetchShopeeIncomeDetail, syncLazadaFinanceTransactions } from '../api-sync.js'
-import { buildReturnInfo, chooseActualIncome, computeOrderRevenueBasis, extractShopeeFinanceInfo, isAdsCpoEligibleOrder } from '../../core/order-analytics-finance-core.js'
-import { buildZeroRevenueReturnFinance } from '../../core/order-return-inference-core.js'
-import { loadReturnReverseOrderMap } from '../../core/return-reverse-core.js'
-import { rebuildOrderFinanceDailySnapshots } from '../../core/order-finance-core.js'
-import { buildOrderWhere, cleanText, ensureOrderAnalyticsTable, ensureSourceTables, ESTIMATE_SOURCE, ESCROW_SOURCE, INFERRED_RETURN_SOURCE, LAZADA_FINANCE_SOURCE, PAYMENT_SOURCE, mapKey, normalizeSku, num, round2, tableExists } from '../../core/order-analytics-shared-core.js'
+import { fetchShopeeEscrowDetail, fetchShopeeIncomeDetail, syncLazadaFinanceTransactions } from '../api/index.js'
+import { buildReturnInfo, chooseActualIncome, computeOrderRevenueBasis, extractShopeeFinanceInfo, isAdsCpoEligibleOrder } from '../../core/orders/analytics-finance-core.js'
+import { buildZeroRevenueReturnFinance } from '../../core/orders/return-inference-core.js'
+import { loadReturnReverseOrderMap } from '../../core/returns/reverse-core.js'
+import { rebuildOrderFinanceDailySnapshots } from '../../core/orders/finance-core.js'
+import { buildOrderWhere, cleanText, ensureOrderAnalyticsTable, ensureSourceTables, ESTIMATE_SOURCE, ESCROW_SOURCE, INFERRED_RETURN_SOURCE, LAZADA_FINANCE_SOURCE, PAYMENT_SOURCE, mapKey, normalizeSku, num, round2, tableExists } from '../../core/orders/analytics-shared-core.js'
 
 async function loadShopeeOrdersForEscrowSync(env, options = {}) {
   const filter = buildOrderWhere({ ...options, platform: 'shopee' }, 'o')

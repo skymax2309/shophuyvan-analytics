@@ -1,5 +1,5 @@
-import { shopeeVideoShopId } from '../../core/shopee-video-auth-core.js'
-import { markMarketplaceVideosDeleted, patchMarketplaceVideoEditedCache, readMarketplaceVideoDetail, readMarketplaceVideoLibrary, saveMarketplaceVideoActionLog } from '../../core/video-analytics-core.js'
+import { shopeeVideoShopId } from '../../core/shops/shopee-video-auth-core.js'
+import { markMarketplaceVideosDeleted, patchMarketplaceVideoEditedCache, readMarketplaceVideoDetail, readMarketplaceVideoLibrary, saveMarketplaceVideoActionLog } from '../../core/video/analytics-core.js'
 import { parseVideoItemRows } from './campaign-title.js'
 import { assertShopeeVideoWriteSucceeded, buildEditVideoBody, loadShopeeVideoShop, resolveEditVideoCoverImageUrl } from './lazada-media.js'
 import { callShopeeVideoPost, callShopeeVideoPostRaw, chunkVideoIds, fetchShopeeJson, shopeePublicUrlBuilder, uniqueTextList, videoUserId } from './shared-api-client.js'

@@ -1,0 +1,191 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ShopHuyVan External API for Facebook Ads CRM",
+    "version": "1.0.0",
+    "description": "External API chính thức để Facebook Ads CRM đọc sản phẩm, giữ hàng, tạo đơn và nhận webhook."
+  },
+  "servers": [
+    {
+      "url": "https://huyvan-worker-api.nghiemchihuy.workers.dev"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    },
+    "schemas": {
+      "Success": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "type": "object" },
+          "message": { "type": "string", "example": "OK" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "INSUFFICIENT_STOCK" },
+              "message": { "type": "string", "example": "Không đủ tồn kho" },
+              "details": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    { "bearerAuth": [] },
+    { "apiKeyAuth": [] }
+  ],
+  "paths": {
+    "/api/external/products": {
+      "get": {
+        "summary": "Lấy danh sách sản phẩm",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "updatedSince", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "includeInventory", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" } }
+      }
+    },
+    "/api/external/products/{id}": {
+      "get": {
+        "summary": "Lấy chi tiết sản phẩm",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" }, "404": { "description": "PRODUCT_NOT_FOUND" } }
+      }
+    },
+    "/api/external/products/sku/{sku}": {
+      "get": {
+        "summary": "Lấy sản phẩm theo SKU",
+        "parameters": [{ "name": "sku", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" }, "404": { "description": "SKU_NOT_FOUND" } }
+      }
+    },
+    "/api/external/products/sku/{sku}/price": {
+      "get": {
+        "summary": "Lấy giá mới nhất theo SKU",
+        "parameters": [{ "name": "sku", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/external/inventory/check": {
+      "post": {
+        "summary": "Kiểm tra tồn kho",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sku", "quantity"],
+                "properties": {
+                  "sku": { "type": "string" },
+                  "quantity": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/external/inventory/reserve": {
+      "post": {
+        "summary": "Giữ hàng tạm thời",
+        "parameters": [{ "name": "Idempotency-Key", "in": "header", "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sku", "quantity"],
+                "properties": {
+                  "sku": { "type": "string" },
+                  "quantity": { "type": "integer" },
+                  "source": { "type": "string", "default": "facebook_crm" },
+                  "sourceConversationId": { "type": "string" },
+                  "sourceCustomerId": { "type": "string" },
+                  "expiresInMinutes": { "type": "integer", "default": 30 },
+                  "note": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" }, "409": { "description": "INSUFFICIENT_STOCK" } }
+      }
+    },
+    "/api/external/inventory/reservations/{reservationId}/cancel": {
+      "post": {
+        "summary": "Hủy giữ hàng",
+        "parameters": [{ "name": "reservationId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "reason": { "type": "string" } } } } }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/external/inventory/reservations/{reservationId}/commit": {
+      "post": {
+        "summary": "Commit giữ hàng và trừ tồn kho",
+        "parameters": [{ "name": "reservationId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "orderId": { "type": "string" } } } } }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/external/orders/from-facebook": {
+      "post": {
+        "summary": "Tạo đơn từ Facebook CRM",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["sourceOrderId", "items"] } } }
+        },
+        "responses": { "200": { "description": "OK" }, "409": { "description": "INSUFFICIENT_STOCK" } }
+      }
+    },
+    "/api/external/orders/{orderId}": {
+      "get": {
+        "summary": "Lấy trạng thái đơn hàng",
+        "parameters": [{ "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" }, "404": { "description": "ORDER_NOT_FOUND" } }
+      }
+    },
+    "/api/external/orders/source/{sourceOrderId}": {
+      "get": {
+        "summary": "Lấy đơn theo sourceOrderId",
+        "parameters": [{ "name": "sourceOrderId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" }, "404": { "description": "ORDER_NOT_FOUND" } }
+      }
+    },
+    "/api/external/webhook/test": {
+      "post": {
+        "summary": "Gửi webhook thử",
+        "responses": { "200": { "description": "OK" }, "502": { "description": "WEBHOOK_SEND_FAILED" } }
+      }
+    }
+  }
+}
+

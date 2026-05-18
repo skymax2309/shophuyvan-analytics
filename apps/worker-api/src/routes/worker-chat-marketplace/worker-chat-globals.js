@@ -1,12 +1,12 @@
 // NEO: Backend worker chat sàn - nhóm globals. Giữ file dưới 30KB; tính năng mới tách thành file worker-chat-* riêng.
-import { getShopeeAppFromRow, signHmacHex } from '../../utils/shopee-apps.js'
-import { requireAdminPermission } from '../admin-auth.js'
+import { getShopeeAppFromRow, getShopeeAppFromRowForClient, signHmacHex } from '../../utils/shopee-apps.js'
+import { requireAdminPermission } from '../admin/index.js'
 import {
   getOrderStatusValue,
   orderKindLabel as coreOrderKindLabel,
   orderStatusKind,
   orderStatusLabel as coreOrderStatusLabel
-} from '../../core/order-status-core.js'
+} from '../../core/orders/status-core.js'
 import {
   CHAT_TRANSPORT_API,
   CHAT_TRANSPORT_BROWSER,
@@ -14,7 +14,7 @@ import {
   buildChatCapabilityMatrix,
   chatTransportGuide,
   resolveChatTransportForShop
-} from '../../core/chat-transport-core.js'
+} from '../../core/chat/transport-core.js'
 import {
   CHAT_ORDER_MATCH_HARD,
   CHAT_ORDER_MATCH_SOFT,
@@ -22,7 +22,7 @@ import {
   chatOrderMatchStateLabel,
   chatOrderSyncStale,
   resolveChatOrderSyncCapability
-} from '../../core/chat-order-context-core.js'
+} from '../../core/chat/order-context-core.js'
 import {
   CHAT_CONVERSATION_MATCH_HARD,
   CHAT_CONVERSATION_MATCH_NONE,
@@ -32,15 +32,15 @@ import {
   normalizeOrderResolverPhone,
   orderConversationMatchMeta,
   scoreSoftOrderConversationMatch
-} from '../../core/chat-order-resolver-core.js'
+} from '../../core/chat/order-resolver-core.js'
 import {
   chatIdentityKey,
   isAutomationConversationId,
   isGenericChatBuyerName,
   isWeakChatConversationIdentity,
   shouldAliasConversation
-} from '../../core/chat-identity-core.js'
-import { resolveChatScanPolicy } from '../../core/chat-scan-policy-core.js'
+} from '../../core/chat/identity-core.js'
+import { resolveChatScanPolicy } from '../../core/chat/scan-policy-core.js'
 import {
   CHAT_AI_SUPPORT_CONTACT_POLICY_REPLY,
   CHAT_AI_SUPPORT_DEFAULT_BLOCKED_KEYWORDS,
@@ -51,10 +51,11 @@ import {
   CHAT_AI_SUPPORT_SYSTEM_PROMPT,
   evaluateAiSupportPolicyReply,
   sanitizeAiSupportReplyText
-} from '../../core/chat-ai-support-policy-core.js'
+} from '../../core/chat/ai-support-policy-core.js'
 
 Object.assign(globalThis, {
   getShopeeAppFromRow,
+  getShopeeAppFromRowForClient,
   signHmacHex,
   requireAdminPermission,
   getOrderStatusValue,

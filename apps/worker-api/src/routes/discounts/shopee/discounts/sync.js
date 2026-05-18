@@ -6,10 +6,17 @@ export function installDiscountsShopeeDiscountsSync(core) {
   const ensureShopeeDiscountTables = (...args) => core.ensureShopeeDiscountTables(...args)
   const fetchShopeeJsonGet = (...args) => core.fetchShopeeJsonGet(...args)
   const getApiShops = core.getApiShops
-  const getShopeeAppFromRow = core.getShopeeAppFromRow
+  const getShopeeAppFromRowForClient = core.getShopeeAppFromRowForClient || core.getShopeeAppFromRow
   const num = (...args) => core.num(...args)
   const round2 = (...args) => core.round2(...args)
   const signShopeeUrl = (...args) => core.signShopeeUrl(...args)
+
+  function marketplaceRuntimeAuth(env, shop) {
+    return {
+      accessToken: cleanText(env?.SHOPEE_MARKETPLACE_ACCESS_TOKEN) || cleanText(shop.access_token),
+      shopId: cleanText(env?.SHOPEE_MARKETPLACE_SHOP_ID) || cleanText(shop.api_shop_id)
+    }
+  }
 
   function normalizeDiscountList(data, shop) {
     const list = Array.isArray(data?.response?.discount_list) ? data.response.discount_list : []
@@ -230,8 +237,9 @@ export function installDiscountsShopeeDiscountsSync(core) {
   core.latestDiscountSyncUnix = latestDiscountSyncUnix
 
   async function fetchDiscountDetailPages(env, shop, discountId, pageLimit = 10, pageSize = 50) {
-    const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shop.shop_name || shop.user_name)
-    const buildUrl = signShopeeUrl(app, SHOPEE_DISCOUNT_DETAIL_PATH, shop.access_token, shop.api_shop_id)
+    const runtimeAuth = marketplaceRuntimeAuth(env, shop)
+    const app = getShopeeAppFromRowForClient(env, shop, 'marketplace_client', shop.api_partner_id || shop.shop_name || shop.user_name)
+    const buildUrl = signShopeeUrl(app, SHOPEE_DISCOUNT_DETAIL_PATH, runtimeAuth.accessToken, runtimeAuth.shopId)
     const detailRows = []
     let mergedDiscount = null
     let pageNo = 1
@@ -273,13 +281,14 @@ export function installDiscountsShopeeDiscountsSync(core) {
       cache_mode: incremental ? 'incremental' : 'full',
       latest_synced_at: cacheCursor.latest_synced_at || ''
     }
-    if (!shop.access_token || !shop.api_shop_id) {
+    const runtimeAuth = marketplaceRuntimeAuth(env, shop)
+    if (!runtimeAuth.accessToken || !runtimeAuth.shopId) {
       return { ...resultBase, ok: false, error: 'missing_token_or_shop_id', message: 'Shop chưa có access_token hoặc api_shop_id', discounts: [], details: [] }
     }
 
     try {
-      const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shopName)
-      const buildUrl = signShopeeUrl(app, SHOPEE_DISCOUNT_LIST_PATH, shop.access_token, shop.api_shop_id)
+      const app = getShopeeAppFromRowForClient(env, shop, 'marketplace_client', shop.api_partner_id || shopName)
+      const buildUrl = signShopeeUrl(app, SHOPEE_DISCOUNT_LIST_PATH, runtimeAuth.accessToken, runtimeAuth.shopId)
       const discounts = []
       const details = []
       let pageNo = 1

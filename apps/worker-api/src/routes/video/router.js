@@ -1,5 +1,5 @@
-import { ensureShopeeVideoAuthColumns } from '../../core/shopee-video-auth-core.js'
-import { ensureVideoAnalyticsTables } from '../../core/video-analytics-core.js'
+import { ensureShopeeVideoAuthColumns } from '../../core/shops/shopee-video-auth-core.js'
+import { ensureVideoAnalyticsTables } from '../../core/video/analytics-core.js'
 import { handleVideoTitleSuggestions } from './campaign-title.js'
 import { handleVideoMultiShopPreview, handleVideoMultiShopQueue, handleVideoUploadQueueBrowserStatus, handleVideoUploadQueueCancel, handleVideoUploadQueueCreate, handleVideoUploadQueueFile, handleVideoUploadQueueList, handleVideoUploadQueueRun } from './multi-queue-run.js'
 import { handleLazadaImageUpload, handleLazadaVideoDetail, handleLazadaVideoQuota, handleLazadaVideoRemove, handleLazadaVideoUpload, handleShopeeMediaEndpoints, handleShopeeMediaSpaceImageUpload, handleShopeeMediaSpaceVideoUpload, handleVideoCapabilities, handleVideoCatalogItems, handleVideoCoverList, handleVideoDashboard, handleVideoDetail, handleVideoLibrary, handleVideoPermissionTest, handleVideoSync } from './read-handlers.js'

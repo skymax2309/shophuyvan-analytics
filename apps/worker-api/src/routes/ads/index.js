@@ -17,13 +17,13 @@ import {
   syncApiOrderStatuses,
   syncShopeeAffiliatePerformance,
   syncShopeeOpenCampaignPerformance
-} from '../api-sync.js'
+} from '../api/index.js'
 import {
   ADS_GUARD_CONFIRM_PHRASE,
   buildAdsCampaignGuardOverview,
   listAdsCampaignGuardLogs,
   runAdsCampaignGuard
-} from '../../core/ads-campaign-guard-core.js'
+} from '../../core/ads/campaign-guard-core.js'
 import { cleanText } from './dashboard-metrics.js'
 import { handleAdsExtraRoutes } from './extra-routes.js'
 

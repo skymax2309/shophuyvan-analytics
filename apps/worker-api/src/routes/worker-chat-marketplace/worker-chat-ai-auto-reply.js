@@ -1,11 +1,14 @@
 // NEO: Backend worker chat sàn - nhóm ai-auto-reply. Giữ file dưới 30KB; tính năng mới tách thành file worker-chat-* riêng.
 // Gi? th? t? khai b?o g?c v? nhi?u h?m d?ng ch?o qua endpoint chat.
 async function recordChatAiAutoReplyLog(env, input = {}) {
+  const buyerMasked = maskChatAutoLogValue(input.buyer_id || input.buyer_id_masked || '')
   await env.DB.prepare(`
     INSERT INTO marketplace_chat_ai_auto_reply_logs
       (platform, shop, shop_id, conversation_id, source_message_id, source_message_row_id,
-       source_message_at, mode, status, action, provider, reply, guard, send_response, error, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+7 hours'))
+       source_message_at, mode, status, action, provider, reply, guard, send_response, error,
+       buyer_id_masked, inbound_text_masked, final_sent_text, ai_confidence, send_status, skipped_reason,
+       shopee_message_id, shopee_response_code, shopee_response_message, error_code, error_message, sent_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+7 hours'))
   `).bind(
     cleanText(input.platform).toLowerCase(),
     cleanText(input.shop),
@@ -21,8 +24,27 @@ async function recordChatAiAutoReplyLog(env, input = {}) {
     cleanText(input.reply).slice(0, 3000),
     safeJsonStringify(input.guard || {}, '{}').slice(0, 4000),
     safeJsonStringify(input.send_response || {}, '{}').slice(0, 4000),
-    cleanText(input.error).slice(0, 1000)
+    cleanText(input.error).slice(0, 1000),
+    buyerMasked,
+    cleanText(input.inbound_text_masked || input.inbound_text || '').slice(0, 1000),
+    cleanText(input.final_sent_text || input.reply || '').slice(0, 3000),
+    Number(input.ai_confidence || 0) || 0,
+    cleanText(input.send_status || input.status).slice(0, 80),
+    cleanText(input.skipped_reason).slice(0, 120),
+    cleanText(input.shopee_message_id || input.send_response?.message?.message_id || input.send_response?.shopee?.message_id).slice(0, 120),
+    cleanText(input.shopee_response_code || input.send_response?.error || input.send_response?.shopee?.error).slice(0, 120),
+    cleanText(input.shopee_response_message || input.send_response?.message || input.send_response?.shopee?.message).slice(0, 500),
+    cleanText(input.error_code || input.skipped_reason).slice(0, 120),
+    cleanText(input.error_message || input.error).slice(0, 1000),
+    input.sent_at ? cleanText(input.sent_at) : ''
   ).run()
+}
+
+function maskChatAutoLogValue(value = '') {
+  const text = cleanText(value)
+  if (!text) return ''
+  if (text.length <= 8) return `${text.slice(0, 2)}***`
+  return `${text.slice(0, 4)}***${text.slice(-4)}`
 }
 
 async function loadChatAiAutoReplyCandidates(env, settings, options = {}) {
@@ -147,6 +169,20 @@ async function handleChatAutoReplyCandidate(env, settings, candidate, mode) {
     mode
   }
   try {
+    const gate = await chatAutoReplyShopGate(env, candidate, mode)
+    if (!gate.allowed) {
+      await recordChatAiAutoReplyLog(env, {
+        ...baseLog,
+        buyer_id: candidate.buyer_id,
+        inbound_text: candidate.source_content,
+        status: 'skipped',
+        send_status: 'skipped',
+        action: 'ai_reply',
+        skipped_reason: gate.skipped_reason,
+        error: gate.skipped_reason
+      })
+      return { status: 'skipped', conversation_id: candidate.conversation_id, reason: gate.skipped_reason }
+    }
     const draft = await buildChatAiDraftPayload(env, settings, {
       id: candidate.id,
       conversation_id: candidate.conversation_id,
@@ -170,14 +206,18 @@ async function handleChatAutoReplyCandidate(env, settings, candidate, mode) {
       const send = await sendChatAutoReplyContent(env, candidate, payload.reply, false)
       await recordChatAiAutoReplyLog(env, {
         ...baseLog,
-        status: send.ok && send.data?.sent_to_platform ? 'sent' : 'failed',
-        action: 'ai_reply',
-        provider: payload.provider,
-        reply: payload.reply,
-        guard: payload.guard,
-        send_response: send.data,
-        error: send.ok ? '' : (send.data?.message || send.data?.error || `HTTP ${send.status}`)
-      })
+          status: send.ok && send.data?.sent_to_platform ? 'sent' : 'failed',
+          buyer_id: candidate.buyer_id,
+          inbound_text: candidate.source_content,
+          action: 'ai_reply',
+          provider: payload.provider,
+          reply: payload.reply,
+          guard: payload.guard,
+          send_response: send.data,
+          error: send.ok ? '' : (send.data?.message || send.data?.error || `HTTP ${send.status}`),
+          sent_at: send.ok && send.data?.sent_to_platform ? new Date().toISOString() : ''
+        })
+        if (send.ok && send.data?.sent_to_platform) await bumpChatShopAiReplyCounter(env, candidate)
       return { status: send.ok && send.data?.sent_to_platform ? 'sent' : 'failed', conversation_id: candidate.conversation_id, provider: payload.provider, send: send.data }
     }
 
@@ -198,7 +238,7 @@ async function handleChatAutoReplyCandidate(env, settings, candidate, mode) {
       return { status: payload.blocked ? 'blocked' : 'needs_review', conversation_id: candidate.conversation_id, provider: payload.provider }
     }
 
-    if (dryRun && official.ok) {
+    if (dryRun) {
       await recordChatAiAutoReplyLog(env, {
         ...baseLog,
         status: 'would_handoff',
@@ -249,6 +289,9 @@ async function runChatAiAutoReplyBatch(env, options = {}) {
   }
   if (mode === 'off' && !options.force) {
     return { status: 'disabled', reason: 'Auto-reply đang tắt.', processed: 0, results: [] }
+  }
+  if (mode === 'live' && !boolEnvFlag(env.SHOPEE_AI_AUTO_REPLY_GLOBAL_ENABLED)) {
+    return { status: 'disabled', reason: 'SHOPEE_AI_AUTO_REPLY_GLOBAL_ENABLED=false nên chưa gửi AI tự động thật.', processed: 0, results: [] }
   }
   const runSettings = {
     ...settings,
@@ -309,7 +352,10 @@ async function listChatAiAutoReplyLogs(request, env, cors) {
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit') || 30) || 30, 1), 100)
   const { results } = await env.DB.prepare(`
     SELECT id, platform, shop, shop_id, conversation_id, source_message_id, source_message_at,
-           mode, status, action, provider, reply, guard, send_response, error, created_at
+           mode, status, action, provider, reply, guard, send_response, error,
+           buyer_id_masked, inbound_text_masked, final_sent_text, ai_confidence, send_status,
+           skipped_reason, shopee_message_id, shopee_response_code, shopee_response_message,
+           error_code, error_message, sent_at, created_at
     FROM marketplace_chat_ai_auto_reply_logs
     ORDER BY id DESC
     LIMIT ?
@@ -325,12 +371,12 @@ async function listChatAiAutoReplyLogs(request, env, cors) {
 }
 
 function shopeeSignedUrl(env, shop, path, params = {}) {
-  const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shop.shop_name || shop.user_name || shop.api_shop_id)
+  const app = getShopeeAppFromRowForClient(env, shop, 'chat_client', shop.api_partner_id || shop.shop_name || shop.user_name || shop.api_shop_id)
   return async () => {
     const partnerId = String(app.partnerId)
     const timestamp = Math.floor(Date.now() / 1000)
-    const shopId = String(shop.api_shop_id || shop.shop_id || '')
-    const accessToken = String(shop.access_token || '')
+    const shopId = String(env.SHOPEE_CHAT_SHOP_ID || shop.api_shop_id || shop.shop_id || '')
+    const accessToken = String(env.SHOPEE_CHAT_ACCESS_TOKEN || shop.chat_access_token || shop.access_token || '')
     const baseString = partnerId + path + timestamp + accessToken + shopId
     const sign = await signHmacHex(app.partnerKey, baseString)
     const url = new URL(`https://partner.shopeemobile.com${path}`)

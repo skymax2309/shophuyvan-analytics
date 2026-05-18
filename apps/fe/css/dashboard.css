@@ -1,8 +1,0 @@
-/* NEO: Dashboard CSS tách theo cụm vận hành để file chính chỉ điều phối import và không vượt 30KB. */
-@import url('./dashboard/base-income.css?v=core-first-20260513a');
-@import url('./dashboard/chat-shell.css?v=core-first-20260513a');
-@import url('./dashboard/chat-thread.css?v=core-first-20260513a');
-@import url('./dashboard/chat-standalone-page.css?v=core-first-20260513g');
-@import url('./dashboard/ads-controls.css?v=core-first-20260513a');
-@import url('./dashboard/shared-controls.css?v=core-first-20260513a');
-@import url('./dashboard/marketplace-mobile.css?v=core-first-20260513a');

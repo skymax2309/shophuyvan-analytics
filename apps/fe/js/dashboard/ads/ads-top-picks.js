@@ -115,6 +115,14 @@ window.openTopPicksOptimizeModal = function(index) {
   }
   if (body) {
     body.innerHTML = `
+      <div class="ads-api-panel">
+        <div class="ads-api-panel-head"><b>TopPicks là gì?</b><span>Đọc từ Shopee</span></div>
+        <p class="ads-api-message">TopPicks là bộ sản phẩm gợi ý/mua kèm liên quan tới sản phẩm chính. Shopee API cho đọc danh sách và có endpoint add/update/delete bộ TopPicks, nhưng API không trả attribution đơn hàng trực tiếp.</p>
+      </div>
+      <div class="ads-api-panel">
+        <div class="ads-api-panel-head"><b>Có thể làm qua API</b><span>Phải verify</span></div>
+        <p class="ads-api-message">Có thể preview payload, gửi add/update/delete TopPicks, rồi refetch get_top_picks_list để xác nhận. UI hiện chưa mở nút thay sản phẩm vì cần chọn item_id_list rõ ràng trước khi ghi thật.</p>
+      </div>
       <div class="ads-optimize-kpis">
         <div><span>Attach rate</span><b>${adsPct(row.attach_rate)}</b></div>
         <div><span>Đơn chính</span><b>${Number(row.primary_order_count || 0).toLocaleString('vi-VN')}</b></div>
@@ -138,7 +146,7 @@ window.openTopPicksOptimizeModal = function(index) {
       <div id="topPicksActionResult" class="ads-optimize-result">Chưa lưu thay đổi.</div>
       <div class="ads-optimize-actions">
         <button type="button" onclick="saveTopPicksTrackingFromModal()">Lưu mã theo dõi</button>
-        <button type="button" onclick="alert('Thao tác thay sản phẩm TopPicks cần endpoint add/update TopPicks chính thức của Shopee. Hiện hệ thống đang đọc get_top_picks_list và lưu tracking nội bộ, chưa gửi thay đổi bộ TopPicks lên sàn để tránh thao tác giả.')">Thay bộ TopPicks</button>
+        <button type="button" disabled title="Cần chọn item_id_list thật trước khi gọi update_top_picks">Thay bộ TopPicks</button>
       </div>
     `
   }

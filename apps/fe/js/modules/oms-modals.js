@@ -1,7 +1,7 @@
 // ==========================================
 // MODULE: QUẢN LÝ CÁC CỬA SỔ POPUP (MODALS)
 // ==========================================
-import { API } from '../oms-api.js';
+import { API } from '../oms-dashboard/oms-api.js';
 import { showToast, closeModal } from '../utils/helpers.js';
 
 // Biến lưu trữ hàm load lại bảng từ file main

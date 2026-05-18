@@ -143,6 +143,18 @@ async function handleChat(request, env, cors) {
   if (request.method === 'GET' && url.pathname === '/api/chat/auto-reply/logs') {
     return listChatAiAutoReplyLogs(request, env, cors)
   }
+  if (request.method === 'GET' && url.pathname === '/api/chat/shop-auto-settings') {
+    return listChatShopAutoSettings(request, env, cors)
+  }
+  if (request.method === 'POST' && url.pathname === '/api/chat/shop-auto-settings') {
+    return updateChatShopAutoSetting(request, env, cors)
+  }
+  if (request.method === 'GET' && url.pathname === '/api/chat/auto-ghn/orders') {
+    return listGhnAutoMessageOrders(request, env, cors)
+  }
+  if (request.method === 'POST' && url.pathname === '/api/chat/auto-ghn/run') {
+    return runGhnAutoMessageBatch(request, env, cors)
+  }
   if (request.method === 'GET' && url.pathname === '/api/chat/knowledge') {
     return listChatKnowledge(request, env, cors)
   }

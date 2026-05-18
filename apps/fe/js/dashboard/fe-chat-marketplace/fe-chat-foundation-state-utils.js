@@ -43,6 +43,10 @@ const chatState = {
   ruleViolations: [],
   autoReplyLogs: [],
   autoReplyRunning: false,
+  shopAutoSettings: [],
+  shopAutoSettingsLoading: false,
+  ghnAutoOrders: [],
+  ghnAutoRunning: false,
   shopeeChatProbeByShop: {},
   knowledgeItems: [],
   knowledgeQuery: '',
@@ -107,7 +111,7 @@ const CHAT_TIME_FORMATTER_VN = new Intl.DateTimeFormat('vi-VN', {
   hour12: false
 })
 const CHAT_CONTEXT_TABS = new Set(['orders', 'products', 'vouchers'])
-const CHAT_SETTINGS_TABS = new Set(['automation', 'advisories', 'rules', 'knowledge', 'keywords'])
+const CHAT_SETTINGS_TABS = new Set(['automation', 'ai-auto', 'advisories', 'rules', 'knowledge', 'keywords'])
 const REQUIRED_CHAT_AI_FORBIDDEN_PATTERNS = [
   'zalo',
   'facebook',

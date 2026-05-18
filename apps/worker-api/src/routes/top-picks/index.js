@@ -1,9 +1,16 @@
 import { getShopeeAppFromRow, signHmacHex } from '../../utils/shopee-apps.js'
-import { getApiShops } from '../api-sync.js'
-import { analyzeShopeeTopPicksAttachRate } from './analysis.js'
+import { getApiShops } from '../api/index.js'
+import { analyzeShopeeTopPicksAttachRate, configureTopPicksAnalysisDeps } from './analysis.js'
+import { buildShopeeActionResult, shopeeResponseHasBusinessError } from '../../core/shopee/action-result-core.js'
 export { analyzeShopeeTopPicksAttachRate }
 
 const SHOPEE_TOP_PICKS_LIST_PATH = '/api/v2/top_picks/get_top_picks_list'
+const SHOPEE_TOP_PICKS_MUTATIONS = {
+  add: '/api/v2/top_picks/add_top_picks',
+  update: '/api/v2/top_picks/update_top_picks',
+  delete: '/api/v2/top_picks/delete_top_picks'
+}
+const TOP_PICKS_CONFIRM_TEXT = 'TOI_HIEU_DAY_LA_THAY_DOI_TOPPICKS_SHOPEE'
 
 function json(data, cors, status = 200) {
   return Response.json(data, { status, headers: cors })
@@ -90,6 +97,25 @@ function signShopeeUrl(app, path, accessToken, shopId) {
 async function fetchShopeeJson(buildUrl, params = {}) {
   const url = await buildUrl(params)
   const res = await fetch(url)
+  const text = await res.text()
+  let data = {}
+  try {
+    data = text ? JSON.parse(text) : {}
+  } catch {
+    throw new Error(`Shopee API returned non-JSON, HTTP ${res.status}`)
+  }
+  if (!res.ok) throw new Error(data.message || data.msg || data.error || `Shopee API HTTP ${res.status}`)
+  if (data.error) throw new Error(data.message || data.msg || data.error)
+  return data
+}
+
+async function fetchShopeeJsonPost(buildUrl, body = {}) {
+  const url = await buildUrl({})
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {})
+  })
   const text = await res.text()
   let data = {}
   try {
@@ -424,6 +450,8 @@ export async function syncShopeeTopPicks(env, options = {}) {
   }
 }
 
+configureTopPicksAnalysisDeps({ ensureShopeeTopPicksTables, syncShopeeTopPicks })
+
 async function listTopPickTracking(env, options = {}) {
   await ensureShopeeTopPicksTables(env)
   const shopFilter = sameShopFilterSql(options.shop, 'c.shop')
@@ -476,6 +504,136 @@ async function saveTopPickTracking(env, options = {}) {
   return { status: 'ok', mode: 'top_picks_tracking_tags_saved', shop, top_picks_id: topPicksId }
 }
 
+function normalizeTopPicksPayload(action, payload = {}) {
+  const data = payload && typeof payload === 'object' && !Array.isArray(payload) ? { ...payload } : {}
+  const topPicksId = cleanText(data.top_picks_id || data.topPicksId)
+  if (topPicksId) data.top_picks_id = Number(topPicksId) || topPicksId
+  if (Array.isArray(data.item_id_list)) data.item_id_list = data.item_id_list.map(item => Number(item) || item).filter(Boolean)
+  if (Array.isArray(data.itemIds)) data.item_id_list = data.itemIds.map(item => Number(item) || item).filter(Boolean)
+  if (action === 'delete') {
+    return { top_picks_id: data.top_picks_id }
+  }
+  if (data.is_activated !== undefined) data.is_activated = Boolean(data.is_activated)
+  if (data.name !== undefined) data.name = cleanText(data.name)
+  return data
+}
+
+function topPicksValidationErrors(action, payload = {}) {
+  const errors = []
+  if (['update', 'delete'].includes(action) && !cleanText(payload.top_picks_id)) errors.push('top_picks_id is required')
+  if (['add', 'update'].includes(action) && payload.item_id_list !== undefined && !Array.isArray(payload.item_id_list)) errors.push('item_id_list must be an array')
+  if (action === 'add' && !cleanText(payload.name)) errors.push('name is required')
+  return errors
+}
+
+function verifyTopPicksMutation(action, payload = {}, collections = []) {
+  const id = cleanText(payload.top_picks_id)
+  const row = collections.find(item => cleanText(item.top_picks_id) === id)
+  if (action === 'delete') {
+    return { verified: !row, object_id: id, reason: row ? 'top_picks_still_exists_after_refetch' : '' }
+  }
+  const targetIds = new Set((payload.item_id_list || []).map(item => cleanText(item)).filter(Boolean))
+  const currentIds = new Set((row?.item_ids || []).map(item => cleanText(item)).filter(Boolean))
+  const missing = [...targetIds].filter(item => !currentIds.has(item))
+  const activatedMatches = payload.is_activated === undefined || Boolean(row?.is_activated) === Boolean(payload.is_activated)
+  return {
+    verified: Boolean(row) && missing.length === 0 && activatedMatches,
+    object_id: cleanText(row?.top_picks_id || id),
+    missing_item_ids: missing,
+    activated_matches: activatedMatches,
+    refetched_item_ids: row?.item_ids || [],
+    refetched_name: row?.name || ''
+  }
+}
+
+async function executeShopeeTopPicksAction(env, options = {}) {
+  const action = cleanText(options.action).toLowerCase()
+  const endpoint = SHOPEE_TOP_PICKS_MUTATIONS[action]
+  const shopFilter = cleanText(options.shop)
+  const payload = normalizeTopPicksPayload(action, options.payload || {})
+  const dryRun = !(options.execute === true || String(options.execute).toLowerCase() === 'true')
+  const confirmed = cleanText(options.confirm) === TOP_PICKS_CONFIRM_TEXT
+  const base = {
+    mode: 'shopee_top_picks_action',
+    action,
+    endpoint,
+    shop: shopFilter,
+    object_id: cleanText(payload.top_picks_id)
+  }
+  if (!endpoint) return { ...base, status: 'error', error: 'invalid_action', allowed_actions: Object.keys(SHOPEE_TOP_PICKS_MUTATIONS) }
+  const errors = topPicksValidationErrors(action, payload)
+  if (!shopFilter) errors.push('shop is required')
+  if (errors.length) {
+    return buildShopeeActionResult({ ...base, ok: false, status: 'error', payload, message: errors.join('; '), verify_result: { validation_errors: errors } })
+  }
+  if (dryRun || !confirmed) {
+    return buildShopeeActionResult({
+      ...base,
+      ok: false,
+      status: 'preview',
+      payload,
+      dry_run: true,
+      sent_to_shopee: false,
+      message: dryRun ? 'Preview payload TopPicks Shopee. Chưa gọi mutation.' : 'Chưa gửi lên Shopee vì thiếu xác nhận hợp lệ.',
+      verify_result: { confirmation_required: dryRun ? '' : TOP_PICKS_CONFIRM_TEXT }
+    })
+  }
+
+  const shops = await getApiShops(env, 'shopee', shopFilter, 1)
+  const shop = shops[0]
+  if (!shop || !shop.api_shop_id) {
+    return buildShopeeActionResult({ ...base, ok: false, status: 'error', payload, raw_error: { error: 'shop_not_found', message: 'Không tìm thấy shop Shopee API tương ứng.' } })
+  }
+  const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shop.shop_name || shop.user_name)
+  const buildUrl = signShopeeUrl(app, endpoint, shop.access_token, shop.api_shop_id)
+  try {
+    const response = await fetchShopeeJsonPost(buildUrl, payload)
+    if (shopeeResponseHasBusinessError(response)) {
+      return buildShopeeActionResult({
+        ...base,
+        ok: false,
+        status: 'error',
+        shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
+        shop_id: String(shop.api_shop_id || ''),
+        payload,
+        sent_to_shopee: true,
+        raw_response: response,
+        message: 'Shopee từ chối thao tác TopPicks. Xem raw_response.'
+      })
+    }
+    const refetch = await fetchShopeeTopPicksListShop(env, shop)
+    if (refetch.ok) await saveTopPicksCollections(env, shop, refetch.collections, dateYmd(new Date()))
+    const verifyResult = verifyTopPicksMutation(action, payload, refetch.collections || [])
+    return buildShopeeActionResult({
+      ...base,
+      object_id: verifyResult.object_id || base.object_id,
+      ok: true,
+      status: verifyResult.verified ? 'ok' : 'error',
+      shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
+      shop_id: String(shop.api_shop_id || ''),
+      payload,
+      sent_to_shopee: true,
+      raw_response: response,
+      verified: verifyResult.verified,
+      verify_result: { ...verifyResult, refetch_request_id: refetch.request_id, refetch_endpoint: SHOPEE_TOP_PICKS_LIST_PATH },
+      message: verifyResult.verified
+        ? 'Đã gọi Shopee TopPicks API thật và refetch xác nhận thay đổi.'
+        : 'Shopee đã nhận request nhưng refetch TopPicks chưa xác nhận thay đổi, không xem là thành công.'
+    })
+  } catch (error) {
+    return buildShopeeActionResult({
+      ...base,
+      ok: false,
+      status: 'error',
+      shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
+      shop_id: String(shop.api_shop_id || ''),
+      payload,
+      raw_error: { message: error?.message || String(error) },
+      sent_to_shopee: true
+    })
+  }
+}
+
 export async function handleTopPicks(request, env, cors) {
   const url = new URL(request.url)
 
@@ -510,6 +668,20 @@ export async function handleTopPicks(request, env, cors) {
       include_payment_detail: body.include_payment_detail ?? body.includePaymentDetail ?? url.searchParams.get('include_payment_detail')
     })
     return json(result, cors)
+  }
+
+  if (url.pathname === '/api/top-picks/shopee/action') {
+    if (request.method !== 'POST') return json({ error: 'Method not allowed' }, cors, 405)
+    let body = {}
+    try { body = await request.json() } catch {}
+    const result = await executeShopeeTopPicksAction(env, {
+      action: body.action || url.searchParams.get('action'),
+      shop: body.shop || url.searchParams.get('shop'),
+      payload: body.payload || {},
+      execute: body.execute,
+      confirm: body.confirm
+    })
+    return json(result, cors, result.status === 'error' ? 400 : 200)
   }
 
   if (url.pathname === '/api/top-picks/tracking') {

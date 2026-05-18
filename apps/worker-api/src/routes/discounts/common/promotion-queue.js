@@ -1,3 +1,5 @@
+import { redactShopeeValue } from '../../../features/shopee/logs/shopeeLogMask.js'
+
 export function installDiscountsCommonPromotionQueue(core) {
   const DISCOUNT_STOCK_RULE_CONFIRM = core.DISCOUNT_STOCK_RULE_CONFIRM
   const PROMOTION_QUEUE_EXECUTE_CONFIRM = core.PROMOTION_QUEUE_EXECUTE_CONFIRM
@@ -216,6 +218,7 @@ export function installDiscountsCommonPromotionQueue(core) {
   function publicPromotionQueueRow(row = {}) {
     return {
       ...row,
+      raw_response_masked: parseJson(row.raw_response_masked, {}),
       payload: parseJson(row.payload, {}),
       preview_response: parseJson(row.preview_response, {}),
       risk_summary: parseJson(row.risk_summary, {}),
@@ -226,6 +229,27 @@ export function installDiscountsCommonPromotionQueue(core) {
     }
   }
   core.publicPromotionQueueRow = publicPromotionQueueRow
+
+  function queueClientType(platform = '') {
+    const key = cleanText(platform).toLowerCase()
+    if (key === 'shopee') return 'marketplace_client'
+    if (key === 'lazada') return 'lazada_client'
+    return key ? `${key}_client` : ''
+  }
+
+  function queueSendStatusFromRisk(status = '') {
+    const key = cleanText(status).toLowerCase()
+    if (key === 'needs_data') return 'needs_data'
+    if (key === 'blocked' || key === 'rejected') return 'failed_validation'
+    return 'ready_to_send'
+  }
+
+  function queueValidationStatusFromRisk(status = '') {
+    const key = cleanText(status).toLowerCase()
+    if (key === 'needs_data') return 'needs_data'
+    if (key === 'blocked' || key === 'rejected') return 'failed_validation'
+    return 'valid'
+  }
 
   function promotionQueueSupportsLiveApply(row = {}) {
     const platform = cleanText(row.platform).toLowerCase()
@@ -270,14 +294,20 @@ export function installDiscountsCommonPromotionQueue(core) {
     const platform = cleanText(preview.platform || options.platform).toLowerCase()
     const module = cleanText(preview.module || options.module).toLowerCase()
     const item = skuDetail.status === 'ok' ? skuDetail.promotion_item || {} : (options.row || {})
+    const writeEndpoints = Array.isArray(preview.write_endpoints) ? preview.write_endpoints : []
+    const sendStatus = queueSendStatusFromRisk(risk.status)
+    const validationStatus = queueValidationStatusFromRisk(risk.status)
     await env.DB.prepare(`
       INSERT INTO marketplace_promotion_apply_queue (
         queue_id, platform, shop, api_shop_id, module, action, program_id,
-        item_id, model_id, sku_id, sku, status, payload, preview_response,
+        item_id, model_id, sku_id, sku, status, action_type, target_type,
+        client_type, shopee_endpoint, validation_status, send_status,
+        verify_status, error_code, error_message, raw_response_masked,
+        payload, preview_response,
         risk_summary, rollback_payload, apply_locked, sent_to_platform,
         created_by, created_role, notes, response, created_at, updated_at
       )
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,0,?,?,?,?,datetime('now', '+7 hours'),datetime('now', '+7 hours'))
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,0,?,?,?,?,datetime('now', '+7 hours'),datetime('now', '+7 hours'))
     `).bind(
       queueId,
       platform,
@@ -291,6 +321,16 @@ export function installDiscountsCommonPromotionQueue(core) {
       cleanText(item.sku_id || options.sku_id || options.skuId),
       cleanText(item.sku),
       risk.status,
+      cleanText(preview.action || options.action),
+      module,
+      queueClientType(platform),
+      cleanText(writeEndpoints[0]),
+      validationStatus,
+      sendStatus,
+      'not_verified',
+      risk.errors?.length ? 'failed_validation' : '',
+      risk.errors?.[0] || '',
+      compactJson({}, 2000),
       compactJson(preview.payload || {}, 30000),
       compactJson(preview, 30000),
       compactJson(risk, 30000),
@@ -311,7 +351,7 @@ export function installDiscountsCommonPromotionQueue(core) {
       mode: 'promotion_apply_queue_create',
       queue: publicPromotionQueueRow(row),
       sku_detail: skuDetail,
-      safety: 'Đã ghi hàng đợi nội bộ. Chưa gửi lệnh tạo/sửa/kích hoạt/tắt khuyến mãi thật lên sàn.'
+      safety: 'Đã ghi hàng đợi nội bộ. Chỉ dòng có send_status=ready_to_send mới được bấm gửi thật; chưa có dòng nào tự gửi lên sàn.'
     }
   }
   core.createPromotionApplyQueue = createPromotionApplyQueue
@@ -353,6 +393,15 @@ export function installDiscountsCommonPromotionQueue(core) {
     const payload = parseJson(current.payload, {})
     const clientRule = promotionQueueDiscountClientRule(current)
     try {
+      await env.DB.prepare(`
+        UPDATE marketplace_promotion_apply_queue
+        SET send_status = 'sending',
+            verify_status = 'not_verified',
+            error_code = '',
+            error_message = '',
+            updated_at = datetime('now', '+7 hours')
+        WHERE queue_id = ?
+      `).bind(queueId).run()
       const actionResult = await executeShopeeDiscountAction(env, {
         action: 'update_discount_item',
         shop: current.shop,
@@ -361,17 +410,60 @@ export function installDiscountsCommonPromotionQueue(core) {
         execute: true,
         confirm: DISCOUNT_STOCK_RULE_CONFIRM
       })
+      if (actionResult.status !== 'ok' || actionResult.verified !== true) {
+        const response = {
+          status: 'error',
+          error: 'shopee_apply_not_verified',
+          message: actionResult.message || 'Shopee chưa verify thay đổi sau refetch, không đánh dấu hàng đợi là đã gửi thành công.',
+          action_result: actionResult
+        }
+        await env.DB.prepare(`
+          UPDATE marketplace_promotion_apply_queue
+          SET status = 'apply_error',
+              apply_locked = 0,
+              send_status = ?,
+              verify_status = 'verify_failed',
+              error_code = 'verify_failed',
+              error_message = ?,
+              raw_response_masked = ?,
+              response = ?,
+              sent_at = CASE WHEN ? THEN datetime('now', '+7 hours') ELSE sent_at END,
+              updated_at = datetime('now', '+7 hours')
+          WHERE queue_id = ?
+        `).bind(
+          actionResult.sent_to_shopee ? 'sent_to_shopee' : 'failed_api',
+          cleanText(response.message),
+          compactJson(redactShopeeValue(actionResult), 30000),
+          compactJson(response, 30000),
+          actionResult.sent_to_shopee ? 1 : 0,
+          queueId
+        ).run()
+        const row = await env.DB.prepare(`SELECT * FROM marketplace_promotion_apply_queue WHERE queue_id = ?`).bind(queueId).first()
+        return { ...response, queue: publicPromotionQueueRow(row) }
+      }
       await env.DB.prepare(`
         UPDATE marketplace_promotion_apply_queue
         SET status = 'sent_to_platform',
             apply_locked = 0,
             sent_to_platform = 1,
+            send_status = 'sent_to_shopee',
+            verify_status = 'verify_success',
+            error_code = '',
+            error_message = '',
+            raw_response_masked = ?,
             applied_by = ?,
             response = ?,
             applied_at = datetime('now', '+7 hours'),
+            sent_at = datetime('now', '+7 hours'),
+            verified_at = datetime('now', '+7 hours'),
             updated_at = datetime('now', '+7 hours')
         WHERE queue_id = ?
-      `).bind(cleanText(user.username), compactJson(actionResult, 30000), queueId).run()
+      `).bind(
+        compactJson(redactShopeeValue(actionResult), 30000),
+        cleanText(user.username),
+        compactJson(actionResult, 30000),
+        queueId
+      ).run()
       const row = await env.DB.prepare(`SELECT * FROM marketplace_promotion_apply_queue WHERE queue_id = ?`).bind(queueId).first()
       return {
         status: 'ok',
@@ -385,10 +477,22 @@ export function installDiscountsCommonPromotionQueue(core) {
       await env.DB.prepare(`
         UPDATE marketplace_promotion_apply_queue
         SET status = 'apply_error',
+            send_status = ?,
+            verify_status = 'not_verified',
+            error_code = ?,
+            error_message = ?,
+            raw_response_masked = ?,
             response = ?,
             updated_at = datetime('now', '+7 hours')
         WHERE queue_id = ?
-      `).bind(compactJson(response, 12000), queueId).run()
+      `).bind(
+        error?.shopee?.category === 'live_write_disabled' ? 'draft_local' : 'failed_api',
+        cleanText(error?.shopee?.category || response.error),
+        cleanText(response.message),
+        compactJson(redactShopeeValue(error?.shopee || response), 12000),
+        compactJson(response, 12000),
+        queueId
+      ).run()
       const row = await env.DB.prepare(`SELECT * FROM marketplace_promotion_apply_queue WHERE queue_id = ?`).bind(queueId).first()
       return { ...response, queue: publicPromotionQueueRow(row) }
     }

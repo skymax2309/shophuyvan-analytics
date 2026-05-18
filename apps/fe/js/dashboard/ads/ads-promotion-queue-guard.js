@@ -33,14 +33,16 @@ function renderPromotionQueue(rows = []) {
   const box = adsEl('promotionQueueBox')
   if (!box) return
   if (!rows.length) {
-    box.innerHTML = '<div class="ads-empty">Chưa có hàng đợi duyệt promotion.</div>'
+    box.innerHTML = '<div class="ads-empty">Chưa có hàng đợi nội bộ promotion.</div>'
     return
   }
   box.innerHTML = rows.map(row => {
     const risk = row.risk_summary || {}
     const warnings = [...(risk.warnings || []), ...(risk.errors || [])].filter(Boolean)
+    const sendStatus = String(row.send_status || '').toLowerCase()
+    const verifyStatus = String(row.verify_status || '').toLowerCase()
     const canExecute = promotionQueueCanExecute(row)
-    const executeLabel = canExecute ? 'Đẩy giá lên Shopee' : 'Chưa hỗ trợ đẩy thật'
+    const executeLabel = canExecute ? 'Gửi thật lên Shopee' : sendStatus === 'needs_data' ? 'Cần kéo dữ liệu từ Shopee' : 'Chưa hỗ trợ gửi thật'
     return `
       <article class="ads-promotion-detail-card">
         <div class="ads-promotion-row-head">
@@ -50,11 +52,14 @@ function renderPromotionQueue(rows = []) {
           </div>
           <div class="ads-promotion-queue-status">
             <code>${adsEscape(row.status || '')}</code>
-            <code>${row.sent_to_platform ? 'đã gửi sàn' : 'chưa gửi sàn'}</code>
+            <code>${adsEscape(row.send_status || (row.sent_to_platform ? 'sent_to_shopee' : 'draft_local'))}</code>
+            <code>${adsEscape(row.verify_status || 'not_verified')}</code>
           </div>
         </div>
         <div class="ads-promotion-detail-grid">
           <span>Queue: ${adsEscape(row.queue_id || '')}</span>
+          <span>Client: ${adsEscape(row.client_type || '')}</span>
+          <span>Endpoint: ${adsEscape(row.shopee_endpoint || '')}</span>
           <span>Giá mục tiêu: ${adsMoney(risk.target_price || 0)}</span>
           <span>Giá vốn: ${adsMoney(risk.cost_base || 0)}</span>
           <span>Lãi đơn vị: ${adsMoney(risk.unit_margin_after_target || 0)}</span>
@@ -62,11 +67,14 @@ function renderPromotionQueue(rows = []) {
           <span>Doanh thu 30 ngày: ${adsMoney(risk.order_revenue_30d || 0)}</span>
           <span>Tạo bởi: ${adsEscape(row.created_by || '-')}</span>
           <span>Lúc: ${adsEscape(row.created_at || '-')}</span>
+          <span>Gửi lúc: ${adsEscape(row.sent_at || '-')}</span>
+          <span>Verify lúc: ${adsEscape(row.verified_at || '-')}</span>
         </div>
         <div class="ads-promotion-browser-actions">
           <button type="button" class="${canExecute ? '' : 'secondary'}" ${canExecute ? `onclick="executePromotionQueueApply('${adsEscape(row.queue_id || '')}')"` : 'disabled'}>${executeLabel}</button>
         </div>
-        ${warnings.length ? `<div class="ads-promotion-warning">${warnings.map(adsEscape).join(' ')}</div>` : '<span>Đủ điều kiện ở mức hàng đợi. Vẫn chưa có lệnh gửi thật lên sàn.</span>'}
+        ${row.error_message ? `<div class="ads-error">${adsEscape(row.error_code || 'error')}: ${adsEscape(row.error_message)}</div>` : ''}
+        ${warnings.length ? `<div class="ads-promotion-warning">${warnings.map(adsEscape).join(' ')}</div>` : '<span>Đủ điều kiện ở mức hàng đợi. Chỉ nút “Gửi thật lên Shopee” mới gọi API sàn và phải verify bằng refetch.</span>'}
       </article>
     `
   }).join('')
@@ -78,9 +86,11 @@ function promotionQueueCanExecute(row = {}) {
   const status = String(row.status || '').toLowerCase()
   const risk = row.risk_summary || {}
   const errors = Array.isArray(risk.errors) ? risk.errors.filter(Boolean) : []
+  const sendStatus = String(row.send_status || '').toLowerCase()
   return platform === 'shopee'
     && ['discount', 'shopee_discount'].includes(module)
     && !row.sent_to_platform
+    && (!sendStatus || sendStatus === 'ready_to_send')
     && !['blocked', 'needs_data', 'rejected', 'apply_error'].includes(status)
     && errors.length === 0
 }
@@ -90,9 +100,20 @@ window.executePromotionQueueApply = async function(queueId) {
   const box = adsEl('promotionQueueBox')
   if (!row || !box) return
   const risk = row.risk_summary || {}
-  const ok = window.confirm(`Xác nhận đẩy giá lên Shopee?\n\nShop: ${row.shop || ''}\nSKU/item: ${row.sku || row.item_id || ''}\nGiá sẽ đẩy: ${adsMoney(risk.target_price || 0)}\n\nBấm OK để gửi thật qua Shopee Discount API.`)
+  const ok = await adsConfirmAction({
+    title: 'Xác nhận gửi thật lên Shopee',
+    message: 'Lệnh này gọi Shopee Discount API thật bằng marketplace_client. Hàng đợi chỉ chuyển trạng thái khi backend refetch verify thành công.',
+    danger: true,
+    confirmText: 'Gửi thật lên Shopee',
+    details: [
+      { label: 'Shop', value: row.shop || '' },
+      { label: 'SKU/item', value: row.sku || row.item_id || '' },
+      { label: 'Giá sẽ đẩy', value: adsMoney(risk.target_price || 0) },
+      { label: 'Queue', value: row.queue_id || '' }
+    ]
+  })
   if (!ok) return
-  box.insertAdjacentHTML('afterbegin', '<div class="ads-empty">Đang đẩy giá lên Shopee, vui lòng không bấm lại...</div>')
+  box.insertAdjacentHTML('afterbegin', '<div class="ads-empty">Đang gửi thật lên Shopee và chờ refetch verify, vui lòng không bấm lại...</div>')
   try {
     const data = await adsPost('/api/discounts/promotions/apply-queue/execute', {
       queue_id: queueId,
@@ -101,14 +122,14 @@ window.executePromotionQueueApply = async function(queueId) {
     adsState.promotionQueue = [data.queue, ...adsState.promotionQueue.filter(item => item.queue_id !== queueId)].filter(Boolean)
     renderPromotionQueue(adsState.promotionQueue)
   } catch (error) {
-    box.insertAdjacentHTML('afterbegin', `<div class="ads-error">Không đẩy được giá lên Shopee: ${adsEscape(error.message)}</div>`)
+    box.insertAdjacentHTML('afterbegin', `<div class="ads-error">Không gửi được giá lên Shopee: ${adsEscape(error.message)}</div>`)
   }
 }
 
 window.loadPromotionApplyQueue = async function() {
   activatePromotionTab('queue')
   const box = adsEl('promotionQueueBox')
-  if (box) box.innerHTML = '<div class="ads-empty">Đang tải hàng đợi duyệt promotion...</div>'
+  if (box) box.innerHTML = '<div class="ads-empty">Đang tải hàng đợi nội bộ promotion...</div>'
   try {
     const data = await adsFetch('/api/discounts/promotions/apply-queue?limit=30')
     adsState.promotionQueue = Array.isArray(data.rows) ? data.rows : []
@@ -215,7 +236,7 @@ window.previewAdsCampaignGuard = async function() {
 window.applyAdsCampaignGuard = async function() {
   const preview = adsState.guardPreview
   if (!preview) {
-    alert('Hãy bấm preview trước để kiểm tra payload ADS guard.')
+    adsShowToast('Hãy bấm preview trước để kiểm tra payload ADS guard.', 'error')
     return
   }
   const body = adsGuardBuildRequestBody(true)
@@ -258,7 +279,7 @@ window.openAdsCampaignGuard = function(index, options = {}) {
   activateAdsGuardTab('action')
   const capability = adsGuardCapabilities().find(item => item.shop === row.shop && item.platform === row.platform)
   if (!capability) {
-    alert('Chưa nạp được capability ADS của shop này. Hãy làm mới ADS rồi thử lại.')
+    adsShowToast('Chưa nạp được capability ADS của shop này. Hãy làm mới ADS rồi thử lại.', 'error')
     return
   }
   const campaign = adsCampaignForProduct(row)

@@ -3,8 +3,9 @@
 // ════════════════════════════════════════════════════════════════════
 
 import { getFilters, buildWhere } from '../../utils/filters.js'
-import { ensureReturnReverseLedgerTable } from '../../core/return-reverse-core.js'
-import { moneyNumber, dashboardStatusAggregate } from '../../core/dashboard-summary-core.js'
+import { ensureReturnReverseLedgerTable } from '../../core/returns/reverse-core.js'
+import { moneyNumber, dashboardStatusAggregate } from '../../core/dashboard/summary-core.js'
+import { ensureOrderFeeDetailsReadTable, feeRawNumberSql } from '../orders/cost-resolution.js'
 
 function buildAdsSnapshotWhere(filters) {
   const conds = [`COALESCE(spend, 0) > 0`]
@@ -46,6 +47,7 @@ function buildAllOrderWhere(filters, prefix = '') {
 
 async function dashboard(request, env, cors) {
   await ensureReturnReverseLedgerTable(env)
+  await ensureOrderFeeDetailsReadTable(env)
   const filters = getFilters(new URL(request.url))
   const { where: whereAlias, params: aliasParams } = buildWhere(filters, 'o.')
   const { where: whereAllOrders, params: allOrderParams } = buildAllOrderWhere(filters)
@@ -211,26 +213,43 @@ const cancelRow = await env.DB.prepare(`
     ${whereAllOrders}
   `).bind(...allOrderParams).first()
 
+  const apiShopDiscountSql = `(COALESCE(f.voucher_from_seller, 0) + COALESCE(f.seller_discount, 0))`
+  const apiPlatformDiscountSql = `(COALESCE(f.voucher_from_shopee, 0) + COALESCE(f.shopee_discount, 0) + COALESCE(f.coins, 0))`
+  const shopDiscountSql = `(CASE WHEN f.voucher_from_seller IS NOT NULL OR f.seller_discount IS NOT NULL THEN ${apiShopDiscountSql} ELSE COALESCE(o.discount_shop, 0) END)`
+  const platformDiscountSql = `(CASE WHEN f.voucher_from_shopee IS NOT NULL OR f.shopee_discount IS NOT NULL OR f.coins IS NOT NULL THEN ${apiPlatformDiscountSql} ELSE COALESCE(o.discount_shopee, 0) END)`
+
   const breakdownRow = await env.DB.prepare(`
     SELECT
-      COUNT(DISTINCT CASE WHEN order_type='normal' THEN order_id END)  AS success_orders,
-      COUNT(DISTINCT CASE WHEN order_type='cancel' THEN order_id END)  AS cancel_orders_count,
-      COUNT(DISTINCT CASE WHEN order_type='return' THEN order_id END)  AS return_orders_count,
-      SUM(CASE WHEN order_type='normal' THEN revenue    ELSE 0 END)    AS revenue_normal,
-      SUM(CASE WHEN order_type='return' THEN raw_revenue ELSE 0 END)   AS revenue_returned,
-      SUM(CASE WHEN order_type='return' THEN return_fee  ELSE 0 END)   AS total_return_shipping,
+      COUNT(DISTINCT CASE WHEN o.order_type='normal' THEN o.order_id END)  AS success_orders,
+      COUNT(DISTINCT CASE WHEN o.order_type='cancel' THEN o.order_id END)  AS cancel_orders_count,
+      COUNT(DISTINCT CASE WHEN o.order_type='return' THEN o.order_id END)  AS return_orders_count,
+      SUM(CASE WHEN o.order_type='normal' THEN o.revenue    ELSE 0 END)    AS revenue_normal,
+      SUM(CASE WHEN o.order_type='return' THEN o.raw_revenue ELSE 0 END)   AS revenue_returned,
+      SUM(CASE WHEN o.order_type='return' THEN o.return_fee  ELSE 0 END)   AS total_return_shipping,
 
       -- Chỉ số giảm giá mới
-      SUM(COALESCE(discount_shop, 0))                                   AS total_discount_shop,
-      SUM(COALESCE(discount_shopee, 0))                                 AS total_discount_shopee,
-      SUM(COALESCE(discount_combo, 0))                                  AS total_discount_combo,
-      SUM(COALESCE(shipping_return_fee, 0))                             AS total_shipping_return_fee,
-      COUNT(DISTINCT CASE WHEN COALESCE(discount_shop,0) > 0 THEN order_id END)   AS orders_with_discount_shop,
-      COUNT(DISTINCT CASE WHEN COALESCE(discount_shopee,0) > 0 THEN order_id END) AS orders_with_discount_shopee,
-      COUNT(DISTINCT CASE WHEN COALESCE(discount_combo,0) > 0 THEN order_id END)  AS orders_with_discount_combo
-    FROM orders_v2
-    ${whereAllOrders}
-  `).bind(...allOrderParams).first()
+      SUM(${shopDiscountSql})                                           AS total_discount_shop,
+      SUM(${platformDiscountSql})                                       AS total_discount_shopee,
+      SUM(COALESCE(o.discount_combo, 0))                                AS total_discount_combo,
+      SUM(COALESCE(o.shipping_return_fee, 0))                           AS total_shipping_return_fee,
+      COUNT(DISTINCT CASE WHEN ${shopDiscountSql} > 0 THEN o.order_id END) AS orders_with_discount_shop,
+      COUNT(DISTINCT CASE WHEN ${platformDiscountSql} > 0 THEN o.order_id END) AS orders_with_discount_shopee,
+      COUNT(DISTINCT CASE WHEN COALESCE(o.discount_combo,0) > 0 THEN o.order_id END) AS orders_with_discount_combo
+    FROM orders_v2 o
+    LEFT JOIN (
+      SELECT
+        LOWER(COALESCE(platform, '')) AS platform_key,
+        order_id,
+        SUM(${feeRawNumberSql('$.order_income.voucher_from_seller', 'ofd')}) AS voucher_from_seller,
+        SUM(${feeRawNumberSql('$.order_income.seller_discount', 'ofd')}) AS seller_discount,
+        SUM(${feeRawNumberSql('$.order_income.voucher_from_shopee', 'ofd')}) AS voucher_from_shopee,
+        SUM(${feeRawNumberSql('$.order_income.shopee_discount', 'ofd')}) AS shopee_discount,
+        SUM(${feeRawNumberSql('$.order_income.coins', 'ofd')}) AS coins
+      FROM order_fee_details ofd
+      GROUP BY LOWER(COALESCE(platform, '')), order_id
+    ) f ON f.platform_key = LOWER(COALESCE(o.platform, '')) AND f.order_id = o.order_id
+    ${whereAliasAllOrders}
+  `).bind(...aliasAllOrderParams).first()
 
   // Bổ sung query gom nhóm chi tiết theo từng shop để hiển thị tooltip.
   // Query này cần cả đơn hủy/hoàn để người dùng thấy đủ tổng đơn theo shop.

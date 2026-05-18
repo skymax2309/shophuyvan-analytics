@@ -1,7 +1,7 @@
-import { ensureInventoryStockColumns } from '../../core/inventory-stock-core.js'
-import { listMarketplaceApiIdentityKeys, listMarketplaceShopCapabilities } from '../../core/marketplace-shop-capability-core.js'
-import { getProductCatalogSettings, saveProductActionLog } from '../../core/product-catalog-core.js'
-import { parseMappedSkuItems } from '../../core/sku-identity-core.js'
+import { ensureInventoryStockColumns } from '../../core/inventory/stock-core.js'
+import { listMarketplaceApiIdentityKeys, listMarketplaceShopCapabilities } from '../../core/marketplace/shop-capability-core.js'
+import { getProductCatalogSettings, saveProductActionLog } from '../../core/products/catalog-core.js'
+import { parseMappedSkuItems } from '../../core/products/sku-identity-core.js'
 
 export function cleanProductText(value) {
   return String(value ?? '').replace(/\u00a0/g, ' ').trim()

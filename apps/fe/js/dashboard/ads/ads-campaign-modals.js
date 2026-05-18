@@ -28,11 +28,15 @@ function adsActionButtons(row = {}, index = 0) {
   const campaign = adsCampaignForProduct(row)
   const setting = adsCampaignSetting(campaign || {})
   const status = adsCampaignStatus(setting, campaign || {})
-  const toggleLabel = adsCampaignToggleAction(status).nextText
+  const toggleAction = adsCampaignToggleAction(status)
+  const toggleLabel = toggleAction.nextText
+  const toggleOn = toggleAction.editAction === 'pause'
   const tone = row.status === 'danger' ? 'danger' : (row.status === 'watch' ? 'watch' : 'neutral')
   return `
     <div class="ads-row-actions">
-      <button type="button" class="ads-action-btn ${tone}" onclick="requestAdsCampaignToggle(${index})">${adsEscape(toggleLabel)}</button>
+      <button type="button" class="ads-toggle-switch ${toggleOn ? 'is-on' : ''}" aria-label="${adsEscape(toggleLabel)}" onclick="requestAdsCampaignToggle(${index})">
+        <span class="ads-toggle-track"></span><span>${toggleOn ? 'ON' : 'OFF'}</span>
+      </button>
       <button type="button" class="ads-action-btn primary" onclick="openAdsOptimizeModal(${index})">Tối ưu</button>
       <button type="button" class="ads-action-btn neutral" onclick="openAdsCampaignGuard(${index})">Guard ADS</button>
     </div>
@@ -92,7 +96,7 @@ function ensureAdsCampaignToggleModal() {
 window.requestAdsCampaignToggle = function(index) {
   const context = adsBuildCampaignToggleContext(index)
   if (context.error) {
-    alert(context.error)
+    adsShowToast(context.error, 'error')
     return
   }
   adsState.pendingCampaignToggle = context
@@ -151,10 +155,8 @@ window.confirmAdsCampaignToggle = async function() {
       confirm_apply: route.confirm,
       reference_id: `web_ads_toggle_${Date.now()}_${campaignId}`
     })
-    const requestId = result.request_id ? ` Request ID: ${result.request_id}.` : ''
-    const message = result.message || result.warning || 'Shopee đã nhận request.'
-    if (resultBox) resultBox.textContent = `Đã gửi lệnh ${action.label}: ${message}${requestId}`
-    alert(`Đã gửi lệnh ${action.label} ADS cho campaign ${campaignId}.\n${message}${requestId}\n\nMàn hình sẽ kéo lại trạng thái từ Ads API.`)
+    if (resultBox) adsSetApiResult(resultBox, result, { action: action.editAction, title: `Kết quả ${action.label} ADS` })
+    if (!adsActionOk(result)) return
     await runAdsCampaignSync({
       manual: false,
       body: {
@@ -170,8 +172,15 @@ window.confirmAdsCampaignToggle = async function() {
     closeAdsCampaignToggleModal()
     await loadAdsDashboard({ skipAutoSync: true })
   } catch (error) {
-    if (resultBox) resultBox.textContent = `Không đổi được ADS: ${error.message}`
-    alert(`Không đổi được ADS campaign ${campaignId}: ${error.message}\n\nEndpoint đang dùng: ${route.shopeeEndpoint}`)
+    const result = {
+      status: 'error',
+      action: action.editAction,
+      endpoint: route.shopeeEndpoint,
+      object_id: campaignId,
+      shop,
+      message: error.message
+    }
+    if (resultBox) adsSetApiResult(resultBox, result, { title: 'Không đổi được ADS' })
   } finally {
     if (button) button.disabled = false
   }

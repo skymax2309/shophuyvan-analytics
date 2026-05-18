@@ -369,6 +369,7 @@ function renderChatAutomationSettingsModal() {
   chatState.activeSettingsTab = safeTab
   const panelHtml = {
     automation: renderChatAutomationSettingsPanel(data, shops),
+    'ai-auto': renderChatAiShopControlsPanel(data, shops),
     rules: renderChatRulesPanel(data, settings, shops),
     knowledge: renderChatKnowledgePanel(),
     keywords: renderChatKeywordsPanel(settings),

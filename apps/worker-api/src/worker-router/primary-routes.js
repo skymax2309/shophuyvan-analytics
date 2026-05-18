@@ -23,6 +23,7 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
     handleDiscounts,
     handleOperations,
     handleLogisticsWatch,
+    handleExternalApi,
     handleShopeeMarketplaceWebhook,
     handleLazadaMarketplaceWebhook,
     handleWebhookEventsStatus,
@@ -71,6 +72,7 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
     normalizeOmsStatusPair,
     handleCustomerRisk,
     uploadReport,
+    handleShopeeDiagnostics,
     getReports,
     getReportSummary,
     getOperationCosts,
@@ -100,6 +102,15 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
   if (url.pathname === "/api/purchase" || url.pathname.startsWith("/api/purchase/")) {
     return handlePurchase(request, env, cors)
   }
+
+  if (url.pathname.startsWith("/api/external/")) {
+    return handleExternalApi(request, env, cors, ctx)
+  }
+
+  if (url.pathname === "/api/admin/shopee/diagnostics" || url.pathname === "/admin/shopee/diagnostics") {
+    return handleShopeeDiagnostics(request, env, cors, getAdminUserFromRequest)
+  }
+
   if (url.pathname === "/api/shops/api-configs" ||
       url.pathname === "/api/shops/shopee-app-config" ||
       url.pathname === "/api/shops/shopee-snapshot" ||

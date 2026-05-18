@@ -1,7 +1,7 @@
 import { getFilters, buildWhere } from '../../utils/filters.js'
 import { getCostSettings, calcProfit } from '../../utils/db.js'
-import { orderStatusKind } from '../../core/order-status-core.js'
-import { vietnameseCancelReason } from '../../core/dashboard-summary-core.js'
+import { orderStatusKind } from '../../core/orders/status-core.js'
+import { vietnameseCancelReason } from '../../core/dashboard/summary-core.js'
 
 async function uniqueSkus(request, env, cors) {
   const rows = await env.DB.prepare(`

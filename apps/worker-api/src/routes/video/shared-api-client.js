@@ -1,7 +1,7 @@
-import { getShopeeVideoAppFromRow, isShopeeVideoPermissionOk, shopeeVideoUserId } from '../../core/shopee-video-auth-core.js'
-import { buildMarketplaceVideoKey } from '../../core/video-analytics-core.js'
+import { getShopeeVideoAppFromRow, isShopeeVideoPermissionOk, shopeeVideoUserId } from '../../core/shops/shopee-video-auth-core.js'
+import { buildMarketplaceVideoKey } from '../../core/video/analytics-core.js'
 import { getShopeeAppFromRow, signHmacHex } from '../../utils/shopee-apps.js'
-import { refreshShopeeTokenForShop, refreshShopeeVideoTokenForShop } from '../shops.js'
+import { refreshShopeeTokenForShop, refreshShopeeVideoTokenForShop } from '../shops/index.js'
 import { applyShopeeVideoTokenRefresh, cleanVideoText, numberValue, refreshShopeeVideoTokenIfNeeded } from './shared-base.js'
 
 export function videoUserId(shop = {}) {

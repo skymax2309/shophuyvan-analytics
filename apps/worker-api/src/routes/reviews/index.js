@@ -1,6 +1,6 @@
 import { getShopeeAppFromRow, signHmacHex } from '../../utils/shopee-apps.js'
-import { getApiShops, callLazadaWithShop } from '../api-sync.js'
-import { refreshShopeeTokenForShop } from '../shops.js'
+import { getApiShops, callLazadaWithShop } from '../api/index.js'
+import { refreshShopeeTokenForShop } from '../shops/index.js'
 import {
   createReviewReplyPreview,
   createReviewReplySuggestion,
@@ -13,7 +13,7 @@ import {
   repairReviewCatalogMapping,
   saveReviewRows,
   updateReviewReplyAction
-} from '../../core/review-core.js'
+} from '../../core/reviews/core.js'
 
 const SHOPEE_GET_COMMENT_PATH = '/api/v2/product/get_comment'
 const LAZADA_REVIEW_HISTORY_PATH = '/review/seller/history/list'

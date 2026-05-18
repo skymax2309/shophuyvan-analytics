@@ -1,3 +1,97 @@
+async function responseJsonSafe(response) {
+  try {
+    return await response.json()
+  } catch {
+    return {}
+  }
+}
+
+function localRequest(path, init = {}) {
+  return new Request(`https://worker.local${path}`, init)
+}
+
+async function createPackedLabelRefreshJob(env, cors, createJob, group) {
+  const now = new Date()
+  const response = await createJob(localRequest('/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      task_type: 'refresh_label',
+      shop_name: group.shop,
+      platform: group.platform,
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+      payload: JSON.stringify({
+        order_ids: group.order_ids,
+        download_only: true,
+        source: 'packed_status_auto_retry'
+      })
+    })
+  }), env, cors)
+  const data = await responseJsonSafe(response)
+  return { ...data, platform: group.platform, shop: group.shop, order_ids: group.order_ids }
+}
+
+async function autoRefreshMissingLabelsForPacked(orderIds, env, cors, deps) {
+  const summary = {
+    checked: 0,
+    already_has_label: 0,
+    api_refreshed: 0,
+    fallback_jobs: 0,
+    fallback_order_ids: 0,
+    errors: []
+  }
+  const groups = new Map()
+  const orderList = [...new Set((orderIds || []).map(id => String(id || '').trim()).filter(Boolean))].slice(0, 50)
+
+  for (const orderId of orderList) {
+    summary.checked += 1
+    const statusResponse = await deps.getLabelStatus(
+      localRequest(`/api/labels/status?order_id=${encodeURIComponent(orderId)}`),
+      env,
+      cors
+    )
+    const status = await responseJsonSafe(statusResponse)
+    if (status?.has_label) {
+      summary.already_has_label += 1
+      continue
+    }
+
+    if (status?.refresh_mode === 'api') {
+      const refreshResponse = await deps.refreshOrderLabel(
+        localRequest(`/api/labels/refresh/${encodeURIComponent(orderId)}`, { method: 'POST' }),
+        env,
+        cors,
+        orderId
+      )
+      const refreshed = await responseJsonSafe(refreshResponse)
+      if (refreshResponse.ok && refreshed.status === 'ok') {
+        summary.api_refreshed += 1
+      } else {
+        summary.errors.push({ order_id: orderId, mode: 'api', error: refreshed.error || 'refresh_label_failed' })
+      }
+      continue
+    }
+
+    if (status?.platform && status?.shop) {
+      const key = `${status.platform}||${status.shop}`
+      if (!groups.has(key)) groups.set(key, { platform: status.platform, shop: status.shop, order_ids: [] })
+      groups.get(key).order_ids.push(orderId)
+    } else {
+      summary.errors.push({ order_id: orderId, mode: status?.refresh_mode || 'unknown', error: status?.error || 'missing_platform_shop' })
+    }
+  }
+
+  summary.jobs = []
+  for (const group of groups.values()) {
+    const job = await createPackedLabelRefreshJob(env, cors, deps.createJob, group)
+    summary.jobs.push(job)
+    summary.fallback_jobs += 1
+    summary.fallback_order_ids += group.order_ids.length
+  }
+  return summary
+}
+
 export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps) {
   const {
     handlePurchase,
@@ -120,7 +214,7 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
 
   if (url.pathname.startsWith("/api/orders/") && url.pathname.endsWith("/oms-status") && request.method === "PATCH") {
     const orderId = decodeURIComponent(url.pathname.split("/")[3])
-    return updateOmsStatus(request, env, cors, orderId)
+    return updateOmsStatus(request, env, cors, orderId, ctx)
   }
 
   // Cập nhật nhiều đơn cùng lúc (HỖ TRỢ 2 TẦNG TRẠNG THÁI)
@@ -148,7 +242,16 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
         )
     }
     await env.DB.batch(stmts)
-    return Response.json({ status: "ok", updated: order_ids.length }, { headers: cors })
+    let label_autofill = null
+    if (String(normalizedStatus.shipping || '').toUpperCase() === 'LOGISTICS_PACKAGED') {
+      // Đơn đã đóng gói phải có tem thật; nếu thiếu thì ưu tiên API, shop không API được đưa vào job Radar hiện có.
+      label_autofill = await autoRefreshMissingLabelsForPacked(order_ids, env, cors, {
+        getLabelStatus,
+        refreshOrderLabel,
+        createJob
+      }).catch(error => ({ checked: order_ids.length, errors: [{ error: error.message || String(error) }] }))
+    }
+    return Response.json({ status: "ok", updated: order_ids.length, label_autofill }, { headers: cors })
   }
 
   // [API MỚI] Xóa hàng loạt đơn hàng lỗi (Dùng cho Tool Python oms_clean_unmapped_orders)

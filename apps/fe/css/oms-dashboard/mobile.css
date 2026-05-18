@@ -149,6 +149,21 @@
     overflow-y: visible;
     padding: 0 10px 16px;
   }
+  .oms-fee-panel {
+    left: 10px !important;
+    max-height: calc(100dvh - 104px) !important;
+    min-width: 0 !important;
+    position: fixed !important;
+    right: 10px !important;
+    top: 72px !important;
+    width: auto !important;
+    z-index: 260 !important;
+  }
+  .oms-finance-tabs button {
+    font-size: 12px;
+    min-height: 38px;
+    padding: 9px 11px;
+  }
   .table-responsive { overflow-x: hidden; -webkit-overflow-scrolling: touch; }
   .notify-controls {
     order: 9;

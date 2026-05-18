@@ -21,11 +21,20 @@ const currentSku = urlParams.get('sku') || '';
 let productData = null;
 let imgList = []; // [{url, isLocal, file?}]
 
+function cleanInputValue(value) {
+  return String(value || '').trim();
+}
+
+function isBlockedDefaultValue(value) {
+  return ['tên sản phẩm mặc định', 'sku mặc định', 'default', 'test'].includes(cleanInputValue(value).toLowerCase());
+}
+
 // ===== LOAD DỮ LIỆU =====
 async function loadProduct() {
   if (!currentSku) {
     // Chế độ tạo mới
     document.getElementById('topbar-title').textContent = 'Tạo sản phẩm mới';
+    document.getElementById('pd-parent-sku').value = '';
     addFreeRow();
     return;
   }
@@ -39,6 +48,7 @@ async function loadProduct() {
 
     // --- KHU VỰC 1: Dữ liệu từ Sàn (Chỉ xem, hạn chế sửa) ---
     document.getElementById('pd-name').value = parent.product_name || '';
+    document.getElementById('pd-parent-sku').value = parent.sku || currentSku;
     document.getElementById('pd-desc').value = parent.description || '';
     document.getElementById('pd-video').value = parent.video_url || '';
     document.getElementById('topbar-title').textContent = parent.product_name || currentSku;
@@ -247,24 +257,47 @@ function applyBulkValues() {
 
 // ===== LƯU SẢN PHẨM CHUẨN CẤU TRÚC D1 =====
 async function saveProduct() {
-  const name = document.getElementById('pd-name').value.trim();
-  if (!name) return showToast('⚠️ Vui lòng nhập tên bài đăng!', true);
+  const name = cleanInputValue(document.getElementById('pd-name').value);
+  if (!name) return showToast('Vui lòng nhập tên sản phẩm.', true);
+  if (isBlockedDefaultValue(name)) return showToast('Tên sản phẩm đang là dữ liệu mặc định, vui lòng nhập tên thật.', true);
 
-  const rows = document.querySelectorAll('.shopee-var-row');
+  const rows = Array.from(document.querySelectorAll('.shopee-var-row'));
   if (rows.length === 0) return showToast('⚠️ Cần ít nhất 1 dòng phân loại!', true);
+  const hasVariants = rows.length > 1;
+  const rootSkuInput = cleanInputValue(document.getElementById('pd-parent-sku')?.value);
+  const rowPayloads = rows.map((row, idx) => {
+    const sku = cleanInputValue(row.querySelector('.v-sku')?.value);
+    const variantName = cleanInputValue(row.querySelector('.v-name')?.value);
+    return { row, idx, sku, variantName };
+  });
+
+  for (const item of rowPayloads) {
+    if (!item.sku) return showToast(`Dòng ${item.idx + 1} chưa có SKU. Không tạo SKU mặc định.`, true);
+    if (isBlockedDefaultValue(item.sku)) return showToast(`Dòng ${item.idx + 1} đang dùng SKU mặc định/rác.`, true);
+    if (isBlockedDefaultValue(item.variantName)) return showToast(`Dòng ${item.idx + 1} đang dùng tên phân loại mặc định/rác.`, true);
+    if (hasVariants && !item.variantName) return showToast(`Dòng ${item.idx + 1} chưa có tên phân loại.`, true);
+  }
+  const skuSet = new Set(rowPayloads.map(item => item.sku.toLowerCase()));
+  if (skuSet.size !== rowPayloads.length) return showToast('SKU phân loại bị trùng, vui lòng kiểm tra lại.', true);
+
+  const parentSku = hasVariants ? rootSkuInput : rowPayloads[0].sku;
+  if (hasVariants && !parentSku) return showToast('Sản phẩm có nhiều phân loại cần nhập SKU gốc.', true);
+  if (hasVariants && isBlockedDefaultValue(parentSku)) return showToast('SKU gốc đang là dữ liệu mặc định/rác.', true);
+  if (hasVariants && rowPayloads.some(item => item.sku.toLowerCase() === parentSku.toLowerCase())) {
+    return showToast('SKU phân loại không được trùng SKU gốc.', true);
+  }
 
   const btn = document.querySelector('.btn-save-main');
   btn.textContent = '⏳ Đang lưu...'; btn.disabled = true;
 
   try {
-    const parentSku = currentSku || rows[0].querySelector('.v-sku').value.trim();
     const mainImg = imgList.length > 0 ? imgList[0].url : '';
     const extraImg = imgList.slice(1).map(i => i.url);
     const desc = document.getElementById('pd-desc').value;
     const videoUrl = document.getElementById('pd-video').value;
 
-// 1. TẠO SP CHA TRƯỚC (NẾU CÓ NHIỀU PHÂN LOẠI)
-    if (rows.length > 1 || currentSku) {
+    // Khi có nhiều phân loại, SKU gốc chỉ làm node cha; từng SKU con mới giữ tồn/vốn thật.
+    if (hasVariants) {
         let resParent = await fetch(API + '/api/products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -277,11 +310,11 @@ async function saveProduct() {
         if (!resParent.ok) throw new Error(await resParent.text()); // 🌟 Gắn bắt lỗi Server
     }
 
-    // 2. LƯU TỪNG PHÂN LOẠI CON
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const sku = row.querySelector('.v-sku').value.trim() || `${parentSku}-V${i+1}`;
-      const varName = row.querySelector('.v-name').value.trim();
+    // Lưu đúng giá trị người dùng nhập, không tự sinh tên/SKU mặc định.
+    for (const item of rowPayloads) {
+      const row = item.row;
+      const sku = item.sku;
+      const varName = item.variantName;
       const vImg = row.querySelector('img').src.includes('placehold') ? mainImg : row.querySelector('img').src;
       const stMain = parseInt(row.querySelector('.v-main').value) || 0;
       const stSub = parseInt(row.querySelector('.v-sub').value) || 0;
@@ -291,9 +324,8 @@ async function saveProduct() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             sku: sku,
-            parent_sku: rows.length > 1 ? parentSku : null,
-            product_name: name,                                     // 🌟 SỬA LẠI: Cột này LUÔN PHẢI LÀ tên SP cha
-            variation_name: rows.length > 1 ? varName : "Mặc định", // 🌟 THÊM MỚI: Cột này là tên phân loại mới đúng
+            parent_sku: hasVariants ? parentSku : null,
+            product_name: hasVariants ? varName : name,
             description: desc, video_url: videoUrl, image_url: vImg, images: JSON.stringify(extraImg),
             cost_invoice: parseFloat(row.querySelector('.v-inv').value) || 0,
             cost_real: parseFloat(row.querySelector('.v-real').value) || 0,

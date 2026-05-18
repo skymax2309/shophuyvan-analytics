@@ -1,0 +1,151 @@
+{
+  "info": {
+    "name": "ShopHuyVan External API - Facebook Ads CRM",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiKey}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://huyvan-worker-api.nghiemchihuy.workers.dev" },
+    { "key": "apiKey", "value": "" },
+    { "key": "sku", "value": "SP001" },
+    { "key": "reservationId", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "sourceOrderId", "value": "fbcrm_order_test_001" }
+  ],
+  "item": [
+    {
+      "name": "Products - List",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/external/products?limit=5"
+      }
+    },
+    {
+      "name": "Products - Detail",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/external/products/{{sku}}"
+      }
+    },
+    {
+      "name": "Products - By SKU",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/external/products/sku/{{sku}}"
+      }
+    },
+    {
+      "name": "Products - SKU Price",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/external/products/sku/{{sku}}/price"
+      }
+    },
+    {
+      "name": "Inventory - Check",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"sku\":\"{{sku}}\",\"quantity\":2}"
+        },
+        "url": "{{baseUrl}}/api/external/inventory/check"
+      }
+    },
+    {
+      "name": "Inventory - Reserve",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "postman-{{sourceOrderId}}-{{sku}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"sku\":\"{{sku}}\",\"quantity\":2,\"source\":\"facebook_crm\",\"sourceConversationId\":\"conv_postman_001\",\"sourceCustomerId\":\"cus_postman_001\",\"expiresInMinutes\":30,\"note\":\"Khách đang chốt đơn từ inbox Facebook\"}"
+        },
+        "url": "{{baseUrl}}/api/external/inventory/reserve"
+      }
+    },
+    {
+      "name": "Inventory - Cancel Reservation",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"reason\":\"Khách không xác nhận đơn\"}"
+        },
+        "url": "{{baseUrl}}/api/external/inventory/reservations/{{reservationId}}/cancel"
+      }
+    },
+    {
+      "name": "Inventory - Commit Reservation",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"orderId\":\"{{orderId}}\"}"
+        },
+        "url": "{{baseUrl}}/api/external/inventory/reservations/{{reservationId}}/commit"
+      }
+    },
+    {
+      "name": "Orders - Create From Facebook",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"source\":\"facebook_crm\",\"sourceOrderId\":\"{{sourceOrderId}}\",\"sourceConversationId\":\"conv_postman_001\",\"sourcePageId\":\"page_001\",\"customer\":{\"name\":\"Nguyễn Văn A\",\"phone\":\"0900000000\",\"facebookId\":\"fb_123\",\"address\":\"Hà Nội\"},\"items\":[{\"sku\":\"{{sku}}\",\"quantity\":1,\"price\":0,\"currentPrice\":0}],\"shipping\":{\"address\":\"Hà Nội\",\"province\":\"Hà Nội\",\"district\":\"Cầu Giấy\",\"ward\":\"Dịch Vọng\",\"shippingFee\":30000},\"payment\":{\"method\":\"cod\",\"status\":\"unpaid\"},\"note\":\"Đơn tạo từ inbox Facebook\"}"
+        },
+        "url": "{{baseUrl}}/api/external/orders/from-facebook"
+      }
+    },
+    {
+      "name": "Orders - Get By ID",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/external/orders/{{orderId}}"
+      }
+    },
+    {
+      "name": "Orders - Get By Source Order ID",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/external/orders/source/{{sourceOrderId}}"
+      }
+    },
+    {
+      "name": "Webhook - Test",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"event\":\"inventory.updated\"}"
+        },
+        "url": "{{baseUrl}}/api/external/webhook/test"
+      }
+    },
+    {
+      "name": "Webhook - Delivery Logs",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/external/webhook/deliveries?limit=20"
+      }
+    }
+  ]
+}
+

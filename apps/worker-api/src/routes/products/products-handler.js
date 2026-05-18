@@ -1,5 +1,5 @@
-import { listLazadaAdvancedInventory } from '../../core/inventory-stock-core.js'
-import { ensureProductCatalogTables, getProductCatalogOverview, getProductCatalogSettings, saveProductCatalogSettings } from '../../core/product-catalog-core.js'
+import { listLazadaAdvancedInventory } from '../../core/inventory/stock-core.js'
+import { ensureProductCatalogTables, getProductCatalogOverview, getProductCatalogSettings, saveProductCatalogSettings } from '../../core/products/catalog-core.js'
 import { getExistingProductRow, hasManualStockDelta, previewMarketplaceListingAction, previewMarketplaceWriteAction, productStockNumber } from './marketplace-preview.js'
 import { createPublishContentVariants, createPublishDraft, listPublishDrafts, previewPublishDraft } from './publish-ai.js'
 
@@ -275,11 +275,36 @@ stmts.push(env.DB.prepare(`
   // ==========================================
 if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !url.pathname.includes("/group-parent") && !url.pathname.includes("/ungroup-parent") && !url.pathname.includes("/bulk-import")) {
     const b = await request.json();
+    b.sku = String(b.sku || '').trim()
+    b.product_name = String(b.product_name || '').trim()
+    b.parent_sku = b.parent_sku ? String(b.parent_sku).trim() : null
+    if (!b.sku) return Response.json({ error: "Thiếu SKU sản phẩm, hệ thống không tự tạo SKU mặc định." }, { status: 400, headers: cors })
+    if (!b.product_name) return Response.json({ error: "Thiếu tên sản phẩm hoặc tên phân loại." }, { status: 400, headers: cors })
+    if (b.parent_sku && b.parent_sku.toLowerCase() === b.sku.toLowerCase()) {
+      return Response.json({ error: "SKU phân loại không được trùng SKU gốc." }, { status: 400, headers: cors })
+    }
+    const blockedNames = new Set(["tên sản phẩm mặc định", "sku mặc định", "default", "test"])
+    if (blockedNames.has(b.sku.toLowerCase())) {
+      return Response.json({ error: "SKU đang là dữ liệu mặc định/rác, vui lòng nhập SKU thật." }, { status: 400, headers: cors })
+    }
+    if (b.parent_sku && blockedNames.has(b.parent_sku.toLowerCase())) {
+      return Response.json({ error: "SKU gốc đang là dữ liệu mặc định/rác, vui lòng nhập SKU thật." }, { status: 400, headers: cors })
+    }
+    if (blockedNames.has(b.product_name.toLowerCase())) {
+      return Response.json({ error: "Tên sản phẩm đang là dữ liệu mặc định, vui lòng nhập tên thật." }, { status: 400, headers: cors })
+    }
     console.log("🗄️ [API PRODUCTS POST DÒ MÌN] Đang lưu SKU:", b.sku, "| Giá Vốn HĐ:", b.cost_invoice, "| Giá Thực:", b.cost_real);
     const catalogSettings = await getProductCatalogSettings(env)
     const manualStockLocked = Number(catalogSettings.manual_internal_stock_edit_enabled || 0) !== 1
     const existingRow = await getExistingProductRow(env, b.sku)
-    if (manualStockLocked && hasManualStockDelta(existingRow, b)) {
+    const mappedRow = await env.DB.prepare(`
+      SELECT COUNT(1) AS total
+      FROM product_variations
+      WHERE internal_sku = ?
+    `).bind(b.sku).first()
+    // Chỉ khóa sửa tồn cho SKU đã map sang hàng sàn; sản phẩm nội bộ mới vẫn cần lưu tồn ban đầu để vận hành.
+    const hasMarketplaceMapping = Number(mappedRow?.total || 0) > 0
+    if (manualStockLocked && hasMarketplaceMapping && hasManualStockDelta(existingRow, b)) {
       return Response.json({
         error: "Khóa chỉnh tồn kho nội bộ đang bật vì kho thật đang tham chiếu ShipXanh. Hãy mở quyền trong core trước khi sửa tồn.",
         settings: catalogSettings
@@ -289,8 +314,8 @@ if (request.method === "POST" && !url.pathname.includes("/shopee-import") && !ur
     // NEO: Payload lưu tên/giá/ảnh không được tự đưa tồn kho về 0 khi core ShipXanh đang là nguồn tồn chuẩn.
     const stockValue = (key) => b[key] !== undefined ? b[key] : productStockNumber(existingRow?.[key])
     
-    // 🌟 CHỐT CHẶN: Ưu tiên lấy variation_name làm tên phân loại, nếu rỗng thì mới lấy product_name
-    const finalName = b.variation_name || b.product_name || "";
+    // Backend chỉ lưu tên FE gửi rõ ràng, không tự thay bằng "Mặc định" để tránh sinh dữ liệu rác.
+    const finalName = b.product_name;
 
     await env.DB.prepare(`
       INSERT INTO products (sku, product_name, parent_sku, is_parent, description, video_url, images, cost_invoice, cost_real, is_combo, combo_items, combo_qty, image_url, stock, stock_main, stock_sub, min_stock)

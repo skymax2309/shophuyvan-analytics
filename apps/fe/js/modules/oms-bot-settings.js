@@ -1,4 +1,4 @@
-import { API } from '../oms-api.js';
+import { API } from '../oms-dashboard/oms-api.js';
 import { showToast, closeModal } from '../utils/helpers.js';
 import { checkRadarLocal, wakeRadarLocal } from './oms-radar-helper.js';
 

@@ -1,4 +1,4 @@
-import { API } from '../oms-api.js';
+import { API } from '../oms-dashboard/oms-api.js';
 import { showToast } from '../utils/helpers.js';
 import { wakeRadarLocal } from './oms-radar-helper.js';
 import { createLabelVaultRenderers } from './oms-label-settings-render.js';

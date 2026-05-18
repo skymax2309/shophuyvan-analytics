@@ -1,4 +1,4 @@
-import { API } from '../oms-api.js'
+import { API } from '../oms-dashboard/oms-api.js'
 import { showToast } from '../utils/helpers.js'
 
 let advancedState = null
@@ -762,8 +762,7 @@ export async function readAdvancedShopeeShopSnapshot(shop) {
   showToast('Đang đọc hồ sơ, kho, thông báo và chế độ nghỉ Shopee...')
   try {
     const data = await fetchJson(`${API}/api/shops/shopee-snapshot?shop=${encodeURIComponent(shop)}`)
-    // Chỉ hiển thị bản đọc tạm trong modal để người vận hành đối chiếu nhanh,
-    // chưa lưu thành cấu hình chuẩn vì dữ liệu hồ sơ shop có thể thay đổi ngoài Seller Center.
+    // Chỉ hiển thị bản đọc tạm để đối chiếu, chưa lưu thành cấu hình chuẩn.
     shopeeShopSnapshotState = data
     renderAdvancedState(advancedState, advancedModulesState)
     showToast(data.failed ? 'Đã đọc Shopee Shop API, có một số endpoint trả lỗi quyền.' : 'Đã đọc Shopee Shop API.')

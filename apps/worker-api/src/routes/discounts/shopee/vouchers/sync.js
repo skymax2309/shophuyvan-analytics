@@ -6,10 +6,17 @@ export function installDiscountsShopeeVouchersSync(core) {
   const ensureShopeeDiscountTables = (...args) => core.ensureShopeeDiscountTables(...args)
   const fetchShopeeJsonGet = (...args) => core.fetchShopeeJsonGet(...args)
   const getApiShops = core.getApiShops
-  const getShopeeAppFromRow = core.getShopeeAppFromRow
+  const getShopeeAppFromRowForClient = core.getShopeeAppFromRowForClient || core.getShopeeAppFromRow
   const num = (...args) => core.num(...args)
   const round2 = (...args) => core.round2(...args)
   const signShopeeUrl = (...args) => core.signShopeeUrl(...args)
+
+  function marketplaceRuntimeAuth(env, shop) {
+    return {
+      accessToken: cleanText(env?.SHOPEE_MARKETPLACE_ACCESS_TOKEN) || cleanText(shop.access_token),
+      shopId: cleanText(env?.SHOPEE_MARKETPLACE_SHOP_ID) || cleanText(shop.api_shop_id)
+    }
+  }
 
   function normalizeVoucherStatus(value) {
     const status = cleanText(value).toLowerCase()
@@ -183,8 +190,9 @@ export function installDiscountsShopeeVouchersSync(core) {
   core.saveVouchers = saveVouchers
 
   async function fetchVoucherDetail(env, shop, voucherId, status) {
-    const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || voucherShopName(shop))
-    const buildUrl = signShopeeUrl(app, SHOPEE_VOUCHER_DETAIL_PATH, shop.access_token, shop.api_shop_id)
+    const runtimeAuth = marketplaceRuntimeAuth(env, shop)
+    const app = getShopeeAppFromRowForClient(env, shop, 'marketplace_client', shop.api_partner_id || voucherShopName(shop))
+    const buildUrl = signShopeeUrl(app, SHOPEE_VOUCHER_DETAIL_PATH, runtimeAuth.accessToken, runtimeAuth.shopId)
     const data = await fetchShopeeJsonGet(buildUrl, { voucher_id: voucherId })
     return normalizeVoucherDetail(data, shop, voucherId, status)
   }
@@ -205,13 +213,14 @@ export function installDiscountsShopeeVouchersSync(core) {
       detail_endpoint: SHOPEE_VOUCHER_DETAIL_PATH,
       voucher_status: voucherStatus
     }
-    if (!shop.access_token || !shop.api_shop_id) {
+    const runtimeAuth = marketplaceRuntimeAuth(env, shop)
+    if (!runtimeAuth.accessToken || !runtimeAuth.shopId) {
       return { ...resultBase, ok: false, error: 'missing_token_or_shop_id', message: 'Shop chưa có access_token hoặc api_shop_id', vouchers: [], details: [] }
     }
 
     try {
-      const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shopName)
-      const buildUrl = signShopeeUrl(app, SHOPEE_VOUCHER_LIST_PATH, shop.access_token, shop.api_shop_id)
+      const app = getShopeeAppFromRowForClient(env, shop, 'marketplace_client', shop.api_partner_id || shopName)
+      const buildUrl = signShopeeUrl(app, SHOPEE_VOUCHER_LIST_PATH, runtimeAuth.accessToken, runtimeAuth.shopId)
       const vouchers = []
       const details = []
       let pageNo = 1

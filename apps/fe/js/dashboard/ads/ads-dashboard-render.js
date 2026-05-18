@@ -556,7 +556,7 @@ async function loadAdsReviewRisk(options = {}) {
     adsState.reviewRisk = await adsFetch(`/api/reviews/product-risk?${qs.toString()}`)
   } catch (error) {
     adsState.reviewRisk = { status: 'error', rows: [], error: error.message }
-    if (!options.silent) alert(`Không tải được review_core: ${error.message}`)
+    if (!options.silent) adsShowToast(`Không tải được review_core: ${error.message}`, 'error')
   }
   renderAdsReviewRiskPanel()
 }

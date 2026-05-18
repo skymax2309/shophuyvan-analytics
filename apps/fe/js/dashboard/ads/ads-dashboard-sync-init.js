@@ -55,7 +55,7 @@ async function maybeAutoSyncAds(data, options = {}) {
 window.syncAdsCampaignSnapshots = async function() {
   const rangeDays = adsRangeDays(adsEl('filterFrom')?.value || '', adsEl('filterTo')?.value || '')
   if (rangeDays > 31) {
-    alert('Khoảng kéo ADS đang dài hơn 31 ngày. Shopee Ads API nên kéo theo từng tháng để tránh thiếu dữ liệu hoặc timeout. Hãy chọn tháng rồi bấm "Kéo ADS tháng đã chọn".')
+    adsShowToast('Khoảng kéo ADS dài hơn 31 ngày. Hãy kéo theo từng tháng để tránh thiếu dữ liệu hoặc timeout.', 'error')
     return
   }
   await runAdsCampaignSync()
@@ -69,11 +69,11 @@ window.syncAdsSelectedMonthSnapshots = async function() {
   const from = adsEl('filterFrom')?.value || ''
   const to = adsEl('filterTo')?.value || ''
   if (!selectedMonth) {
-    alert('Chọn tháng ADS cần kéo trước khi gọi API.')
+    adsShowToast('Chọn tháng ADS cần kéo trước khi gọi API.', 'error')
     return
   }
   if (!from || !to || from.slice(0, 7) !== selectedMonth || to.slice(0, 7) !== selectedMonth) {
-    alert('Khoảng ngày chưa khớp với tháng đang chọn. Hãy chọn lại tháng rồi bấm kéo ADS.')
+    adsShowToast('Khoảng ngày chưa khớp với tháng đang chọn. Hãy chọn lại tháng rồi bấm kéo ADS.', 'error')
     return
   }
   if (status) status.textContent = `Đang kéo ADS tháng ${selectedMonth} từ Ads API thật...`

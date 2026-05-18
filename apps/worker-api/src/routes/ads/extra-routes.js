@@ -13,13 +13,14 @@ import {
   syncAdsCampaignSnapshots,
   syncShopeeAffiliatePerformance,
   syncShopeeOpenCampaignPerformance
-} from '../api-sync.js'
+} from '../api/index.js'
 import {
   ADS_GUARD_CONFIRM_PHRASE,
   buildAdsCampaignGuardOverview,
+  listAdsGuardCampaignCatalog,
   listAdsCampaignGuardLogs,
   runAdsCampaignGuard
-} from '../../core/ads-campaign-guard-core.js'
+} from '../../core/ads/campaign-guard-core.js'
 import { cleanText } from './dashboard-metrics.js'
 import { handleAdsDashboard } from './dashboard.js'
 
@@ -48,6 +49,16 @@ export async function handleAdsExtraRoutes(request, env, cors) {
           limit: url.searchParams.get('limit')
         })
         return json({ status: 'ok', logs }, cors)
+      }
+
+      if (url.pathname === '/api/ads/campaign-guard/campaigns' || url.pathname === '/api/ads/guard/campaigns') {
+        if (request.method !== 'GET') return json({ error: 'Method not allowed' }, cors, 405)
+        const result = await listAdsGuardCampaignCatalog(env, {
+          platform: url.searchParams.get('platform'),
+          shop: url.searchParams.get('shop'),
+          limit: url.searchParams.get('limit')
+        })
+        return json(result, cors)
       }
     
       if (url.pathname === '/api/ads/campaign-guard/preview' || url.pathname === '/api/ads/guard/preview') {

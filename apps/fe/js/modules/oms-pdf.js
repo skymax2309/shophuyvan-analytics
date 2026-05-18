@@ -1,4 +1,4 @@
-import { API } from '../oms-api.js';
+import { API } from '../oms-dashboard/oms-api.js';
 import { showToast } from '../utils/helpers.js';
 import { getLabelSettings, hasLabelOverlay, labelSizePoints, resolveLabelMark } from './oms-label-settings.js?v=label-real-preview2-20260509';
 import { wakeRadarLocal } from './oms-radar-helper.js';

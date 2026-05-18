@@ -1,3 +1,7 @@
+import { buildShopeeActionResult, shopeeResponseHasBusinessError } from '../../../../core/shopee/action-result-core.js'
+import { assertShopeeLiveWriteAllowed } from '../../../../features/shopee/api/baseClient.js'
+import { verifyShopeeProductAdsEdit } from './campaign-verify.js'
+
 export function installApiSyncAdsShopeeCampaignActions(core) {
   const SHOPEE_CREATE_AUTO_PRODUCT_ADS_PATH = core.SHOPEE_CREATE_AUTO_PRODUCT_ADS_PATH
   const SHOPEE_EDIT_AUTO_PRODUCT_ADS_PATH = core.SHOPEE_EDIT_AUTO_PRODUCT_ADS_PATH
@@ -10,136 +14,12 @@ export function installApiSyncAdsShopeeCampaignActions(core) {
   const getApiShops = (...args) => core.getApiShops(...args)
   const parseBooleanOption = (...args) => core.parseBooleanOption(...args)
   const roundAds = (...args) => core.roundAds(...args)
+  const isShopeeDmyDate = (...args) => core.isShopeeDmyDate(...args)
+  const normalizeShopeeAdKeywordEdits = (...args) => core.normalizeShopeeAdKeywordEdits(...args)
+  const normalizeShopeeDiscoveryAdsLocations = (...args) => core.normalizeShopeeDiscoveryAdsLocations(...args)
+  const shopeeAutoProductAdsReferenceId = (...args) => core.shopeeAutoProductAdsReferenceId(...args)
   const shopeeKeywordReferenceId = (...args) => core.shopeeKeywordReferenceId(...args)
-
-  function normalizeShopeeAdKeywordEdits(options = {}) {
-    const rawRows = Array.isArray(options.selected_keywords)
-      ? options.selected_keywords
-      : (Array.isArray(options.selectedKeywords)
-        ? options.selectedKeywords
-        : (Array.isArray(options.keywords) ? options.keywords : []))
-    const fallbackAction = cleanText(options.edit_action || options.editAction)
-    const allowedActions = new Set(['add', 'delete', 'restore', 'change_bid_price', 'change_match_type'])
-    const allowedMatchTypes = new Set(['exact', 'broad'])
-    const rows = []
-    const errors = []
-
-    rawRows.forEach((row, index) => {
-      const item = row && typeof row === 'object' ? row : { keyword: row }
-      const keyword = cleanText(item.keyword)
-      const editAction = cleanText(item.edit_action || item.editAction || fallbackAction).toLowerCase()
-      const matchType = cleanText(item.match_type || item.matchType).toLowerCase()
-      const hasBid = item.bid_price_per_click !== undefined || item.bidPricePerClick !== undefined || item.bid_price !== undefined || item.bidPrice !== undefined
-      const bidPrice = hasBid ? adsNumber(item.bid_price_per_click ?? item.bidPricePerClick ?? item.bid_price ?? item.bidPrice) : null
-
-      if (!keyword) errors.push(`selected_keywords[${index}].keyword is required`)
-      if (!allowedActions.has(editAction)) errors.push(`selected_keywords[${index}].edit_action invalid`)
-      if (matchType && !allowedMatchTypes.has(matchType)) errors.push(`selected_keywords[${index}].match_type must be exact or broad`)
-      if (editAction === 'change_match_type' && !matchType) errors.push(`selected_keywords[${index}].match_type is required for change_match_type`)
-      if (editAction === 'change_bid_price' && (!hasBid || bidPrice <= 0)) errors.push(`selected_keywords[${index}].bid_price_per_click is required for change_bid_price`)
-      if (hasBid && bidPrice <= 0) errors.push(`selected_keywords[${index}].bid_price_per_click must be greater than 0`)
-
-      const normalized = {
-        keyword,
-        edit_action: editAction
-      }
-      if (matchType) normalized.match_type = matchType
-      if (hasBid) normalized.bid_price_per_click = roundAds(bidPrice)
-      rows.push(normalized)
-    })
-
-    if (!rows.length) errors.push('selected_keywords is required')
-    return { rows, errors }
-  }
-  core.normalizeShopeeAdKeywordEdits = normalizeShopeeAdKeywordEdits
-
-  function shopeeAutoProductAdsReferenceId(value = '') {
-    const direct = cleanText(value)
-    if (direct) return direct
-    const random = Math.random().toString(36).slice(2, 10)
-    return `auto_product_ads_${Date.now()}_${random}`
-  }
-  core.shopeeAutoProductAdsReferenceId = shopeeAutoProductAdsReferenceId
-
-  function isShopeeDmyDate(value = '') {
-    return /^\d{2}-\d{2}-\d{4}$/.test(cleanText(value))
-  }
-  core.isShopeeDmyDate = isShopeeDmyDate
-
-  function shopeeManualProductAdsReferenceId(value = '') {
-    const direct = cleanText(value)
-    if (direct) return direct
-    const random = Math.random().toString(36).slice(2, 10)
-    return `manual_product_ads_${Date.now()}_${random}`
-  }
-  core.shopeeManualProductAdsReferenceId = shopeeManualProductAdsReferenceId
-
-  function normalizeShopeeDiscoveryAdsLocations(value = []) {
-    let source = []
-    if (Array.isArray(value)) {
-      source = value
-    } else if (value && typeof value === 'object') {
-      source = [value]
-    } else {
-      const text = cleanText(value)
-      if (text) {
-        if (text.startsWith('[') || text.startsWith('{')) {
-          try {
-            const parsed = JSON.parse(text)
-            source = Array.isArray(parsed) ? parsed : [parsed]
-          } catch {
-            source = []
-          }
-        } else {
-          source = text.split(',').map(item => cleanText(item)).filter(Boolean)
-        }
-      }
-    }
-
-    const allowedLocations = new Set(['daily_discover', 'you_may_also_like'])
-    const allowedStatus = new Set(['active', 'inactive'])
-    const rows = []
-    const errors = []
-
-    for (let index = 0; index < source.length; index++) {
-      const raw = source[index]
-      let location = ''
-      let status = ''
-      let bidRaw = ''
-
-      if (typeof raw === 'string') {
-        const parts = raw.split(':').map(item => cleanText(item))
-        location = cleanText(parts[0]).toLowerCase()
-        status = cleanText(parts[1] || 'active').toLowerCase()
-        bidRaw = parts[2]
-      } else if (raw && typeof raw === 'object') {
-        location = cleanText(raw.location).toLowerCase()
-        status = cleanText(raw.status).toLowerCase()
-        bidRaw = raw.bid_price
-      }
-
-      const hasBid = bidRaw !== undefined && bidRaw !== null && bidRaw !== ''
-      const bidPrice = roundAds(adsNumber(bidRaw))
-
-      if (!allowedLocations.has(location)) {
-        errors.push(`discovery_ads_locations[${index}].location must be daily_discover or you_may_also_like`)
-      }
-      if (!allowedStatus.has(status)) {
-        errors.push(`discovery_ads_locations[${index}].status must be active or inactive`)
-      }
-      if (hasBid && bidPrice <= 0) {
-        errors.push(`discovery_ads_locations[${index}].bid_price must be greater than 0`)
-      }
-
-      if (!location || !status) continue
-      const row = { location, status }
-      if (hasBid) row.bid_price = bidPrice
-      rows.push(row)
-    }
-
-    return { rows, errors }
-  }
-  core.normalizeShopeeDiscoveryAdsLocations = normalizeShopeeDiscoveryAdsLocations
+  const shopeeManualProductAdsReferenceId = (...args) => core.shopeeManualProductAdsReferenceId(...args)
 
   function normalizeShopeeManualProductAdsEditPayload(options = {}) {
     const referenceId = shopeeManualProductAdsReferenceId(options.reference_id || options.referenceId)
@@ -290,6 +170,22 @@ export function installApiSyncAdsShopeeCampaignActions(core) {
       }
     }
 
+    const liveWriteGuard = assertShopeeLiveWriteAllowed(env, 'ads_client')
+    if (liveWriteGuard) {
+      return {
+        status: 'error',
+        mode: 'shopee_create_auto_product_ads',
+        dry_run: true,
+        applied: false,
+        endpoint: SHOPEE_CREATE_AUTO_PRODUCT_ADS_PATH,
+        deprecation_note: deprecationNote,
+        error: liveWriteGuard.error,
+        errors: [liveWriteGuard.message],
+        shop: shopFilter,
+        request_payload: payload
+      }
+    }
+
     const shops = await getApiShops(env, 'shopee', shopFilter, 1)
     const shop = shops[0]
     if (!shop || !shop.api_shop_id) {
@@ -426,6 +322,22 @@ export function installApiSyncAdsShopeeCampaignActions(core) {
       }
     }
 
+    const liveWriteGuard = assertShopeeLiveWriteAllowed(env, 'ads_client')
+    if (liveWriteGuard) {
+      return {
+        status: 'error',
+        mode: 'shopee_edit_auto_product_ads',
+        dry_run: true,
+        applied: false,
+        endpoint: SHOPEE_EDIT_AUTO_PRODUCT_ADS_PATH,
+        deprecation_note: deprecationNote,
+        error: liveWriteGuard.error,
+        errors: [liveWriteGuard.message],
+        shop: shopFilter,
+        request_payload: payload
+      }
+    }
+
     const shops = await getApiShops(env, 'shopee', shopFilter, 1)
     const shop = shops[0]
     if (!shop || !shop.api_shop_id) {
@@ -527,6 +439,23 @@ export function installApiSyncAdsShopeeCampaignActions(core) {
       }
     }
 
+    const liveWriteGuard = assertShopeeLiveWriteAllowed(env, 'ads_client')
+    if (liveWriteGuard) {
+      return {
+        status: 'error',
+        mode: 'shopee_edit_manual_product_ads',
+        dry_run: true,
+        applied: false,
+        endpoint: SHOPEE_EDIT_MANUAL_PRODUCT_ADS_PATH,
+        error: liveWriteGuard.error,
+        message: liveWriteGuard.message,
+        client_type: 'ads_client',
+        shop: shopFilter,
+        safe_mode: safeMode,
+        request_payload: payload
+      }
+    }
+
     // Chế độ an toàn mặc định: chỉ cho thao tác trạng thái cơ bản để tránh chỉnh nhầm hoặc xoá campaign.
     if (safeMode) {
       if (blockedDangerousActions.has(payload.edit_action)) {
@@ -576,34 +505,58 @@ export function installApiSyncAdsShopeeCampaignActions(core) {
     try {
       // Chỉ đẩy dữ liệu thật khi đã bật apply và xác nhận đúng cụm confirm_apply.
       const data = await fetchShopeeShopJsonPost(env, shop, SHOPEE_EDIT_MANUAL_PRODUCT_ADS_PATH, {}, payload)
-      return {
-        status: 'ok',
-        mode: 'shopee_edit_manual_product_ads',
-        dry_run: false,
-        applied: true,
-        endpoint: SHOPEE_EDIT_MANUAL_PRODUCT_ADS_PATH,
-        shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
-        api_shop_id: String(shop.api_shop_id || ''),
-        safe_mode: safeMode,
-        request_id: cleanText(data?.request_id),
-        warning: cleanText(data?.warning),
-        message: cleanText(data?.message),
-        response: data?.response || []
+      const shopName = shop.shop_name || shop.user_name || String(shop.api_shop_id || '')
+      if (shopeeResponseHasBusinessError(data)) {
+        return buildShopeeActionResult({
+          ok: false,
+          status: 'error',
+          mode: 'shopee_edit_manual_product_ads',
+          action: payload.edit_action,
+          endpoint: SHOPEE_EDIT_MANUAL_PRODUCT_ADS_PATH,
+          shop: shopName,
+          shop_id: String(shop.api_shop_id || ''),
+          object_id: cleanText(payload.campaign_id),
+          payload,
+          raw_response: data,
+          sent_to_shopee: true,
+          message: 'Shopee từ chối thao tác ADS. Xem raw_response để lấy error/request_id.'
+        })
       }
+      const verifyResult = await verifyShopeeProductAdsEdit({ core, env, shop, payload })
+      return buildShopeeActionResult({
+        ok: true,
+        status: verifyResult.verified ? 'ok' : 'error',
+        mode: 'shopee_edit_manual_product_ads',
+        action: payload.edit_action,
+        endpoint: SHOPEE_EDIT_MANUAL_PRODUCT_ADS_PATH,
+        shop: shopName,
+        shop_id: String(shop.api_shop_id || ''),
+        object_id: cleanText(payload.campaign_id),
+        payload,
+        safe_mode: safeMode,
+        raw_response: data,
+        sent_to_shopee: true,
+        verified: verifyResult.verified,
+        verify_result: verifyResult,
+        message: verifyResult.verified
+          ? 'Đã gọi Shopee Ads API thật và refetch xác nhận campaign đã đổi.'
+          : 'Shopee đã nhận request nhưng refetch campaign chưa đúng trạng thái mong muốn, không xem là thành công.'
+      })
     } catch (error) {
-      return {
+      return buildShopeeActionResult({
+        ok: false,
         status: 'error',
         mode: 'shopee_edit_manual_product_ads',
-        dry_run: false,
-        applied: true,
+        action: payload.edit_action,
         endpoint: SHOPEE_EDIT_MANUAL_PRODUCT_ADS_PATH,
         shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
-        api_shop_id: String(shop.api_shop_id || ''),
+        shop_id: String(shop.api_shop_id || ''),
+        object_id: cleanText(payload.campaign_id),
+        payload,
         safe_mode: safeMode,
-        request_payload: payload,
-        error: 'shopee_edit_manual_product_ads_failed',
-        message: error?.message || String(error)
-      }
+        raw_error: error?.shopee || { message: error?.message || String(error) },
+        sent_to_shopee: true
+      })
     }
   }
   core.editShopeeManualProductAds = editShopeeManualProductAds
@@ -657,6 +610,22 @@ export function installApiSyncAdsShopeeCampaignActions(core) {
         applied: false,
         errors: ['confirm_apply must equal EDIT_SHOPEE_AD_KEYWORDS to apply changes to Shopee Ads'],
         endpoint: SHOPEE_EDIT_MANUAL_PRODUCT_AD_KEYWORDS_PATH,
+        shop: shopFilter,
+        request_payload: requestPayload
+      }
+    }
+
+    const liveWriteGuard = assertShopeeLiveWriteAllowed(env, 'ads_client')
+    if (liveWriteGuard) {
+      return {
+        status: 'error',
+        mode: 'shopee_edit_manual_product_ad_keywords',
+        dry_run: true,
+        applied: false,
+        endpoint: SHOPEE_EDIT_MANUAL_PRODUCT_AD_KEYWORDS_PATH,
+        error: liveWriteGuard.error,
+        message: liveWriteGuard.message,
+        client_type: 'ads_client',
         shop: shopFilter,
         request_payload: requestPayload
       }

@@ -27,6 +27,7 @@ function chatContextTabs() {
 function chatSettingsTabs() {
   const tabs = [
     ['automation', 'Tự động hóa'],
+    ['ai-auto', 'AI theo shop'],
     ['rules', 'AI & Luật'],
     ['knowledge', 'Mẫu AI'],
     ['keywords', 'Từ khóa'],

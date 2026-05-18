@@ -1,5 +1,5 @@
-import { hasShopeeVideoAppConfig, isShopeeVideoPermissionOk, isShopeeVideoTokenLive, parseShopeeVideoAuthDate, shopeeVideoUserId } from '../../core/shopee-video-auth-core.js'
-import { refreshShopeeVideoTokenForShop } from '../shops.js'
+import { hasShopeeVideoAppConfig, isShopeeVideoPermissionOk, isShopeeVideoTokenLive, parseShopeeVideoAuthDate, shopeeVideoUserId } from '../../core/shops/shopee-video-auth-core.js'
+import { refreshShopeeVideoTokenForShop } from '../shops/index.js'
 import { shopeeVideoMissingUserMessage, videoShopLabel } from './shared-api-client.js'
 
 export const SHOPEE_VIDEO_LIST_PATH = '/api/v2/video/get_video_list'

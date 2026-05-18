@@ -161,3 +161,171 @@ export const buildPhase1FeeBreakdownHtml = (order, revenueBase) => {
     ${sections}
   `
 }
+
+const escapeFeeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#039;'
+})[ch])
+
+const feeGroupByKey = (order, key) => {
+  const groups = Array.isArray(order?.fee_breakdown?.groups) ? order.fee_breakdown.groups : []
+  return groups.find(group => String(group?.key || '') === key) || { rows: [], total: 0 }
+}
+
+const feeComparisonByCode = (order, code) => {
+  const rows = Array.isArray(order?.fee_breakdown?.comparisons) ? order.fee_breakdown.comparisons : []
+  return rows.find(row => String(row?.code || '') === code) || null
+}
+
+const feeComparisonAmount = (order, code, fallback = 0) => {
+  const row = feeComparisonByCode(order, code)
+  return row?.amount !== null && row?.amount !== undefined ? toMoneyNumber(row.amount) : toMoneyNumber(fallback)
+}
+
+const feePanelRow = (label, value, options = {}) => {
+  const hasValue = value !== null && value !== undefined && value !== ''
+  const amount = hasValue ? toMoneyNumber(value) : null
+  const signed = options.sign === 'negative' && amount !== null ? -Math.abs(amount) : amount
+  const cls = ['oms-finance-row']
+  if (options.indent) cls.push('is-child')
+  if (options.total) cls.push('is-total')
+  if (options.tone) cls.push(`tone-${options.tone}`)
+  return `
+    <div class="${cls.join(' ')}">
+      <span>${escapeFeeHtml(label)}${options.source ? `<small>${escapeFeeHtml(options.source)}</small>` : ''}</span>
+      <b>${amount === null ? 'Chưa có dữ liệu' : fmt(signed)}</b>
+    </div>
+  `
+}
+
+const feePanelTextRow = (label, value, options = {}) => `
+  <div class="oms-finance-row ${options.total ? 'is-total' : ''}">
+    <span>${escapeFeeHtml(label)}</span>
+    <b>${escapeFeeHtml(value || 'Chưa có dữ liệu')}</b>
+  </div>
+`
+
+const renderRowsFromGroup = (group, options = {}) => {
+  const rows = Array.isArray(group?.rows) ? group.rows : []
+  if (!rows.length) return '<div class="oms-finance-empty">Chưa có dữ liệu.</div>'
+  return rows.map(row => feePanelRow(row.label, row.amount, {
+    sign: options.sign || 'negative',
+    source: row.source ? String(row.source).toUpperCase() : '',
+    indent: true,
+    tone: options.tone
+  })).join('')
+}
+
+const renderGroupSummaryRows = order => {
+  const totals = order?.fee_breakdown?.totals || {}
+  return [
+    ['Giảm giá/voucher đã trừ', totals.discounts],
+    ['Phí sàn từ API', totals.api_fee],
+    ['Thuế/khấu trừ từ API', totals.api_tax],
+    ['Chi phí nội bộ', totals.internal],
+    ['Ước tính còn thiếu', totals.estimate]
+  ]
+    .filter(([, amount]) => toMoneyNumber(amount) > 0)
+    .map(([label, amount]) => feePanelRow(label, amount, { sign: 'negative' }))
+    .join('') || '<div class="oms-finance-empty">Chưa có dữ liệu tổng hợp.</div>'
+}
+
+const renderComparisonRows = order => {
+  const rows = Array.isArray(order?.fee_breakdown?.comparisons) ? order.fee_breakdown.comparisons : []
+  if (!rows.length) return '<div class="oms-finance-empty">Chưa có dòng đối soát API.</div>'
+  return rows.map(row => `
+    <div class="oms-finance-source-row">
+      <div>
+        <b>${escapeFeeHtml(row.label || 'Đối soát')}</b>
+        ${row.note ? `<span>${escapeFeeHtml(row.note)}</span>` : ''}
+      </div>
+      <strong>${row.amount === null || row.amount === undefined ? 'Chưa có' : fmt(row.amount)}</strong>
+      <small>${escapeFeeHtml(String(row.source || '').toUpperCase() || 'N/A')}</small>
+    </div>
+  `).join('')
+}
+
+if (typeof window !== 'undefined' && !window.switchOmsFinanceTab) {
+  window.switchOmsFinanceTab = (button, tab) => {
+    const panel = button?.closest?.('.oms-fee-panel')
+    if (!panel) return
+    panel.querySelectorAll('[data-oms-finance-tab]').forEach(item => {
+      item.classList.toggle('active', item.dataset.omsFinanceTab === tab)
+    })
+    panel.querySelectorAll('[data-oms-finance-panel]').forEach(item => {
+      item.classList.toggle('active', item.dataset.omsFinancePanel === tab)
+    })
+  }
+}
+
+export const buildOrderFinanceTabsHtml = (order, revenueBase, options = {}) => {
+  const breakdown = order?.fee_breakdown || {}
+  const totals = breakdown.totals || {}
+  const discountGroup = feeGroupByKey(order, 'discounts')
+  const apiFeeGroup = feeGroupByKey(order, 'api_fee')
+  const apiTaxGroup = feeGroupByKey(order, 'api_tax')
+  const internalGroup = feeGroupByKey(order, 'internal')
+  const estimateGroup = feeGroupByKey(order, 'estimate')
+  const shopDiscount = feeComparisonAmount(order, 'discount_shop', toMoneyNumber(order.discount_shop) + toMoneyNumber(order.discount_combo))
+  const platformDiscount = feeComparisonAmount(order, 'discount_platform', order.discount_shopee)
+  const productOriginal = Math.max(toMoneyNumber(order.raw_revenue), toMoneyNumber(revenueBase) + shopDiscount)
+  const feeDisplayTotal = toMoneyNumber(options.feeDisplayTotal ?? order.fee_display_total ?? order.fee)
+  const netReceived = order.fee_detail_settlement !== null && order.fee_detail_settlement !== undefined && order.fee_detail_settlement !== ''
+    ? toMoneyNumber(order.fee_detail_settlement)
+    : toMoneyNumber(revenueBase) - feeDisplayTotal
+  const profitReal = toMoneyNumber(order.profit_real)
+  const feeInfo = options.feeInfo || feeSourceInfoV2(order)
+  const feeDelta = toMoneyNumber(options.feeDelta)
+  const totalTax = toMoneyNumber(totals.api_tax) || toMoneyNumber(order.tax_flat) + toMoneyNumber(order.tax_income)
+
+  return `
+    <div class="oms-fee-panel-head">
+      <div>
+        <span>Bảng kê đơn hàng</span>
+        <b>${escapeFeeHtml(order.order_id || '')}</b>
+      </div>
+      <small style="background:${feeInfo.palette.bg};color:${feeInfo.palette.color};border-color:${feeInfo.palette.border};">${escapeFeeHtml(feeInfo.label)}</small>
+    </div>
+    ${feeInfo.note ? `<div class="oms-fee-note" style="background:${feeInfo.palette.bg};border-color:${feeInfo.palette.border};color:${feeInfo.palette.color};">${escapeFeeHtml(feeInfo.note)}</div>` : ''}
+    ${Math.abs(feeDelta) >= 1 ? `<div class="oms-fee-note muted">Chênh lệch so với dữ liệu cũ trong orders_v2: <b>${feeDelta >= 0 ? '+' : ''}${fmt(feeDelta)}</b>.</div>` : ''}
+    <div class="oms-finance-tabs" role="tablist" aria-label="Nhóm số liệu đơn hàng">
+      <button type="button" class="active" data-oms-finance-tab="customer" onclick="event.stopPropagation();switchOmsFinanceTab(this,'customer')">Khách thanh toán</button>
+      <button type="button" data-oms-finance-tab="platform" onclick="event.stopPropagation();switchOmsFinanceTab(this,'platform')">Sàn thanh toán</button>
+      <button type="button" data-oms-finance-tab="profit" onclick="event.stopPropagation();switchOmsFinanceTab(this,'profit')">Lợi nhuận</button>
+      <button type="button" data-oms-finance-tab="source" onclick="event.stopPropagation();switchOmsFinanceTab(this,'source')">Nguồn API</button>
+    </div>
+    <div class="oms-finance-panels">
+      <section class="oms-finance-panel active" data-oms-finance-panel="customer">
+        ${feePanelTextRow('Phương thức thanh toán', order.payment_method || order.payment_channel || 'Chưa có dữ liệu')}
+        ${feePanelRow('Tổng tiền sản phẩm', revenueBase, { tone: 'positive' })}
+        ${feePanelRow('Giá sản phẩm ban đầu', productOriginal, { indent: true })}
+        ${feePanelRow('Shop giảm giá/voucher', shopDiscount, { sign: 'negative', indent: true })}
+        ${feePanelRow('Voucher từ sàn/Shopee', platformDiscount, { sign: 'negative' })}
+        ${feePanelRow('Người mua thanh toán', revenueBase, { total: true, tone: 'positive' })}
+      </section>
+      <section class="oms-finance-panel" data-oms-finance-panel="platform">
+        ${renderRowsFromGroup(discountGroup, { sign: 'negative' })}
+        ${apiFeeGroup.rows?.length ? `<div class="oms-finance-section-title">Phí sàn từ API</div>${renderRowsFromGroup(apiFeeGroup, { sign: 'negative' })}` : ''}
+        ${apiTaxGroup.rows?.length ? `<div class="oms-finance-section-title">Thuế/khấu trừ</div>${renderRowsFromGroup(apiTaxGroup, { sign: 'negative' })}` : ''}
+        ${internalGroup.rows?.length ? `<div class="oms-finance-section-title">Chi phí nội bộ</div>${renderRowsFromGroup(internalGroup, { sign: 'negative' })}` : ''}
+        ${estimateGroup.rows?.length ? `<div class="oms-finance-section-title">Ước tính còn thiếu</div>${renderRowsFromGroup(estimateGroup, { sign: 'negative', tone: 'warning' })}` : ''}
+        ${feePanelRow('Thực nhận về ví', netReceived, { total: true, tone: netReceived >= 0 ? 'positive' : 'negative' })}
+      </section>
+      <section class="oms-finance-panel" data-oms-finance-panel="profit">
+        ${feePanelRow('Doanh thu', revenueBase, { tone: 'positive' })}
+        ${feePanelRow('Giá vốn', order.cost_real || 0, { sign: 'negative' })}
+        ${feePanelRow('Tổng phí/voucher đã trừ', feeDisplayTotal, { sign: 'negative' })}
+        ${feePanelRow('Thuế', totalTax, { sign: 'negative' })}
+        ${feePanelRow('Lãi thực', profitReal, { total: true, tone: profitReal >= 0 ? 'positive' : 'negative' })}
+      </section>
+      <section class="oms-finance-panel" data-oms-finance-panel="source">
+        ${renderGroupSummaryRows(order)}
+        <div class="oms-finance-section-title">Đối soát API</div>
+        ${renderComparisonRows(order)}
+      </section>
+    </div>
+  `
+}

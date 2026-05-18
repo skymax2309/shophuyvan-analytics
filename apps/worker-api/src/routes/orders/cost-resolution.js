@@ -1,5 +1,5 @@
-import { listMarketplaceShopCapabilities } from '../../core/marketplace-shop-capability-core.js'
-import { buildOrderFeePhase1Context } from '../../core/order-fee-phase1-core.js'
+import { listMarketplaceShopCapabilities } from '../../core/marketplace/shop-capability-core.js'
+import { buildOrderFeePhase1Context } from '../../core/orders/fee-phase1-core.js'
 import { getCostSettings } from '../../utils/db.js'
 import { cleanOrderText } from './status-workflow.js'
 

@@ -1,5 +1,5 @@
-import { listMarketplacePushSyncQueue } from '../../core/marketplace-push-core.js'
-import { loadReviewCore } from '../../core/review-core.js'
+import { listMarketplacePushSyncQueue } from '../../core/marketplace/push-core.js'
+import { loadReviewCore } from '../../core/reviews/core.js'
 import { cleanText, formatMoney, formatPercent, MARKETING_CODES, safeAll, safeFirst, safeNumber, workspaceMetric, workspaceRow } from './foundation-workspaces.js'
 import { loadRecentEvents } from './module-data.js'
 

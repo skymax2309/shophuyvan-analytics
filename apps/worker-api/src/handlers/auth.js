@@ -5,7 +5,7 @@ import {
   cleanShopeeVideoAuthText,
   ensureShopeeVideoAuthColumns,
   getShopeeVideoAppFromRow
-} from '../core/shopee-video-auth-core.js'
+} from '../core/shops/shopee-video-auth-core.js'
 
 async function signHMAC(keyStr, message) {
   const encoder = new TextEncoder()

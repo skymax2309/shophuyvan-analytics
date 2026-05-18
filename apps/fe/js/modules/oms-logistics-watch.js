@@ -1,4 +1,4 @@
-import { API } from '../oms-api.js'
+import { API } from '../oms-dashboard/oms-api.js'
 import { wakeRadarLocal } from './oms-radar-helper.js'
 import { createReturnScanner } from './oms-logistics-return-scanner.js'
 

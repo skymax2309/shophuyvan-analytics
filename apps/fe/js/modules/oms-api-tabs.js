@@ -1,4 +1,4 @@
-import { API } from '../oms-api.js'
+import { API } from '../oms-dashboard/oms-api.js'
 import { fmt, showToast as defaultToast } from '../utils/helpers.js'
 
 const ORDER_POLL_MS = 3000

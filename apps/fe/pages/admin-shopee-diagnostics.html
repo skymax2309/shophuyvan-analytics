@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnostics Shopee API - ShopHuyVan</title>
+<link rel="stylesheet" href="../css/auth/auth.css?v=account-widget-20260504">
+<link rel="stylesheet" href="../css/admin/shopee-diagnostics.css?v=shopee-real-api-20260515">
+<script src="../js/auth/auth-guard.js?v=shopee-real-api-20260515"></script>
+</head>
+<body>
+  <main class="admin-layout shopee-diagnostics-page">
+    <div class="admin-topbar">
+      <div>
+        <div class="brand" style="margin-bottom:8px">
+          <span class="brand-mark">SHV</span>
+          <span>Diagnostics Shopee API</span>
+        </div>
+        <p id="currentUser" style="color:#64748b"></p>
+      </div>
+      <nav class="admin-nav">
+        <a class="btn btn-ghost" href="ads.html">ADS</a>
+        <a class="btn btn-ghost" href="admin-products.html#shops">Shop API</a>
+        <a class="btn btn-ghost" href="profit-dashboard.html">Dashboard</a>
+        <button class="btn btn-danger" type="button" onclick="SHV_AUTH.logout()">Đăng xuất</button>
+      </nav>
+    </div>
+
+    <section class="diag-hero">
+      <div>
+        <h1>Kiểm tra Shopee API thật</h1>
+        <p>Chạy probe đọc dữ liệu bằng ads_client và marketplace_client. Kết quả chỉ dùng để xác định app, token, quyền, endpoint và lỗi Shopee thật; không gửi lệnh ghi lên sàn.</p>
+      </div>
+      <form id="diagnosticsForm" class="diag-form">
+        <label>
+          <span>Shop cần kiểm</span>
+          <input id="diagShop" name="shop" placeholder="Bỏ trống để lấy shop Shopee API đầu tiên">
+        </label>
+        <label>
+          <span>Item ID để kiểm model</span>
+          <input id="diagItemId" name="item_id" inputmode="numeric" placeholder="Bỏ trống để lấy 1 item từ API">
+        </label>
+        <label>
+          <span>Order SN để kiểm Order/Logistics</span>
+          <input id="diagOrderSn" name="order_sn" placeholder="Bỏ trống để lấy 1 đơn cập nhật gần đây">
+        </label>
+        <button class="btn btn-primary" type="submit">Chạy diagnostics</button>
+      </form>
+    </section>
+
+    <div id="diagnosticsStatus" class="diag-status">Chưa chạy diagnostics.</div>
+    <section id="diagnosticsResult" class="diag-grid"></section>
+  </main>
+
+<script src="../js/admin/shopee-diagnostics.js?v=shopee-real-api-20260515"></script>
+</body>
+</html>

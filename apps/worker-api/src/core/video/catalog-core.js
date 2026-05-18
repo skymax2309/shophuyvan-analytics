@@ -1,4 +1,4 @@
-import { ensureVideoAnalyticsTables } from '../video-analytics-core.js'
+import { ensureVideoAnalyticsTables } from './analytics-core.js'
 
 function cleanVideoText(value) {
   return String(value ?? '').replace(/\u00a0/g, ' ').trim()

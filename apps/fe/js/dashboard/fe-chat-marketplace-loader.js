@@ -12,6 +12,7 @@
     'fe-chat-message-media-fetch-automation-send.js',
     'fe-chat-filters-automation-settings.js',
     'fe-chat-context-tab-product-advisory-status.js',
+    'fe-chat-ai-shop-controls.js',
     'fe-chat-settings-api-knowledge-panels.js',
     'fe-chat-order-product-context-panels.js',
     'fe-chat-voucher-rule-setup-panels.js',

@@ -1,5 +1,8 @@
 export function installDiscountsCommonFoundation(core) {
   const signHmacHex = core.signHmacHex
+  const getShopeeAppFromRowForClient = core.getShopeeAppFromRowForClient || core.getShopeeAppFromRow
+  const isShopeeInvalidAccessTokenMessage = (...args) => core.isShopeeInvalidAccessTokenMessage(...args)
+  const refreshShopeeTokenForShop = core.refreshShopeeTokenForShop
 
   const SHOPEE_DISCOUNT_LIST_PATH = '/api/v2/discount/get_discount_list'
   core.SHOPEE_DISCOUNT_LIST_PATH = SHOPEE_DISCOUNT_LIST_PATH
@@ -51,6 +54,9 @@ export function installDiscountsCommonFoundation(core) {
 
   const SHOPEE_SHOP_FLASH_SALE_ITEMS_PATH = '/api/v2/shop_flash_sale/get_shop_flash_sale_items'
   core.SHOPEE_SHOP_FLASH_SALE_ITEMS_PATH = SHOPEE_SHOP_FLASH_SALE_ITEMS_PATH
+
+  const SHOPEE_SHOP_FLASH_SALE_TIME_SLOT_PATH = '/api/v2/shop_flash_sale/get_time_slot_id'
+  core.SHOPEE_SHOP_FLASH_SALE_TIME_SLOT_PATH = SHOPEE_SHOP_FLASH_SALE_TIME_SLOT_PATH
 
   const SHOPEE_PROMOTION_MUTATIONS = {
     voucher: {
@@ -117,6 +123,8 @@ export function installDiscountsCommonFoundation(core) {
     add_discount_item: '/api/v2/discount/add_discount_item',
     update_discount: '/api/v2/discount/update_discount',
     update_discount_item: '/api/v2/discount/update_discount_item',
+    delete_discount: '/api/v2/discount/delete_discount',
+    delete_discount_item: '/api/v2/discount/delete_discount_item',
     end_discount: '/api/v2/discount/end_discount'
   }
   core.SHOPEE_DISCOUNT_MUTATIONS = SHOPEE_DISCOUNT_MUTATIONS
@@ -277,6 +285,26 @@ export function installDiscountsCommonFoundation(core) {
   }
   core.signShopeeUrl = signShopeeUrl
 
+  function shopeeFetchError(method, url, status, data, fallbackMessage = '') {
+    let endpoint = ''
+    try {
+      endpoint = new URL(url).pathname
+    } catch {}
+    const message = cleanText(data?.message || data?.msg || data?.error || fallbackMessage || `Shopee API HTTP ${status}`)
+    const error = new Error(message)
+    error.shopee = {
+      method,
+      endpoint,
+      http_status: status,
+      request_id: cleanText(data?.request_id),
+      raw_response: data || {},
+      error: cleanText(data?.error || data?.code || data?.error_code),
+      message
+    }
+    return error
+  }
+  core.shopeeFetchError = shopeeFetchError
+
   async function fetchShopeeJsonGet(buildUrl, params = {}) {
     const url = await buildUrl(params)
     const res = await fetch(url)
@@ -285,10 +313,10 @@ export function installDiscountsCommonFoundation(core) {
     try {
       data = text ? JSON.parse(text) : {}
     } catch {
-      throw new Error(`Shopee API returned non-JSON, HTTP ${res.status}`)
+      throw shopeeFetchError('GET', url, res.status, { raw_text: text }, `Shopee API returned non-JSON, HTTP ${res.status}`)
     }
-    if (!res.ok) throw new Error(data.message || data.msg || data.error || `Shopee API HTTP ${res.status}`)
-    if (data.error) throw new Error(data.message || data.msg || data.error)
+    if (!res.ok) throw shopeeFetchError('GET', url, res.status, data)
+    if (data.error) throw shopeeFetchError('GET', url, res.status, data)
     return data
   }
   core.fetchShopeeJsonGet = fetchShopeeJsonGet
@@ -305,11 +333,69 @@ export function installDiscountsCommonFoundation(core) {
     try {
       data = text ? JSON.parse(text) : {}
     } catch {
-      throw new Error(`Shopee API returned non-JSON, HTTP ${res.status}`)
+      throw shopeeFetchError('POST', url, res.status, { raw_text: text }, `Shopee API returned non-JSON, HTTP ${res.status}`)
     }
-    if (!res.ok) throw new Error(data.message || data.msg || data.error || `Shopee API HTTP ${res.status}`)
-    if (data.error) throw new Error(data.message || data.msg || data.error)
+    if (!res.ok) throw shopeeFetchError('POST', url, res.status, data)
+    if (data.error) throw shopeeFetchError('POST', url, res.status, data)
     return data
   }
   core.fetchShopeeJsonPost = fetchShopeeJsonPost
+
+  function marketplaceRuntimeAuth(env, shop) {
+    return {
+      accessToken: cleanText(env?.SHOPEE_MARKETPLACE_ACCESS_TOKEN) || cleanText(shop.access_token),
+      refreshToken: cleanText(env?.SHOPEE_MARKETPLACE_REFRESH_TOKEN) || cleanText(shop.refresh_token),
+      shopId: cleanText(env?.SHOPEE_MARKETPLACE_SHOP_ID) || cleanText(shop.api_shop_id)
+    }
+  }
+
+  async function fetchShopeeShopJsonGet(env, shop, path, params = {}, retry = true) {
+    const runtimeAuth = marketplaceRuntimeAuth(env, shop)
+    const app = getShopeeAppFromRowForClient(env, shop, 'marketplace_client', shop.api_partner_id || shop.shop_name || shop.user_name)
+    const buildUrl = signShopeeUrl(app, path, runtimeAuth.accessToken, runtimeAuth.shopId)
+    try {
+      return await fetchShopeeJsonGet(buildUrl, params)
+    } catch (error) {
+      if (
+        retry &&
+        typeof refreshShopeeTokenForShop === 'function' &&
+        isShopeeInvalidAccessTokenMessage(error?.message) &&
+        runtimeAuth.refreshToken &&
+        runtimeAuth.shopId &&
+        shop.id
+      ) {
+        const refreshed = await refreshShopeeTokenForShop(env, shop)
+        shop.access_token = refreshed.access_token
+        shop.refresh_token = refreshed.refresh_token
+        return fetchShopeeShopJsonGet(env, shop, path, params, false)
+      }
+      throw error
+    }
+  }
+  core.fetchShopeeShopJsonGet = fetchShopeeShopJsonGet
+
+  async function fetchShopeeShopJsonPost(env, shop, path, body = {}, retry = true) {
+    const runtimeAuth = marketplaceRuntimeAuth(env, shop)
+    const app = getShopeeAppFromRowForClient(env, shop, 'marketplace_client', shop.api_partner_id || shop.shop_name || shop.user_name)
+    const buildUrl = signShopeeUrl(app, path, runtimeAuth.accessToken, runtimeAuth.shopId)
+    try {
+      return await fetchShopeeJsonPost(buildUrl, body)
+    } catch (error) {
+      if (
+        retry &&
+        typeof refreshShopeeTokenForShop === 'function' &&
+        isShopeeInvalidAccessTokenMessage(error?.message) &&
+        runtimeAuth.refreshToken &&
+        runtimeAuth.shopId &&
+        shop.id
+      ) {
+        const refreshed = await refreshShopeeTokenForShop(env, shop)
+        shop.access_token = refreshed.access_token
+        shop.refresh_token = refreshed.refresh_token
+        return fetchShopeeShopJsonPost(env, shop, path, body, false)
+      }
+      throw error
+    }
+  }
+  core.fetchShopeeShopJsonPost = fetchShopeeShopJsonPost
 }

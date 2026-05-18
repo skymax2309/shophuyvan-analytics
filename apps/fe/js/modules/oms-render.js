@@ -1,11 +1,11 @@
 // ==========================================
 // MODULE: VẼ GIAO DIỆN BẢNG & PHÂN TRANG (VIEW LAYER)
 // ==========================================
-import { API } from '../oms-api.js';
+import { API } from '../oms-dashboard/oms-api.js';
 import { fmt } from '../utils/helpers.js';
 import {
-  buildLegacyFeeBreakdownHtml,
   buildPhase1FeeBreakdownHtml,
+  buildOrderFinanceTabsHtml,
   feeSourceInfoV2,
   renderFeeRow,
   toMoneyNumber
@@ -304,6 +304,7 @@ export function renderTable(omsCache) {
     feeBreakdown = buildPhase1FeeBreakdownHtml(o, feeBase) || feeBreakdown
     const feeDisplayTotal = toMoneyNumber(o.fee_display_total || o.fee)
     const feeDelta = toMoneyNumber(o.fee_display_delta)
+    const feeFinanceTabs = buildOrderFinanceTabsHtml(o, feeBase, { feeInfo, feeDisplayTotal, feeDelta })
 
     const feeHtml = feeDisplayTotal ? `
       <div style="position: relative; margin-top: 6px; display: inline-block; cursor: pointer; text-align: left;" 
@@ -312,7 +313,8 @@ export function renderTable(omsCache) {
         <div style="font-size:11px; color:${feeInfo.palette.color}; display:inline-flex; align-items:center; gap:4px; background:${feeInfo.palette.bg}; padding: 3px 8px; border-radius: 6px; border: 1px solid ${feeInfo.palette.border}; font-weight: 600;">
            ${feeInfo.label}: ${fmt(feeDisplayTotal)} <span style="font-size:9px">▼</span>
         </div>
-        <div class="fee-dropdown-box" style="display: none; position: absolute; top: 100%; right: 0; background: var(--surface2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; z-index: 50; width: max-content; min-width: 280px; max-width: min(340px, calc(100vw - 24px)); box-shadow: 0 8px 24px rgba(0,0,0,0.6); font-size: 12px; color: var(--text); margin-top: 5px;">
+        <div class="fee-dropdown-box oms-fee-panel" style="display: none; position: absolute; top: 100%; right: 0; background: var(--surface2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; z-index: 50; width: max-content; min-width: 280px; max-width: min(340px, calc(100vw - 24px)); box-shadow: 0 8px 24px rgba(0,0,0,0.6); font-size: 12px; color: var(--text); margin-top: 5px;" onclick="event.stopPropagation()">
+           ${feeFinanceTabs}
            <div style="font-weight:bold; color:var(--muted); margin-bottom: 8px; border-bottom: 1px dashed var(--border); padding-bottom: 6px;">
              BẢNG KÊ PHÍ ĐƠN HÀNG
              <div style="margin-top:5px;display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:999px;font-size:10px;background:${feeInfo.palette.bg};color:${feeInfo.palette.color};border:1px solid ${feeInfo.palette.border};">

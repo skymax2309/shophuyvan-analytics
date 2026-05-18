@@ -1,4 +1,21 @@
-import { fetchShopeeIncomeDetail } from '../api-sync.js'
+import { fetchShopeeIncomeDetail } from '../api/index.js'
+
+const topPicksAnalysisDeps = {
+  ensureShopeeTopPicksTables: null,
+  syncShopeeTopPicks: null
+}
+
+export function configureTopPicksAnalysisDeps(deps = {}) {
+  topPicksAnalysisDeps.ensureShopeeTopPicksTables = deps.ensureShopeeTopPicksTables || topPicksAnalysisDeps.ensureShopeeTopPicksTables
+  topPicksAnalysisDeps.syncShopeeTopPicks = deps.syncShopeeTopPicks || topPicksAnalysisDeps.syncShopeeTopPicks
+}
+
+async function ensureTopPicksTables(env) {
+  if (typeof topPicksAnalysisDeps.ensureShopeeTopPicksTables !== 'function') {
+    throw new Error('TopPicks analysis missing table initializer')
+  }
+  return topPicksAnalysisDeps.ensureShopeeTopPicksTables(env)
+}
 
 function cleanText(value) {
   return String(value ?? '').trim()
@@ -31,7 +48,9 @@ function parseYmd(value, fallback = '') {
 function defaultRange(days = 7) {
   const end = new Date()
   const start = new Date(end.getTime() - Math.max(days - 1, 0) * 86400000)
-  return { start: dateYmd(start), end: dateYmd(end) }
+  const from = dateYmd(start)
+  const to = dateYmd(end)
+  return { from, to, start: from, end: to }
 }
 
 function lower(value) {
@@ -40,12 +59,12 @@ function lower(value) {
 
 function sameShopFilterSql(shop, alias = 'shop') {
   const clean = cleanText(shop)
-  if (!clean) return { clause: '', binds: [] }
-  return { clause: ' AND LOWER(' + alias + ') = LOWER(?)', binds: [clean] }
+  if (!clean) return { sql: '', params: [] }
+  return { sql: ' AND LOWER(' + alias + ') = LOWER(?)', params: [clean] }
 }
 
 async function loadTrackingRows(env) {
-  await ensureShopeeTopPicksTables(env)
+  await ensureTopPicksTables(env)
   const { results } = await env.DB.prepare(`
     SELECT platform, shop, top_picks_id, tracking_code, voucher_code, note
     FROM marketplace_top_picks_tracking_tags
@@ -67,7 +86,7 @@ function parseIdListJson(value) {
 }
 
 async function loadTopPickCollectionsForAnalysis(env, options = {}) {
-  await ensureShopeeTopPicksTables(env)
+  await ensureTopPicksTables(env)
   const { from, to } = options
   const shopFilter = sameShopFilterSql(options.shop, 'shop')
   const snapshotRows = await env.DB.prepare(`
@@ -313,10 +332,13 @@ export async function analyzeShopeeTopPicksAttachRate(env, options = {}) {
   const defaults = defaultRange(options.days || 7)
   const from = parseYmd(options.from || options.from_date, defaults.from)
   const to = parseYmd(options.to || options.to_date, defaults.to)
-  await ensureShopeeTopPicksTables(env)
+  await ensureTopPicksTables(env)
 
   if (String(options.sync ?? options.sync_first ?? options.syncFirst ?? '0') === '1') {
-    await syncShopeeTopPicks(env, {
+    if (typeof topPicksAnalysisDeps.syncShopeeTopPicks !== 'function') {
+      throw new Error('TopPicks analysis missing sync handler')
+    }
+    await topPicksAnalysisDeps.syncShopeeTopPicks(env, {
       shop: options.shop,
       shopLimit: options.shopLimit || options.shop_limit || 50,
       snapshot_date: to

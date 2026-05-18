@@ -212,6 +212,16 @@ export function installDiscountsCommonTables(core) {
         sku_id TEXT DEFAULT '',
         sku TEXT DEFAULT '',
         status TEXT DEFAULT 'queued',
+        action_type TEXT DEFAULT '',
+        target_type TEXT DEFAULT '',
+        client_type TEXT DEFAULT '',
+        shopee_endpoint TEXT DEFAULT '',
+        validation_status TEXT DEFAULT '',
+        send_status TEXT DEFAULT 'draft_local',
+        verify_status TEXT DEFAULT 'not_verified',
+        error_code TEXT DEFAULT '',
+        error_message TEXT DEFAULT '',
+        raw_response_masked TEXT DEFAULT '{}',
         payload TEXT DEFAULT '{}',
         preview_response TEXT DEFAULT '{}',
         risk_summary TEXT DEFAULT '{}',
@@ -226,9 +236,23 @@ export function installDiscountsCommonTables(core) {
         response TEXT DEFAULT '{}',
         created_at TEXT DEFAULT (datetime('now', '+7 hours')),
         updated_at TEXT DEFAULT (datetime('now', '+7 hours')),
-        applied_at TEXT DEFAULT ''
+        applied_at TEXT DEFAULT '',
+        sent_at TEXT DEFAULT '',
+        verified_at TEXT DEFAULT ''
       )
     `).run()
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "action_type TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "target_type TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "client_type TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "shopee_endpoint TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "validation_status TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "send_status TEXT DEFAULT 'draft_local'")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "verify_status TEXT DEFAULT 'not_verified'")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "error_code TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "error_message TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "raw_response_masked TEXT DEFAULT '{}'")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "sent_at TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_promotion_apply_queue', "verified_at TEXT DEFAULT ''")
     await env.DB.prepare(`
       CREATE INDEX IF NOT EXISTS idx_marketplace_promotion_apply_queue_lookup
       ON marketplace_promotion_apply_queue(platform, shop, module, status, created_at)

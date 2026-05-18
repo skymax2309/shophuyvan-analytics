@@ -1,4 +1,4 @@
-import { API } from '../oms-api.js'
+import { API } from '../oms-dashboard/oms-api.js'
 import { showToast } from '../utils/helpers.js'
 
 let opsState = null

@@ -3,7 +3,7 @@ import { loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchP
            closeModal, copyText, onCheck, openLabelSettings,
            openBotSettings, openAdvancedApiFeatures, onPlatformFilterChange, onShopFilterChange,
            openOrderChatResolver,
-       setPageSize } from '../../oms-main.js?v=label-real-preview2-20260509';
+       setPageSize } from '../../oms-dashboard/oms-main.js?v=label-real-preview2-20260509';
 
   // Expose to global scope (vì HTML dùng onclick="...")
   Object.assign(window, {

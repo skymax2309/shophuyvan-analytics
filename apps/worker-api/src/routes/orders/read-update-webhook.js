@@ -1,8 +1,11 @@
-import { customerRiskKeySql, customerRiskOrderFilterSql, ensureCustomerRiskTables } from '../../core/customer-risk-core.js'
-import { buildLogisticsWatchFilterCondition } from '../../core/logistics-watch-core.js'
-import { applyOrderFeePhase1ToOrderRow } from '../../core/order-fee-phase1-core.js'
-import { activePendingOrderWindowSql } from '../../core/order-status-core.js'
-import { buildOrderTransportSummary, ensureOrderTransportColumns } from '../../core/order-transport-core.js'
+import { customerRiskKeySql, customerRiskOrderFilterSql, ensureCustomerRiskTables } from '../../core/customer/risk-core.js'
+import { buildLogisticsWatchFilterCondition } from '../../core/logistics/watch-core.js'
+import { applyOrderFeePhase1ToOrderRow } from '../../core/orders/fee-phase1-core.js'
+import { activePendingOrderWindowSql } from '../../core/orders/status-core.js'
+import { buildOrderTransportSummary, ensureOrderTransportColumns } from '../../core/orders/transport-core.js'
+import { ensureExternalApiTables } from '../../core/external/schema-core.js'
+import { externalOrderStatusWebhookPayload } from '../../core/external/order-core.js'
+import { sendFacebookCrmWebhook } from '../../core/external/webhook-core.js'
 import { actualCarrierSql, ensureOrderFeeDetailsReadTable, feeRawNumberSql, getImportCarrier, getImportTracking, loadOrderFeePhase1Context, normalizeCarrierByTracking } from './cost-resolution.js'
 import { refreshInventoryMovementsForOrders } from './export-cost-stock.js'
 import { addCancelledWorkflowCondition, addReturnWorkflowCondition, cleanOrderText, ensureOrderReturnComplaintColumns, expandOmsStatusFilter, keepHigherPendingProgress, normalizeDisplayItemsForOrder, normalizeImportedWorkflowStatus, normalizeOmsStatusPair, normalizePlatform, orderTypeFromWorkflowStatus, shouldLimitActivePendingWindow } from './status-workflow.js'
@@ -278,6 +281,7 @@ if (shipping) {
       COALESCE(cr.last_risk_order_at, '') AS customer_risk_last_order_at,
       COALESCE(f.updated_at, '') AS fee_synced_at,
       COALESCE(f.total_fees, 0) AS fee_api_total,
+      f.settlement AS fee_detail_settlement,
       f.fee_commission AS fee_detail_commission,
       f.fee_payment AS fee_detail_payment,
       f.fee_service AS fee_detail_service,
@@ -575,7 +579,7 @@ export async function getOrderChanges(request, env, cors) {
   }, { headers: cors })
 }
 
-export async function updateOmsStatus(request, env, cors, orderId) {
+export async function updateOmsStatus(request, env, cors, orderId, ctx) {
   const body = await request.json()
   // 🌟 Đã mở cửa nhận thêm Mã Vận Đơn (Tracking)
   const { oms_status, shipping_status, tracking_number } = body
@@ -584,6 +588,13 @@ export async function updateOmsStatus(request, env, cors, orderId) {
   if (!normalized.oms && !normalized.shipping && !tracking_number) {
     return Response.json({ error: 'Thiếu dữ liệu trạng thái!' }, { status: 400, headers: cors })
   }
+
+  await ensureExternalApiTables(env)
+  const beforeOrder = await env.DB.prepare(`
+    SELECT *
+    FROM orders_v2
+    WHERE order_id = ?
+  `).bind(orderId).first()
 
   const sets = []
   const params = []
@@ -618,6 +629,20 @@ export async function updateOmsStatus(request, env, cors, orderId) {
   } catch (e) {
     console.error("[UPDATE_OMS_INVENTORY]", e.message)
   }
+  try {
+    const afterOrder = await env.DB.prepare(`
+      SELECT *
+      FROM orders_v2
+      WHERE order_id = ?
+    `).bind(orderId).first()
+    if (beforeOrder?.external_source_order_id && afterOrder) {
+      const payload = externalOrderStatusWebhookPayload(beforeOrder, afterOrder)
+      const task = sendFacebookCrmWebhook(env, 'order.status_changed', payload)
+      if (ctx?.waitUntil) ctx.waitUntil(task)
+      else await task
+    }
+  } catch (e) {
+    console.error("[UPDATE_OMS_EXTERNAL_WEBHOOK]", e.message)
+  }
   return Response.json({ status: "ok" }, { headers: cors })
 }
-

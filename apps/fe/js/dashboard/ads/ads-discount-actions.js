@@ -101,7 +101,18 @@ window.runDiscountPriceActionFromModal = async function(execute = false) {
     return
   }
   if (execute) {
-    const ok = window.confirm(`Xác nhận đẩy giá khuyến mãi lên Shopee?\n\nShop: ${row.shop || ''}\nSản phẩm: ${row.item_name || row.model_name || row.item_id || ''}\nGiá sẽ đẩy: ${adsMoney(preview.target)}\n\nBấm OK để gửi thật qua Shopee Discount API.`)
+    const ok = await adsConfirmAction({
+      title: 'Xác nhận đẩy giá khuyến mãi',
+      message: 'Lệnh này gọi Shopee Discount API thật và chỉ báo thành công sau khi refetch verify đúng model/SKU.',
+      danger: true,
+      confirmText: 'Đẩy giá lên Shopee',
+      details: [
+        { label: 'Shop', value: row.shop || '' },
+        { label: 'Sản phẩm', value: row.item_name || row.model_name || row.item_id || '' },
+        { label: 'Giá sẽ đẩy', value: adsMoney(preview.target) },
+        { label: 'Endpoint', value: '/api/v2/discount/update_discount_item' }
+      ]
+    })
     if (!ok) {
       box.textContent = 'Đã hủy đẩy giá lên Shopee. Chưa có thay đổi nào được gửi.'
       return
@@ -135,13 +146,12 @@ window.runDiscountPriceActionFromModal = async function(execute = false) {
       execute: Boolean(execute),
       confirm: execute ? DISCOUNT_SHOPEE_APPLY_CONFIRM : ''
     })
-    const mode = result.sent_to_shopee ? 'Đã gửi Shopee' : 'Đã tạo lệnh thử'
-    const note = result.sent_to_shopee
-      ? 'Đã gửi qua endpoint thật của Shopee.'
-      : 'Đây là lệnh thử, chưa gửi thay đổi giá lên Shopee.'
-    box.textContent = `${mode}: ${preview.tier.label}, giá KM ${adsMoney(preview.target)}. Mức giảm tương ứng ${preview.percent.toFixed(1)}%. ${note}`
+    adsSetApiResult(box, result, {
+      action: 'update_discount_item',
+      title: execute ? 'Kết quả đẩy giá Discount' : 'Preview payload Discount'
+    })
   } catch (error) {
-    box.textContent = `Không tạo được lệnh: ${error.message}`
+    adsSetApiResult(box, { status: 'error', action: 'update_discount_item', object_id: row.discount_id, shop: row.shop, message: error.message }, { title: 'Không tạo được lệnh' })
   }
 }
 
@@ -150,7 +160,17 @@ window.runDiscountEndActionFromModal = async function(execute = false) {
   const box = adsEl('discountActionResult')
   if (!row || !box) return
   if (execute) {
-    const ok = window.confirm(`Tắt chương trình khuyến mãi này trên Shopee?\n\nShop: ${row.shop || ''}\nChương trình: ${row.discount_name || row.discount_id || ''}\n\nBấm OK để gửi end_discount thật.`)
+    const ok = await adsConfirmAction({
+      title: 'Xác nhận kết thúc Discount',
+      message: 'Lệnh này gọi end_discount thật trên Shopee, sau đó refetch lại để verify trạng thái.',
+      danger: true,
+      confirmText: 'Kết thúc trên Shopee',
+      details: [
+        { label: 'Shop', value: row.shop || '' },
+        { label: 'Chương trình', value: row.discount_name || row.discount_id || '' },
+        { label: 'Endpoint', value: '/api/v2/discount/end_discount' }
+      ]
+    })
     if (!ok) {
       box.textContent = 'Đã hủy tắt KM trên Shopee.'
       return
@@ -165,13 +185,12 @@ window.runDiscountEndActionFromModal = async function(execute = false) {
       execute: Boolean(execute),
       confirm: execute ? DISCOUNT_SHOPEE_APPLY_CONFIRM : ''
     })
-    const mode = result.sent_to_shopee ? 'Đã gửi Shopee' : 'Đã tạo lệnh thử'
-    const note = result.sent_to_shopee
-      ? 'Đã gửi qua endpoint thật của Shopee.'
-      : 'Đây là lệnh thử, chưa kết thúc chương trình trên Shopee.'
-    box.textContent = `${mode}: kết thúc chương trình KM ${row.discount_id}. ${note}`
+    adsSetApiResult(box, result, {
+      action: 'end_discount',
+      title: execute ? 'Kết quả kết thúc Discount' : 'Kiểm tra payload kết thúc Discount'
+    })
   } catch (error) {
-    box.textContent = `Không tạo được lệnh: ${error.message}`
+    adsSetApiResult(box, { status: 'error', action: 'end_discount', object_id: row.discount_id, shop: row.shop, message: error.message }, { title: 'Không tạo được lệnh' })
   }
 }
 
@@ -181,6 +200,52 @@ function discountShopKey(row = {}) {
 
 function discountShopLabel(row = {}) {
   return row.shop || row.api_shop_id || 'Chưa rõ shop'
+}
+
+function ensureDiscountFilters() {
+  const shopSelect = adsEl('discountShopFilter')
+  const stockSelect = adsEl('discountStockFilter')
+  const revenueSelect = adsEl('discountRevenueFilter')
+  const currentStock = stockSelect?.value || ''
+  const currentRevenue = revenueSelect?.value || ''
+  if (stockSelect) {
+    stockSelect.innerHTML = `
+      <option value="">Tất cả tồn kho</option>
+      <option value="low">Sắp hết hàng</option>
+      <option value="high">Tồn nhiều</option>
+      <option value="zero">Tồn bằng 0</option>
+    `
+    stockSelect.value = currentStock
+  }
+  if (revenueSelect) {
+    revenueSelect.innerHTML = `
+      <option value="">Tất cả doanh thu</option>
+      <option value="has_revenue">Có doanh thu</option>
+      <option value="no_revenue">Chưa có doanh thu</option>
+      <option value="high_revenue">Doanh thu cao</option>
+    `
+    revenueSelect.value = currentRevenue
+  }
+  if (shopSelect) shopSelect.setAttribute('aria-label', 'Lọc shop Discount')
+  if (stockSelect) stockSelect.setAttribute('aria-label', 'Lọc tồn kho')
+  if (revenueSelect) revenueSelect.setAttribute('aria-label', 'Lọc doanh thu')
+  if (revenueSelect && !adsEl('discountEffectFilter')) {
+    revenueSelect.insertAdjacentHTML('afterend', `
+      <select id="discountEffectFilter" class="ads-discount-mini-filter" onchange="onDiscountFilterChanged()" aria-label="Lọc hiệu quả">
+        <option value="">Tất cả hiệu quả</option>
+        <option value="effective">Đang hiệu quả</option>
+        <option value="needs_action">Cần xử lý</option>
+        <option value="poor">Kém hiệu quả</option>
+        <option value="no_click">Chưa có click ADS</option>
+      </select>
+      <select id="discountStatusFilter" class="ads-discount-mini-filter" onchange="onDiscountFilterChanged()" aria-label="Lọc trạng thái chương trình">
+        <option value="">Tất cả trạng thái</option>
+        <option value="ongoing">Đang chạy</option>
+        <option value="upcoming">Sắp chạy</option>
+        <option value="expired">Đã kết thúc</option>
+      </select>
+    `)
+  }
 }
 
 function discountSummaryFromRows(rows = [], thresholds = {}) {
@@ -243,17 +308,28 @@ window.onDiscountShopFilterChanged = function() {
 function discountFilterRows(rows = [], thresholds = {}) {
   const stockFilter = String(adsEl('discountStockFilter')?.value || '')
   const revenueFilter = String(adsEl('discountRevenueFilter')?.value || '')
+  const effectFilter = String(adsEl('discountEffectFilter')?.value || '')
+  const statusFilter = String(adsEl('discountStatusFilter')?.value || '').toLowerCase()
   const lowStock = Number(thresholds.lowStock || 10)
   const highStock = Number(thresholds.highStock || 100)
   return rows.filter(row => {
     const stock = Number(row.stock || 0)
     const revenue = Number(row.revenue || 0)
+    const clicks = Number(row.ads_clicks || 0)
+    const roas = Number(row.roas_after_discount || 0)
+    const recommendation = String(row.recommendation || '')
+    const status = String(row.status || '').toLowerCase()
     if (stockFilter === 'low' && stock > lowStock) return false
     if (stockFilter === 'high' && stock < highStock) return false
     if (stockFilter === 'zero' && stock > 0) return false
     if (revenueFilter === 'has_revenue' && revenue <= 0) return false
     if (revenueFilter === 'no_revenue' && revenue > 0) return false
     if (revenueFilter === 'high_revenue' && revenue < 1000000) return false
+    if (effectFilter === 'effective' && !(roas >= 3 && revenue > 0)) return false
+    if (effectFilter === 'needs_action' && !['reduce_or_end_discount', 'protect_price_floor', 'check_price_listing_or_ads_target'].includes(recommendation)) return false
+    if (effectFilter === 'poor' && !(clicks > 0 && (roas < 1 || revenue <= 0))) return false
+    if (effectFilter === 'no_click' && clicks > 0) return false
+    if (statusFilter && !status.includes(statusFilter)) return false
     return true
   })
 }
@@ -264,6 +340,7 @@ window.onDiscountFilterChanged = function() {
 }
 
 function renderDiscountAnalysis() {
+  ensureDiscountFilters()
   const box = adsEl('discountAnalysisBox')
   const summaryEl = adsEl('discountSummary')
   if (!box) return
@@ -307,7 +384,7 @@ function renderDiscountAnalysis() {
     box.innerHTML = `
       ${cacheNotice}
       ${kpis}
-      <div class="ads-empty">Chưa có chương trình giảm giá Shopee đang chạy trong cache của bộ lọc này. Bấm "Cập nhật cache Discount" để kéo phần dữ liệu mới từ Shopee.</div>
+      <div class="ads-empty">Chưa có chương trình giảm giá Shopee đang chạy trong cache của bộ lọc này. Bấm "Đồng bộ Discount từ Shopee API" để kéo dữ liệu read-only mới.</div>
     `
     return
   }
@@ -316,7 +393,7 @@ function renderDiscountAnalysis() {
     box.innerHTML = `
       ${cacheNotice}
       ${kpis}
-      <div class="ads-empty">Shop đang lọc chưa có dòng Discount trong cache đã tải. Chọn shop khác hoặc bấm "Cập nhật cache Discount" để kéo dữ liệu mới nhất.</div>
+      <div class="ads-empty">Shop đang lọc chưa có dòng Discount trong cache đã tải. Chọn shop khác hoặc bấm "Đồng bộ Discount từ Shopee API" để kéo dữ liệu read-only mới nhất.</div>
     `
     return
   }

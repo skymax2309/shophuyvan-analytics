@@ -1,163 +1,720 @@
 # Hướng Dẫn Cho Codex / Agent
 
-## Nguyên tắc bắt buộc
+> File này được lưu bằng UTF-8. Nếu PowerShell hiển thị tiếng Việt bị lỗi, mở bằng VS Code với encoding UTF-8 hoặc chạy PowerShell ở UTF-8.
 
-- Sau khi chỉnh sửa phải mở hoặc chạy luồng thực tế đến khi xác nhận thành công rồi mới báo lại. Không chỉ viết code rồi kết luận.
-- Sau khi chỉnh sửa code phải deploy đúng phần bị ảnh hưởng rồi kiểm tra lại trên môi trường đang chạy thật. Không báo ổn định nếu mới test local, chưa deploy hoặc chưa thao tác thực tế luồng người dùng gặp lỗi.
-- Giao diện website ưu tiên mobile first, tiếng Việt có dấu, nội dung ngắn gọn để đội vận hành dùng trực tiếp.
-- Mỗi page có nhiều tính năng con phải tách thành tab con hoặc page con rõ ràng để dễ kiểm tra và vận hành. Không dồn thành một page kéo dài quá mức khiến khó theo dõi, khó bấm và khó kiểm tra trên mobile.
-- Code mới hoặc đoạn logic khó hiểu phải có comment tiếng Việt có dấu, giải thích lý do nghiệp vụ, không comment kiểu mô tả dòng lệnh hiển nhiên.
-- Không đảo hoặc xóa thay đổi có sẵn nếu không chắc đó là phần mình tạo ra. Worktree thường có nhiều thay đổi song song.
-- Khi thiếu endpoint Open Platform, phải báo đúng tên endpoint cần tìm. Không giả lập thao tác nguy hiểm như tắt/bật ADS nếu API chưa có endpoint chính thức.
-- Khi cần tra tài liệu Shopee Open Platform, dùng skill `shopee-open-platform-docs` và Chrome profile riêng ở `%LOCALAPPDATA%\ShopHuyVan\ChromeProfiles\ShopeeOpenPlatform`. Người dùng đăng nhập thủ công; không lưu mật khẩu, OTP, cookie hoặc token vào repo/skill.
+## 1. Mục tiêu chung
 
-## Cách tư vấn và chốt hướng cho tính năng mới
+Agent phải làm việc theo hướng an toàn, có kiểm chứng thực tế, dùng đúng Chrome profile, đúng GitHub/Cloudflare theo từng project, và ưu tiên core dữ liệu dùng chung.
 
-- Với tính năng mới hoặc phần sửa ảnh hưởng rộng, trước khi làm lớn phải đưa ra nhiều phương án xử lý, nêu ưu/nhược điểm, số request dự kiến, độ chính xác dữ liệu, rủi ro vận hành và tác động maintain. Không tự chắp vá mỗi nơi một ít khi chưa rõ hướng core.
-- Với phần ảnh hưởng rộng tới cách vận hành như tài chính, chat, AI auto-reply, automation hoặc kiến trúc page, phải hỏi/chốt lại hướng với người dùng trước khi đi sâu. Không tự chọn một hướng nửa vời rồi mới báo sau.
-- Luôn ưu tiên phương án có core dữ liệu dùng chung: một nơi chuẩn hóa, một nơi đồng bộ, nhiều màn hình chỉ đọc lại. Nếu Dashboard, ADS, chat, order analytics, cron hoặc Python cùng dùng một logic thì phải tách core trước.
-- Mỗi tính năng mới phải được đánh giá đồng loạt cho cả 3 sàn `Shopee`, `Lazada`, `TikTok`. Nếu chưa thể làm đủ 3 sàn trong cùng một đợt thì phải ghi rõ sàn nào đã làm xong, sàn nào chỉ mới có core, sàn nào còn thiếu endpoint hoặc thiếu quyền.
-- Bắt buộc tách luồng ngay từ đầu giữa `shop có API` và `shop không có API`. UI, backend, cron và helper local không được dùng chung một luồng mơ hồ rồi đoán shop nào chạy API. Mọi màn hình phải hiện rõ shop đang ở chế độ nào.
-- Với shop không có API, luôn phải đưa ra phương án vận hành riêng bằng tiếng Việt có dấu, ví dụ: chỉ dùng dữ liệu tham chiếu, nhập file, browser hỗ trợ có kiểm soát, hoặc thao tác tay có log. Không được gắn nhãn “đồng bộ API” cho shop chưa có API.
-- Mọi phần hướng dẫn sử dụng, ghi chú vận hành, cảnh báo và nhãn trạng thái trên web phải viết bằng tiếng Việt có dấu, ngắn gọn, nói rõ tính năng dùng để làm gì và khi nào nên dùng.
-- Không được dừng ở mức “đã có API/đã có nút sync”. Mỗi tính năng đã làm ra phải có phương án vận hành trực quan trên web, trạng thái đang chạy thế nào, log/lần chạy cuối và hướng tự động hóa hoặc tối ưu hóa tiếp theo nếu tính năng đó phù hợp để tự động.
-- Sau mỗi lần xử lý xong một cụm tính năng, phải có thông báo tổng kết rõ “đã làm được những gì”, “đang khóa những gì”, “shop có API chạy theo cách nào”, “shop không có API xử lý theo cách nào”, để người dùng nhìn là biết ngay phạm vi đã hoàn tất.
-- Mỗi tính năng vận hành phải có ghi chú tiếng Việt trong UI: tính năng dùng để làm gì, dùng khi nào, dữ liệu lấy từ endpoint/bảng nào, giới hạn API là gì, trường hợp nào cần bấm đồng bộ lại.
-- Với phân tích tài chính, lãi ròng, đối soát Shopee Payment, báo cáo thuế và dòng tiền, phải đề xuất hướng tích hợp thông minh: lấy dữ liệu thật từ API sàn trước, lưu snapshot D1, chạy batch theo ngày/tháng, chỉ gọi bổ sung phần thiếu, và ghi rõ nguồn dữ liệu để người dùng kiểm tra được.
-- Nếu shop có API tài chính/phí sàn chính thức thì phải dùng dữ liệu API đó làm nguồn chuẩn để tính toán trước. `cost setting` chỉ được dùng làm fallback tham chiếu cho shop không có API hoặc cho phần dữ liệu API còn thiếu, và UI phải ghi rõ đây là fallback chứ không phải số phí sàn chuẩn.
-- Với tự động hóa, phải mô tả quy trình an toàn: điều kiện kích hoạt, dữ liệu đầu vào, bước kiểm tra trước khi gửi lệnh thật, log kết quả, cách rollback hoặc dừng nếu API trả lỗi.
-- Nếu endpoint hiện có chưa đủ cho phân tích chính xác, phải ghi rõ trong UI và báo người dùng đúng tên endpoint/chức năng cần tìm trong Open Platform. Không thay thế bằng dữ liệu fallback nếu fallback có thể làm sai báo cáo tài chính hoặc thuế.
+Không được báo đã xong nếu mới sửa code nhưng chưa kiểm tra luồng thật, chưa deploy đúng môi trường hoặc chưa bấm thử giao diện đang chạy thật.
 
-## Bản đồ hệ thống
+## 2. Chrome profile theo project
 
-- `apps/fe`: frontend tĩnh chạy trên Pages/static server. Các page chính nằm ở `apps/fe/pages`, logic chia theo `apps/fe/js/dashboard`, `apps/fe/js/modules`, `apps/fe/js/admin`.
-- `apps/worker-api`: Cloudflare Worker API, D1, R2 và cron. Route nằm ở `apps/worker-api/src/routes`, helper DB ở `apps/worker-api/src/utils`, core backend đặt ở `apps/worker-api/src/core`.
-- `scripts`: chỉ giữ script kiểm thử CDP, PowerShell mở profile hoặc công cụ không phải Python. Không tạo thêm Python mới trong thư mục này nếu tính năng thuộc OMS vận hành.
-- Python local automation đã tách khỏi repo chính, đặt tại `E:\shophuyvan-python-automation`. Code thật nằm trong package `E:\shophuyvan-python-automation\oms_python`, chia theo `core`, `platforms/<sàn>/<tính năng>`, `features/<tính năng chung>` và `ui`.
-- Chrome profile automation của OMS đặt trong `E:\shophuyvan-python-automation\profiles\browser`. Không tạo hoặc trỏ profile automation ra Desktop vì sẽ làm rác màn hình và dễ nhầm với file cá nhân.
-- Root repo có cache/log/tạm như `cache_orders_*.json`, `bot-*.log`, `tmp-*`, `.codex-chrome-profile*`. Đây không phải source of truth, chỉ dùng kiểm tra hoặc debug.
+Bắt buộc chọn đúng Chrome profile theo project, không dùng lẫn và không dùng Chrome mặc định của máy.
 
-## Hướng core đã chốt
+### ShopHuyVan / OMS / Product Master
 
-### 1. Trạng thái đơn hàng
+Profile:
 
-- Source of truth backend: `apps/worker-api/src/core/order-status-core.js`.
-- Frontend mirror đang dùng: `apps/fe/js/dashboard/order-status-core.js`.
-- Dashboard, ADS, order analytics, chat, OMS, returns và cron phải dùng core này để chuẩn hóa `CANCELLED`, `RETURN`, `TO_RETURN`, `FAILED_DELIVERY`, `LOGISTICS_*`.
-- Không tự viết lại regex phân loại hủy/hoàn ở từng route/page. Nếu thiếu trạng thái mới, thêm vào core trước rồi import dùng lại.
+`E:\codex-chrome-profiles\shophuyvan-test`
 
-### 2. Kích thước Chrome automation
+Dùng cho:
 
-- Source of truth Python: `E:\shophuyvan-python-automation\oms_python\core\browser_runtime\settings.py`.
-- Web gửi `runtime_settings`, helper local truyền vào env, mọi script mở Chrome phải đọc qua core này.
-- Không hardcode `--window-size`, `--window-position`, minimize hoặc expand viewport trong từng script riêng lẻ.
-- Các tác vụ mở Chrome như chat, radar, tải report, TikTok check, Shopee/Lazada helper đều phải dùng chung bộ khóa:
-  `browser_width`, `browser_height`, `browser_left`, `browser_top`, `browser_minimized`, `expand_browser_viewport`.
+- Admin website ShopHuyVan
+- ShipXanh
+- GitHub ShopHuyVan
+- Cloudflare ShopHuyVan
+- Shopee Open Platform
+- Lazada Open Platform
+- Kiểm Product Master, External API, admin web, marketplace docs
 
-### 3. ADS
+### Facebook CRM / Meta
 
-- ADS là page riêng: `apps/fe/pages/ads.html` và `apps/fe/js/dashboard/ads.js`. Dashboard chính chỉ điều hướng sang ADS, không giữ logic tắt/bật ADS cũ.
-- Core ADS cần gom chung các phần: khoảng ngày/tháng, shop filter, campaign snapshot, metric `spend`, `sales`, `click`, `CPC`, `ROAS`, `ACOS`, ROI và trạng thái campaign.
-- Tắt/bật campaign chỉ được làm khi có endpoint chính thức từ Open Platform. Nếu chưa có, UI phải báo thiếu endpoint cụ thể thay vì cho người dùng tưởng đã tắt/bật.
-- Đồng bộ ADS các tháng trước phải chạy theo batch/cửa sổ thời gian, lưu snapshot rồi phân tích từ D1 để giảm request.
+Profile:
 
-### 4. Discount và giá theo tồn kho
+`E:\codex-chrome-profiles\fbshv-meta`
 
-- Logic giá khuyến mại phải tách thành core riêng, không để trong modal UI.
-- Hướng đã chốt: cấu hình theo ngưỡng tồn kho, ví dụ tồn dưới 10, tồn dưới 100, tồn từ 100 trở lên thì đề xuất/áp giá tương ứng.
-- Không bắt người dùng nhập câu xác nhận dài để áp dụng. Thay bằng quyền admin, preview payload rõ ràng, nút áp dụng thật và log kết quả.
+Dùng cho:
 
-### 5. Chat sàn
+- Facebook CRM
+- Meta/Facebook tools
+- GitHub repo Facebook CRM
+- Cloudflare project Facebook CRM
+- Kiểm giao diện/login/deploy riêng của Facebook CRM
 
-- Chat page riêng: `apps/fe/pages/chat-marketplace.html`; frontend chat dùng loader `apps/fe/js/dashboard/fe-chat-marketplace-loader.js` và các module `apps/fe/js/dashboard/fe-chat-marketplace/fe-chat-*`.
-- Backend chat dùng wrapper `apps/worker-api/src/routes/worker-chat-marketplace-route.js` và các module `apps/worker-api/src/routes/worker-chat-marketplace/worker-chat-*`.
-- Không tạo lại tên chung như `chat.js`, `part-01.js` hoặc tên file trùng giữa frontend/backend. File chat mới phải đặt theo tính năng, có prefix `fe-chat-` hoặc `worker-chat-`, và phải dưới `30KB`.
-- Local helper mở Chrome qua `E:\shophuyvan-python-automation\oms_python\features\local_helper\server.py`; automation đọc/sync/gửi qua `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser.py`.
-- Chat là luồng vận hành chính, không được chấp nhận trạng thái “vào là loading mãi, lâu lâu mới lên”. Nếu gặp lỗi này phải điều tra đến tận gốc: tắc ở API/token, browser helper, policy quét, DB, hay render frontend; báo rõ nguyên nhân và hướng xử lý dứt điểm trước khi mở rộng tính năng mới.
-- Tin nhắn TikTok/Shopee/Lazada phải qua core lọc nhiễu trước khi lưu hoặc hiển thị. Không để text UI như bộ lọc, tab, card đơn hàng bị nhập thành nội dung chat.
-- Khi liên kết đơn hàng trong chat, trạng thái hiển thị phải dùng `order_status_core`, không hiển thị raw `RETURN`, `CANCELLED` nếu đã có nhãn tiếng Việt.
-- Hướng chat đã chốt: dùng `chat_transport_core` để quyết định shop đi `api_chat_worker` hay `browser_chat_worker`; shop có API/token sống thì không tự mở Chrome, shop `browser_required` hoặc `api_unavailable` mới dùng Chrome.
-- Định danh hội thoại phải qua `chat_identity_core`; UI luôn ưu tiên `canonical_conversation_id`, còn id phụ từ automation/browser cũ lưu vào bảng `chat_conversation_aliases`. Không xóa dữ liệu gốc khi gộp, chỉ map alias về hội thoại chính.
-- Quét Chrome theo 2 tầng qua `chat_scan_policy_core`: tầng 1 chỉ quét ngoài danh sách để biết hội thoại mới/có thay đổi; tầng 2 chỉ mở sâu khi khách mới, nghi trùng, preview đổi, hoặc thiếu `buyer_id/thread_url`. Mục tiêu là ít request, ít Chrome và không gộp bừa.
-- AI trong chat không được dừng ở kiểu “bấm gợi ý AI rồi người dùng phải bấm enter”. Nếu đã làm AI trả lời thì phải có phương án auto-reply thật với rule, guard an toàn, điều kiện kích hoạt, log và công tắc bật/tắt theo shop. Chế độ gợi ý tay chỉ là fallback, không phải đích cuối.
-- Khi rà tài liệu chat, phải ghi riêng bảng `API shop làm được gì` và `shop không API chưa làm được gì`. Đây là đầu vào bắt buộc cho lộ trình tự động hóa sau này.
-- Lazada có bộ IM API chính thức trong docs (`/im/session/list`, `/im/session/get`, `/im/message/list`, `/im/message/send`, `/im/session/open`, `/im/session/read`, `/im/message/recall`). Với shop Lazada có API và app có quyền IM, phải ưu tiên luồng API trước Chrome.
-- Tài liệu Yuque `Lazada IM Open API` nhấn mạnh ISV nên dùng long-polling để đẩy tin gần realtime cho seller. Khi build lại chat Lazada, ưu tiên session/message polling từ API và chỉ fallback browser khi token/quyền lỗi.
-- Shopee hiện có code sellerchat/webchat trong repo, nhưng bộ docs public đã quét chưa đủ endpoint buyer-seller chat tương ứng. Vì vậy mọi tính năng chat Shopee đi API phải giữ guard/log rõ ràng và ghi chú nếu đang dựa vào endpoint chưa có tài liệu public đầy đủ.
-- Nếu người dùng có thêm tài liệu Shopee chat chính thức, phải yêu cầu đúng tên endpoint còn thiếu rồi cập nhật vào reference `chat-endpoints.md` trước khi mở rộng tính năng.
-- Sau mỗi đợt sửa chat, báo lại rõ 4 nhóm:
-  1. Shop API đã làm được gì bằng API chính thức.
-  2. Shop API còn đang thiếu quyền gì.
-  3. Shop không API đang fallback bằng cách nào.
-  4. Tính năng nào mới chỉ lưu OMS/chờ xác nhận gửi lên sàn.
+### Quy tắc bắt buộc
 
-### 6. Shop, platform và nguồn dữ liệu
+- Không dùng profile Chrome mặc định.
+- Không tự tạo profile Chrome khác nếu chưa được yêu cầu.
+- Không dùng sai profile giữa ShopHuyVan và Facebook CRM.
+- Nếu profile chưa đăng nhập, dừng lại và yêu cầu người dùng đăng nhập thủ công.
+- Không lưu mật khẩu, OTP, token, cookie hoặc session vào repo/skill/log.
+- Trước khi deploy phải xác nhận đang ở đúng repo, đúng GitHub account, đúng Cloudflare account/project.
 
-- Mọi dữ liệu nên khóa theo cặp `platform + shop_name` hoặc `platform + shop_id` nếu có. Không chỉ dựa vào tên hiển thị.
-- Cấu hình profile local hiện ở `E:\shophuyvan-python-automation\data\shops.json`; API/shop config nằm trong D1 qua routes `shops`, `api-sync`, `api-modules`.
-- Khi thêm core shop sau này, cần gom mapping platform, shop, profile_dir, API capability và quyền sync vào một nơi rồi các route/page dùng lại.
+## 3. Tách project ShopHuyVan và Facebook CRM
 
-### 7. Khoảng ngày/tháng và request policy
+ShopHuyVan và Facebook CRM là 2 project khác nhau, có thể nằm ở GitHub repo khác và Cloudflare account/project khác.
 
-- Nên tách `date_range_core` dùng chung cho Dashboard, ADS, Order analytics và cron. Tất cả mặc định theo timezone vận hành Việt Nam.
-- Request phải ưu tiên ít nhưng đủ dữ liệu: batch theo shop/tháng, incremental cursor, snapshot D1, không gọi N+1 theo từng dòng nếu có thể gom.
-- UI chỉ phân tích từ dữ liệu đã lưu khi có thể; API sàn chỉ dùng để đồng bộ hoặc làm giàu phần còn thiếu.
+### ShopHuyVan
 
-## Cấu trúc Python local
+- Là nguồn dữ liệu gốc cho Product Master, SKU, tồn kho, đơn hàng, finance, OMS.
+- API chính: `https://huyvan-worker-api.nghiemchihuy.workers.dev`
+- Profile kiểm thử: `E:\codex-chrome-profiles\shophuyvan-test`
 
-- Python local đã được gom vào `E:\shophuyvan-python-automation\oms_python` và nằm ngoài repo chính.
-- Khi thêm Python mới phải đặt theo đúng mục đích:
-  - `oms_python/core`: cấu hình, runtime Chrome, logging, helper dùng chung.
-  - `oms_python/platforms/shopee/<tính năng>`: Shopee auth, orders, products, finance, promotion, video, chat.
-  - `oms_python/platforms/lazada/<tính năng>`: Lazada auth, orders, products, finance, chat.
-  - `oms_python/platforms/tiktok/<tính năng>`: TikTok auth, orders, products, finance, chat.
-  - `oms_python/features/<tính năng>`: tính năng chung như local helper, radar, report, CCTV, video repost, mua hàng.
-  - `oms_python/ui`: UI desktop cũ và các tab.
-- Không tạo lại các thư mục Python cũ `engines`, `parsers`, `ui` trong repo chính; các tên này đã được xóa sau refactor.
-- File entrypoint còn được phép ở root `E:\shophuyvan-python-automation` chỉ nên là launcher mỏng như `main.py`. Code nghiệp vụ phải nằm trong `oms_python`.
-- File sinh ra như `__pycache__`, log, cache, profile Chrome, `tmp-*` không được xem là source. Nếu cần dọn, list rõ tên file trước khi xóa.
+### Facebook CRM
 
-## Quy trình sửa chuẩn
+- Là project riêng.
+- Không được deploy Facebook CRM bằng GitHub/Cloudflare của ShopHuyVan.
+- Không được deploy ShopHuyVan bằng GitHub/Cloudflare của Facebook CRM.
+- Profile kiểm thử: `E:\codex-chrome-profiles\fbshv-meta`
 
-## Profile kiểm thử production
+### Kết nối dữ liệu giữa 2 project
 
-- Profile Chrome riêng cho kiểm thử web production:
-  `%LOCALAPPDATA%\ShopHuyVan\ChromeProfiles\ProductionAdminTest`
-- URL production cần mở khi kiểm UI:
-  `https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/profit-dashboard.html`
-- Tài khoản kiểm thử nên là admin/test-admin riêng cho vận hành. Agent chỉ được ghi nhớ vai trò hoặc tên gợi nhớ tài khoản nếu người dùng cung cấp, không lưu mật khẩu, OTP, cookie, token hoặc session vào repo/skill/memory.
-- Khi cần kiểm UI thật, mở Chrome bằng profile trên, để người dùng đăng nhập thủ công nếu profile chưa có phiên đăng nhập. Sau đó mới bấm các nút thật trong Dashboard.
-- Không dùng chung profile này với profile tài liệu Shopee Open Platform. Profile Shopee docs vẫn là `%LOCALAPPDATA%\ShopHuyVan\ChromeProfiles\ShopeeOpenPlatform`.
+Facebook CRM chỉ kết nối sang ShopHuyVan qua External API:
 
-1. Đọc core hiện có trước khi sửa route/page.
-2. Nếu logic dùng ở từ hai nơi trở lên, đưa vào core trước.
-3. Frontend chỉ giữ phần hiển thị và gọi API; backend/core giữ nghiệp vụ và chuẩn hóa dữ liệu.
-4. Python helper chỉ điều phối local/browser; không tự quyết định nghiệp vụ nếu backend đã có core.
-5. Sau khi sửa phải chạy kiểm tra phù hợp: `node --check`, `python -m py_compile`, API/helper thực tế, hoặc mở page trong browser tùy phần đã đụng.
-6. Deploy đúng môi trường liên quan trước khi kết luận: frontend thì deploy Pages/static, worker thì deploy Worker API, helper Python thì restart helper/local service nếu code chạy qua service.
-7. Sau deploy phải kiểm tra lại luồng thực tế mà người dùng báo lỗi: mở web thật, bấm nút thật, chạy sync/warm/send thật ở mức an toàn, xem dữ liệu thật đã ổn định chưa.
-8. Báo lại rõ đã sửa gì, đã deploy phần nào, đã kiểm tra thực tế gì, kết quả gì, phần nào chưa kiểm được và lý do.
+`https://huyvan-worker-api.nghiemchihuy.workers.dev/api/external/*`
 
-## Quy tắc dữ liệu bẩn
+Facebook CRM không được tự copy Product Master, không tự quyết định giá cuối, không tự trừ tồn local.
 
-- Nếu phát hiện dữ liệu bẩn, dữ liệu cũ lệch chuẩn, dữ liệu trùng hoặc dữ liệu đang làm sai kết quả thì phải ưu tiên làm sạch, chuẩn hóa hoặc gắn cờ xử lý dứt điểm trước rồi mới làm tiếp tiến trình đang dang dở.
-- Không được để nợ dữ liệu bẩn kéo dài sang các bước sau vì sẽ làm sai Dashboard, Profit, OMS, ADS, chat và các core dùng chung.
-- Khi làm sạch dữ liệu phải ghi rõ:
-  - nguyên nhân dữ liệu bẩn,
-  - phạm vi shop/sàn bị ảnh hưởng,
-  - cách làm sạch,
-  - dữ liệu nào đã được sửa thật,
-  - dữ liệu nào mới chỉ được gắn cờ chờ xử lý tiếp.
+Luồng chuẩn:
 
-## Checklist endpoint marketplace
+ShopHuyVan Product Master  
+→ External API `/api/external/*`  
+→ Facebook CRM đọc sản phẩm/giá/tồn  
+→ Facebook CRM tạo đơn ngược về ShopHuyVan
 
-- Checklist tổng thể endpoint phải được lưu và cập nhật tại:
-  - `docs/marketplace-endpoint-master-checklist.md`
-  - `docs/marketplace-endpoint-progress.md`
-- Mỗi khi hoàn tất một phase liên quan đến `Shopee`, `Lazada`, `TikTok`, agent bắt buộc phải cập nhật lại 2 file này trước khi kết thúc:
-  1. tick lại checklist nhóm tính năng đã làm,
-  2. ghi rõ trạng thái `đã xong / đang làm dở / chưa làm / bị khóa an toàn / bị chặn bởi quyền/app`,
-  3. ghi rõ shop `có API` đang chạy được gì,
-  4. ghi rõ shop `không có API` đang fallback theo cách nào,
-  5. ghi rõ bước tiếp theo cần làm để nối tiếp không bị đứt tiến trình.
-- Không được chỉ trả lời trong chat mà không cập nhật lại checklist trong repo, vì mục tiêu là làm dần đến khi phủ hết toàn bộ khả năng mà bộ endpoint hiện có cung cấp.
+### Biến môi trường Facebook CRM
+
+Facebook CRM phải dùng env riêng:
+
+```env
+ECOMMERCE_API_BASE_URL="https://huyvan-worker-api.nghiemchihuy.workers.dev"
+ECOMMERCE_API_KEY=""
+ECOMMERCE_WEBHOOK_SECRET=""
+MOCK_ECOMMERCE_API="false"
+```
+
+### Quy tắc an toàn khi sửa/deploy
+
+Nếu đang ở repo Facebook CRM:
+
+- Chỉ sửa/deploy Facebook CRM.
+- Không sửa/deploy Worker ShopHuyVan trừ khi user yêu cầu rõ.
+
+Nếu đang ở repo ShopHuyVan:
+
+- Chỉ sửa Product Master, External API, Inventory, Order, Webhook, OMS.
+- Không sửa/deploy Facebook CRM trừ khi user yêu cầu rõ.
+
+Nếu cần sửa cả 2 bên:
+
+- Báo rõ phần nào sửa ở ShopHuyVan.
+- Báo rõ phần nào sửa ở Facebook CRM.
+- Deploy từng project bằng đúng GitHub/Cloudflare của project đó.
+- Kiểm tra từng project bằng đúng Chrome profile tương ứng.
+
+## 4. Quy tắc deploy và kiểm tra thật
+
+Sau khi chỉnh sửa code:
+
+1. Chạy kiểm tra phù hợp:
+   - `node --check`
+   - `python -m py_compile`
+   - test API/helper thực tế
+   - mở page trong browser nếu đụng UI
+2. Deploy đúng phần bị ảnh hưởng:
+   - frontend thì deploy Pages/static
+   - worker thì deploy Worker API
+   - helper Python thì restart helper/local service nếu code chạy qua service
+3. Sau deploy phải kiểm tra lại luồng thực tế:
+   - mở web thật
+   - bấm nút thật
+   - chạy sync/warm/send thật ở mức an toàn
+   - xem dữ liệu thật đã ổn định chưa
+4. Báo lại rõ:
+   - đã sửa gì
+   - đã deploy phần nào
+   - đã kiểm tra thực tế gì
+   - kết quả gì
+   - phần nào chưa kiểm được và lý do
+
+Không được báo ổn định nếu mới test local.
+
+## 5. Quy tắc giao diện responsive bắt buộc
+
+Mọi giao diện mới hoặc giao diện sửa lại phải kiểm tra đủ 3 chế độ:
+
+1. Mobile
+2. Tablet
+3. PC/Desktop
+
+Không được chỉ test trên PC rồi kết luận đã xong.
+
+### Nguyên tắc UI
+
+- Mobile first.
+- Dễ bấm, chữ rõ, nút đủ lớn.
+- Không tràn ngang.
+- Không vỡ layout.
+- Tiếng Việt có dấu, nội dung ngắn gọn để đội vận hành dùng trực tiếp.
+- Nếu có thể làm chuyên nghiệp hơn ShipXanh thì được phép cải tiến.
+- Nếu chưa có hướng UI tốt hơn, phải build gần giống ShipXanh để người dùng quen thao tác.
+
+### Bảng dữ liệu
+
+- PC: có thể dùng table đầy đủ.
+- Tablet: table co giãn hợp lý hoặc có scroll ngang rõ ràng.
+- Mobile: ưu tiên đổi table thành card/list để dễ đọc và dễ thao tác.
+
+### Tham khảo ShipXanh
+
+Khi cần tham khảo UI, mở ShipXanh bằng profile:
+
+`E:\codex-chrome-profiles\shophuyvan-test`
+
+Tham khảo:
+
+- bố cục
+- màu sắc
+- khoảng cách
+- nút bấm
+- card dữ liệu
+- tab dữ liệu
+- cách hiển thị tiền/phí/trạng thái
+
+## 6. Quy tắc giao diện số liệu nhiều tab
+
+Khi build giao diện hiển thị số liệu, tài chính, đơn hàng, phí sàn, vận chuyển, đối soát hoặc báo cáo, bắt buộc chia dữ liệu thành các tab rõ ràng để người vận hành dễ đọc trên mobile.
+
+### Nguyên tắc chia tab
+
+- Không dồn toàn bộ số liệu vào một màn hình dài.
+- Mỗi nhóm số liệu phải có tab riêng hoặc card riêng.
+- Ưu tiên bố cục giống ShipXanh: nền tối, card rõ khối, dòng nhãn bên trái, số tiền/trạng thái bên phải.
+- Mobile phải ưu tiên tab ngang có thể vuốt hoặc scroll.
+- PC có thể hiển thị nhiều cột hơn, nhưng vẫn phải giữ nhóm dữ liệu rõ ràng.
+
+### Các tab nên có khi làm giao diện đơn hàng/tài chính
+
+1. `Thông Tin`
+   - Mã đơn hàng
+   - Người mua
+   - Người nhận
+   - Số điện thoại
+   - Địa chỉ
+
+2. `Vận Chuyển`
+   - Đơn vị vận chuyển
+   - Mã vận đơn
+   - Thời gian pickup
+   - Khối lượng
+   - Phí vận chuyển
+
+3. `Khách Thanh Toán`
+   - Phương thức thanh toán
+   - Tổng tiền sản phẩm
+   - Giá sản phẩm ban đầu
+   - Shop giảm giá
+   - Voucher của shop
+   - Voucher từ sàn
+   - Phí vận chuyển khách trả
+   - Tổng khách thanh toán
+
+4. `Sàn Thanh Toán`
+   - Trạng thái thanh toán
+   - Tổng tiền sản phẩm
+   - Phí vận chuyển thực tế
+   - Phí vận chuyển được trợ giá
+   - Phí sàn
+   - Phí cố định
+   - Phí dịch vụ
+   - Phí xử lý giao dịch
+   - Thuế
+   - Thực nhận về ví
+
+5. `Lợi Nhuận`
+   - Doanh thu
+   - Giá vốn
+   - Phí sàn
+   - Phí vận chuyển shop chịu
+   - Thuế
+   - Chi phí khác
+   - Lãi ròng
+   - Biên lợi nhuận
+
+6. `Lịch Sử`
+   - Lịch sử trạng thái
+   - Hành trình vận chuyển
+   - Hình ảnh nếu có
+
+### Quy tắc hiển thị số liệu
+
+- Số tiền dương dùng màu nổi bật dễ nhìn.
+- Số tiền âm, phí hoặc chi phí phải hiển thị rõ là khoản trừ.
+- Dòng tổng quan trọng phải đặt cuối card, chữ lớn hơn.
+- Các dòng con phải thụt vào dưới dòng cha.
+- Không dùng bảng nhiều cột trên mobile nếu làm người dùng phải zoom.
+- Mobile ưu tiên dạng card/list giống ShipXanh.
+- Tablet có thể dùng card 2 cột nếu đủ rộng.
+- PC có thể dùng layout 2-3 cột hoặc table, nhưng vẫn phải giữ tab nhóm.
+
+### Báo cáo sau khi sửa UI số liệu
+
+Bắt buộc báo rõ:
+
+- Mobile: pass/chưa pass
+- Tablet: pass/chưa pass
+- PC/Desktop: pass/chưa pass
+- Tab nào đã kiểm
+- Màn hình nào bị tràn ngang
+- Dòng số tiền nào khó đọc
+- Nút/tab nào khó bấm
+- Đã so với giao diện ShipXanh chưa
+
+## 7. Quy tắc core số liệu tài chính dùng chung
+
+Mục tiêu cao nhất là mọi luồng đều dùng cùng một nguồn số liệu chuẩn hóa để đảm bảo các màn hình sau hiển thị cùng một kết quả:
+
+- Dashboard
+- Profit
+- Chi tiết đơn
+- Chat
+- OMS
+- Đối soát
+- Báo cáo tài chính
+- Báo cáo thuế
+- ADS
+- Cron
+- Automation
+- Export Excel
+
+### Kiến trúc bắt buộc
+
+Luồng chuẩn:
+
+API sàn  
+→ Raw data gốc  
+→ Finance Core chuẩn hóa  
+→ Lưu snapshot D1  
+→ Mọi page/module đọc lại cùng nguồn dữ liệu
+
+Không được:
+
+- Mỗi page tự tính một kiểu.
+- Dashboard tính khác chi tiết đơn.
+- Profit tính khác báo cáo.
+- OMS hiện khác chat.
+- Frontend tự cộng trừ riêng không qua core.
+
+### Các field tài chính phải chuẩn hóa
+
+Ví dụ các field cần dùng chung:
+
+- `product_original_amount`
+- `product_selling_amount`
+- `shop_discount_amount`
+- `platform_voucher_amount`
+- `shop_voucher_amount`
+- `shipping_fee_buyer_paid`
+- `shipping_fee_actual`
+- `platform_shipping_subsidy`
+- `commission_fee`
+- `service_fee`
+- `transaction_fee`
+- `affiliate_fee`
+- `tax_amount`
+- `gross_profit`
+- `net_profit`
+- `net_received_amount`
+
+Mọi nơi phải dùng cùng field và cùng công thức.
+
+### Quy tắc nguồn dữ liệu
+
+Mỗi số liệu phải có metadata:
+
+- `value`
+- `source`
+- `confidence`
+- `updated_at`
+
+Ví dụ:
+
+```json
+{
+  "shop_discount_amount": {
+    "value": 15000,
+    "source": "Shopee API",
+    "confidence": "confirmed",
+    "updated_at": "2026-05-18T10:00:00Z"
+  }
+}
+```
+
+### Thứ tự ưu tiên dữ liệu
+
+Ưu tiên số liệu theo thứ tự:
+
+1. API chính thức của sàn.
+2. Snapshot D1 đã chuẩn hóa.
+3. Cost setting fallback.
+4. Estimated/fallback calculation.
+
+### Shop có API
+
+Nếu shop có API:
+
+- Bắt buộc dùng số liệu thật từ API làm nguồn chuẩn.
+- Không override bằng cost setting nếu API đã có dữ liệu.
+- Cost setting chỉ dùng để bù field API còn thiếu.
+- UI phải ghi rõ field nào là API, field nào là fallback.
+
+### Shop chưa có API
+
+Nếu shop chưa có API:
+
+- Bắt buộc fallback sang `cost setting`.
+- UI phải hiện rõ:
+  - `Dữ liệu tham chiếu từ cost setting`
+  - hoặc `Shop chưa có API tài chính`
+- Không được gắn nhãn `Đối soát chính xác`, `Số liệu API`, hoặc `Lợi nhuận chuẩn` nếu thực tế đang dùng cost setting fallback.
+
+### Quy tắc hiển thị UI
+
+Nếu field là fallback hoặc estimated, phải hiển thị badge/trạng thái rõ ràng:
+
+- `API`
+- `Fallback`
+- `Estimated`
+- `Missing`
+
+Ví dụ:
+
+- Phí sàn: `-15.930đ (API)`
+- Giá vốn: `-22.000đ (Cost Setting)`
+- Lãi ròng: `57.945đ (Estimated)`
+
+Nếu không đủ dữ liệu:
+
+- Hiển thị `Chưa có dữ liệu`.
+- Không tự đoán âm thầm.
+
+### Quy tắc kiểm tra đồng nhất số liệu
+
+Nếu cùng một số liệu xuất hiện ở nhiều nơi, bắt buộc kiểm tra đồng nhất ở:
+
+- Dashboard
+- Chi tiết đơn
+- Profit page
+- Export Excel
+- Chat order card
+- OMS
+- Báo cáo tháng
+
+Nếu lệch:
+
+- Phải sửa core trước.
+- Không patch riêng từng page.
+
+### Quy tắc snapshot D1
+
+- Snapshot D1 là nguồn đọc chính cho analytics.
+- Không spam gọi API theo từng dòng.
+- Batch theo ngày/tháng/shop.
+- API chỉ dùng để sync hoặc làm giàu phần còn thiếu.
+
+### Quy tắc debug số liệu
+
+Mỗi số liệu phải trace được:
+
+- lấy từ endpoint nào
+- snapshot nào
+- công thức nào
+- fallback nào
+- sync lúc nào
+
+Khi user báo số liệu sai:
+
+- phải debug từ core/source trước
+- không sửa UI tạm thời để che lỗi
+
+## 8. Quy tắc order_fee_details / fee_breakdown / popup phí OMS
+
+Khi sửa `order_fee_details`, `fee_breakdown` hoặc popup phí OMS:
+
+- Không tự tính phí riêng trong popup OMS.
+- Tạo hoặc dùng Finance Core chung để chuẩn hóa phí.
+- `order_fee_details` và `fee_breakdown` phải đọc cùng một nguồn dữ liệu.
+- Popup OMS chỉ render dữ liệu đã chuẩn hóa, không tự cộng trừ riêng.
+- Nếu shop có API thì ưu tiên số liệu API/snapshot D1.
+- Nếu shop chưa có API thì fallback cost setting và phải hiện badge `Fallback` hoặc `Estimated`.
+- UI popup phí phải chia tab/card rõ ràng:
+  - `Khách Thanh Toán`
+  - `Sàn Thanh Toán`
+  - `Phí Sàn`
+  - `Vận Chuyển`
+  - `Thuế`
+  - `Lợi Nhuận`
+- Mobile/tablet/PC đều phải kiểm thật sau deploy.
+- Nếu số liệu lệch giữa OMS, chi tiết đơn, Profit, Dashboard thì sửa core trước, không patch từng page.
+
+Hướng chuẩn:
+
+Raw API / fallback cost setting  
+→ finance_fee_core  
+→ normalized_fee_breakdown  
+→ order_fee_details  
+→ OMS popup chỉ render
+
+## 9. Quy tắc Product Master dùng chung
+
+Product, SKU, giá bán, giá vốn, tồn kho, giảm giá, ảnh sản phẩm và trạng thái sản phẩm phải đi qua Product Master.
+
+Không được để mỗi luồng tự giữ dữ liệu sản phẩm riêng.
+
+### Luồng chuẩn
+
+API sàn / import file / nhập tay  
+→ Product Master  
+→ Snapshot D1  
+→ Dashboard, OMS, Chat, Facebook CRM, Profit, Order cùng đọc lại
+
+### Product Master là nguồn chuẩn
+
+- `products` và `product_variations` là nguồn đọc sản phẩm/giá/tồn.
+- Facebook CRM chỉ được đọc sản phẩm, kiểm tồn, giữ hàng và tạo đơn qua `/api/external/*`.
+- Facebook CRM không được tự quyết định giá cuối.
+- Facebook CRM không được tự trừ tồn kho local.
+- API tạo đơn dùng giá hiện tại trong Product Master, không để CRM tự quyết định giá cuối.
+
+### Endpoint External API cho Facebook CRM
+
+Facebook CRM đọc dữ liệu ShopHuyVan qua:
+
+- `GET /api/external/products`
+- `GET /api/external/products/{id}`
+- `GET /api/external/products/sku/{sku}`
+- `GET /api/external/products/sku/{sku}/price`
+- `POST /api/external/inventory/check`
+- `POST /api/external/inventory/reserve`
+- `POST /api/external/inventory/reservations/{reservationId}/cancel`
+- `POST /api/external/inventory/reservations/{reservationId}/commit`
+- `POST /api/external/orders/from-facebook`
+- `GET /api/external/orders/{orderId}`
+- `GET /api/external/orders/source/{sourceOrderId}`
+- `POST /api/external/webhook/test`
+- `GET /api/external/webhook/deliveries`
+
+### Quy tắc Facebook CRM khi dùng sản phẩm
+
+Trước khi tư vấn khách hoặc tạo đơn Facebook, bắt buộc gọi:
+
+`GET /api/external/products/sku/{sku}/price`
+
+Trước khi chốt đơn, bắt buộc gọi:
+
+`POST /api/external/inventory/check`
+
+Khi khách đang chốt, dùng:
+
+`POST /api/external/inventory/reserve`
+
+Khi tạo đơn, dùng:
+
+`POST /api/external/orders/from-facebook`
+
+### Quy tắc xử lý lệch SKU/giá/tồn
+
+Nếu SKU, giá hoặc tồn bị lệch giữa các màn hình:
+
+- phải sửa Product Master/core trước
+- không patch riêng từng page
+- phải kiểm lại Dashboard, OMS, Facebook CRM, Chat và Order detail
+
+## 10. Quy tắc endpoint marketplace
+
+Checklist tổng thể endpoint phải được lưu và cập nhật tại:
+
+- `docs/marketplace-endpoint-master-checklist.md`
+- `docs/marketplace-endpoint-progress.md`
+
+Mỗi khi hoàn tất một phase liên quan đến `Shopee`, `Lazada`, `TikTok`, agent bắt buộc phải cập nhật lại 2 file này trước khi kết thúc:
+
+1. tick lại checklist nhóm tính năng đã làm
+2. ghi rõ trạng thái `đã xong / đang làm dở / chưa làm / bị khóa an toàn / bị chặn bởi quyền/app`
+3. ghi rõ shop `có API` đang chạy được gì
+4. ghi rõ shop `không có API` đang fallback theo cách nào
+5. ghi rõ bước tiếp theo cần làm để nối tiếp không bị đứt tiến trình
+
+Không được chỉ trả lời trong chat mà không cập nhật lại checklist trong repo.
+
+## 11. Quy tắc dữ liệu bẩn
+
+Nếu phát hiện dữ liệu bẩn, dữ liệu cũ lệch chuẩn, dữ liệu trùng hoặc dữ liệu đang làm sai kết quả thì phải ưu tiên làm sạch, chuẩn hóa hoặc gắn cờ xử lý dứt điểm trước rồi mới làm tiếp tiến trình đang dang dở.
+
+Không được để nợ dữ liệu bẩn kéo dài sang các bước sau vì sẽ làm sai Dashboard, Profit, OMS, ADS, chat và các core dùng chung.
+
+Khi làm sạch dữ liệu phải ghi rõ:
+
+- nguyên nhân dữ liệu bẩn
+- phạm vi shop/sàn bị ảnh hưởng
+- cách làm sạch
+- dữ liệu nào đã được sửa thật
+- dữ liệu nào mới chỉ được gắn cờ chờ xử lý tiếp
+
+## 12. Quy tắc tư vấn tính năng mới
+
+Với tính năng mới hoặc phần sửa ảnh hưởng rộng, trước khi làm lớn phải đưa ra nhiều phương án xử lý, nêu:
+
+- ưu/nhược điểm
+- số request dự kiến
+- độ chính xác dữ liệu
+- rủi ro vận hành
+- tác động maintain
+
+Với phần ảnh hưởng rộng tới tài chính, chat, AI auto-reply, automation hoặc kiến trúc page, phải hỏi/chốt lại hướng với người dùng trước khi đi sâu.
+
+Luôn ưu tiên phương án có core dữ liệu dùng chung: một nơi chuẩn hóa, một nơi đồng bộ, nhiều màn hình chỉ đọc lại.
+
+## 13. Quy tắc shop có API và shop không API
+
+Bắt buộc tách luồng ngay từ đầu giữa:
+
+- shop có API
+- shop không có API
+
+UI, backend, cron và helper local không được dùng chung một luồng mơ hồ rồi đoán shop nào chạy API.
+
+Mọi màn hình phải hiện rõ shop đang ở chế độ nào.
+
+### Shop có API
+
+- Ưu tiên dữ liệu API chính thức.
+- Lưu snapshot.
+- Hiển thị source rõ ràng.
+- Nếu thiếu endpoint, báo đúng tên endpoint cần tìm.
+
+### Shop không có API
+
+- Có luồng vận hành riêng:
+  - dữ liệu tham chiếu
+  - import file
+  - browser hỗ trợ có kiểm soát
+  - thao tác tay có log
+  - cost setting fallback
+- Không được gắn nhãn “đồng bộ API” cho shop chưa có API.
+
+## 14. Quy tắc chat sàn
+
+Chat là luồng vận hành chính, không được chấp nhận trạng thái “vào là loading mãi, lâu lâu mới lên”.
+
+Nếu gặp lỗi này phải điều tra đến tận gốc:
+
+- API/token
+- browser helper
+- policy quét
+- DB
+- render frontend
+
+Tin nhắn TikTok/Shopee/Lazada phải qua core lọc nhiễu trước khi lưu hoặc hiển thị.
+
+Khi liên kết đơn hàng trong chat, trạng thái hiển thị phải dùng core trạng thái đơn, không hiển thị raw nếu đã có nhãn tiếng Việt.
+
+Sau mỗi đợt sửa chat, báo lại rõ 4 nhóm:
+
+1. Shop API đã làm được gì bằng API chính thức.
+2. Shop API còn đang thiếu quyền gì.
+3. Shop không API đang fallback bằng cách nào.
+4. Tính năng nào mới chỉ lưu OMS/chờ xác nhận gửi lên sàn.
+
+## 15. Quy tắc cấu trúc code
+
+### Frontend
+
+- `apps/fe`: frontend tĩnh chạy trên Pages/static server.
+- Page chính nằm ở `apps/fe/pages`.
+- Logic chia theo `apps/fe/js/dashboard`, `apps/fe/js/modules`, `apps/fe/js/admin`.
+- Frontend chỉ giữ phần hiển thị và gọi API; backend/core giữ nghiệp vụ và chuẩn hóa dữ liệu.
+
+### Worker API
+
+- `apps/worker-api`: Cloudflare Worker API, D1, R2 và cron.
+- Route nằm ở `apps/worker-api/src/routes`.
+- Helper DB ở `apps/worker-api/src/utils`.
+- Core backend đặt ở `apps/worker-api/src/core`.
+
+### Python local automation
+
+- Python local automation nằm ngoài repo chính:
+  `E:\shophuyvan-python-automation`
+- Code thật nằm trong:
+  `E:\shophuyvan-python-automation\oms_python`
+- Không tạo thêm Python mới trong repo chính nếu tính năng thuộc OMS vận hành.
+- File entrypoint ở root chỉ nên là launcher mỏng như `main.py`.
+- Code nghiệp vụ phải nằm trong `oms_python`.
+
+## 16. Quy tắc tách nội dung thành Skill
+
+Nếu trong quá trình làm việc thấy có quy trình, checklist, chuẩn UI, chuẩn dữ liệu, endpoint, template báo cáo hoặc hướng xử lý nào được dùng lặp lại nhiều lần, agent phải đề xuất tách thành Skill để dùng lại lâu dài và tiết kiệm token.
+
+### Khi nào nên tạo Skill
+
+Nên tạo Skill nếu nội dung thuộc một trong các nhóm:
+
+- Quy trình kiểm UI mobile/tablet/PC.
+- Quy trình deploy Cloudflare/GitHub.
+- Quy chuẩn Product Master.
+- Quy chuẩn Finance Core.
+- Quy trình Facebook CRM kết nối ShopHuyVan External API.
+- Checklist marketplace endpoint Shopee/Lazada/TikTok.
+- Quy tắc chat automation.
+- Quy tắc xử lý shop có API và shop không API.
+- Quy trình debug dữ liệu sai/lệch.
+- Template báo cáo sau deploy.
+- Checklist test luồng thật sau khi deploy.
+
+### Khi nào không cần tạo Skill
+
+Không tạo Skill cho:
+
+- Việc chỉ dùng một lần.
+- Ghi chú quá nhỏ.
+- Dữ liệu tạm.
+- Token, cookie, mật khẩu, API key.
+- Nội dung phụ thuộc vào session đăng nhập.
+- Nội dung chưa ổn định hoặc chưa được user chốt.
+
+### Quy trình đề xuất Skill
+
+Khi phát hiện nội dung nên tách Skill, agent phải báo:
+
+1. Tên Skill đề xuất.
+2. Dùng để làm gì.
+3. Khi nào nên tự động dùng Skill này.
+4. Nội dung nào sẽ đưa vào Skill.
+5. Nội dung nào vẫn để trong `AGENTS.md`.
+6. Có cần tạo file `skill.zip` không.
+
+Không tự tạo Skill nếu chưa báo rõ phạm vi, trừ khi user yêu cầu trực tiếp.
+
+### Nguyên tắc tiết kiệm token
+
+- `AGENTS.md` chỉ giữ quy tắc bắt buộc, ngắn gọn.
+- Nội dung dài, checklist chi tiết, ví dụ nhiều, quy trình lặp lại nên đưa vào Skill.
+- Skill phải chia theo chủ đề để khi cần mới load, tránh nhồi toàn bộ vào context.
+- Không đưa secret/token/cookie/API key vào Skill.
+
+## 17. Quy tắc báo cáo kết quả cuối mỗi lần làm
+
+Sau mỗi lần xử lý xong một cụm tính năng, báo rõ:
+
+- đã làm được những gì
+- đang khóa những gì
+- shop có API chạy theo cách nào
+- shop không có API xử lý theo cách nào
+- đã deploy môi trường nào
+- đã kiểm tra thật trên mobile/tablet/PC chưa
+- còn thiếu endpoint/quyền gì
+- bước tiếp theo nên làm gì
+
+Không được chỉ nói “đã xong” chung chung.

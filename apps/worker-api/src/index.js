@@ -1,46 +1,48 @@
 
 import { getFilters, buildWhere }        from './utils/filters.js'
 import { getCostSettings, calcProfit }   from './utils/db.js'
-import { handleProducts, handleCostSettings, handleVariations } from './routes/products.js'
-import { autoRefreshShopeeTokens, handleShopsWarehouse } from './routes/shops.js'
-import { exportOrders, recalcCost, cleanupOrderFeePhase1, importOrdersV2, normalizeOrderWorkflowStatuses, getOrders, getOrderFilterOptions, getOrderChanges, updateOmsStatus, normalizeOmsStatusPair } from './routes/orders.js'
-import { dashboard, revenueByDay, profitByDay } from './routes/dashboard.js'
+import { handleProducts, handleCostSettings, handleVariations } from './routes/products/index.js'
+import { autoRefreshShopeeTokens, handleShopsWarehouse } from './routes/shops/index.js'
+import { exportOrders, recalcCost, cleanupOrderFeePhase1, importOrdersV2, normalizeOrderWorkflowStatuses, getOrders, getOrderFilterOptions, getOrderChanges, updateOmsStatus, normalizeOmsStatusPair } from './routes/orders/index.js'
+import { dashboard, revenueByDay, profitByDay } from './routes/dashboard/index.js'
 import { uniqueSkus, topSku, topProduct, topShop, topPlatform,
-         cancelStats, priceCalc, topSkuFull } from './routes/dashboard-aux.js'
+         cancelStats, priceCalc, topSkuFull } from './routes/dashboard/dashboard-aux.js'
 import { uploadReport, getReportSummary, getOperationCosts,
-         getReports, getReportFile }     from './routes/reports.js'
-import { createJob, getJobs, updateJob, deleteJob } from './routes/jobs.js'
-import { handleBotSettings } from './routes/bot-settings.js'
-import { getApiShops, handleApiOrderSync, handleApiStatusSync, handleApiProductSync, handleBackfillMissingOrderItems, handleBuyerCancellationDecision, syncApiOrders, syncApiOrderStatuses, syncAdsCampaignSnapshots, syncLazadaReverseOrders, syncShopeeReturns } from './routes/api-sync.js'
-import { getOrderLabel, getLabelStatus, refreshOrderLabel, recordLabelFile } from './routes/labels.js'
-import { handleShopeeMarketplaceWebhook, handleLazadaMarketplaceWebhook, handleWebhookEventsStatus, handleWebhookSyncQueue, runMarketplacePushSyncQueueBatch } from './routes/marketplace-webhooks.js'
-import { handleAdvancedApiFeatures } from './routes/api-features.js'
-import { handleAdvancedModules } from './routes/api-modules.js'
-import { handleChat, runChatAiAutoReplyBatch } from './routes/worker-chat-marketplace-route.js'
-import { handleAds } from './routes/ads.js'
-import { handleIncome } from './routes/income.js'
-import { handleOrderAnalytics, rebuildOrderAnalytics } from './routes/order-analytics.js'
-import { handleReturns } from './routes/returns.js'
-import { handleReviews } from './routes/reviews.js'
-import { handleTopPicks, syncShopeeTopPicks } from './routes/top-picks.js'
-import { handleDiscounts, syncShopeeDiscounts, runPromotionDeepCacheBatch } from './routes/discounts.js'
-import { handleOperations } from './routes/operations.js'
-import { handleVideo, runVideoUploadQueueBatch } from './routes/video.js'
-import { handleLogisticsWatch } from './routes/logistics-watch.js'
-import { handleCustomerRisk } from './routes/customer-risk.js'
-import { handleAdminAuth, getAdminUserFromRequest } from './routes/admin-auth.js'
-import { buildPublicShopRows } from './core/shop-display-core.js'
+         getReports, getReportFile }     from './routes/reports/index.js'
+import { createJob, getJobs, updateJob, deleteJob } from './routes/jobs/index.js'
+import { handleBotSettings } from './routes/bot/index.js'
+import { getApiShops, handleApiOrderSync, handleApiStatusSync, handleApiProductSync, handleBackfillMissingOrderItems, handleBuyerCancellationDecision, syncApiOrders, syncApiOrderStatuses, syncAdsCampaignSnapshots, syncLazadaReverseOrders, syncShopeeReturns } from './routes/api/index.js'
+import { getOrderLabel, getLabelStatus, refreshOrderLabel, recordLabelFile } from './routes/labels/index.js'
+import { handleShopeeMarketplaceWebhook, handleLazadaMarketplaceWebhook, handleWebhookEventsStatus, handleWebhookSyncQueue, runMarketplacePushSyncQueueBatch } from './routes/marketplace/index.js'
+import { handleAdvancedApiFeatures } from './routes/api/features.js'
+import { handleAdvancedModules } from './routes/api/modules.js'
+import { handleChat, runChatAiAutoReplyBatch } from './routes/marketplace-chat/index.js'
+import { handleAds } from './routes/ads/index.js'
+import { handleIncome } from './routes/finance/income.js'
+import { handleOrderAnalytics, rebuildOrderAnalytics } from './routes/order-analytics/index.js'
+import { handleReturns } from './routes/returns/index.js'
+import { handleReviews } from './routes/reviews/index.js'
+import { handleTopPicks, syncShopeeTopPicks } from './routes/top-picks/index.js'
+import { handleDiscounts, syncShopeeDiscounts, runPromotionDeepCacheBatch } from './routes/discounts/index.js'
+import { handleOperations } from './routes/operations/index.js'
+import { handleVideo, runVideoUploadQueueBatch } from './routes/video/index.js'
+import { handleLogisticsWatch } from './routes/logistics/index.js'
+import { handleCustomerRisk } from './routes/customer/index.js'
+import { handleAdminAuth, getAdminUserFromRequest } from './routes/admin/index.js'
+import { handleExternalApi } from './routes/external/index.js'
+import { handleShopeeDiagnostics } from './features/shopee/api/diagnostics.js'
+import { buildPublicShopRows } from './core/shops/display-core.js'
 import { parseInvoiceLocal, saveInvoice, listInvoices, getInvoiceFile,
          updateCostPrices, getSkuMap, getSkuGroups, saveSkuGroup,
-         updateGroupPrice, deleteSkuGroup, deleteInvoice } from './routes/invoices.js'
-import { handlePurchase } from './routes/purchase.js'
+         updateGroupPrice, deleteSkuGroup, deleteInvoice } from './routes/finance/invoices.js'
+import { handlePurchase } from './routes/purchase/index.js'
 import {
   ACTIVE_PENDING_OPERATIONAL_STATUSES,
   ACTIVE_PENDING_ORDER_WINDOW_DAYS,
   isStaleOperationalPendingOrder,
   orderStatusParent,
   orderTypeFromStatus
-} from './core/order-status-core.js'
+} from './core/orders/status-core.js'
 import { handleAuth } from './handlers/auth.js' // Chèn Handler mới
 		 
 import { handlePrimaryWorkerRoutes } from './worker-router/primary-routes.js'
@@ -120,6 +122,8 @@ const WORKER_ROUTE_DEPS = {
   updateOmsStatus,
   normalizeOmsStatusPair,
   handleCustomerRisk,
+  handleExternalApi,
+  handleShopeeDiagnostics,
   uploadReport,
   getReports,
   getReportSummary,
@@ -686,7 +690,7 @@ export default {
     const cors = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,PATCH,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Shopee-Signature, X-Lazada-Signature"
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, Idempotency-Key, X-Request-Id, X-Shopee-Signature, X-Lazada-Signature, X-Webhook-Event, X-Webhook-Id, X-Webhook-Timestamp, X-Webhook-Signature"
     }
 
     if (request.method === "OPTIONS")

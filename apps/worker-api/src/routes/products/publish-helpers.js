@@ -1,4 +1,4 @@
-import { parseMappedSkuItems } from '../../core/sku-identity-core.js'
+import { parseMappedSkuItems } from '../../core/products/sku-identity-core.js'
 import { cleanProductText } from './marketplace-preview.js'
 
 export async function ensurePublishDraftTable(env) {

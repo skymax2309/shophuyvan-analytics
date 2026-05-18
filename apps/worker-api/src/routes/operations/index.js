@@ -1,5 +1,5 @@
 import { getShopeeAppFromRow, signHmacHex } from '../../utils/shopee-apps.js'
-import { getApiShops } from '../api-sync.js'
+import { getApiShops } from '../api/index.js'
 import { buildCarrierAnalytics, firstText, trackingSummary, ymdFromTimestamp } from './carrier-analytics.js'
 
 const SHOPEE_ORDER_DETAIL_PATH = '/api/v2/order/get_order_detail'

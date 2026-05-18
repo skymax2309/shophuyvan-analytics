@@ -70,28 +70,13 @@ function promotionSelectionToolbar(kind, rows = []) {
       <div class="ads-promotion-browser-actions">
         <button type="button" class="secondary" onclick="selectAllPromotionRows('${kind}')">Tích all</button>
         <button type="button" class="secondary" onclick="clearPromotionSelection()">Bỏ chọn</button>
-        <button type="button" onclick="runPromotionBulkAction('${kind}', 'end', false)">Preview kết thúc</button>
-        <button type="button" onclick="runPromotionBulkAction('${kind}', 'delete', false)">Preview xóa</button>
-        <button type="button" class="danger" onclick="runPromotionBulkAction('${kind}', 'delete', true)">Xóa đã chọn trên Shopee</button>
+        <button type="button" onclick="runPromotionBulkAction('${kind}', 'end', false)">Kiểm tra payload kết thúc</button>
+        <button type="button" onclick="runPromotionBulkAction('${kind}', 'delete', false)">Kiểm tra payload xóa</button>
+        <button type="button" class="danger" disabled title="Chỉ mở sau khi diagnostics marketplace_client PASS và có quyền endpoint tương ứng.">Gửi thật bị khóa</button>
       </div>
       <span>Đã chọn ${count.toLocaleString('vi-VN')}/${rows.length.toLocaleString('vi-VN')} dòng. Apply thật yêu cầu admin và xác nhận.</span>
     </div>
     ${flashForm}
-  `
-}
-
-function renderFlashSaleCreateForm() {
-  return `
-    <div class="ads-promotion-live-form">
-      <b>Cài Flash Sale theo giờ trên Shopee</b>
-      <label>Giờ bật <input id="flashSaleStartInput" type="datetime-local"></label>
-      <label>Giờ tắt <input id="flashSaleEndInput" type="datetime-local"></label>
-      <label>Payload item Flash Sale JSON <textarea id="flashSalePayloadInput" placeholder='{"item_list":[{"item_id":123,"model_list":[{"model_id":456,"input_promotion_price":69000,"campaign_stock":10,"purchase_limit":1}]}]}'></textarea></label>
-      <div class="ads-promotion-browser-actions">
-        <button type="button" onclick="runFlashSaleCreateFromForm(false)">Preview tạo Flash Sale</button>
-        <button type="button" class="danger" onclick="runFlashSaleCreateFromForm(true)">Tạo trên Shopee</button>
-      </div>
-    </div>
   `
 }
 
@@ -126,7 +111,7 @@ function renderPromotionBrowserRows(kind = 'programs') {
           <div class="ads-promotion-browser-actions">
             <button type="button" class="ads-action-btn" onclick="openPromotionVoucherDetail(${index})">Chi tiết</button>
             <button type="button" class="ads-action-btn secondary" onclick="runPromotionRowAction('vouchers', ${index}, 'end', false)">${adsEscape(promotionPlatformStatusText(row))}</button>
-            <button type="button" class="ads-action-btn danger" onclick="runPromotionRowAction('vouchers', ${index}, 'delete', false)">Preview xóa sàn</button>
+            <button type="button" class="ads-action-btn danger" onclick="runPromotionRowAction('vouchers', ${index}, 'delete', false)">Kiểm tra payload xóa</button>
             <button type="button" class="ads-action-btn secondary" onclick="deletePromotionCacheEntry('vouchers', ${index})">Xóa cache</button>
           </div>
         </div>
@@ -158,7 +143,7 @@ function renderPromotionBrowserRows(kind = 'programs') {
         <div class="ads-promotion-browser-actions">
           <button type="button" class="ads-action-btn" onclick="openPromotionProgramDetail(${index})">Mở chi tiết</button>
           <button type="button" class="ads-action-btn secondary" onclick="runPromotionRowAction('programs', ${index}, 'end', false)">${adsEscape(promotionPlatformStatusText(row))}</button>
-          <button type="button" class="ads-action-btn danger" onclick="runPromotionRowAction('programs', ${index}, 'delete', false)">Preview xóa sàn</button>
+          <button type="button" class="ads-action-btn danger" onclick="runPromotionRowAction('programs', ${index}, 'delete', false)">Kiểm tra payload xóa</button>
           <button type="button" class="ads-action-btn secondary" onclick="deletePromotionCacheEntry('programs', ${index})">Xóa cache</button>
         </div>
       </div>
@@ -238,23 +223,44 @@ async function postShopeePromotionLive(row, kind, action, execute, payloadOverri
 window.runPromotionRowAction = async function(kind, index, action, execute) {
   const row = promotionRowsForKind(kind)[Number(index)]
   if (!row) return
-  if (execute && !window.confirm(`Gửi lệnh ${action} thật lên Shopee cho ${row.program_name || row.voucher_name || row.program_id || row.voucher_id}?`)) return
+  if (execute) {
+    const ok = await adsConfirmShopeeAction({
+      danger: ['delete', 'end'].includes(String(action || '').toLowerCase()),
+      action,
+      shop: row.shop || '',
+      objectId: row.program_id || row.voucher_id || '',
+      module: promotionLiveModule(row, kind) || ''
+    })
+    if (!ok) return
+  }
   try {
     const data = await postShopeePromotionLive(row, kind, action, execute)
-    window.alert(`${execute ? 'Đã gửi' : 'Preview'} ${action}: ${data.endpoint || ''}\n${data.response?.error || data.response?.message || data.message || 'Đã ghi log.'}`)
-    if (execute) await loadPromotionBrowserList()
+    const box = adsEl('promotionPreviewBox') || adsEl('promotionUpdateStatus')
+    adsSetApiResult(box, data, { action, title: execute ? 'Kết quả thao tác Shopee' : 'Preview payload Shopee' })
+    if (execute && adsActionOk(data)) await loadPromotionBrowserList()
   } catch (error) {
-    window.alert(`Không thao tác được khuyến mãi Shopee: ${error.message}`)
+    adsShowToast(`Không thao tác được khuyến mãi Shopee: ${error.message}`, 'error')
   }
 }
 
 window.runPromotionBulkAction = async function(kind, action, execute) {
   const rows = promotionRowsForKind(kind).filter(row => adsState.promotionSelectedRows?.has(promotionLiveId(row, kind)))
   if (!rows.length) {
-    window.alert('Chưa chọn dòng khuyến mãi nào.')
+    adsShowToast('Chưa chọn dòng khuyến mãi nào.', 'error')
     return
   }
-  if (execute && !window.confirm(`Gửi lệnh ${action} thật lên Shopee cho ${rows.length} dòng đã chọn?`)) return
+  if (execute) {
+    const ok = await adsConfirmShopeeAction({
+      title: 'Xác nhận thao tác hàng loạt',
+      message: 'Mỗi dòng sẽ gọi Shopee thật và refetch verify riêng. Dòng nào Shopee từ chối sẽ báo lỗi riêng.',
+      danger: ['delete', 'end'].includes(String(action || '').toLowerCase()),
+      confirmText: 'Gửi hàng loạt',
+      action,
+      count: rows.length.toLocaleString('vi-VN'),
+      module: kind
+    })
+    if (!ok) return
+  }
   const results = []
   for (const row of rows) {
     try {
@@ -263,39 +269,13 @@ window.runPromotionBulkAction = async function(kind, action, execute) {
       results.push({ status: 'error', error: error.message, row })
     }
   }
-  window.alert(`${execute ? 'Đã gửi' : 'Preview'} ${action} ${results.length} dòng. Lỗi: ${results.filter(item => item.status === 'error' || item.response?.error).length}.`)
-  if (execute) await loadPromotionBrowserList()
-}
-
-window.runFlashSaleCreateFromForm = async function(execute) {
-  const start = Date.parse(adsEl('flashSaleStartInput')?.value || '')
-  const end = Date.parse(adsEl('flashSaleEndInput')?.value || '')
-  if (!start || !end || end <= start) {
-    window.alert('Cần nhập giờ bật/tắt Flash Sale hợp lệ.')
-    return
+  const failed = results.filter(item => item.status === 'error' || item.verified === false || item.response?.error).length
+  const box = adsEl('promotionPreviewBox') || adsEl('promotionUpdateStatus')
+  if (box) {
+    box.innerHTML = `<div class="ads-api-panel ${failed ? 'failed' : 'verified'}"><b>${execute ? 'Kết quả gửi Shopee' : 'Preview payload'}</b><p>${adsEscape(action)} ${results.length} dòng. Lỗi/chưa verify: ${failed}.</p></div>`
   }
-  let payload = {}
-  try {
-    payload = JSON.parse(adsEl('flashSalePayloadInput')?.value || '{}')
-  } catch {
-    window.alert('Payload JSON Flash Sale chưa hợp lệ.')
-    return
-  }
-  payload.start_time = Math.floor(start / 1000)
-  payload.end_time = Math.floor(end / 1000)
-  const row = { platform: 'shopee', module: 'shop_flash_sale', shop: adsEl('adsShop')?.value || '' }
-  if (!row.shop) {
-    window.alert('Chọn đúng shop Shopee ở bộ lọc trên cùng trước khi tạo Flash Sale.')
-    return
-  }
-  if (execute && !window.confirm('Gửi lệnh tạo Flash Sale thật lên Shopee?')) return
-  try {
-    const data = await postShopeePromotionLive(row, 'programs', 'add', execute, payload)
-    window.alert(`${execute ? 'Đã gửi' : 'Preview'} tạo Flash Sale: ${data.endpoint || ''}\n${data.response?.error || data.response?.message || data.message || 'Đã ghi log.'}`)
-    if (execute) await loadPromotionBrowserList()
-  } catch (error) {
-    window.alert(`Không tạo được Flash Sale: ${error.message}`)
-  }
+  adsShowToast(`${execute ? 'Kết quả gửi' : 'Preview'} ${action}: ${failed} lỗi/chưa verify`, failed ? 'error' : 'ok')
+  if (execute && !failed) await loadPromotionBrowserList()
 }
 
 window.showPromotionPlatformLock = function(kind, index) {
@@ -306,7 +286,7 @@ window.showPromotionPlatformLock = function(kind, index) {
   const label = kind === 'vouchers'
     ? 'Mã giảm giá của shop'
     : promotionModuleLabel(row.module)
-  window.alert(`${label}\n\nTrạng thái hiện tại: ${promotionPlatformStatusText(row)}.\n\nUI đã mở để xem danh sách, chi tiết và xóa cache tạo lại. Nút bật/tắt ghi thật lên sàn vẫn đang khóa an toàn cho tới khi có adapter write riêng và log rollback.`)
+  adsShowToast(`${label}: trạng thái hiện tại ${promotionPlatformStatusText(row)}. Chỉ thao tác khi endpoint ghi thật có verify.`, 'info')
 }
 
 window.deletePromotionCacheEntry = async function(kind, index) {
@@ -315,7 +295,14 @@ window.deletePromotionCacheEntry = async function(kind, index) {
     : adsState.promotionPrograms?.[Number(index)]
   if (!row) return
   const targetName = row.voucher_name || row.voucher_code || row.voucher_id || row.program_name || row.program_id
-  const ok = window.confirm(`Xóa cache để tải lại mới?\n\nMục: ${targetName}\nShop: ${row.shop || ''}\n\nChỉ xóa dữ liệu cache D1 nội bộ, không gửi lệnh xóa lên sàn.`)
+  const ok = await adsConfirmShopeeAction({
+    title: 'Xác nhận xóa cache nội bộ',
+    message: 'Chỉ xóa dữ liệu cache D1 nội bộ để tải lại mới, không gửi lệnh xóa lên Shopee.',
+    confirmText: 'Xóa cache',
+    danger: false,
+    objectId: targetName,
+    shop: row.shop || ''
+  })
   if (!ok) return
   try {
     await adsPost('/api/discounts/promotion-cache/delete', {
@@ -330,7 +317,7 @@ window.deletePromotionCacheEntry = async function(kind, index) {
     await loadPromotionBrowserList()
     if (typeof loadPromotionCore === 'function') await loadPromotionCore({ silent: true })
   } catch (error) {
-    window.alert(`Không xóa được cache khuyến mãi: ${error.message}`)
+    adsShowToast(`Không xóa được cache khuyến mãi: ${error.message}`, 'error')
   }
 }
 

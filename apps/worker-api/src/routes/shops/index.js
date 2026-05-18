@@ -1,16 +1,16 @@
 import { getShopeeAppForShop, signHmacHex } from '../../utils/shopee-apps.js'
-import { listMarketplaceShopCapabilities } from '../../core/marketplace-shop-capability-core.js'
+import { listMarketplaceShopCapabilities } from '../../core/marketplace/shop-capability-core.js'
 import {
   SHOPEE_SHOP_READ_ENDPOINTS,
   SHOPEE_SHOP_WRITE_ENDPOINTS,
   normalizeShopeeShopSnapshot,
   summarizeShopeeShopEndpoint
-} from '../../core/shopee-shop-profile-core.js'
+} from '../../core/shops/shopee-profile-core.js'
 import {
   DEFAULT_SHOPEE_VIDEO_CALLBACK,
   cleanShopeeVideoAuthText,
   ensureShopeeVideoAuthColumns
-} from '../../core/shopee-video-auth-core.js'
+} from '../../core/shops/shopee-video-auth-core.js'
 import { loadShopeeVideoShop, refreshShopeeVideoTokenForShop } from './shopee-video-token.js'
 
 export { refreshShopeeVideoTokenForShop }

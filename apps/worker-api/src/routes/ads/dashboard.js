@@ -1,4 +1,4 @@
-import { fetchShopeeAdsBalances, fetchShopeeAdsToggleInfo } from '../api-sync.js'
+import { fetchShopeeAdsBalances, fetchShopeeAdsToggleInfo } from '../api/index.js'
 import {
   aggregateCampaignRows,
   buildAdsShopStatusRows,

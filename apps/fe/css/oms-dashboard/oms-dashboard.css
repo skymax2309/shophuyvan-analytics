@@ -1,0 +1,6 @@
+/* NEO: OMS CSS tách theo layout, bảng đơn, thông báo, tem in và mobile để dễ bảo trì. */
+@import url('./layout-api.css?v=core-first-20260513a');
+@import url('./orders-table.css?v=core-first-20260513a');
+@import url('./notifications-labels.css?v=core-first-20260513a');
+@import url('./label-printing.css?v=core-first-20260513a');
+@import url('./mobile.css?v=core-first-20260513a');

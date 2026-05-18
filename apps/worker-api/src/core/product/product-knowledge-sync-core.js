@@ -1,5 +1,5 @@
-import { saveProductCatalogSnapshotsBatch } from '../product-catalog-core.js'
-import { saveProductKnowledgeBatch } from '../../routes/worker-chat-marketplace-route.js'
+import { saveProductCatalogSnapshotsBatch } from '../products/catalog-core.js'
+import { saveProductKnowledgeBatch } from '../../routes/marketplace-chat/index.js'
 
 function cleanProductText(value) {
   return String(value ?? '').replace(/\u00a0/g, ' ').trim()

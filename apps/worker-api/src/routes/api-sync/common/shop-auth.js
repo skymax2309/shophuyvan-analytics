@@ -6,7 +6,7 @@ export function installApiSyncCommonShopAuth(core) {
   const cleanText = (...args) => core.cleanText(...args)
   const firstText = (...args) => core.firstText(...args)
   const getCostSettings = core.getCostSettings
-  const getShopeeAppFromRow = core.getShopeeAppFromRow
+  const getShopeeAppFromRowForClient = core.getShopeeAppFromRowForClient || core.getShopeeAppFromRow
   const listApiCapableShopCredentials = core.listApiCapableShopCredentials
   const loadSyncedOrderForPush = (...args) => core.loadSyncedOrderForPush(...args)
   const mapLazadaTraceStatus = (...args) => core.mapLazadaTraceStatus(...args)
@@ -260,6 +260,11 @@ export function installApiSyncCommonShopAuth(core) {
   }
   core.signShopeePublicUrl = signShopeePublicUrl
 
+  function shopeeClientTypeForPath(path = '') {
+    return cleanText(path).startsWith('/api/v2/ads/') ? 'ads_client' : 'marketplace_client'
+  }
+  core.shopeeClientTypeForPath = shopeeClientTypeForPath
+
   async function fetchShopeeJson(buildUrl, params) {
     const url = await buildUrl(params)
     const res = await fetch(url)
@@ -327,17 +332,27 @@ export function installApiSyncCommonShopAuth(core) {
   }
   core.friendlyAdsTokenMessage = friendlyAdsTokenMessage
 
+  function shopeeClientRuntimeAuth(env, shop, path) {
+    const clientType = shopeeClientTypeForPath(path)
+    const envPrefix = clientType === 'ads_client' ? 'SHOPEE_ADS' : 'SHOPEE_MARKETPLACE'
+    const accessToken = cleanText(env?.[`${envPrefix}_ACCESS_TOKEN`]) || cleanText(shop.access_token)
+    const refreshToken = cleanText(env?.[`${envPrefix}_REFRESH_TOKEN`]) || cleanText(shop.refresh_token)
+    const shopId = cleanText(env?.[`${envPrefix}_SHOP_ID`]) || cleanText(shop.api_shop_id)
+    return { clientType, accessToken, refreshToken, shopId }
+  }
+
   async function fetchShopeeShopJson(env, shop, path, params = {}, retry = true) {
-    const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shop.shop_name || shop.user_name)
-    const buildUrl = signShopeeUrl(app, path, shop.access_token, shop.api_shop_id)
+    const runtimeAuth = shopeeClientRuntimeAuth(env, shop, path)
+    const app = getShopeeAppFromRowForClient(env, shop, runtimeAuth.clientType, shop.api_partner_id || shop.shop_name || shop.user_name)
+    const buildUrl = signShopeeUrl(app, path, runtimeAuth.accessToken, runtimeAuth.shopId)
     try {
       return await fetchShopeeJson(buildUrl, params)
     } catch (error) {
       if (
         retry &&
         isShopeeInvalidAccessTokenMessage(error?.message) &&
-        cleanText(shop.refresh_token) &&
-        cleanText(shop.api_shop_id) &&
+        runtimeAuth.refreshToken &&
+        runtimeAuth.shopId &&
         shop.id
       ) {
         try {
@@ -358,16 +373,17 @@ export function installApiSyncCommonShopAuth(core) {
   core.fetchShopeeShopJson = fetchShopeeShopJson
 
   async function fetchShopeeShopJsonPost(env, shop, path, params = {}, body = {}, retry = true) {
-    const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shop.shop_name || shop.user_name)
-    const buildUrl = signShopeeUrl(app, path, shop.access_token, shop.api_shop_id)
+    const runtimeAuth = shopeeClientRuntimeAuth(env, shop, path)
+    const app = getShopeeAppFromRowForClient(env, shop, runtimeAuth.clientType, shop.api_partner_id || shop.shop_name || shop.user_name)
+    const buildUrl = signShopeeUrl(app, path, runtimeAuth.accessToken, runtimeAuth.shopId)
     try {
       return await fetchShopeeJsonPost(buildUrl, params, body)
     } catch (error) {
       if (
         retry &&
         isShopeeInvalidAccessTokenMessage(error?.message) &&
-        cleanText(shop.refresh_token) &&
-        cleanText(shop.api_shop_id) &&
+        runtimeAuth.refreshToken &&
+        runtimeAuth.shopId &&
         shop.id
       ) {
         try {

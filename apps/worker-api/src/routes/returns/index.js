@@ -16,8 +16,8 @@ import {
   syncShopeeReturns,
   uploadShopeeReturnProof,
   uploadShopeeReturnShippingProof
-} from '../api-sync.js'
-import { loadReturnReverseLedgerSummary } from '../../core/return-reverse-core.js'
+} from '../api/index.js'
+import { loadReturnReverseLedgerSummary } from '../../core/returns/reverse-core.js'
 import { createReturnComplaintHandlers } from './complaints.js'
 
 function json(data, cors, status = 200) {

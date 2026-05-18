@@ -1,5 +1,63 @@
 # Nhật Ký Tiến Độ Checklist Endpoint Marketplace
 
+# 2026-05-15 - Audit Shopee real action, tách Ads/Marketplace client và khóa ghi giả
+
+## Việc đã làm
+
+- Tạo `docs/shopee-real-action-audit.md` để chỉ rõ module nào đang gọi Shopee API thật, module nào chỉ cache/preview/queue nội bộ.
+- Tạo `docs/shopee-required-permissions.md` để tách app `Ads Service` khỏi app Marketplace/Seller/Marketing cho Discount/Voucher/Bundle/Add-On/Flash Sale.
+- Thêm Shopee client chuẩn trong `apps/worker-api/src/features/shopee/`: ký request v2, tách `ads_client` và `marketplace_client`, refresh token, map lỗi, mask secret và guard `SHOPEE_LIVE_WRITE_ENABLED`.
+- Thêm diagnostics admin `POST /api/admin/shopee/diagnostics` và page `pages/admin-shopee-diagnostics.html` để test Ads balance/toggle/performance, shop/item/model, Discount, Voucher, Bundle, Add-On và Flash Sale bằng endpoint đọc thật.
+- Thêm live-write guard cho Shopee Discount/promotion actions và ADS campaign actions. Khi `SHOPEE_LIVE_WRITE_ENABLED=false`, backend trả `live_write_disabled`, `sent_to_shopee=false`, không fake success.
+- Mở rộng queue promotion: `client_type`, `shopee_endpoint`, `send_status`, `verify_status`, `error_code`, `error_message`, `raw_response_masked`, `sent_at`, `verified_at`.
+- Hạ copy UI `Khuyến mãi sàn`: Voucher/Bundle/Add-On/Flash Sale chuyển thành `Cần kiểm tra API`/`Ghi thật: khóa`; Lazada promotion ghi rõ chưa kết nối API ghi thật.
+
+## Trạng thái vận hành
+
+- Shop Shopee có API: trước khi ghi thật phải chạy diagnostics, xác nhận app đúng client, token còn hạn, seller đã authorize và endpoint trả PASS. Discount là luồng duy nhất đang có execute queue thật, vẫn bị live-write guard chặn nếu chưa bật.
+- Shop Shopee chỉ có app Ads Service: chỉ dùng cho ADS. Không dùng app Ads để gọi Discount/Voucher/Bundle/Add-On/Flash Sale.
+- Shop không API: tiếp tục cache/import/browser có log, không gắn nhãn đồng bộ API hoặc gửi sàn.
+- Lazada: các card promotion write bị khóa rõ nếu chưa có Lazada API write live.
+
+## Kiểm tra còn phải chạy sau deploy
+
+- Mở production `pages/admin-shopee-diagnostics.html` bằng profile `ProductionAdminTest`, chạy diagnostics và đối chiếu `request_id` trong Shopee Console > API Access Log.
+- Chỉ bật `SHOPEE_LIVE_WRITE_ENABLED=true` sau khi diagnostics pass và có một sản phẩm/chương trình test nhỏ được người vận hành xác nhận.
+- Không chạy live write hàng loạt cho tới khi endpoint tương ứng đã có response Shopee + refetch verify.
+
+# 2026-05-15 - Shopee promotion/ADS/TopPicks verify-first và UI mobile-first
+
+## Việc đã làm
+
+- Thêm core kết quả Shopee action thống nhất cho các thao tác ghi: `ok`, `endpoint`, `action`, `shop_id`, `object_id`, `request_id`, `payload_preview`, `raw_error`, `raw_response`, `verified`, `verify_result`.
+- Shopee Discount `update/end/delete` không còn báo thành công nếu `error_list`, lỗi top-level hoặc refetch không xác nhận đúng item/model/trạng thái.
+- Shopee Voucher, Bundle, Add-On, Flash Sale chuyển sang preview/confirm/apply/refetch; Flash Sale create bắt buộc có `timeslot_id` thật từ Open Platform.
+- ADS Manual Product Ads edit bắt buộc refetch campaign setting sau POST để verify status/budget/ROAS target. UI đổi dropdown bật/tắt thành toggle xanh/xám và rollback theo kết quả backend.
+- TopPicks thêm route action có preview/confirm/refetch list verify; UI ghi rõ API không trả attribution đơn hàng trực tiếp.
+- Frontend ADS thêm toast, API error/result panel, modal xác nhận riêng thay `alert()`/`confirm()`, và chỉnh responsive mobile/tablet/desktop.
+- Tạo báo cáo `docs/shopee-live-api-audit.md` và `docs/ui-responsive-audit.md`.
+
+## Trạng thái vận hành
+
+- Shop Shopee có API: route đã sẵn sàng gọi Open Platform thật và chỉ báo thành công khi Shopee refetch xác nhận. Nếu token/quyền/object/status transition lỗi, response trả đủ endpoint, action, shop, object_id, request_id, message và payload đã che secret.
+- Shop Shopee thiếu quyền/token: không được hiện success; UI phải ghi thiếu quyền endpoint/module hoặc read-only.
+- Shop không API: không gọi Open Platform; tiếp tục dùng cache/import/browser helper có log, không gắn nhãn đã đồng bộ API.
+- Live mutation chưa chạy trong phase này vì chưa có `SHOPEE_AUDIT_SHOP` và allowlist object an toàn. Không có object nào được xóa/tạo/sửa thật trong lần kiểm này.
+
+## Kiểm tra
+
+- `npm run shopee:test:dry` trong `apps/worker-api`: pass ở chế độ an toàn, các live call được đánh dấu `skipped` khi thiếu shop/allowlist.
+- `npm test` trong `apps/worker-api`: pass.
+- `node --check` pass cho các file Worker/FE đã chỉnh.
+- `node scripts/check-code-size.mjs`: pass, không có code file vượt 30KB; còn danh sách warning >28KB để theo dõi.
+- `node scripts/check-fe-separation.mjs`: pass; còn warning inline style nhỏ ở các page legacy.
+- Chrome/CDP local kiểm ADS page ở 360, 390, 768, 1024, 1440px: không overflow ngang, không lỗi font tiếng Việt, có confirm modal/API panel/toggle.
+
+## Việc còn chặn
+
+- Cần cung cấp `SHOPEE_AUDIT_SHOP` và allowlist object đã kết thúc/được phép thao tác để chạy `npm run shopee:test:live`.
+- Sau deploy cần mở production `ads.html` bằng profile `ProductionAdminTest` và thao tác lại luồng thật. Nếu profile hết phiên đăng nhập, cần người dùng đăng nhập thủ công.
+
 # 2026-05-14 - Repair order_items thiếu và gom route Worker theo feature
 
 ## Việc đã làm
@@ -118,7 +176,7 @@
 - Tách `apps/worker-api/src/routes/api-sync.js` thành wrapper nhỏ và các module theo nhóm `common`, `shopee`, `lazada`, `ads`, `finance`, `orders`, `products`, `returns`.
 - Tách `apps/worker-api/src/routes/discounts.js` thành wrapper nhỏ và các module theo nhóm `common`, `shopee/discounts`, `shopee/vouchers`, `shopee/promotions`, `lazada/vouchers`, `lazada/promotions`.
 - Tách `apps/fe/js/dashboard/ads.js` thành loader nhỏ và các file con trong `apps/fe/js/dashboard/ads/`; trang ADS vẫn nạp theo đúng thứ tự để giữ hành vi cũ.
-- Tách CSS/script inline của `apps/fe/pages/ads.html` ra `apps/fe/css/ads-page.css` và `apps/fe/js/dashboard/ads/ads-page-controls.js`; `ads.html` đã dưới 30KB.
+- Tách CSS/script inline của `apps/fe/pages/ads.html` ra `apps/fe/css/ads/ads-page.css` và `apps/fe/js/dashboard/ads/ads-page-controls.js`; `ads.html` đã dưới 30KB.
 - Xuất cấu trúc file và dung lượng tại `artifacts/ads-api-sync-core-file-structure-20260513.txt`.
 
 ## Trạng thái vận hành
@@ -144,8 +202,8 @@
 
 ## Việc đã làm
 
-- Tách parser import đơn frontend thành các core nhỏ theo sàn: `apps/fe/js/parser/shared.js`, `shopee.js`, `tiktok.js`, `lazada.js`, `orders-v2.js`; `apps/fe/js/parser.js` chỉ còn điều phối.
-- Tách HTML/CSS/JavaScript của trang import: `apps/fe/index.html`, `apps/fe/css/import-orders.css`, `apps/fe/js/import-orders.js`.
+- Tách parser import đơn frontend thành các core nhỏ theo sàn: `apps/fe/js/parser/shared.js`, `shopee.js`, `tiktok.js`, `lazada.js`, `orders-v2.js`; `apps/fe/js/parser/index.js` chỉ còn điều phối.
+- Tách HTML/CSS/JavaScript của trang import: `apps/fe/index.html`, `apps/fe/css/orders/import-orders.css`, `apps/fe/js/orders/import-orders.js`.
 - Thêm core backend `apps/worker-api/src/core/orders/shopee-status-core.js` để gom phân loại trạng thái Shopee từ Open Platform, không để route `api-sync.js` tự giữ logic phân loại riêng.
 - Chặn lỗi Shopee `COMPLETED` bị ghi thành `return`: core mới không trộn `return_status` phụ vào logistics chung và ưu tiên trạng thái hoàn tất trước chữ `RETURN/REFUND` nằm trong trường phụ.
 - Parser Shopee import file chỉ tính `Trả hàng/Hoàn tiền` khi có trạng thái xử lý thật; nhãn generic/rỗng/`Không có` không còn bị tính thành đơn hoàn.
@@ -163,7 +221,7 @@
 - Worker production đã deploy bản `b7ead65c-bccc-4e5e-ab1d-a500358c82ff`.
 - Frontend/static assets production đã deploy bản `3c3b8947-48a1-4215-a7d6-ad13d7a1fdad`.
 - Chrome profile `ProductionAdminTest` đã mở Dashboard production thật, phiên đăng nhập còn sống; Dashboard tải dữ liệu ngày hiện tại thành công.
-- Chrome profile `ProductionAdminTest` đã mở `index.html` production thật; trang import hiển thị tiếng Việt có dấu, `js/import-orders.js` và `css/import-orders.css` đã load.
+- Chrome profile `ProductionAdminTest` đã mở `index.html` production thật; trang import hiển thị tiếng Việt có dấu, `js/orders/import-orders.js` và `css/orders/import-orders.css` đã load.
 - In-app browser đã mở `index.html` production và kiểm viewport mobile 390x844, các nhãn chính không bị tràn ngang trong DOM.
 - Đã tải file report đơn `shopee_phambich2312_donhang_202604.xlsx` từ R2 và kiểm tra file local cùng tên; cả hai hiện chỉ còn 1 ô header `Mã đơn hàng`, không đủ dòng để khôi phục chính xác từng mã đơn Hủy/Hoàn của tháng 04.
 - Dữ liệu production hiện tại của `phambich2312` tháng 04 đang là `Tổng 271 / bán 169 / hủy 24 / hoàn 78`; ảnh ShipXanh người dùng cung cấp là `Tổng 271 / bán 232 / hủy 38 / trả 1`. Chưa chạy sửa tay từng mã đơn vì thiếu file gốc đầy đủ để đối chiếu chính xác.
@@ -449,7 +507,7 @@
 - `node --check apps/worker-api/src/routes/orders.js` pass.
 - `node --check apps/worker-api/src/core/order-fee-phase1-core.js` pass.
 - `node --check apps/fe/js/modules/oms-render.js` pass.
-- `node --check apps/fe/js/oms-main.js` pass.
+- `node --check apps/fe/js/oms-dashboard/oms-main.js` pass.
 - Worker API production: `2b929796-caa3-460d-8dd4-335c6abb60e1`.
 - Frontend production: `ac0c21c8-16a5-4cf4-bc73-1746dc2e4269`.
 - API production `/api/orders?search=2605090WM2FCFB` trả `Voucher/giảm giá shop 10.000đ`, `Sàn hỗ trợ khách 11.250đ`, `Phí TTLK từ API 0đ`, `Phí ADS từ API: Chưa có`.
@@ -551,7 +609,7 @@
 
 ## Kiểm tra
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - `git diff --check` cho `video-dashboard.js`, `video-dashboard.css`, `dashboard_video.html`, `video.js` không có lỗi whitespace thật.
 - Worker API production: `c05e0d0c-15ca-497c-b34e-8ede4bdcd93b`.
@@ -661,7 +719,7 @@
 ## Kiểm tra
 
 - `node --check apps/worker-api/src/routes/video.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/api-features.js` pass.
 - `node --check apps/worker-api/src/routes/api-modules.js` pass.
 - Kiểm tra whitespace bằng `git diff --check` không báo lỗi trong workspace hiện tại.
@@ -708,7 +766,7 @@
 
 ## Kiểm tra
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - Quét nhanh mojibake cho các file vừa sửa không thấy `Ã`, `Â`, `áº`, `á»`, `ðŸ`, `â€¦`.
 - Worker API production: `19099274-e37e-4d58-9ec2-0b6f0747d325`.
@@ -743,7 +801,7 @@
 
 ## Kiểm tra
 
-- Đã chạy `node --check` cho `apps/worker-api/src/routes/video.js`, `apps/worker-api/src/core/video-analytics-core.js`, `apps/fe/js/video-dashboard.js`.
+- Đã chạy `node --check` cho `apps/worker-api/src/routes/video.js`, `apps/worker-api/src/core/video-analytics-core.js`, `apps/fe/js/video/video-dashboard.js`.
 - Đã deploy Worker API `8ce63495-be3d-45eb-8db6-af83b4d04fc2` và frontend `d3466b63-6066-4ad0-970e-8f2d83fca27e`.
 - Đã mở production `dashboard_video.html?shop=chihuy1984&view=library`, bấm `Tải lại toàn bộ Shopee`: UI chạy theo cụm trang và báo `Đã lưu/cập nhật 315 dòng trên khoảng 308 video đã đăng`.
 - Sau đồng bộ, production hiển thị `Video đã đăng (308/315)` và bộ lọc `Tiêu đề cần xóa (203)`; bật bộ lọc còn `203` video, không có lỗi console.
@@ -1625,8 +1683,8 @@
 ### Việc đã làm
 
 - Tạo trang production riêng `apps/fe/pages/shopee-review.html` để Shopee reviewer vào đúng màn chứng minh sản phẩm live, không phải tự mò trong dashboard chung.
-- Thêm `apps/fe/js/shopee-review.js` đọc dữ liệu thật bằng các endpoint GET: capability shop, dashboard video, queue video và webhook/core.
-- Thêm `apps/fe/css/shopee-review.css` mobile-first, bảng gọn, không tràn ngang trên desktop/mobile.
+- Thêm `apps/fe/js/reviews/shopee-review.js` đọc dữ liệu thật bằng các endpoint GET: capability shop, dashboard video, queue video và webhook/core.
+- Thêm `apps/fe/css/reviews/shopee-review.css` mobile-first, bảng gọn, không tràn ngang trên desktop/mobile.
 - Cập nhật `auth-guard.js` cho phép role `reviewer` vào `shopee-review.html` và `dashboard_video.html`, nhưng vẫn khóa mọi lệnh ghi.
 - Cập nhật `login.js` để tài khoản role `reviewer` mặc định vào trang Shopee Review Mode sau khi đăng nhập.
 - Đồng bộ lại tài khoản `shopee_reviewer` về role `reviewer`; không lưu mật khẩu trong repo/tài liệu.
@@ -1671,8 +1729,8 @@
 ### Đã deploy và kiểm thực tế
 
 - Frontend production: `26a860f6-9392-40e6-8637-2090d116d92a`.
-- `node --check apps/fe/js/video-dashboard.js` pass.
-- Production asset `/js/video-dashboard.js` đã có `openBrowserVideoUpload`, `isProductionFrontend` và logic mở sẵn tab helper.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
+- Production asset `/js/video/video-dashboard.js` đã có `openBrowserVideoUpload`, `isProductionFrontend` và logic mở sẵn tab helper.
 - Cửa sổ Chrome thật đã xuất hiện với tiêu đề `Đăng Nhập Ngay Vào Để Quản Lý Cửa Hàng Của Bạn | Kênh Người Bán Shopee Việt Nam`.
 - Sau khi đăng nhập, Chrome thật ở URL `https://banhang.shopee.vn/creator-center/video-upload/upload`, body Shopee hiển thị file `vup_4ad4a9b0-bafc-4875-87ec-9014de155605.mp4`, `Tải thành công`, tiêu đề đã điền và các nút `Lưu bản nháp` / `Đăng` / `Xem trước`; không bấm đăng thật.
 
@@ -2572,7 +2630,7 @@
   - `apps/worker-api/src/routes/api-modules.js`
   - `apps/worker-api/src/index.js`
   - `apps/fe/js/modules/oms-api-advanced.js`
-  - `apps/fe/js/oms-main.js`
+  - `apps/fe/js/oms-dashboard/oms-main.js`
 - Worker dry-run pass, deploy production version `cfb6f63e-d293-4a1c-8b7e-d1a2ac8c33e7`.
 - Frontend dry-run pass, deploy production version `5e5ab060-33f4-4dfb-a9d3-f82fb7acfa25`.
 - Production callback verify:
@@ -2642,7 +2700,7 @@
   - `apps/worker-api/src/routes/api-modules.js`
   - `apps/worker-api/src/index.js`
   - `apps/fe/js/modules/oms-api-advanced.js`
-  - `apps/fe/js/oms-main.js`
+  - `apps/fe/js/oms-dashboard/oms-main.js`
 - Worker dry-run pass, deploy production version `2cfbc60c-b6f9-46ec-b3ab-e2bc6ec1395d`.
 - Frontend dry-run pass, deploy production version `b95d3340-1e43-4d98-a2fb-cceeea1db35f`.
 - Production API:
@@ -3690,7 +3748,7 @@
   - note nguồn dữ liệu
   - chênh lệch giữa `orders_v2` cũ và breakdown phase 1 nếu có
 - Bump cache frontend qua:
-  - `apps/fe/js/oms-main.js`
+  - `apps/fe/js/oms-dashboard/oms-main.js`
   - `apps/fe/pages/oms-dashboard.html`
 - Chạy cleanup production `POST /api/orders/cleanup-fee-phase1` để ghi lại `fee/profit_real/profit_invoice` cho các đơn đang bị lệch.
 
@@ -3698,7 +3756,7 @@
 
 - `node --check apps/worker-api/src/core/order-fee-phase1-core.js` pass.
 - `node --check apps/fe/js/modules/oms-render.js` pass.
-- `node --check apps/fe/js/oms-main.js` pass.
+- `node --check apps/fe/js/oms-dashboard/oms-main.js` pass.
 
 ### Deploy
 
@@ -3994,7 +4052,7 @@
 - S?a `apps/fe/js/dashboard/chat.js` ?? tab `??n h?ng` ch? c?n card d? li?u ??n, b? c?m note v?ng d?i v? b? toolbar sync kh?i panel ph?i.
 - Th?m action sync ??n h?ng v?o header h?i tho?i b?ng class `chat-thread-sync-btn`; ch? hi?n khi shop c? API ??n h?ng.
 - ?p header chat rerender l?i ngay sau khi context ??n h?ng t?i xong, k? c? khi thread seed ho?c thread ?t tin, ?? n?t sync kh?ng b? m?t do race gi?a messages/context.
-- S?a `apps/fe/css/dashboard.css` ?? header chat c? v?ng `chat-thread-controls` m?i, gi? b? c?c g?n cho desktop v? mobile.
+- S?a `apps/fe/css/dashboard/dashboard.css` ?? header chat c? v?ng `chat-thread-controls` m?i, gi? b? c?c g?n cho desktop v? mobile.
 - ??i d?ng meta trong card ??n sang d?u ph?n t?ch `|` ?? tr?nh l?i k? t? `?` ? runtime/CDP.
 
 ### Ki?m tra c? ph?p
@@ -4059,7 +4117,7 @@
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - `node --check apps/worker-api/src/index.js` pass.
 - `node --check apps/fe/js/admin/var-shops.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4115,7 +4173,7 @@
 - `node --check apps/worker-api/src/handlers/auth.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - `node --check apps/worker-api/src/routes/shops.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - Inline classic script trong `apps/fe/pages/oms-dashboard.html` đã kiểm bằng `new Function(...)` pass.
 
 ### Deploy
@@ -4187,7 +4245,7 @@
 
 ### Kiểm tra
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - Inline classic script trong `apps/fe/pages/oms-dashboard.html` pass.
 
 ### Deploy
@@ -4255,7 +4313,7 @@
 - `node --check apps/worker-api/src/core/video-analytics-core.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - `node --check apps/worker-api/src/index.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4304,7 +4362,7 @@
 
 ### Kiểm tra code
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4338,7 +4396,7 @@
 
 ### Kiểm tra code
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4387,7 +4445,7 @@
 
 ### Kiểm tra code
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4424,7 +4482,7 @@
 ### Kiểm tra code
 
 - `node --check apps/worker-api/src/core/video-analytics-core.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4466,7 +4524,7 @@
 
 ### Kiểm tra code
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 
 ### Deploy
@@ -4510,7 +4568,7 @@
 
 ### Kiểm tra code
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 
 ### Deploy
@@ -4544,7 +4602,7 @@
 
 ### Kiểm tra code
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 
 ### Deploy
@@ -4580,7 +4638,7 @@
 ### Kiểm tra code
 
 - `node --check apps/worker-api/src/routes/video.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4657,7 +4715,7 @@
 
 - `node --check apps/worker-api/src/core/video-analytics-core.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4698,7 +4756,7 @@
 - `node --check apps/worker-api/src/routes/api-features.js` pass.
 - `node --check apps/worker-api/src/routes/api-modules.js` pass.
 - `node --check apps/worker-api/src/core/marketplace-shop-capability-core.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `git diff --check` cho cụm file video/API/docs pass, chỉ còn cảnh báo CRLF của `dashboard_video.html`.
 
 ### Deploy
@@ -4735,7 +4793,7 @@
 
 ### Kiểm tra code
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - `git diff --check` cho các file video/checklist pass, chỉ có cảnh báo CRLF của file HTML.
 
@@ -4773,7 +4831,7 @@
 ### Kiểm tra code
 
 - `node --check apps/worker-api/src/routes/video.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `git diff --check` cho cụm video pass, chỉ còn cảnh báo CRLF của `dashboard_video.html`.
 
 ### Deploy
@@ -4807,7 +4865,7 @@
 
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - `node --check apps/worker-api/src/core/video-analytics-core.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 
 ### Deploy
 
@@ -4848,7 +4906,7 @@
 
 - `node --check apps/worker-api/src/routes/video.js` pass.
 - `node --check apps/worker-api/src/core/video-analytics-core.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `python -m py_compile` pass cho `local_helper/server.py` và `shopee/video/browser_upload.py`.
 - `git diff --check` cho cụm video/helper pass, chỉ còn cảnh báo CRLF của `dashboard_video.html`.
 
@@ -4885,7 +4943,7 @@
 ### Kiểm tra code
 
 - `node --check apps/worker-api/src/routes/video.js` pass.
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `git diff --check` cho cụm video pass, chỉ còn cảnh báo CRLF của `dashboard_video.html`.
 
 ### Deploy
@@ -4914,7 +4972,7 @@
   - `GET /api/reviews/actions` và `/api/reviews/action-logs` để đọc hàng đợi/log phản hồi review.
   - `POST /api/reviews/reply-suggest` để tạo gợi ý phản hồi từ review đã lưu, có guard chặn số điện thoại, kéo khách ra ngoài sàn, chuyển khoản và hứa bồi thường ngoài quy trình.
   - `POST /api/reviews/reply-action` để duyệt nháp, hủy, đánh dấu đã gửi tay hoặc ghi `send_locked` khi bấm gửi thật nhưng khóa live chưa mở.
-- Frontend thêm page riêng `apps/fe/pages/reviews.html` và `apps/fe/js/reviews.js`:
+- Frontend thêm page riêng `apps/fe/pages/reviews.html` và `apps/fe/js/reviews/reviews.js`:
   - Phase 1: tổng quan review, review xấu, cần trả lời, có media, thiếu mapping, review xấu trùng ADS.
   - Phase 2: chọn từng review còn quyền trả lời, tạo gợi ý phản hồi và lưu nháp vào hàng đợi.
   - Phase 3: xem hàng đợi/log, duyệt nháp, copy gửi tay, đánh dấu đã gửi tay, hủy hoặc thử gửi thật ở trạng thái khóa an toàn.
@@ -5446,14 +5504,14 @@
 
 ### Code đã cập nhật
 
-- `apps/fe/js/video-dashboard.js`: tách rõ thông báo thành công khỏi biến lỗi; biến `multiShopFileMetaError` chỉ còn lưu lỗi/đang đọc metadata thật.
+- `apps/fe/js/video/video-dashboard.js`: tách rõ thông báo thành công khỏi biến lỗi; biến `multiShopFileMetaError` chỉ còn lưu lỗi/đang đọc metadata thật.
 - Guard tạo chiến dịch bắt buộc có `state.multiShopFileMeta.durationSeconds` lớn hơn 0, nên vẫn khóa đúng khi file chưa đọc metadata thật.
 - `apps/fe/pages/dashboard_video.html`: cache-bust asset sang `video-dashboard.js?v=video-multi-duration-20260511a`.
 
 ### Kiểm production
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
-- `git diff --check -- apps/fe/js/video-dashboard.js apps/fe/pages/dashboard_video.html` pass; chỉ có cảnh báo CRLF sẵn có của `dashboard_video.html`.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
+- `git diff --check -- apps/fe/js/video/video-dashboard.js apps/fe/pages/dashboard_video.html` pass; chỉ có cảnh báo CRLF sẵn có của `dashboard_video.html`.
 - Deploy frontend version `114e3f82-e2c5-445c-b585-d5f0c9bd09f5`.
 - Mở production bằng Chrome profile `ProductionAdminTest`: `dashboard_video.html?shop=chihuy1984&view=multi&verify=video-multi-duration-20260511a`.
 - Trang load đúng asset `video-dashboard.js?v=video-multi-duration-20260511a`.
@@ -5477,13 +5535,13 @@
 ### Code đã cập nhật
 
 - `apps/worker-api/src/core/video-analytics-core.js`: `listVideoCatalogProducts()` tìm thêm trong `marketplace_product_knowledge.variations`, trả `shop_id`, `matched_sku`, `matched_variation_name`, tồn kho, trạng thái có video và `product_url` Shopee.
-- `apps/fe/js/video-dashboard.js`: trường `Sản phẩm gắn kèm` trong luồng `Đa shop` đổi thành ô `Tìm SKU`, kết quả có ảnh/tên/SKU/item ID/link `Mở sản phẩm` và nút `Gắn`; payload queue/preview vẫn gửi `item_id` chuẩn theo từng shop.
-- `apps/fe/css/video-dashboard.css`: thêm layout mobile-first cho picker, sản phẩm đã gắn và danh sách kết quả.
+- `apps/fe/js/video/video-dashboard.js`: trường `Sản phẩm gắn kèm` trong luồng `Đa shop` đổi thành ô `Tìm SKU`, kết quả có ảnh/tên/SKU/item ID/link `Mở sản phẩm` và nút `Gắn`; payload queue/preview vẫn gửi `item_id` chuẩn theo từng shop.
+- `apps/fe/css/video/video-dashboard.css`: thêm layout mobile-first cho picker, sản phẩm đã gắn và danh sách kết quả.
 - `apps/fe/pages/dashboard_video.html`: cache-bust asset sang `video-product-picker-20260511a`.
 
 ### Kiểm production
 
-- `node --check apps/fe/js/video-dashboard.js`, `node --check apps/worker-api/src/core/video-analytics-core.js` và `node --check apps/worker-api/src/routes/video.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js`, `node --check apps/worker-api/src/core/video-analytics-core.js` và `node --check apps/worker-api/src/routes/video.js` pass.
 - `git diff --check` pass; chỉ còn cảnh báo CRLF sẵn có của `dashboard_video.html`.
 - Deploy Worker version `18db06d8-f11d-453f-9035-3c7116dc5933`.
 - Deploy Frontend version `173ef58d-f76c-40ee-813e-f0db569dd54a`.
@@ -5510,14 +5568,14 @@
 
 - `apps/worker-api/src/core/video-analytics-core.js`: khóa tìm catalog theo đúng `platform + shop`; không fallback sang shop khác.
 - `apps/worker-api/src/routes/video.js`: preview đa shop luôn kiểm sản phẩm trong catalog đúng shop, kể cả shop chưa API.
-- `apps/fe/js/video-dashboard.js`: khi shop chưa có catalog riêng sẽ báo rõ cần đồng bộ/nhập catalog đúng shop; không hiện link shop khác và không cho bấm `Gắn`.
-- `apps/fe/css/video-dashboard.css`: picker sản phẩm span toàn hàng trong form đa shop, card kết quả/đã gắn đủ rộng trên desktop và vẫn không tràn mobile.
+- `apps/fe/js/video/video-dashboard.js`: khi shop chưa có catalog riêng sẽ báo rõ cần đồng bộ/nhập catalog đúng shop; không hiện link shop khác và không cho bấm `Gắn`.
+- `apps/fe/css/video/video-dashboard.css`: picker sản phẩm span toàn hàng trong form đa shop, card kết quả/đã gắn đủ rộng trên desktop và vẫn không tràn mobile.
 - `apps/fe/pages/dashboard_video.html`: cache-bust asset sang `video-product-picker-20260512b`.
 - Các điểm sửa mới có comment `NEO:` bằng tiếng Việt để lần sau tìm nhanh.
 
 ### Kiểm production
 
-- `node --check apps/fe/js/video-dashboard.js`, `node --check apps/worker-api/src/core/video-analytics-core.js`, `node --check apps/worker-api/src/routes/video.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js`, `node --check apps/worker-api/src/core/video-analytics-core.js`, `node --check apps/worker-api/src/routes/video.js` pass.
 - Deploy Worker version `2c1cccbf-e613-4416-af07-11f170dd4141` trước đó đã bị thay thế trong đợt khóa lại đúng shop; xem mục kiểm sau của đợt sửa `video-product-picker-20260512b`.
 - Deploy Worker version `616fc4dd-9f52-4328-afbc-fc3ee4aea967`.
 - Deploy Frontend version `ca10c628-7ff8-4c53-b409-a5e6ba9569d5`.
@@ -5546,7 +5604,7 @@
 
 ### Kiểm tra đã chạy
 
-- `node --check apps/fe/js/video-dashboard.js` pass.
+- `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/fe/js/video/multi-shop/product-picker.js` pass.
 - `node --check apps/worker-api/src/core/video/catalog-core.js` pass.
 - `node --check apps/worker-api/src/core/product/product-knowledge-sync-core.js` pass.
@@ -5578,13 +5636,13 @@
 ### Code đã cập nhật
 
 - `apps/fe/pages/shopee-review.html`: đổi trang reviewer từ Shopee-only sang màn chứng minh `Lazada live + Shopee pending`, thêm khối `Lazada live module cho Profile Verification`.
-- `apps/fe/js/shopee-review.js`: đọc capability Lazada, chọn shop Lazada API live, đọc library Lazada đã lưu và gọi GET quota Lazada để chứng minh tích hợp live; không gọi thao tác ghi lên sàn.
-- `apps/fe/css/shopee-review.css`: thêm layout proof card/table cho Lazada, giữ mobile-first và không tràn ngang.
+- `apps/fe/js/reviews/shopee-review.js`: đọc capability Lazada, chọn shop Lazada API live, đọc library Lazada đã lưu và gọi GET quota Lazada để chứng minh tích hợp live; không gọi thao tác ghi lên sàn.
+- `apps/fe/css/reviews/shopee-review.css`: thêm layout proof card/table cho Lazada, giữ mobile-first và không tràn ngang.
 - Thêm comment `NEO:` trong JS để đánh dấu lệnh GET Lazada dùng cho kiểm duyệt, không tạo/sửa/xóa dữ liệu sàn.
 
 ### Deploy và kiểm production
 
-- `node --check apps/fe/js/shopee-review.js` pass.
+- `node --check apps/fe/js/reviews/shopee-review.js` pass.
 - `git diff --check` cho `shopee-review.html/js/css` pass.
 - Deploy Frontend version `52e3c5c8-3038-4793-8f58-c5f85bb65f37`.
 - Mở production `https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/shopee-review.html?verify=shopee-review-lazada-20260512a` bằng Chrome profile kiểm thử production.
@@ -5715,3 +5773,28 @@
 - Shop không API: không gọi Open Platform, không gắn nhãn API; vẫn đi import/browser/Radar có kiểm soát.
 - Rủi ro còn lại: `admin-purchase` vẫn có layout rộng `980px` trên mobile smoke, cần tách CSS/layout riêng ở phase UI sau.
 
+## 2026-05-14 - Dọn route/core/asset theo tính năng, sản phẩm, label và ADS/Discount
+
+### Code đã cập nhật
+
+- Move root route/core/JS/CSS về folder tính năng; public API và URL trang không đổi. Chi tiết nằm ở `docs/refactor-file-map.md`.
+- Product create/update đã chặn dữ liệu mặc định/rác, yêu cầu tên sản phẩm và SKU thật, hỗ trợ SKU gốc + nhiều variant, lưu đúng dữ liệu người dùng nhập.
+- OMS khi chuyển đơn sang `LOGISTICS_PACKAGED` tự kiểm tem. Shop API thử refresh label ngay; shop không API tạo job `refresh_label` có log để Radar/helper xử lý, không đánh dấu tem giả.
+- TopPicks sửa lỗi 500 do thiếu dependency sync/ensure table và sai shape filter/range; cache trống trả empty state thay vì crash.
+- ADS Guard tách Shopee/Lazada trong preview, thêm catalog campaign/adgroup từ snapshot ADS của shop, có search/select và chế độ nhập tay nâng cao.
+- Discount bổ sung chuẩn nhãn bộ lọc tiếng Việt, lọc shop/tồn/doanh thu/hiệu quả/trạng thái và giữ handler thật cho cache/action.
+- Promotion UI mở rõ Shopee Voucher/Bundle/Add-On/Flash Sale theo nền tảng backend đã có; Lazada vẫn read-only khi chưa có adapter ghi chính thức.
+
+### Trạng thái vận hành
+
+- Shop Shopee/Lazada có API: đọc cache/campaign/discount/TopPicks theo dữ liệu snapshot shop; thao tác ghi ADS/khuyến mãi chỉ đi qua preview/apply guard có log.
+- Shop không API: không gọi Open Platform; label thiếu sau đóng gói đi qua job local/helper hiện có, UI hiển thị lý do nếu không thể tự tải.
+- Đang khóa an toàn: Lazada promotion write live và các ADS action chưa có endpoint chính thức vẫn chỉ preview/read-only, không gỡ khóa bằng UI giả.
+
+## 2026-05-18 - OMS fee tab và voucher sàn vào tổng phí
+
+- Sửa core `order-fee-phase1-core` để nhóm `Sàn hỗ trợ khách` / `Voucher từ sàn/Shopee` lấy từ `order_fee_details.raw_data` (`voucher_from_shopee`, `shopee_discount`, `coins`) được cộng vào `fee_display_total`, thay vì chỉ hiện ở dòng đối soát.
+- Sửa `/api/dashboard` để bucket `Tổng Phí Sàn` đọc voucher/giảm giá Shopee từ `order_fee_details` trước, fallback về `orders_v2.discount_shopee` nếu chưa có raw API.
+- Sửa card KPI frontend để `Tổng Phí Sàn` cộng cả `Voucher từ sàn/Shopee` và `Combo/khuyến mại khác` vào tổng phí trừ.
+- OMS popup phí từng đơn đổi sang tab `Khách thanh toán`, `Sàn thanh toán`, `Lợi nhuận`, `Nguồn API` để không kéo một cột dài; mobile dùng panel cố định và tab cuộn ngang.
+- Shop có API: ưu tiên số liệu API phase 1; shop không API vẫn fallback cost setting/import và không gắn nhãn API nếu không có raw fee detail.

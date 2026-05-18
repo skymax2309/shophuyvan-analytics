@@ -1,7 +1,7 @@
 import { getShopeeAppFromRow, signHmacHex } from '../../utils/shopee-apps.js'
-import { syncApiOrders, syncApiOrderStatuses, syncApiProducts, syncShopeeReturns, syncLazadaReverseOrders } from '../api-sync.js'
-import { refreshOrderLabel } from '../labels.js'
-import { recordChatWebhook } from '../worker-chat-marketplace-route.js'
+import { syncApiOrders, syncApiOrderStatuses, syncApiProducts, syncShopeeReturns, syncLazadaReverseOrders } from '../api/index.js'
+import { refreshOrderLabel } from '../labels/index.js'
+import { recordChatWebhook } from '../marketplace-chat/index.js'
 import { recordShopWebhookDiagnostic } from '../../modules/api-sync/sync-diagnostics.js'
 import {
   classifyMarketplacePush,
@@ -11,7 +11,7 @@ import {
   markMarketplacePushSyncQueue,
   queueMarketplacePushSync,
   takeMarketplacePushSyncJobs
-} from '../../core/marketplace-push-core.js'
+} from '../../core/marketplace/push-core.js'
 
 function json(data, cors, status = 200) {
   return Response.json(data, { status, headers: cors })

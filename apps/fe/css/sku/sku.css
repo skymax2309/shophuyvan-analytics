@@ -1,0 +1,25 @@
+/* NEO: SKU CSS tách theo lớp stock list/mobile/action, giữ file chính làm manifest import. */
+@import url('./base-stock.css?v=core-first-20260513a');
+@import url('./workspace-compact.css?v=core-first-20260513a');
+@import url('./template-redesign.css?v=core-first-20260513a');
+@import url('./stock-list-final.css?v=core-first-20260513a');
+@import url('./mobile-final.css?v=core-first-20260513a');
+@import url('./product-actions.css?v=core-first-20260513a');
+
+.sku-create-product-btn {
+  align-items: center;
+  background: #0f766e;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 34px;
+  padding: 7px 15px;
+  text-decoration: none;
+}
+
+.sku-create-product-btn:hover {
+  background: #115e59;
+}
