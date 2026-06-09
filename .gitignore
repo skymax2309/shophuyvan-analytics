@@ -8,6 +8,9 @@ node_modules
 !.env.example
 .DS_Store
 *.sql
+!apps/worker-api/migrations/*.sql
+!docs/audits/*.sql
+!docs/migrations/*.sql
 cau_truc_thu_muc.txt
 .browser-profiles/
 shipxanh-profile/
@@ -19,6 +22,8 @@ __pycache__/
 # Runtime / generated files
 runtime/
 logs/
+!apps/worker-api/src/features/shopee/logs/
+!apps/worker-api/src/features/shopee/logs/shopeeLogMask.js
 cache/
 temp/
 tmp/
@@ -28,6 +33,7 @@ Phieu_In_PDF/
 tmp-report-pdfs/
 runtime_jobs/
 artifacts/
+.playwright-mcp/
 _cleanup_quarantine/
 
 *.log
@@ -46,6 +52,9 @@ shv_products_export_*.json
 *_products_export_*.json
 tmp-*.png
 tmp-*.pdf
+tmp-*.html
+tmp-*.js
+tmp-*.pid
 
 # Local automation separated from main repo
 auto OMS Python/

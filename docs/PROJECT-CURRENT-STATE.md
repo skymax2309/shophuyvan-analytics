@@ -1,3 +1,36 @@
+### 2026-06-09 - Worktree checkpoint and runtime artifact cleanup
+
+- Scope:
+  - `.gitignore`
+  - `docs/GIT-WORKFLOW.md`
+  - `apps/worker-api/migrations/`
+  - `apps/worker-api/src/features/shopee/logs/shopeeLogMask.js`
+  - `docs/audits/`
+  - `docs/migrations/`
+  - Runtime/debug artifacts under `.playwright-mcp/`, `artifacts/`, and root `tmp-*`.
+- Checkpoint:
+  - Created commit `b1f1d7a` with the complete non-ignored worktree state.
+  - Pushed successfully to `origin/main`.
+  - Verified `origin/main` and local `main` both point to `b1f1d7a`.
+- Cleanup:
+  - Moved 30 tracked/ignored artifact roots and files, 474 files total, about 75.79 MB, to `E:\shophuyvan-runtime\cleanup-archive\20260609-checkpoint-b1f1d7a`.
+  - Removed regenerable `.wrangler` caches and `scripts/__pycache__`; no Wrangler process was active.
+  - Kept `node_modules`, `apps/worker-api/node_modules`, `profiles.local.json`, schema SQL, and database backup SQL.
+- Ignore fixes:
+  - Added `.playwright-mcp/` and root `tmp-*.html|js|pid` patterns.
+  - Re-included canonical SQL under `apps/worker-api/migrations`, `docs/migrations`, and `docs/audits`.
+  - Re-included `apps/worker-api/src/features/shopee/logs/shopeeLogMask.js`; caller audit found five active imports, so this file is KEEP-CORE and must be tracked.
+- Classification:
+  - KEEP-CORE: application source, Chat Worker, Worker Core/routes, frontend, tests, canonical migrations, `shopeeLogMask.js`.
+  - KEEP-WRAPPER: existing registered public routes remain unchanged in this cleanup.
+  - DEPRECATE: none added in this pass.
+  - DELETE/ARCHIVE: `.playwright-mcp`, `artifacts`, root `tmp-*`, `.wrangler`, and Python bytecode cache.
+- Verification:
+  - `rg 15.1.0` available for caller audit.
+  - ECC Hook Bridge `before-edit` passed with zero secret/debug findings.
+  - `git clean -ndX` after cleanup lists only protected local files/dependencies: database backup SQL, schema SQL, `profiles.local.json`, and two `node_modules` directories.
+  - No production deploy or marketplace endpoint change in this cleanup pass.
+
 ### 2026-06-04 - Automation browser window sizing settings
 
 - Scope:
