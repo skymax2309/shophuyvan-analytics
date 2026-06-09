@@ -32,6 +32,7 @@ crons = ["*/2 * * * *"]
 APP_NAME = "ShopHuyVan Chat API"
 CHAT_AI_MODE = "suggest_only"
 CHAT_DEFAULT_POLL_SECONDS = "12"
+FACEBOOK_GRAPH_API_VERSION = "v23.0"
 SHOPEE_CHAT_BRIDGE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/internal/chat-bridge/shopee"
 LAZADA_CHAT_BRIDGE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/internal/chat-bridge/lazada"
 SHOP_CORE_API_BASE = "https://huyvan-worker-api.nghiemchihuy.workers.dev"

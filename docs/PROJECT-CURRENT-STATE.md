@@ -1,3 +1,69 @@
+### 2026-06-09 - Facebook official chat transport + Zalo zca-js audit
+
+- Scope:
+  - `apps/chat-worker-api/src/adapters/facebook.js`
+  - `apps/chat-worker-api/src/routes/webhook-ingest.js`
+  - `apps/chat-worker-api/src/core/capability-core.js`
+  - `apps/chat-worker-api/wrangler.toml`
+  - `scripts/test-chat-facebook-adapter.mjs`
+  - `docs/chat-social-transport-audit-20260609.md`
+- Done:
+  - Replaced the Facebook skeleton adapter with an official Meta Messenger transport scaffold inside Chat Core, not a separate Chatwoot source.
+  - Added Meta webhook GET verification for `/api/chat/webhook/facebook` using `FACEBOOK_VERIFY_TOKEN`.
+  - Added Meta POST webhook HMAC verification using `X-Hub-Signature-256` + `FACEBOOK_APP_SECRET`.
+  - Normalized Facebook Page inbox events into `chat_conversations` and `chat_messages` with `shop_chat_mode=api`, `sync_capability=webhook`, and `send_capability=official_api` when a Page token exists.
+  - Added Facebook send path through Graph API `me/messages`; Chat Core still saves outbound as `sending` first and only marks `sent` when Graph API returns a message id.
+  - Hardened Facebook send so the Page token is sent via `Authorization: Bearer ...`, not as a query string on the Graph URL.
+  - Added safe config var `FACEBOOK_GRAPH_API_VERSION=v23.0`; real tokens/secrets must stay in Cloudflare secrets.
+  - Audited Chatwoot, `diendh/zca-bridge`, and `zca-js`; saved decision/risk note in `docs/chat-social-transport-audit-20260609.md`.
+- Zalo decision:
+  - `zca-js` does remove Chrome/CDP automation for Zalo personal, but it is unofficial and has active duplicate/session-risk issues.
+  - Do not replace the current Zalo browser-helper globally yet. Next safe step is a separate `zalo-zca-sidecar` pilot for one secondary account, with browser-helper kept as rollback.
+- Open:
+  - Facebook cannot be tested against real Meta until Cloudflare secrets are set: `FACEBOOK_VERIFY_TOKEN`, `FACEBOOK_APP_SECRET`, and `FACEBOOK_PAGE_ACCESS_TOKEN` or `FACEBOOK_PAGE_TOKENS_JSON`.
+  - Need Meta app/Page subscription and permission approval before production Facebook inbound/outbound can be verified.
+  - Zalo `zca-js` pilot is not implemented in this pass; it needs explicit sidecar scope, QR/session storage, duplicate guard, and account-risk acceptance.
+- Tests:
+  - `node --check apps/chat-worker-api/src/adapters/facebook.js`
+  - `node --check apps/chat-worker-api/src/routes/webhook-ingest.js`
+  - `node --check apps/chat-worker-api/src/core/capability-core.js`
+  - `node --check scripts/test-chat-facebook-adapter.mjs`
+  - `node scripts/test-chat-facebook-adapter.mjs` passed.
+  - `npm --prefix apps/chat-worker-api test` passed.
+- Deploy:
+  - Not deployed yet in this checkpoint. Deploy requires Chat Worker auth check and then production verify with Meta webhook secrets or at least no-secret health/capability readback.
+- Endpoint report:
+  - Checked/used docs: Meta Messenger webhook docs, Chatwoot Facebook channel setup, `diendh/zca-bridge`, `RFS-ADRENO/zca-js`.
+  - Implemented endpoint path: `GET/POST /api/chat/webhook/facebook`.
+  - Missing permission/token: Meta Page access token, app secret, verify token, Page webhook subscription, Page messaging permissions.
+  - Fallback: current Zalo browser-helper remains fallback for personal Zalo until `zca-js` sidecar pilot is proven safe.
+
+### 2026-06-09 - Chat automation browser module split
+
+- Scope:
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_common.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_runtime.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_shopee_scan.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_shopee_nav.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_shopee_send.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_tiktok_ui.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_tiktok_threads.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_actions.py`
+  - `E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser_post.py`
+- Done:
+  - Split the legacy `automation_browser.py` file into real feature modules under `features/chat`; every split file contains implementation, not import-only wrapper code.
+  - Kept `automation_browser.py` as the actual CLI entrypoint with `run()` and `main()`, and restored direct `if __name__ == "__main__"` execution.
+  - Did not create a new thin `__init__.py`; the existing empty `features/chat/__init__.py` predates this split and was left untouched.
+  - Preserved visible/headful automation defaults and did not add any global Chrome kill behavior.
+- Verification:
+  - `python -m py_compile` passed for all `automation_browser*.py` files.
+  - `python E:\shophuyvan-python-automation\oms_python\features\chat\automation_browser.py --help` exits `0`.
+  - All `automation_browser*.py` files are below 30KB after split.
+- Open:
+  - `E:\shophuyvan-python-automation` is not a Git repository on this machine, so this automation split is local filesystem state only unless a separate backup/sync path is added.
+  - No production browser automation job was run in this pass; verification is syntax/entrypoint only.
+
 ### 2026-06-09 - Worktree checkpoint and runtime artifact cleanup
 
 - Scope:

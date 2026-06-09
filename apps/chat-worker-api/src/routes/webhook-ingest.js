@@ -5,7 +5,7 @@ import { adapterForChannel } from '../core/send-core.js'
 import { notifyNewChatMessages } from '../core/push-notification-core.js'
 import { triggerImmediateSync } from '../core/sync-core.js'
 import { broadcastToWebSocket } from '../realtime/ws-server.js'
-import { sendJson } from './settings.js'
+import { CORS_HEADERS, sendJson } from './settings.js'
 
 function hexToBytes(value = '') {
   const text = cleanText(value).replace(/^sha256=/i, '').replace(/\s+/g, '')
@@ -48,19 +48,41 @@ async function verifyWebhookSignature(rawBody, signature, secret) {
 function webhookSecret(env, channel) {
   if (channel === 'shopee') return env?.SHOPEE_WEBHOOK_SECRET
   if (channel === 'lazada') return env?.LAZADA_WEBHOOK_SECRET
+  if (channel === 'facebook') return env?.FACEBOOK_APP_SECRET
   return ''
 }
 
 function webhookSignature(request, channel) {
   if (channel === 'shopee') return request.headers.get('X-Shopee-Signature') || ''
   if (channel === 'lazada') return request.headers.get('X-Lazada-Hmac-Sha256') || ''
+  if (channel === 'facebook') return request.headers.get('X-Hub-Signature-256') || ''
   return ''
+}
+
+function textResponse(text = '', status = 200) {
+  return new Response(text, {
+    status,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      ...CORS_HEADERS
+    }
+  })
+}
+
+function handleFacebookWebhookVerify(request, env = {}) {
+  const url = new URL(request.url)
+  const mode = cleanText(url.searchParams.get('hub.mode'))
+  const token = cleanText(url.searchParams.get('hub.verify_token'))
+  const challenge = cleanText(url.searchParams.get('hub.challenge'))
+  const expected = cleanText(env.FACEBOOK_VERIFY_TOKEN)
+  if (mode === 'subscribe' && expected && token === expected && challenge) return textResponse(challenge)
+  return sendJson({ ok: false, error_code: 'facebook_webhook_verify_failed', error_message: 'facebook_webhook_verify_failed' }, 403)
 }
 
 async function persistWebhookPayload(env, channel, rawBody, request) {
   const adapter = adapterForChannel(channel)
   if (!adapter?.normalizeWebhookPayload) {
-    return { ok: false, error_code: 'webhook_adapter_not_implemented', error_message: `Kênh ${channel} chưa có normalizeWebhookPayload.` }
+    return { ok: false, error_code: 'webhook_adapter_not_implemented', error_message: `channel_${channel}_webhook_normalizer_missing` }
   }
   const normalized = adapter.normalizeWebhookPayload(rawBody, env, {
     channel,
@@ -75,8 +97,9 @@ async function persistWebhookPayload(env, channel, rawBody, request) {
     await saveConversation(env, normalizeChatConversation({
       ...rawConversation,
       channel,
-      shop_chat_mode: 'api',
-      sync_capability: 'webhook',
+      shop_chat_mode: rawConversation.shop_chat_mode || 'api',
+      send_capability: rawConversation.send_capability,
+      sync_capability: rawConversation.sync_capability || 'webhook',
       last_synced_at: stamp,
       last_success_at: stamp,
       updated_at: stamp
@@ -106,22 +129,23 @@ async function persistWebhookPayload(env, channel, rawBody, request) {
 
 export async function handleWebhookIngestRoute(request, env, ctx, channelValue) {
   const channel = cleanText(channelValue).toLowerCase()
-  if (request.method !== 'POST') return sendJson({ ok: false, error_code: 'method_not_allowed', error_message: 'Chỉ hỗ trợ POST webhook.' }, 405)
-  if (!['shopee', 'lazada'].includes(channel)) {
-    return sendJson({ ok: false, error_code: 'webhook_channel_not_supported', error_message: 'Webhook chỉ hỗ trợ Shopee hoặc Lazada.' }, 404)
+  if (channel === 'facebook' && request.method === 'GET') return handleFacebookWebhookVerify(request, env)
+  if (request.method !== 'POST') return sendJson({ ok: false, error_code: 'method_not_allowed', error_message: 'webhook_post_required' }, 405)
+  if (!['shopee', 'lazada', 'facebook'].includes(channel)) {
+    return sendJson({ ok: false, error_code: 'webhook_channel_not_supported', error_message: 'webhook_channel_not_supported' }, 404)
   }
 
   const rawBody = await request.text()
   const verified = await verifyWebhookSignature(rawBody, webhookSignature(request, channel), webhookSecret(env, channel)).catch(() => false)
   if (!verified) {
     console.error(JSON.stringify({ error_code: 'webhook_auth_failed', channel }))
-    return sendJson({ ok: false, error_code: 'webhook_auth_failed', error_message: 'Chữ ký webhook không hợp lệ.' }, 401)
+    return sendJson({ ok: false, error_code: 'webhook_auth_failed', error_message: 'webhook_auth_failed' }, 401)
   }
 
   let processed = 0
   const shopIds = new Set()
+  const adapter = adapterForChannel(channel)
   try {
-    const adapter = adapterForChannel(channel)
     const preview = adapter?.normalizeWebhookPayload?.(rawBody, env, { channel }) || {}
     processed = Array.isArray(preview.messages) ? preview.messages.length : 0
     for (const item of [...(preview.conversations || []), ...(preview.messages || [])]) {
@@ -138,20 +162,23 @@ export async function handleWebhookIngestRoute(request, env, ctx, channelValue) 
       channel,
       error_message: String(error?.message || error)
     })))
-  const immediateSyncJob = job.then(() => Promise.allSettled([...shopIds].map(shopId =>
-    triggerImmediateSync(env, channel, shopId, { limit: 20 })
-  ))).catch(error => console.error(JSON.stringify({
-    error_code: 'webhook_immediate_sync_failed',
-    channel,
-    error_message: String(error?.message || error)
-  })))
+  const immediateSyncJob = adapter?.pollInbox
+    ? job.then(() => Promise.allSettled([...shopIds].map(shopId =>
+      triggerImmediateSync(env, channel, shopId, { limit: 20 })
+    ))).catch(error => console.error(JSON.stringify({
+      error_code: 'webhook_immediate_sync_failed',
+      channel,
+      error_message: String(error?.message || error)
+    })))
+    : Promise.resolve([])
+
   if (ctx?.waitUntil) {
     ctx.waitUntil(job)
-    if (shopIds.size > 0) ctx.waitUntil(immediateSyncJob)
+    if (shopIds.size > 0 && adapter?.pollInbox) ctx.waitUntil(immediateSyncJob)
   } else {
     await job
-    if (shopIds.size > 0) await immediateSyncJob
+    if (shopIds.size > 0 && adapter?.pollInbox) await immediateSyncJob
   }
 
-  return sendJson({ ok: true, processed, immediate_sync_shops: shopIds.size })
+  return sendJson({ ok: true, processed, immediate_sync_shops: adapter?.pollInbox ? shopIds.size : 0 })
 }

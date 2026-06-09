@@ -101,6 +101,20 @@ export function defaultChatCapability(env = {}, channelValue = '') {
       sync_capability: 'polling_api'
     }
   }
+  if (channel === 'facebook' && (env?.FACEBOOK_PAGE_ACCESS_TOKEN || env?.FACEBOOK_PAGE_TOKENS_JSON)) {
+    return {
+      shop_chat_mode: 'api',
+      send_capability: 'official_api',
+      sync_capability: 'webhook'
+    }
+  }
+  if (channel === 'facebook' && (env?.FACEBOOK_APP_SECRET || env?.FACEBOOK_VERIFY_TOKEN)) {
+    return {
+      shop_chat_mode: 'api',
+      send_capability: 'none',
+      sync_capability: 'webhook'
+    }
+  }
   if (channel === 'tiktok') {
     return {
       shop_chat_mode: 'browser_helper',
