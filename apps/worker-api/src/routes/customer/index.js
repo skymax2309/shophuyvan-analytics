@@ -3,6 +3,14 @@ import {
   listCustomerRiskProfiles,
   rebuildCustomerRiskProfiles
 } from '../../core/customer/risk-core.js'
+import {
+  listMarketplaceCustomerContacts,
+  marketplaceContactFromChatEvent,
+  summarizeMarketplaceCustomerContacts,
+  syncCustomerContactsFromOrders,
+  upsertMarketplaceCustomerContact,
+  upsertMarketplaceCustomerContactFromChat
+} from '../../core/customer/contacts-core.js'
 
 function requestOptions(request) {
   const url = new URL(request.url)
@@ -19,6 +27,55 @@ function requestOptions(request) {
 export async function handleCustomerRisk(request, env, cors) {
   const url = new URL(request.url)
   try {
+    if (url.pathname === '/api/customers/marketplace/chat-ingest' && request.method === 'POST') {
+      const expected = String(env?.CUSTOMER_CONTACT_BRIDGE_SECRET || env?.CHAT_BRIDGE_INTERNAL_SECRET || '').trim()
+      const received = String(request.headers.get('X-Chat-Bridge-Secret') || request.headers.get('X-Customer-Contact-Secret') || '').trim()
+      if (!expected) {
+        return Response.json({ status: 'error', error: 'customer_contact_bridge_secret_not_configured' }, { status: 503, headers: cors })
+      }
+      if (received !== expected) {
+        return Response.json({ status: 'error', error: 'customer_contact_bridge_forbidden' }, { status: 403, headers: cors })
+      }
+      const body = await request.json().catch(() => ({}))
+      const events = Array.isArray(body.events) ? body.events : [body.event || body.message || body]
+      const results = []
+      for (const event of events.slice(0, 100)) {
+        const contact = marketplaceContactFromChatEvent(event)
+        const result = await upsertMarketplaceCustomerContactFromChat(env, event)
+        results.push({ ...result, contact_key: result.contact_key || contact.contact_key })
+      }
+      return Response.json({
+        status: 'ok',
+        scanned_events: events.length,
+        upserted: results.filter(item => item.status === 'ok').length,
+        skipped: results.filter(item => item.status === 'skipped').length,
+        results
+      }, { headers: cors })
+    }
+
+    if (url.pathname === '/api/customers/marketplace/rebuild' && request.method === 'POST') {
+      let body = {}
+      try {
+        body = await request.json()
+      } catch {
+        body = {}
+      }
+      return Response.json(await syncCustomerContactsFromOrders(env, { ...requestOptions(request), ...body }), { headers: cors })
+    }
+
+    if (url.pathname === '/api/customers/marketplace/upsert' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}))
+      return Response.json(await upsertMarketplaceCustomerContact(env, body), { headers: cors })
+    }
+
+    if (url.pathname === '/api/customers/marketplace/summary' && request.method === 'GET') {
+      return Response.json(await summarizeMarketplaceCustomerContacts(env, requestOptions(request)), { headers: cors })
+    }
+
+    if (url.pathname === '/api/customers/marketplace' && request.method === 'GET') {
+      return Response.json(await listMarketplaceCustomerContacts(env, requestOptions(request)), { headers: cors })
+    }
+
     if (url.pathname === '/api/customer-risk/rebuild' && request.method === 'POST') {
       let body = {}
       try {

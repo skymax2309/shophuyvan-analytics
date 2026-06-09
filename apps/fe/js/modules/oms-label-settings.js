@@ -1,6 +1,5 @@
 import { API } from '../oms-dashboard/oms-api.js';
 import { showToast } from '../utils/helpers.js';
-import { wakeRadarLocal } from './oms-radar-helper.js';
 import { createLabelVaultRenderers } from './oms-label-settings-render.js';
 import { bindLabelModalEvents } from './oms-label-settings-events.js';
 
@@ -251,9 +250,15 @@ function platformLabel(platform) {
 }
 
 function statusLabel(row) {
-  if (row?.error) return { text: 'Tem lỗi', cls: 'danger' };
-  if (row?.storage_key) return { text: 'Đã lưu', cls: 'success' };
-  return { text: 'Chưa có tem', cls: 'warning' };
+  const error = String(row?.error || '').trim();
+  const mode = String(row?.label_download_mode || '').toLowerCase();
+  if (canUseLabelAsPreview(row) && !error) return { text: 'Đã tải tem', cls: 'success' };
+  if (row?.storage_key && !canUseLabelAsPreview(row)) return { text: 'File tem không hợp lệ', cls: 'warning' };
+  if (error && error !== 'not_found') return { text: 'Lỗi tải tem', cls: 'danger' };
+  if (mode === 'manual_required' || row?.label_download_requires_manual) return { text: 'Cần làm thủ công', cls: 'warning' };
+  if (mode === 'not_supported') return { text: 'Chưa hỗ trợ sàn/shop này', cls: 'warning' };
+  if (canDownloadLabel(row)) return { text: 'Có thể tải tem', cls: 'success' };
+  return { text: 'Chưa đủ điều kiện', cls: 'warning' };
 }
 
 function normalizePlatform(value) {
@@ -261,11 +266,33 @@ function normalizePlatform(value) {
 }
 
 function labelRefreshMode(row = {}) {
-  const mode = String(row.refresh_mode || '').toLowerCase();
-  const platform = normalizePlatform(row.platform);
-  if (mode === 'api' || row.api_connected) return { text: 'Tải bằng API sàn', cls: 'api' };
-  if (['shopee', 'lazada', 'tiktok'].includes(platform)) return { text: 'Tải bằng Chrome helper', cls: 'helper' };
-  return { text: 'Cần nhập tay', cls: 'manual' };
+  const mode = String(row.label_download_mode || row.refresh_mode || '').toLowerCase();
+  if (canUseLabelAsPreview(row) && !row.error) return { text: 'Đã tải tem', cls: 'api' };
+  if (row.storage_key && !canUseLabelAsPreview(row)) return { text: 'File tem không hợp lệ', cls: 'manual' };
+  if (row.error && row.error !== 'not_found') return { text: 'Lỗi tải tem', cls: 'manual' };
+  if (canDownloadLabel(row)) return { text: 'Có thể tải tem', cls: 'api' };
+  if (row.label_download_requires_manual || mode === 'manual_required') return { text: 'Cần làm thủ công', cls: 'manual' };
+  if (mode === 'not_supported') return { text: 'Chưa hỗ trợ sàn/shop này', cls: 'manual' };
+  return { text: 'Chưa đủ điều kiện', cls: 'manual' };
+}
+
+function canDownloadLabel(row = {}) {
+  return row.label_status === 'eligible'
+    && row.label_download_supported === true
+    && row.label_download_read_only === true
+    && row.label_download_requires_manual !== true;
+}
+
+function labelBlockedReason(row = {}) {
+  if (row.label_status && row.label_status !== 'eligible') {
+    return row.label_reason || 'Đơn chưa đủ điều kiện tải tem.';
+  }
+  const reason = String(row.label_download_reason || '').trim();
+  if (reason) return reason;
+  const mode = String(row.label_download_mode || '').toLowerCase();
+  if (mode === 'manual_required' || row.label_download_requires_manual) return 'Shop/sàn này cần tải tem thủ công; OMS chưa bật helper tự tải.';
+  if (mode === 'not_supported') return 'Sàn/shop này chưa có đường tải tem read-only đã xác minh.';
+  return 'Shop/sàn chưa đủ điều kiện tải tem read-only.';
 }
 
 function rowsForStatus(status = labelVaultState.loadedStatus || 'all') {
@@ -343,7 +370,11 @@ function buildLabelUrl(orderId, row = {}) {
 }
 
 function canUseLabelAsPreview(row = {}) {
-  return !!row.order_id && !!row.storage_key && !row.error;
+  const key = String(row.storage_key || '').toLowerCase();
+  const contentType = String(row.content_type || '').toLowerCase();
+  if (!row.order_id || !row.storage_key || row.error) return false;
+  if (key.endsWith('.html') || key.endsWith('.htm') || contentType.includes('html')) return false;
+  return key.endsWith('.pdf') || contentType.includes('application/pdf');
 }
 
 function findLoadedPreviewLabel(platform) {
@@ -367,6 +398,7 @@ const { renderLabelVaultPanel, renderModalShell, renderTemplatePreview } = creat
   platformLabel,
   statusLabel,
   labelRefreshMode,
+  canDownloadLabel,
   rowsForStatus,
   selectedCountText,
   templateRows,
@@ -448,7 +480,7 @@ function buildOrderMapForLabels(ids) {
 async function printLabelsWithOverlay(ids) {
   if (!ids.length) return showToast('Chưa chọn mã đơn để in lại.', 4000);
   try {
-    const { printBatchLabelsCore } = await import('./oms-pdf.js?v=label-real-preview2-20260509');
+    const { printBatchLabelsCore } = await import('./oms-pdf.js?v=label-capability-20260519c');
     await printBatchLabelsCore(ids, buildOrderMapForLabels(ids));
   } catch (error) {
     showToast(error.message || 'Không in lại được tem từ kho.', 5000);
@@ -582,103 +614,25 @@ async function loadLabelRowsForIds(ids) {
   return rows;
 }
 
-function groupRowsForHelper(rows) {
-  const groups = new Map();
-  const blocked = [];
-  rows.forEach(row => {
-    const platform = normalizePlatform(row.platform);
-    const shop = String(row.shop || '').trim();
-    const orderId = String(row.order_id || '').trim();
-    if (!orderId) return;
-    if (!platform || !shop) {
-      blocked.push(row);
-      return;
-    }
-    const key = `${platform}||${shop}`;
-    if (!groups.has(key)) groups.set(key, { platform, shop, order_ids: [] });
-    groups.get(key).order_ids.push(orderId);
-  });
-  return { groups: [...groups.values()], blocked };
-}
-
-async function createLabelRefreshJob(group) {
-  const now = new Date();
-  const response = await fetch(`${API}/api/jobs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      task_type: 'refresh_label',
-      shop_name: group.shop,
-      platform: group.platform,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
-      payload: JSON.stringify({
-        order_ids: group.order_ids,
-        download_only: true,
-        source: 'label_vault_refresh'
-      })
-    })
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.error) throw new Error(data.error || `Không tạo được job tải tem cho ${group.shop}`);
-  return data;
-}
-
-async function refreshHelperRows(rows) {
-  const { groups, blocked } = groupRowsForHelper(rows);
-  const jobs = [];
-  for (const group of groups) {
-    const job = await createLabelRefreshJob(group);
-    jobs.push({ ...job, group });
-  }
-  if (jobs[0]?.id) {
-    await wakeRadarLocal('refresh_label', jobs[0].id);
-  }
-  return {
-    jobCount: jobs.length,
-    orderCount: groups.reduce((sum, group) => sum + group.order_ids.length, 0),
-    blockedCount: blocked.length
-  };
-}
-
 async function refreshSelectedLabels(ids) {
   if (!ids.length) return showToast('Chưa chọn mã đơn để tải lại tem.', 4000);
+  if (ids.length > 1) {
+    showToast('Chưa bật tải tem hàng loạt. Chỉ chọn 1 đơn có capability read-only để tải thủ công.', 6000);
+    return;
+  }
   const rows = await loadLabelRowsForIds(ids);
-  const apiRows = [];
-  const helperRows = [];
-  rows.forEach(row => {
-    const platform = normalizePlatform(row.platform);
-    if ((row.api_connected || row.refresh_mode === 'api') && ['shopee', 'lazada'].includes(platform)) {
-      apiRows.push(row);
-    } else {
-      helperRows.push(row);
-    }
-  });
-  let ok = 0;
-  let fail = 0;
-  for (const row of apiRows) {
-    try {
-      await refreshLabel(row.order_id);
-      ok++;
-    } catch {
-      fail++;
-    }
+  const row = rows[0] || {};
+  if (!canDownloadLabel(row)) {
+    showToast(labelBlockedReason(row), 6000);
+    return;
   }
-  let helperResult = { jobCount: 0, orderCount: 0, blockedCount: 0 };
-  if (helperRows.length) {
-    try {
-      helperResult = await refreshHelperRows(helperRows);
-    } catch {
-      fail += helperRows.length;
-    }
+  try {
+    const data = await refreshLabel(row.order_id);
+    showToast(`Đã tải tem read-only cho ${row.order_id}: ${data.content_type || data.storage_key || 'OK'}`, 6000);
+    loadLabels(labelVaultState.activeTab === 'errors' ? 'error' : 'all');
+  } catch (error) {
+    showToast(error.message || 'Không tải được tem read-only.', 6000);
   }
-  const parts = [];
-  if (apiRows.length) parts.push(`API: tải lại ${ok}/${apiRows.length} tem`);
-  if (helperResult.orderCount) parts.push(`Chrome helper: đã gửi ${helperResult.orderCount} tem / ${helperResult.jobCount} shop`);
-  if (helperResult.blockedCount) parts.push(`thiếu shop/sàn ${helperResult.blockedCount} tem`);
-  if (fail) parts.push(`lỗi ${fail} tem`);
-  showToast(parts.join(' · ') || 'Đã gửi lệnh tải lại tem.', 6000);
-  loadLabels(labelVaultState.activeTab === 'errors' ? 'error' : 'all');
 }
 
 function openSelectedLabels(ids) {

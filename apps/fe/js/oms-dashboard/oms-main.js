@@ -1,21 +1,21 @@
 import { API } from './oms-api.js';
-// NẠP LINH KIỆN ĐÃ CHIA NHỎ
+// Nạp linh kiện đã chia nhỏ
 import { fmt, fmtDate, showToast, copyText, closeModal } from '../utils/helpers.js';
 import { initOmsNotifications } from '../modules/oms-notifications.js';
-import { initLabelSettings, openLabelSettingsModal } from '../modules/oms-label-settings.js?v=label-real-preview2-20260509';
-import { initBotSettings, openBotSettingsModal } from '../modules/oms-bot-settings.js';
+import { initLabelSettings, openLabelSettingsModal } from '../modules/oms-label-settings.js?v=label-capability-20260519c';
+import { initBotSettings, openBotSettingsModal, openManualBotRunModal } from '../modules/oms-bot-settings.js?v=oms-ops-settings-20260523c';
 import { openAdvancedApiFeatures as openAdvancedApiFeaturesModal } from '../modules/oms-api-advanced.js?v=review-batch-20260507';
-import { initLogisticsWatch, setLogisticsOrders } from '../modules/oms-logistics-watch.js?v=tiktok-label-refresh-20260509';
+import { initLogisticsWatch, setLogisticsOrders } from '../modules/oms-logistics-watch.js?v=oms-ops-settings-20260523c';
 // BỔ SUNG CỤM MODULE POPUP NÀY
-import { initModals, renderPickListModal } from '../modules/oms-modals.js';
+import { initModals, renderPickListModal } from '../modules/oms-modals.js?v=oms-hotfix-20260521b';
 // THÊM DÒNG NÀY ĐỂ KÉO CÁC HÀM VẼ GIAO DIỆN VÀO:
-import { renderShippingStatus, renderTable, renderSummary, updateBadges, renderPagination } from '../modules/oms-render.js?v=fee-api-compare-20260509';
+import { renderShippingStatus, renderTable, renderSummary, updateBadges, renderPagination, renderCachedBadgesIfAny } from '../modules/oms-render.js?v=oms-hotfix-20260521c';
 
 // Kích hoạt cầu nối: Báo cho Popup biết dùng hàm loadOrders để tải lại bảng
 initModals(() => loadOrders(currentPage));
 initBotSettings();
 
-import { initActions, openOrderChatResolver } from '../modules/oms-actions.js?v=tiktok-label-refresh-20260509';
+import { initActions } from '../modules/oms-actions.js?v=oms-toolbar-actions-20260521a';
 // Kích hoạt cầu nối Hành động
 initActions(
   (page) => loadOrders(page),
@@ -36,8 +36,11 @@ let totalOrders    = 0
 let totalPages     = 1
 let debounceTimer  = null
 let allSelected    = false
+let ordersLoadSeq  = 0
+let ordersLoadController = null
 
 const PAGE_SIZE_STORAGE_KEY = 'oms_page_size'
+const LAST_GOOD_ORDERS_STORAGE_KEY = 'oms_last_good_orders_state'
 const DEFAULT_PAGE_SIZE = 200
 const MAX_PAGE_SIZE = 500
 // Mặc định chỉ xem đơn hoàn gần đây để vận hành không bị ngập lịch sử cũ.
@@ -58,6 +61,29 @@ function readPageSize() {
 }
 
 let pageSize = readPageSize()
+let lastGoodOrdersState = readStoredLastGoodOrdersState()
+
+function readStoredLastGoodOrdersState() {
+  for (const storage of [sessionStorage, localStorage]) {
+    try {
+      const raw = storage.getItem(LAST_GOOD_ORDERS_STORAGE_KEY)
+      if (!raw) continue
+      const state = JSON.parse(raw)
+      if (Array.isArray(state?.data) && state.data.length) return state
+    } catch {}
+  }
+  return null
+}
+
+function rememberLastGoodOrdersState(state) {
+  if (!Array.isArray(state?.data) || !state.data.length) return
+  const payload = JSON.stringify({ ...state, cachedAt: new Date().toISOString() })
+  for (const storage of [sessionStorage, localStorage]) {
+    try {
+      storage.setItem(LAST_GOOD_ORDERS_STORAGE_KEY, payload)
+    } catch {}
+  }
+}
 
 function syncPageSizeSelect() {
   const select = document.getElementById('f_page_size')
@@ -85,6 +111,85 @@ function syncReturnScopeVisibility() {
   if (!select) return
   select.style.display = currentStatus === 'RETURN' ? '' : 'none'
   if (!select.value) select.value = DEFAULT_RETURN_SCOPE
+}
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function ensureOmsLoadBanner() {
+  let banner = document.getElementById('omsLoadBanner')
+  if (banner) return banner
+  banner = document.createElement('div')
+  banner.id = 'omsLoadBanner'
+  banner.className = 'oms-load-banner'
+  banner.style.display = 'none'
+  const tableWrap = document.querySelector('.table-wrap')
+  if (tableWrap?.parentNode) tableWrap.parentNode.insertBefore(banner, tableWrap)
+  return banner
+}
+
+function hideOmsLoadBanner() {
+  const banner = document.getElementById('omsLoadBanner')
+  if (banner) banner.style.display = 'none'
+}
+
+function showOmsLoadBanner(message, detail = '') {
+  const banner = ensureOmsLoadBanner()
+  if (!banner) return
+  window.__SHV_OMS_RETRY_PAGE = currentPage
+  const detailHtml = detail ? `<small title="${escapeHtml(detail)}">${escapeHtml(detail)}</small>` : ''
+  banner.innerHTML = `
+    <div>
+      <b>${escapeHtml(message)}</b>
+      ${detailHtml}
+    </div>
+    <button type="button" onclick="loadOrders(window.__SHV_OMS_RETRY_PAGE || 1)">Thử lại</button>
+  `
+  banner.style.display = ''
+}
+
+function isAbortLikeError(error) {
+  return error?.name === 'AbortError' || /abort/i.test(String(error?.message || ''))
+}
+
+async function parseOrdersResponse(response) {
+  const text = await response.text()
+  let payload = null
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = { error: 'invalid_json', message: text.slice(0, 240) }
+    }
+  }
+  if (!response.ok || payload?.error || payload?.status === 'error') {
+    const message = payload?.message || payload?.error || `HTTP ${response.status}`
+    const detail = payload?.detail || payload?.request_id || response.statusText || ''
+    const error = new Error(message)
+    error.detail = detail
+    error.status = response.status
+    throw error
+  }
+  return payload || {}
+}
+
+function renderOrdersFromState(state) {
+  omsCache = Array.isArray(state?.data) ? state.data : []
+  totalOrders = Number(state?.total || 0)
+  totalPages = Math.max(Number(state?.totalPages || 1), 1)
+  currentPage = Math.max(Number(state?.page || currentPage || 1), 1)
+  setLogisticsOrders(omsCache)
+  renderTable(omsCache)
+  window.__SHV_OMS_FEE_RENDERING = false
+  window.syncOmsFeePopupAfterRender?.()
+  renderSummary(omsCache, totalOrders)
+  renderPagination(currentPage, totalPages, totalOrders)
 }
 
 export function setPageSize(value) {
@@ -152,10 +257,17 @@ export function switchPlatform(p) {
 
 // ── LOAD ORDERS ─────────────────────────────────────────────────────
 export async function loadOrders(page = 1) {
+  const requestSeq = ++ordersLoadSeq
+  if (ordersLoadController) ordersLoadController.abort()
+  ordersLoadController = new AbortController()
   currentPage = Math.max(parseInt(page, 10) || 1, 1)
   syncPageSizeSelect()
-  document.getElementById('omsTable').innerHTML =
-    `<tr><td colspan="9"><div class="empty-state"><div class="icon" style="font-size:28px;margin-bottom:8px">⏳</div><p>Đang tải...</p></div></td></tr>`
+  // Giữ popup phí đang pinned qua trạng thái loading tạm; sau render mới quyết định đóng/mở.
+  window.__SHV_OMS_FEE_RENDERING = true
+  if (!lastGoodOrdersState?.data?.length) {
+    document.getElementById('omsTable').innerHTML =
+      `<tr><td colspan="9"><div class="empty-state"><div class="icon" style="font-size:28px;margin-bottom:8px">⏳</div><p>Đang tải...</p></div></td></tr>`
+  }
 
   const params = new URLSearchParams({ page: currentPage, limit: pageSize })
   const shop     = document.getElementById('f_shop')?.value || ''
@@ -187,16 +299,31 @@ export async function loadOrders(page = 1) {
   }
 
   try {
-    const res = await fetch(API + '/api/orders?' + params).then(r => r.json())
-    omsCache   = res.data || []
-    totalOrders = res.total || 0
-    totalPages  = res.totalPages || 1
-    
-    // Ném dữ liệu sang cho File oms-render.js vẽ
-    setLogisticsOrders(omsCache);
-    renderTable(omsCache);
-    renderSummary(omsCache, totalOrders);
-    renderPagination(currentPage, totalPages, totalOrders);
+    const requestId = `oms-orders-${Date.now()}-${requestSeq}`
+    const response = await fetch(API + '/api/orders?' + params, {
+      cache: 'no-store',
+      signal: ordersLoadController.signal,
+      headers: {
+        Accept: 'application/json',
+        'X-Request-Id': requestId
+      }
+    })
+    const res = await parseOrdersResponse(response)
+    if (requestSeq !== ordersLoadSeq) return
+    const nextState = {
+      data: Array.isArray(res.data) ? res.data : [],
+      total: res.total || 0,
+      totalPages: res.totalPages || 1,
+      page: currentPage,
+      query: params.toString(),
+      loadedAt: new Date().toISOString()
+    }
+    lastGoodOrdersState = nextState
+    rememberLastGoodOrdersState(nextState)
+    hideOmsLoadBanner()
+
+    // Ném dữ liệu sang cho File oms-render.js vẽ; mọi số liệu vẫn đọc từ payload Core/API.
+    renderOrdersFromState(nextState)
     const badgeParams = new URLSearchParams()
     if (shop) badgeParams.set('shop', shop)
     if (search) badgeParams.set('search', search)
@@ -204,8 +331,24 @@ export async function loadOrders(page = 1) {
     if (pltFilter || currentPlatform) badgeParams.set('platform', pltFilter || currentPlatform)
     updateBadges(badgeParams);
   } catch (e) {
-    document.getElementById('omsTable').innerHTML =
-      `<tr><td colspan="9"><div class="empty-state"><div class="icon">❌</div><p>Lỗi kết nối API: ${e.message}</p></div></td></tr>`
+    if (isAbortLikeError(e) || requestSeq !== ordersLoadSeq) return
+    if (lastGoodOrdersState?.data?.length) {
+      renderOrdersFromState(lastGoodOrdersState)
+      renderCachedBadgesIfAny()
+      showOmsLoadBanner('Không tải được danh sách đơn. Đang giữ dữ liệu lần trước.', e.detail || e.message || '')
+    } else {
+      window.__SHV_OMS_FEE_RENDERING = false
+      document.getElementById('omsTable').innerHTML =
+        `<tr><td colspan="9"><div class="empty-state"><div class="icon">❌</div><p>Không tải được danh sách đơn.</p><button type="button" class="pag-btn" onclick="loadOrders(window.__SHV_OMS_RETRY_PAGE || 1)">Thử lại</button></div></td></tr>`
+      showOmsLoadBanner('Không tải được danh sách đơn.', e.detail || e.message || '')
+      window.syncOmsFeePopupAfterRender?.()
+    }
+  } finally {
+    if (requestSeq === ordersLoadSeq) {
+      ordersLoadController = null
+      window.__SHV_OMS_FEE_RENDERING = false
+      window.syncOmsFeePopupAfterRender?.()
+    }
   }
 }
 
@@ -300,57 +443,22 @@ async function rebuildCustomerRiskCache(platform = '', shop = '') {
     .catch(error => ({ status: 'error', message: error.message }))
 }
 
-export async function syncOrders() {
-  const btn  = document.querySelector('.btn-sync')
-  const icon = document.getElementById('syncIcon')
-  btn.classList.add('spinning')
-  btn.disabled = true
-  showToast('🔄 Đang đồng bộ trạng thái từ API sàn...')
-  let apiShops = []
+export async function refreshOrdersView() {
+  const btn = document.querySelector('button[onclick="refreshOrdersView()"]')
+  if (btn) btn.disabled = true
   try {
-    const rows = await fetch(API + '/api/shops/api-configs').then(r => r.json())
-    const byIdentity = new Map()
-    for (const shop of rows || []) {
-      if (!shop.has_access_token) continue
-      const platform = String(shop.platform || '').toLowerCase()
-      if (!['shopee', 'lazada'].includes(platform)) continue
-      const key = `${platform}:${shop.api_shop_id || shop.shop_name || shop.user_name}`
-      const existing = byIdentity.get(key)
-      const generatedName = platform === 'shopee' && /^Shopee\s+\d+$/i.test(shop.shop_name || '')
-      if (!existing || !generatedName) byIdentity.set(key, { ...shop, platform })
+    showToast('Đang làm mới bảng đơn hiện tại...')
+    await loadOrders(currentPage)
+    const now = new Date().toLocaleTimeString('vi-VN')
+    const lastSync = document.getElementById('lastSync')
+    if (lastSync) {
+      lastSync.textContent = `Làm mới lúc ${now}`
+      lastSync.style.display = ''
     }
-    apiShops = [...byIdentity.values()]
-  } catch {}
-
-  const shopeeStatuses = 'READY_TO_SHIP,PROCESSED,SHIPPED,COMPLETED,CANCELLED,IN_CANCEL'
-  const shopeeShops = apiShops.filter(shop => shop.platform === 'shopee')
-  const lazadaShops = apiShops.filter(shop => shop.platform === 'lazada')
-  const selectedPlatform = document.getElementById('f_platform')?.value || currentPlatform || ''
-  const selectedShop = document.getElementById('f_shop')?.value || ''
-
-  if (shopeeShops.length || lazadaShops.length) {
-    for (const shop of shopeeShops) {
-      const shopName = encodeURIComponent(shop.shop_name || shop.user_name || shop.api_shop_id)
-      await fetch(API + `/api/orders/sync-api-orders?platform=shopee&shop=${shopName}&statuses=${shopeeStatuses}&limit=120`, { method: 'POST' }).catch(() => null)
-      await fetch(API + `/api/orders/sync-api-status?platform=shopee&shop=${shopName}&limit=500`, { method: 'POST' }).catch(() => null)
-    }
-    for (const shop of lazadaShops) {
-      const shopName = encodeURIComponent(shop.shop_name || shop.user_name || shop.api_shop_id)
-      await syncLazadaDeep(shopName)
-    }
-  } else {
-    await fetch(API + '/api/orders/sync-api-orders?platform=shopee&statuses=READY_TO_SHIP,PROCESSED,SHIPPED,COMPLETED,CANCELLED,IN_CANCEL&limit=80', { method: 'POST' }).catch(() => null)
-    await fetch(API + '/api/orders/sync-api-status?platform=shopee&limit=250', { method: 'POST' }).catch(() => null)
-    await syncLazadaDeep()
+    showToast('Đã làm mới bảng đơn.')
+  } finally {
+    if (btn) btn.disabled = false
   }
-  await syncReturnStatusesDeep(selectedPlatform, selectedShop)
-  await rebuildCustomerRiskCache(selectedPlatform, selectedShop)
-  await loadOrders(1)
-  btn.classList.remove('spinning')
-  btn.disabled = false
-  const now = new Date().toLocaleTimeString('vi-VN')
-  document.getElementById('lastSync').textContent = `Cập nhật lúc ${now}`
-  showToast('✅ Đồng bộ xong!')
 }
 
 // ── RESET FILTER ─────────────────────────────────────────────────────
@@ -389,15 +497,6 @@ function setValue(id, value) {
 function setChecked(id, checked) {
   const el = document.getElementById(id)
   if (el) el.checked = checked
-}
-
-function escapeHtml(value = '') {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
 }
 
 function normalizePlatform(platform = '') {
@@ -517,11 +616,13 @@ export function openBotSettings() {
   openBotSettingsModal();
 }
 
+export function openManualBotRun() {
+  openManualBotRunModal();
+}
+
 export function openAdvancedApiFeatures() {
   openAdvancedApiFeaturesModal();
 }
-
-export { openOrderChatResolver }
 
 // Mở lại cổng xuất khẩu cho các file HTML gọi đến
 export { fmt, fmtDate, showToast, copyText, closeModal };
@@ -545,6 +646,7 @@ window.switchMainTab = function(mainStatus) {
 const subConfig = {
         'PENDING': [
             { id: 'Chưa xử lý,Chưa Xử Lý,Chờ xác nhận,confirmed,ready_to_ship,READY_TO_SHIP,LOGISTICS_PENDING_ARRANGE', label: 'Chưa Xử Lý' },
+            { id: 'WAITING_LABEL', label: 'Chờ Tem In' },
             { id: 'Đã xử lý,Đã Xử Lý,Chờ lấy hàng,PROCESSED,LOGISTICS_REQUEST_CREATED,đã chuẩn bị', label: 'Đã Xử Lý' },
             { id: 'LOGISTICS_PACKAGED,Đã đóng gói,Đã Đóng Gói', label: 'Đã Đóng Gói' },
             { id: 'IN_CANCEL', label: 'Khách Yêu Cầu Hủy' },
@@ -677,6 +779,8 @@ if ('serviceWorker' in navigator && !window.__omsOrderPushListenerReady) {
     navigator.serviceWorker.addEventListener('message', event => handleOrderPushMessage(event.data || {}));
 }
 
+// Giữ số liệu sidebar từ cache ngay lúc hard reload, trước khi API badges trả về.
+renderCachedBadgesIfAny()
 loadShopList()
 initLabelSettings()
 initOmsNotifications({

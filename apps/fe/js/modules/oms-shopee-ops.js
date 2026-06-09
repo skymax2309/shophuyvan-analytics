@@ -244,7 +244,7 @@ function ensureOpsModal() {
           </select>
           <input id="shopeeOpsSearch" placeholder="Tìm mã đơn, khách, tracking...">
           <button class="shopee-ops-btn" onclick="loadShopeeOps()">Tải dữ liệu</button>
-          <button class="shopee-ops-btn secondary" onclick="syncOrders()">Đồng bộ đơn</button>
+          <button class="shopee-ops-btn secondary" onclick="openBotSettings()">Tự động vận hành</button>
         </div>
         <div class="shopee-ops-actionbar">
           <button class="shopee-ops-btn warning" onclick="dryRunShopeeMassShip()">Dry-run xử lý loạt</button>
@@ -422,7 +422,7 @@ function renderOps(data) {
                     </td>
                     <td>
                       <button class="shopee-ops-btn secondary" onclick="checkShopeeOpsOrder(${orderId})">Kiểm tra tracking</button>
-                      <button class="shopee-ops-btn secondary" onclick="refreshShopeeOpsLabel(${orderId})">Tạo/tải tem</button>
+                      <button class="shopee-ops-btn secondary" onclick="refreshShopeeOpsLabel(${orderId})">Tải tem read-only</button>
                       <button class="shopee-ops-btn secondary" onclick="viewShopeeOpsLabel(${orderId})">Xem tem</button>
                       <button class="shopee-ops-btn warning" onclick="dryRunShopeeShip(${orderId})">Dry-run gọi ship</button>
                     </td>
@@ -495,6 +495,7 @@ export async function dryRunShopeeShip(orderSn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'ship_order', payload: { order_sn: orderSn } })
     })
+    if (data.error) throw new Error(data.message || data.error)
     if (!data.dry_run) throw new Error('Phản hồi không phải dry-run, đã chặn trên frontend.')
     showToast('Dry-run ship_order OK. Chưa gửi thao tác lên Shopee.')
   } catch (error) {
@@ -514,6 +515,7 @@ export async function dryRunShopeeMassShip() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'mass_ship_order', payload: { order_list: orders } })
     })
+    if (data.error) throw new Error(data.message || data.error)
     if (!data.dry_run) throw new Error('Phản hồi không phải dry-run, đã chặn trên frontend.')
     showToast(`Dry-run mass_ship_order OK cho ${orders.length} đơn. Chưa gửi lên Shopee.`)
   } catch (error) {
@@ -522,13 +524,13 @@ export async function dryRunShopeeMassShip() {
 }
 
 export async function refreshShopeeOpsLabel(orderSn) {
-  const ok = window.confirm(`Tạo/tải tem vận chuyển thật từ Shopee cho đơn ${orderSn}? Thao tác này chỉ tạo/tải file tem, không gọi ship_order.`)
+  const ok = window.confirm(`Tải tem vận chuyển read-only từ Shopee cho đơn ${orderSn}? OMS chỉ tải document đã sẵn sàng, không gọi create_shipping_document, ship_order hoặc sắp xếp vận chuyển.`)
   if (!ok) return
   try {
     const data = await apiJson(`/api/label/${encodeURIComponent(orderSn)}/refresh`, { method: 'POST' })
-    showToast(`Đã tạo/tải tem ${orderSn}: ${data.content_type || data.storage_key || 'OK'}`)
+    showToast(`Đã tải tem read-only ${orderSn}: ${data.content_type || data.storage_key || 'OK'}`)
   } catch (error) {
-    showToast('Lỗi tạo/tải tem: ' + error.message)
+    showToast('Lỗi tải tem read-only: ' + error.message)
   }
 }
 

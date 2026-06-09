@@ -22,13 +22,8 @@
     const params = new URLSearchParams(window.location.search)
     const next = params.get('next')
     if (next) return next
-    if (user?.role === 'warehouse') return 'oms-dashboard.html'
-    // CSKH vào thẳng trang chat sàn riêng để thao tác tập trung.
-    if (user?.role === 'cskh') return 'chat-marketplace.html'
-    // Reviewer của Shopee cần vào trang chứng minh tích hợp ngay sau khi đăng nhập.
-    if (user?.role === 'reviewer') return 'shopee-review.html'
-    if (user?.role === 'admin') return 'admin-users.html'
-    return 'profit-dashboard.html'
+    // Sau đăng nhập đưa về trung tâm chọn dashboard để người vận hành tự vào đúng luồng.
+    return '../index.html'
   }
 
   function escapeHtml(value) {

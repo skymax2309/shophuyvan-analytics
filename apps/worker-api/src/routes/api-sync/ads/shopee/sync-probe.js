@@ -20,6 +20,8 @@ export function installApiSyncAdsShopeeSyncProbe(core) {
   const hourlyRowsToDailySnapshots = (...args) => core.hourlyRowsToDailySnapshots(...args)
   const normalizeAdsCampaignRow = (...args) => core.normalizeAdsCampaignRow(...args)
   const normalizeShopeeAllCpcDailySnapshots = (...args) => core.normalizeShopeeAllCpcDailySnapshots(...args)
+  const normalizeShopeeHourlyRows = (...args) => core.normalizeShopeeHourlyRows(...args)
+  const normalizeShopeeProductCampaignDailySnapshots = (...args) => core.normalizeShopeeProductCampaignDailySnapshots(...args)
   const normalizeShopeeProductCampaignHourlyPerformance = (...args) => core.normalizeShopeeProductCampaignHourlyPerformance(...args)
   const parseAdsDate = (...args) => core.parseAdsDate(...args)
   const parseBooleanOption = (...args) => core.parseBooleanOption(...args)

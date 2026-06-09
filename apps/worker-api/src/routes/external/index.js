@@ -16,6 +16,10 @@ import {
   listExternalProducts
 } from '../../core/external/product-core.js'
 import {
+  getExternalShopeeFullProductByItemId,
+  listExternalShopeeFullProducts
+} from '../../core/external/shopee-product-core.js'
+import {
   cancelExternalReservation,
   checkExternalInventory,
   commitExternalReservation,
@@ -123,7 +127,31 @@ export async function handleExternalApi(request, env, cors, ctx) {
       return paginatedResponse(result.data, result.pagination, { cors, requestId })
     }
 
-    let match = pathMatch(url.pathname, /^\/api\/external\/products\/sku\/([^/]+)\/price$/)
+    if (request.method === 'GET' && url.pathname === '/api/external/shopee/products/full') {
+      action = 'shopee.products.full'
+      const data = await listExternalShopeeFullProducts(env, url)
+      await logSuccess(env, request, requestId, action, {
+        shop: data.shop.user_name || data.shop.shop_name,
+        returned: data.pagination.returned,
+        item_status: data.item_status
+      })
+      return successResponse(data, { cors, requestId })
+    }
+
+    let match = pathMatch(url.pathname, /^\/api\/external\/shopee\/products\/full\/([^/]+)$/)
+    if (request.method === 'GET' && match) {
+      action = 'shopee.products.detail'
+      const data = await getExternalShopeeFullProductByItemId(env, url.searchParams.get('shop'), match[0], {
+        include_metrics: url.searchParams.get('include_metrics')
+      })
+      await logSuccess(env, request, requestId, action, {
+        shop: data.shop.user_name || data.shop.shop_name,
+        item_id: data.item.item_id
+      })
+      return successResponse(data, { cors, requestId })
+    }
+
+    match = pathMatch(url.pathname, /^\/api\/external\/products\/sku\/([^/]+)\/price$/)
     if (request.method === 'GET' && match) {
       action = 'products.price'
       const data = await getExternalProductPrice(env, match[0])

@@ -11,12 +11,24 @@ export function installApiSyncLazadaOrdersSync(core) {
   const mapLazadaTraceStatus = (...args) => core.mapLazadaTraceStatus(...args)
   const mapPlatformStatus = (...args) => core.mapPlatformStatus(...args)
   const normalizeLazadaDate = (...args) => core.normalizeLazadaDate(...args)
+  const marketplaceContactFromLazadaOrder = (...args) => core.marketplaceContactFromLazadaOrder(...args)
   const nowBangkokText = core.nowBangkokText
   const pickFee = (...args) => core.pickFee(...args)
   const preferOrderOrItems = (...args) => core.preferOrderOrItems(...args)
   const saveOrderFeeDetails = (...args) => core.saveOrderFeeDetails(...args)
+  const saveOrderTrackingCore = (...args) => core.saveOrderTrackingCore(...args)
+  const upsertMarketplaceCustomerContact = (...args) => core.upsertMarketplaceCustomerContact(...args)
   const toMoney = (...args) => core.toMoney(...args)
+  const trackingSummary = (...args) => core.trackingSummary(...args)
   const uniqueTexts = (...args) => core.uniqueTexts(...args)
+
+  function parseLazadaSyncBooleanOption(value, defaultValue = true) {
+    if (value === undefined || value === null || value === '') return defaultValue
+    if (typeof value === 'boolean') return value
+    const text = cleanText(value).toLowerCase()
+    return !['0', 'false', 'off', 'no'].includes(text)
+  }
+  core.parseLazadaSyncBooleanOption = parseLazadaSyncBooleanOption
 
   async function listLazadaOrders(env, shop, options = {}) {
     const limit = Math.max(1, Math.min(Number(options.limit || 100) || 100, 300))
@@ -78,12 +90,12 @@ export function installApiSyncLazadaOrdersSync(core) {
   }
 
   async function getLazadaTraceForShop(env, shop, sellerId, orderId, packageIds) {
-    if (!sellerId || !packageIds.length) return null
+    if (!orderId || !packageIds.length) return null
+    // Lazada Open Platform đặt tên tham số trace là ofcPackageIdList, không phải dạng snake_case.
     return callLazadaWithShop(env, shop, '/logistic/order/trace', {
-      seller_id: sellerId,
       order_id: orderId,
       locale: 'vi_VN',
-      ofc_package_id_list: JSON.stringify(packageIds)
+      ofcPackageIdList: JSON.stringify(packageIds)
     })
   }
 
@@ -118,6 +130,34 @@ export function installApiSyncLazadaOrdersSync(core) {
     )
   }
   core.normalizeLazadaTracking = normalizeLazadaTracking
+
+  function normalizeLazadaPaymentMethod(order = {}, firstItem = {}) {
+    return firstText(
+      order.payment_method,
+      order.PaymentMethod,
+      order.paymentMethod,
+      order.payment_type,
+      order.pay_method,
+      firstItem.payment_method,
+      firstItem.PaymentMethod
+    )
+  }
+  core.normalizeLazadaPaymentMethod = normalizeLazadaPaymentMethod
+
+  function normalizeLazadaCustomerNote(order = {}, firstItem = {}) {
+    return firstText(
+      order.remarks,
+      order.Remarks,
+      order.buyer_note,
+      order.customer_note,
+      order.note,
+      order.extra_attributes?.remarks,
+      firstItem.remarks,
+      firstItem.buyer_note,
+      firstItem.customer_note
+    )
+  }
+  core.normalizeLazadaCustomerNote = normalizeLazadaCustomerNote
 
   function firstArrayText(value) {
     if (!Array.isArray(value)) return ''
@@ -215,6 +255,8 @@ export function installApiSyncLazadaOrdersSync(core) {
       const feeDetail = normalizeLazadaFeeDetail(shop, order, items)
       if (feeDetail) payload.feeDetails.push(feeDetail)
       const firstItem = items[0] || {}
+      const paymentMethod = normalizeLazadaPaymentMethod(order, firstItem)
+      const customerNote = normalizeLazadaCustomerNote(order, firstItem)
       const rawStatus = firstText(
         Array.isArray(order?.statuses) ? order.statuses[0] : '',
         firstItem.status,
@@ -247,11 +289,18 @@ export function installApiSyncLazadaOrdersSync(core) {
       }
 
       const revenue = toMoney(order.price || order.order_total || order.total_amount) || itemTotal
+      const paymentTime = normalizeLazadaDate(order.payment_time || order.paid_at || order.payment_at || order.pay_time)
       payload.orders.push({
         order_id: orderId,
         shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
         platform: 'lazada',
         customer_name: firstText(order.customer_first_name, order.customer_name, order.address_shipping?.first_name, 'Khach Lazada'),
+        payment_method: paymentMethod,
+        payment_method_source: paymentMethod ? 'lazada_open_platform:/orders/get' : '',
+        payment_time: paymentTime,
+        payment_time_source: paymentTime ? 'lazada_open_platform:/orders/get.payment_time' : '',
+        customer_note: customerNote,
+        customer_note_source: customerNote ? 'lazada_open_platform:/orders/get.remarks' : '',
         order_date: normalizeLazadaDate(order.created_at || order.created_time || order.create_time),
         revenue,
         raw_revenue: revenue,
@@ -275,10 +324,14 @@ export function installApiSyncLazadaOrdersSync(core) {
     const orderRows = await listLazadaOrders(env, shop, { ...options, warnings })
     const itemRowsByOrder = new Map()
     const traceStatusByOrder = new Map()
-    let sellerId = ''
     let traced = 0
     const focusedShopSync = !!cleanText(options.shop)
-    const traceBudget = focusedShopSync ? Math.min(orderRows.length, 12) : Math.min(orderRows.length, 4)
+    const fetchTrace = parseLazadaSyncBooleanOption(options.fetch_trace ?? options.fetchTrace, true)
+    const requestedTraceBudget = Number(options.trace_budget ?? options.traceBudget)
+    const defaultTraceBudget = focusedShopSync ? Math.min(orderRows.length, 12) : Math.min(orderRows.length, 4)
+    const traceBudget = fetchTrace
+      ? Math.max(0, Math.min(orderRows.length, Number.isFinite(requestedTraceBudget) ? requestedTraceBudget : defaultTraceBudget))
+      : 0
 
     for (const order of orderRows) {
       const orderId = cleanText(order?.order_id)
@@ -290,10 +343,21 @@ export function installApiSyncLazadaOrdersSync(core) {
         const packageIds = uniqueTexts(items.map(item => item.package_id || item.ofc_package_id))
         if (packageIds.length && traced < traceBudget) {
           try {
-            if (!sellerId) sellerId = await getLazadaSellerIdForShop(env, shop)
-            const traceData = await getLazadaTraceForShop(env, shop, sellerId, orderId, packageIds)
+            const traceData = await getLazadaTraceForShop(env, shop, '', orderId, packageIds)
             const traceMapped = mapLazadaTraceStatus(traceData)
             if (traceMapped) traceStatusByOrder.set(orderId, traceMapped)
+            const summary = trackingSummary(traceData)
+            await saveOrderTrackingCore(env, {
+              order_id: orderId,
+              platform: 'lazada',
+              shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
+              tracking_number: normalizeLazadaTracking(order, items[0] || {}),
+              logistics_provider: normalizeLazadaCarrier(order, items[0] || {}),
+              tracking_status_core: firstText(summary.latest_status, summary.latest_description),
+              tracking_source: 'lazada_open_platform:/logistic/order/trace',
+              events: summary.events || [],
+              raw_data: traceData
+            })
             traced++
           } catch (traceError) {
             warnings.push({ order_id: orderId, stage: 'logistic/order/trace', message: traceError.message })
@@ -306,6 +370,12 @@ export function installApiSyncLazadaOrdersSync(core) {
     }
 
     const payload = buildLazadaImportPayload(shop, orderRows, itemRowsByOrder, traceStatusByOrder)
+    let saved_customer_contacts = 0
+    for (const order of orderRows) {
+      const contact = marketplaceContactFromLazadaOrder(shop, order)
+      const savedContact = await upsertMarketplaceCustomerContact(env, contact)
+      if (savedContact.status === 'ok') saved_customer_contacts += 1
+    }
     const saved_fee_details = await saveOrderFeeDetails(env, payload.feeDetails)
     const imported = await importPayload(env, cors, payload)
     return {
@@ -314,6 +384,7 @@ export function installApiSyncLazadaOrdersSync(core) {
       imported_orders: imported.imported_orders || 0,
       imported_items: imported.imported_items || 0,
       traced,
+      saved_customer_contacts,
       saved_fee_details,
       order_push: imported.order_push || { sent: 0, total: 0, notified: 0 },
       warnings

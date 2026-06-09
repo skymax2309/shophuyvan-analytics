@@ -1,0 +1,10 @@
+{
+  "name": "shophuyvan-chat-api",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "check": "node --check src/index.js && node --check src/core/message-normalize.js && node --check src/core/capability-core.js && node --check src/core/shop-display-core.js && node --check src/core/message-merge.js && node --check src/core/conversation-core.js && node --check src/core/zalo-legacy-dedupe-core.js && node --check src/core/conversation-repair-core.js && node --check src/core/send-core.js && node --check src/core/product-card-core.js && node --check src/core/order-card-core.js && node --check src/core/sync-core.js && node --check src/core/browser-helper-core.js && node --check src/core/ai-context-core.js && node --check src/core/ai-policy-core.js && node --check src/core/attachment-core.js && node --check src/core/customer-core.js && node --check src/core/identity-core.js && node --check src/routes/conversations.js && node --check src/routes/messages.js && node --check src/routes/send.js && node --check src/routes/product-cards.js && node --check src/routes/order-cards.js && node --check src/routes/sync.js && node --check src/routes/browser-helper.js && node --check src/routes/webhook-ingest.js && node --check src/routes/ai.js && node --check src/routes/attachments.js && node --check src/routes/settings.js && node --check src/realtime/ws-server.js && node --check src/adapters/webhook-normalize.js && node --check src/adapters/shopee.js && node --check src/adapters/lazada.js && node --check src/adapters/tiktok.js && node --check src/adapters/facebook.js && node --check src/adapters/zalo.js",
+    "test": "npm run check && node ../../scripts/test-zalo-legacy-dedupe.mjs"
+  }
+}

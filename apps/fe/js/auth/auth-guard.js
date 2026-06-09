@@ -27,7 +27,6 @@
     'button[onclick*="openLabelSettings"]',
     'button[onclick*="openBotSettings"]',
     'button[onclick*="triggerBot"]',
-    'button[onclick*="syncOrders"]',
     'button[onclick*="delete"]',
     'button[onclick*="save"]',
     'button[onclick*="upload"]',
@@ -46,9 +45,6 @@
     'openApiAuthModal',
     'openLabelSettings',
     'openBotSettings',
-    'triggerBotStatus',
-    'triggerBotScrape',
-    'syncOrders',
     'saveShopeeApiConfig',
     'connectShopeeApi',
     'connectShopeeSelected',
@@ -66,11 +62,16 @@
   ]
 
   const PAGE_ROLES = {
+    'index.html': ['admin', 'manager', 'warehouse', 'cskh', 'reviewer'],
     'profit-dashboard.html': ['admin', 'manager', 'cskh', 'reviewer'],
     // Trang ADS tách riêng nhưng vẫn dùng cùng quyền vận hành như dashboard doanh thu.
     'ads.html': ['admin', 'manager', 'cskh', 'reviewer'],
-    // Trang chat sàn tách riêng vẫn dùng cùng nhóm quyền như dashboard CSKH.
-    'chat-marketplace.html': ['admin', 'manager', 'cskh', 'reviewer'],
+    // Trang Khuyến mãi sàn tách khỏi ADS; reviewer chỉ xem, admin/manager mới thao tác ghi thật.
+    'promotions.html': ['admin', 'manager', 'cskh', 'reviewer'],
+    'promotions-list.html': ['admin', 'manager', 'cskh', 'reviewer'],
+    'flash-auto.html': ['admin', 'manager', 'cskh', 'reviewer'],
+    // Trung tâm Chat/CSKH mới tách sang service riêng nhưng vẫn giữ quyền vận hành CSKH.
+    'chat-cskh.html': ['admin', 'manager', 'cskh', 'reviewer'],
     // Trang đánh giá là luồng CSKH/API read-first; reviewer chỉ xem, admin/manager/CSKH mới thao tác.
     'reviews.html': ['admin', 'manager', 'cskh', 'reviewer'],
     // Trang cầu nối tool Zalo cũng chỉ cho nhóm vận hành truy cập.
@@ -81,9 +82,11 @@
     'product-detail.html': ['admin', 'manager', 'warehouse', 'reviewer'],
     'sku.html': ['admin', 'manager', 'warehouse'],
     'report-upload.html': ['admin', 'manager', 'reviewer'],
+    'import-orders.html': ['admin', 'manager', 'warehouse'],
     'cost-settings.html': ['admin'],
     'admin-purchase.html': ['admin', 'manager', 'warehouse'],
     'import-sku-tool.html': ['admin', 'manager', 'warehouse'],
+    'scan-qr.html': ['admin', 'manager', 'warehouse'],
     'cctv_packing.html': ['admin', 'manager', 'warehouse'],
     'dashboard_video.html': ['admin', 'manager', 'warehouse', 'reviewer'],
     'admin-users.html': ['admin'],
@@ -113,13 +116,22 @@
   }
 
   function loginUrl() {
-    return `login.html?next=${encodeURIComponent(window.location.href)}`
+    const loginPath = isRootEntryPage() ? 'pages/login.html' : 'login.html'
+    return `${loginPath}?next=${encodeURIComponent(window.location.href)}`
   }
 
   function getPageName() {
     const path = window.location.pathname || ''
-    const name = path.split('/').pop() || 'profit-dashboard.html'
+    const name = path.split('/').pop() || 'index.html'
     return name.includes('.') ? name : `${name}.html`
+  }
+
+  function isRootEntryPage() {
+    return getPageName() === 'index.html' && !(window.location.pathname || '').includes('/pages/')
+  }
+
+  function dashboardHref() {
+    return isRootEntryPage() ? 'pages/profit-dashboard.html' : 'profit-dashboard.html'
   }
 
   function isApiUrl(input) {
@@ -144,6 +156,14 @@
     return path === '/api/admin/auth/logout' || path === '/api/admin/auth/login'
   }
 
+  function isPublicReadApiPath(path, method) {
+    if (!SAFE_METHODS.has(method)) return false
+    // Các màn hình vận hành ADS/khuyến mãi đọc dữ liệu cross-origin; bỏ Authorization để tránh preflight cache làm kẹt UI.
+    return path.startsWith('/api/ads/') ||
+      path.startsWith('/api/discounts/') ||
+      path.startsWith('/api/products/marketplace-preview')
+  }
+
   function readonlyResponse() {
     return new Response(JSON.stringify({ ok: false, error: REVIEWER_READONLY_MESSAGE }), {
       status: 403,
@@ -158,6 +178,9 @@
 
     const method = getRequestMethod(input, init)
     const path = getApiPath(input)
+    if (isPublicReadApiPath(path, method)) {
+      return nativeFetch(input, { ...init, cache: init.cache || 'no-store' })
+    }
     const user = getStoredUser()
     if (user?.role === 'reviewer' && !SAFE_METHODS.has(method) && !isAuthMutationPath(path)) {
       return Promise.resolve(readonlyResponse())
@@ -192,7 +215,7 @@
           <p>Tài khoản <b>${escapeHtml(user?.username || '')}</b> đang là quyền <b>${escapeHtml(user?.role_label || user?.role || '')}</b>.</p>
           <p>Màn hình này chỉ dành cho: ${allowedRoles.map(escapeHtml).join(', ')}.</p>
           <div class="auth-denied-actions">
-            <a href="profit-dashboard.html">Về dashboard</a>
+            <a href="${dashboardHref()}">Về dashboard</a>
             <button type="button" onclick="SHV_AUTH.logout()">Đăng xuất</button>
           </div>
         </section>

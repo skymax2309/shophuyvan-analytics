@@ -112,6 +112,10 @@ export function buildShopeeActionResult(input = {}) {
     message: cleanShopeeActionText(input.message || error.message),
     verified,
     verify_result: redactShopeeDebug(input.verify_result || null),
+    write_status: cleanShopeeActionText(input.write_status),
+    promotion_sync_status: cleanShopeeActionText(input.promotion_sync_status),
+    write_source: cleanShopeeActionText(input.write_source),
+    readback_source: cleanShopeeActionText(input.readback_source),
     sent_to_shopee: input.sent_to_shopee === true,
     applied: input.sent_to_shopee === true && ok,
     dry_run: input.dry_run === true

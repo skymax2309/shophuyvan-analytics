@@ -1,19 +1,24 @@
-import { loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
+import { loadOrders, loadShopList, switchStatus, switchType, switchPlatform,
            showPickList, resetFilter, debounceLoad, toggleAllCheck, 
            closeModal, copyText, onCheck, openLabelSettings,
-           openBotSettings, openAdvancedApiFeatures, onPlatformFilterChange, onShopFilterChange,
-           openOrderChatResolver,
-       setPageSize } from '../../oms-dashboard/oms-main.js?v=label-real-preview2-20260509';
+           openBotSettings, openManualBotRun, openAdvancedApiFeatures, onPlatformFilterChange, onShopFilterChange,
+           refreshOrdersView,
+       setPageSize } from '../../oms-dashboard/oms-main.js?v=oms-ops-settings-20260523c';
+import { initOmsCustomerChatActions } from '../../modules/oms-chat-actions.js?v=order-confirm-20260527c';
 
-  // Expose to global scope (vì HTML dùng onclick="...")
+  // HTML cũ vẫn dùng onclick global, nên giữ alias rõ để nút production không bị gãy.
   Object.assign(window, {
-    loadOrders, loadShopList, syncOrders, switchStatus, switchType, switchPlatform,
+    loadOrders, loadShopList, switchStatus, switchType, switchPlatform,
     showPickList, resetFilter, debounceLoad, toggleAllCheck, 
-    closeModal, copyText, onCheck, openLabelSettings, openBotSettings,
+    closeModal, copyText, onCheck, openLabelSettings, openBotSettings, openManualBotRun,
+    openBotSettingsModal: openBotSettings,
+    openManualBotRunModal: openManualBotRun,
     openAdvancedApiFeatures, onPlatformFilterChange, onShopFilterChange,
-    openOrderChatResolver,
+    refreshOrdersView,
     setPageSize
   });
+
+  initOmsCustomerChatActions();
 
   const omsSearchInput = document.getElementById('f_search');
   if (omsSearchInput) omsSearchInput.value = '';

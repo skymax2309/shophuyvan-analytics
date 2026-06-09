@@ -29,7 +29,7 @@ function renderCalcResult(res) {
 
   const totalFeeAmt = (res.fee_platform||0)+(res.fee_payment||0)+(res.fee_affiliate||0)+(res.fee_ads||0)+(res.fee_piship||0)
   rows.splice(7, 0, {
-    label: "  └ Tổng phí sàn",
+    label: "  └ Tổng khấu trừ",
     val: -totalFeeAmt,
     pct: pctOf(totalFeeAmt),
     color: "#d97706", sub: true, bold: false

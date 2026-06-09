@@ -65,6 +65,8 @@ function shopIdentity(shop = {}) {
 async function updateShopDiagnostics(env, shop, fields) {
   await ensureShopSyncDiagnosticsColumns(env)
   const identity = shopIdentity(shop)
+  const apiShopId = identity.apiShopId.toLowerCase()
+  const shopName = identity.shop.toLowerCase()
   const assignments = Object.keys(fields).map(key => `${key} = ?`).join(', ')
   const values = Object.values(fields)
   if (identity.id) {
@@ -76,11 +78,81 @@ async function updateShopDiagnostics(env, shop, fields) {
     SET ${assignments}
     WHERE LOWER(COALESCE(platform, '')) = ?
       AND (
-        COALESCE(api_shop_id, '') = ?
-        OR COALESCE(shop_name, '') = ?
-        OR COALESCE(user_name, '') = ?
+        LOWER(COALESCE(api_shop_id, '')) = ?
+        OR LOWER(COALESCE(shop_name, '')) = ?
+        OR LOWER(COALESCE(user_name, '')) = ?
       )
-  `).bind(...values, identity.platform, identity.apiShopId, identity.shop, identity.shop).run()
+  `).bind(...values, identity.platform, apiShopId, shopName, shopName).run()
+}
+
+function normalizeOrderSourceMode(value) {
+  const mode = cleanText(value).toLowerCase()
+  if (['api_sync', 'browser_sync', 'import_file_sync', 'manual_reference'].includes(mode)) return mode
+  if (mode.includes('api')) return 'api_sync'
+  if (mode.includes('browser')) return 'browser_sync'
+  if (mode.includes('import') || mode.includes('file')) return 'import_file_sync'
+  return 'manual_reference'
+}
+
+function importedOrderIdentity(order = {}, fallback = {}) {
+  return {
+    platform: cleanText(order.platform || fallback.platform).toLowerCase(),
+    shop: cleanText(order.shop || order.shop_name || order.user_name || fallback.shop || fallback.shop_name || fallback.user_name || fallback.api_shop_id),
+    api_shop_id: cleanText(order.api_shop_id || fallback.api_shop_id),
+    source_mode: normalizeOrderSourceMode(order.source_mode || order.sourceMode || fallback.source_mode)
+  }
+}
+
+export async function recordImportedOrderSyncDiagnostics(env, orders = [], result = {}, error = null) {
+  if (!Array.isArray(orders) || !orders.length) return { updated_shops: 0, shops: [] }
+
+  const status = syncStatusFromResult(result, error)
+  const lastError = syncErrorFromResult(result, error)
+  const timestamp = cleanText(result.synced_at || result.source_updated_at || result.sourceUpdatedAt) || new Date().toISOString()
+  const grouped = new Map()
+
+  for (const order of orders) {
+    const identity = importedOrderIdentity(order, result)
+    if (!identity.platform || !identity.shop) continue
+    const key = `${identity.platform}|${identity.shop.toLowerCase()}|${identity.api_shop_id.toLowerCase()}`
+    const existing = grouped.get(key) || {
+      platform: identity.platform,
+      shop_name: identity.shop,
+      user_name: identity.shop,
+      api_shop_id: identity.api_shop_id,
+      source_mode: identity.source_mode,
+      count: 0
+    }
+    existing.count += 1
+    existing.source_mode = identity.source_mode
+    grouped.set(key, existing)
+  }
+
+  const shops = []
+  for (const item of grouped.values()) {
+    await updateShopDiagnostics(env, item, {
+      last_order_sync_at: timestamp,
+      last_order_sync_status: status,
+      last_order_sync_error: lastError
+    })
+    shops.push({
+      platform: item.platform,
+      shop: item.shop_name,
+      source_mode: item.source_mode,
+      count: item.count,
+      status
+    })
+  }
+
+  if (status !== 'ok') {
+    console.warn('[ORDER_IMPORT_DIAGNOSTIC]', {
+      status,
+      message: lastError,
+      shops: shops.map(item => `${item.platform}:${item.shop}`)
+    })
+  }
+
+  return { updated_shops: shops.length, shops }
 }
 
 export async function recordShopOrderSyncDiagnostic(env, shop, result = {}, error = null) {
@@ -132,4 +204,3 @@ export async function recordShopWebhookDiagnostic(env, event = {}, error = null)
     last_webhook_event_error: sanitizeApiSyncError(error || event.error || '')
   })
 }
-

@@ -144,6 +144,10 @@ export function createReturnScanner(ctx) {
       const data = await fetchPackingScan(scanCode)
       const orderId = data.order?.order_id || scanCode
       const label = data.label || {}
+      const canRefreshLabel = label.label_status === 'eligible'
+        && label.label_download_supported === true
+        && label.label_download_read_only === true
+        && label.label_download_requires_manual !== true
       setDetailResult({
         tone: label.valid ? 'success' : 'warning',
         title: label.valid ? `Tem hợp lệ cho đơn ${orderId}` : `Chưa có tem đã lưu cho đơn ${orderId}`,
@@ -154,7 +158,7 @@ export function createReturnScanner(ctx) {
           data.evidence?.label_required_for_packing ? 'TikTok cần có tem đã lưu trước khi chốt Đã đóng gói.' : ''
         ].filter(Boolean),
         link: label.valid ? { href: `${API}/api/label/${encodeURIComponent(orderId)}.pdf`, label: 'Mở tem' } : null,
-        buttons: label.valid ? [] : [{ label: 'Tải lại tem', attr: `data-label-refresh-detail="${escapeHtml(orderId)}"` }],
+        buttons: !label.valid && canRefreshLabel ? [{ label: 'Tải tem read-only', attr: `data-label-refresh-detail="${escapeHtml(orderId)}"` }] : [],
         data
       })
     } catch (error) {

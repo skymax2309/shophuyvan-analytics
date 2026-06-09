@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Khách hàng sàn</title>
+  <link rel="stylesheet" href="../css/theme/shophuyvan-design-tokens.css?v=customer-chat-core-20260603">
+  <link rel="stylesheet" href="../css/customer-database/customer-database.css?v=customer-chat-core-20260603">
+  <script src="../js/auth/auth-guard.js?v=customer-chat-core-20260603"></script>
+</head>
+<body>
+  <main class="customer-app">
+    <header class="customer-head">
+      <a class="back-link" href="oms-dashboard.html">← OMS</a>
+      <div>
+        <h1>Khách hàng sàn</h1>
+        <p>Gom khách từ Order Core và Chat Core: Shopee, Lazada, TikTok, Zalo, Facebook.</p>
+      </div>
+      <div class="head-actions">
+        <button type="button" class="ghost-btn" id="btnDownloadCustomers">Tải CSV</button>
+        <button type="button" class="primary-btn" id="btnRebuildCustomers">Đồng bộ lại Core</button>
+      </div>
+    </header>
+
+    <section class="summary-grid" id="customerSummary" aria-label="Tổng quan khách hàng">
+      <div><span>Tổng khách</span><b>0</b></div>
+      <div><span>Sau lọc trùng</span><b>0</b></div>
+      <div><span>Sàn TMĐT</span><b>0</b></div>
+      <div><span>Zalo/Facebook</span><b>0</b></div>
+      <div><span>Có SĐT</span><b>0</b></div>
+      <div><span>Có địa chỉ</span><b>0</b></div>
+    </section>
+
+    <section class="filter-row">
+      <select id="customerPlatform">
+        <option value="">Tất cả sàn</option>
+        <option value="shopee">Shopee</option>
+        <option value="tiktok">TikTok</option>
+        <option value="lazada">Lazada</option>
+        <option value="zalo">Zalo</option>
+        <option value="facebook">Facebook</option>
+      </select>
+      <input id="customerSearch" type="search" placeholder="Tìm tên, số điện thoại, ID khách, mã đơn, địa chỉ">
+      <button type="button" class="ghost-btn" id="btnCustomerRefresh">Làm mới</button>
+    </section>
+
+    <section class="table-shell" aria-label="Danh sách khách hàng sàn">
+      <div class="customer-table-head">
+        <span>Tên khách hàng</span>
+        <span>SĐT</span>
+        <span>Địa chỉ</span>
+        <span>ID khách hàng</span>
+        <span>Nguồn</span>
+      </div>
+      <div id="customerList" class="customer-list">
+        <div class="empty-state">Đang tải dữ liệu...</div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="../js/customer-database/customer-database.js?v=customer-chat-core-20260603"></script>
+</body>
+</html>

@@ -10,6 +10,7 @@ export function installApiSyncCommonHandlers(core) {
   const cleanupLegacyOrderSourceMeta = core.cleanupLegacyOrderSourceMeta
   const collectShopeePackageStatus = core.collectShopeePackageStatus
   const ensureAdsCampaignSnapshotsTable = (...args) => core.ensureAdsCampaignSnapshotsTable(...args)
+  const executeLazadaPromoAction = (...args) => core.executeLazadaPromoAction(...args)
   const getApiShops = (...args) => core.getApiShops(...args)
   const importLazadaShop = (...args) => core.importLazadaShop(...args)
   const importShopeeShop = (...args) => core.importShopeeShop(...args)
@@ -129,7 +130,8 @@ export function installApiSyncCommonHandlers(core) {
             shop: shopFilter,
             statuses,
             fetch_tracking: shopeeFetchTracking,
-            fetch_fees: shopeeFetchFees
+            fetch_fees: shopeeFetchFees,
+            suppress_push: options.suppress_push ?? options.suppressPush
           })))
         }
         if (platform === 'lazada') {
@@ -137,7 +139,10 @@ export function installApiSyncCommonHandlers(core) {
             days: options.days,
             limit: lazadaSafeLimit,
             shop: shopFilter,
-            offset: options.offset
+            offset: options.offset,
+            fetch_trace: options.fetch_trace ?? options.fetchTrace,
+            trace_budget: options.trace_budget ?? options.traceBudget,
+            suppress_push: options.suppress_push ?? options.suppressPush
           })))
         }
       }
@@ -182,13 +187,22 @@ export function installApiSyncCommonHandlers(core) {
     const offsetRows = Math.max(0, Number(options.offset || 0) || 0)
     const days = Math.max(1, Math.min(Number(options.days || 60) || 60, 120))
     const platforms = platformFilter ? [platformFilter] : ['shopee', 'lazada']
+    const shopeeFetchFees = parseBooleanOption(options.fetchFees ?? options.fetch_fees, true)
+    const shopeeFetchTracking = parseBooleanOption(options.fetchTracking ?? options.fetch_tracking, true)
     const results = []
 
     for (const platform of platforms) {
       const shops = await getApiShops(env, platform, options.shop)
       for (const shop of shops) {
-        if (platform === 'lazada') results.push(await runShopSyncStep(env, shop, 'statuses', () => syncLazadaShop(env, shop, limitPerShop, onlyOrderId, offsetRows, days)))
-        if (platform === 'shopee') results.push(await runShopSyncStep(env, shop, 'statuses', () => syncShopeeShop(env, shop, limitPerShop, onlyOrderId, offsetRows, days)))
+        if (platform === 'lazada') results.push(await runShopSyncStep(env, shop, 'statuses', () => syncLazadaShop(env, shop, limitPerShop, onlyOrderId, offsetRows, days, {
+          fetch_trace: options.fetch_trace ?? options.fetchTrace,
+          suppress_push: options.suppress_push ?? options.suppressPush
+        })))
+        if (platform === 'shopee') results.push(await runShopSyncStep(env, shop, 'statuses', () => syncShopeeShop(env, shop, limitPerShop, onlyOrderId, offsetRows, days, {
+          fetch_fees: shopeeFetchFees,
+          fetch_tracking: shopeeFetchTracking,
+          suppress_push: options.suppress_push ?? options.suppressPush
+        })))
       }
     }
 
@@ -204,6 +218,8 @@ export function installApiSyncCommonHandlers(core) {
       updated: results.reduce((sum, item) => sum + item.updated, 0),
       fee_updated: results.reduce((sum, item) => sum + (item.fee_updated || 0), 0),
       saved_fee_details: results.reduce((sum, item) => sum + (item.saved_fee_details || 0), 0),
+      shopee_fetch_fees: shopeeFetchFees,
+      shopee_fetch_tracking: shopeeFetchTracking,
       source_cleanup,
       order_push: {
         sent: results.reduce((sum, item) => sum + (item.order_push?.sent || 0), 0),
@@ -242,6 +258,7 @@ export function installApiSyncCommonHandlers(core) {
       saved: results.reduce((sum, item) => sum + (item.saved || 0), 0),
       inserted: results.reduce((sum, item) => sum + (item.inserted || 0), 0),
       updated: results.reduce((sum, item) => sum + (item.updated || 0), 0),
+      empty_count: results.reduce((sum, item) => sum + (item.empty_count || 0), 0),
       warnings: results.flatMap(item => (item.warnings || []).map(warning => ({ shop: item.shop, ...warning }))),
       shops: results
     }
@@ -282,7 +299,11 @@ export function installApiSyncCommonHandlers(core) {
       orderId: body.order_id || body.orderId || url.searchParams.get('order_id'),
       limit: body.limit || url.searchParams.get('limit'),
       offset: body.offset || url.searchParams.get('offset'),
-      days: body.days || url.searchParams.get('days')
+      days: body.days || url.searchParams.get('days'),
+      fetch_fees: body.fetch_fees ?? body.fetchFees ?? url.searchParams.get('fetch_fees'),
+      fetch_tracking: body.fetch_tracking ?? body.fetchTracking ?? url.searchParams.get('fetch_tracking'),
+      fetch_trace: body.fetch_trace ?? body.fetchTrace ?? url.searchParams.get('fetch_trace'),
+      suppress_push: body.suppress_push ?? body.suppressPush ?? url.searchParams.get('suppress_push')
     })
     return json(result, cors)
   }
@@ -302,7 +323,8 @@ export function installApiSyncCommonHandlers(core) {
       offset: body.offset || url.searchParams.get('offset'),
       statuses: body.statuses || url.searchParams.get('statuses'),
       fetch_fees: body.fetch_fees ?? body.fetchFees ?? url.searchParams.get('fetch_fees'),
-      fetch_tracking: body.fetch_tracking ?? body.fetchTracking ?? url.searchParams.get('fetch_tracking')
+      fetch_tracking: body.fetch_tracking ?? body.fetchTracking ?? url.searchParams.get('fetch_tracking'),
+      suppress_push: body.suppress_push ?? body.suppressPush ?? url.searchParams.get('suppress_push')
     })
     return json(result, cors)
   }
@@ -331,6 +353,24 @@ export function installApiSyncCommonHandlers(core) {
     return json(result, cors)
   }
   core.handleApiProductSync = handleApiProductSync
+
+  async function handleLazadaPromoAction(request, env, cors) {
+    if (request.method !== 'POST') {
+      return json({ status: 'error', error: 'method_not_allowed' }, cors, 405)
+    }
+    const body = await request.json().catch(() => ({}))
+    try {
+      const result = await executeLazadaPromoAction(env, body || {})
+      return json(result, cors)
+    } catch (error) {
+      return json({
+        status: 'error',
+        platform: 'lazada',
+        error: error?.message || String(error)
+      }, cors, 400)
+    }
+  }
+  core.handleLazadaPromoAction = handleLazadaPromoAction
 
   const __test__ = {
     mapPlatformStatus,

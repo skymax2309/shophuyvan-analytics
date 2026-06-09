@@ -17,7 +17,9 @@ export function installApiSyncCommonShopAuth(core) {
   const refreshLazadaTokenForShop = core.refreshLazadaTokenForShop
   const refreshShopeeTokenForShop = core.refreshShopeeTokenForShop
   const saveOrderFeeDetails = (...args) => core.saveOrderFeeDetails(...args)
+  const saveOrderTrackingCore = (...args) => core.saveOrderTrackingCore(...args)
   const signHmacHex = core.signHmacHex
+  const trackingSummary = (...args) => core.trackingSummary(...args)
   const uniqueTexts = (...args) => core.uniqueTexts(...args)
   const updateOrderFinancialsFromFeeDetail = (...args) => core.updateOrderFinancialsFromFeeDetail(...args)
   const updateSyncedOrder = (...args) => core.updateSyncedOrder(...args)
@@ -132,33 +134,38 @@ export function installApiSyncCommonShopAuth(core) {
   core.getLazadaSellerId = getLazadaSellerId
 
   async function getLazadaTrace(accessToken, sellerId, orderId, packageIds) {
-    if (!sellerId || !packageIds.length) return null
+    if (!orderId || !packageIds.length) return null
+    // Lazada trace dùng đúng tham số ofcPackageIdList theo Open Platform.
     return callLazada('/logistic/order/trace', accessToken, {
-      seller_id: sellerId,
       order_id: orderId,
       locale: 'vi_VN',
-      ofc_package_id_list: JSON.stringify(packageIds)
+      ofcPackageIdList: JSON.stringify(packageIds)
     })
   }
   core.getLazadaTrace = getLazadaTrace
 
-  async function syncLazadaShop(env, shop, limitPerShop, onlyOrderId, offsetRows = 0, days = 60) {
+  function parseLazadaStatusBooleanOption(value, defaultValue = true) {
+    if (value === undefined || value === null || value === '') return defaultValue
+    if (typeof value === 'boolean') return value
+    const text = cleanText(value).toLowerCase()
+    return !['0', 'false', 'off', 'no'].includes(text)
+  }
+  core.parseLazadaStatusBooleanOption = parseLazadaStatusBooleanOption
+
+  async function syncLazadaShop(env, shop, limitPerShop, onlyOrderId, offsetRows = 0, days = 60, options = {}) {
     const orders = await getRecentOpenOrders(env, 'lazada', shop, limitPerShop, onlyOrderId, offsetRows, days)
     let checked = 0
     let updated = 0
     let feeUpdated = 0
-    let sellerId = ''
     const feeDetails = []
     const pushRows = []
     const warnings = []
     const cfg = await getCostSettings(env)
+    const fetchTrace = parseLazadaStatusBooleanOption(options.fetch_trace ?? options.fetchTrace, true)
+    const suppressPush = parseLazadaStatusBooleanOption(options.suppress_push ?? options.suppressPush, false)
 
     for (const order of orders) {
       try {
-        if (!sellerId) {
-          const sellerData = await callLazadaWithShop(env, shop, '/seller/get')
-          sellerId = cleanText(sellerData?.data?.seller_id)
-        }
         const data = await callLazadaWithShop(env, shop, '/order/items/get', { order_id: order.order_id })
         const items = Array.isArray(data.data) ? data.data : []
         const first = items[0] || {}
@@ -172,16 +179,27 @@ export function installApiSyncCommonShopAuth(core) {
           tracking ||
           ['LOGISTICS_PACKAGED', 'LOGISTICS_REQUEST_CREATED', 'SHIPPED'].includes(mapped.shipping)
         )
-        if (shouldTrace) {
+        if (fetchTrace && shouldTrace) {
           try {
             const traceData = await callLazadaWithShop(env, shop, '/logistic/order/trace', {
-              seller_id: sellerId,
               order_id: order.order_id,
               locale: 'vi_VN',
-              ofc_package_id_list: JSON.stringify(packageIds)
+              ofcPackageIdList: JSON.stringify(packageIds)
             })
             const traceMapped = mapLazadaTraceStatus(traceData)
             if (traceMapped) mapped = traceMapped
+            const summary = trackingSummary(traceData)
+            await saveOrderTrackingCore(env, {
+              order_id: order.order_id,
+              platform: 'lazada',
+              shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
+              tracking_number: tracking,
+              logistics_provider: carrier,
+              tracking_status_core: firstText(summary.latest_status, summary.latest_description),
+              tracking_source: 'lazada_open_platform:/logistic/order/trace',
+              events: summary.events || [],
+              raw_data: traceData
+            })
           } catch (traceError) {
             warnings.push({
               stage: 'logistic.order.trace',
@@ -214,8 +232,10 @@ export function installApiSyncCommonShopAuth(core) {
     }
 
     const saved_fee_details = await saveOrderFeeDetails(env, feeDetails)
-    let orderPush = { sent: 0, total: 0, notified: 0 }
-    if (pushRows.length) {
+    let orderPush = suppressPush
+      ? { sent: 0, total: pushRows.length, notified: 0, suppressed: true }
+      : { sent: 0, total: 0, notified: 0 }
+    if (pushRows.length && !suppressPush) {
       // Batch reconcile chạy nền ưu tiên cập nhật dữ liệu đơn trước; chỉ gửi push ngay với lô rất nhỏ để tránh quá quota Worker.
       orderPush = await notifyOrderSubscribers(env, pushRows, { reason: 'changed', deliver_now: pushRows.length <= 5 }).catch(error => ({
         sent: 0,

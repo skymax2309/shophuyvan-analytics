@@ -1,0 +1,4 @@
+interface:
+  display_name: "ShopHuyVan Label Tracking Core Guard"
+  short_description: "Guard Label Core and Tracking Core OMS work"
+  default_prompt: "Use this guard before editing ShopHuyVan label, PDF, tracking, timeline, retry_label, or refresh_tracking flows."

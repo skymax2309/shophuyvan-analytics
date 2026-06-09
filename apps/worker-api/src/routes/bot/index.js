@@ -2,11 +2,32 @@ const CONFIG_KEY = 'oms_non_api_bot_settings'
 
 const DEFAULT_SETTINGS = {
   enabled: false,
+  auto_order_enabled: true,
+  auto_status_enabled: true,
+  auto_detail_enabled: true,
+  auto_finance_enabled: true,
+  auto_label_enabled: true,
+  auto_customer_enabled: true,
+  auto_chat_enabled: true,
   auto_start_python: true,
+  order_confirm_message_enabled: false,
+  order_confirm_message_mode: 'draft_only',
+  order_confirm_message_trigger_status: 'new_order',
+  order_confirm_message_template: 'Dạ Shop Huy Vân xác nhận đã nhận đơn {order_id} của mình. Shop sẽ chuẩn bị hàng và bàn giao đơn vị vận chuyển sớm. Mình kiểm tra giúp shop đúng sản phẩm và địa chỉ giao hàng nhé ạ.',
   order_min_minutes: 10,
   order_max_minutes: 20,
   status_min_minutes: 10,
   status_max_minutes: 20,
+  detail_min_minutes: 30,
+  detail_max_minutes: 60,
+  finance_min_minutes: 60,
+  finance_max_minutes: 120,
+  label_min_minutes: 30,
+  label_max_minutes: 90,
+  customer_min_minutes: 60,
+  customer_max_minutes: 180,
+  chat_min_minutes: 10,
+  chat_max_minutes: 20,
   run_start_time: '05:00',
   run_end_time: '23:00',
   run_start_hour: 5,
@@ -62,11 +83,32 @@ function normalizeSettings(input = {}) {
   const runEndTime = asTime(input.run_end_time, DEFAULT_SETTINGS.run_end_time, input.run_end_hour)
   const settings = {
     enabled: asBool(input.enabled, DEFAULT_SETTINGS.enabled),
+    auto_order_enabled: asBool(input.auto_order_enabled, DEFAULT_SETTINGS.auto_order_enabled),
+    auto_status_enabled: asBool(input.auto_status_enabled, DEFAULT_SETTINGS.auto_status_enabled),
+    auto_detail_enabled: asBool(input.auto_detail_enabled, DEFAULT_SETTINGS.auto_detail_enabled),
+    auto_finance_enabled: asBool(input.auto_finance_enabled, DEFAULT_SETTINGS.auto_finance_enabled),
+    auto_label_enabled: asBool(input.auto_label_enabled, DEFAULT_SETTINGS.auto_label_enabled),
+    auto_customer_enabled: asBool(input.auto_customer_enabled, DEFAULT_SETTINGS.auto_customer_enabled),
+    auto_chat_enabled: asBool(input.auto_chat_enabled, DEFAULT_SETTINGS.auto_chat_enabled),
     auto_start_python: asBool(input.auto_start_python, DEFAULT_SETTINGS.auto_start_python),
+    order_confirm_message_enabled: asBool(input.order_confirm_message_enabled, DEFAULT_SETTINGS.order_confirm_message_enabled),
+    order_confirm_message_mode: ['draft_only', 'auto_send_when_allowed'].includes(String(input.order_confirm_message_mode || '')) ? input.order_confirm_message_mode : DEFAULT_SETTINGS.order_confirm_message_mode,
+    order_confirm_message_trigger_status: String(input.order_confirm_message_trigger_status || DEFAULT_SETTINGS.order_confirm_message_trigger_status).trim() || DEFAULT_SETTINGS.order_confirm_message_trigger_status,
+    order_confirm_message_template: String(input.order_confirm_message_template || DEFAULT_SETTINGS.order_confirm_message_template).trim() || DEFAULT_SETTINGS.order_confirm_message_template,
     order_min_minutes: asInt(input.order_min_minutes, DEFAULT_SETTINGS.order_min_minutes, 1, 240),
     order_max_minutes: asInt(input.order_max_minutes, DEFAULT_SETTINGS.order_max_minutes, 1, 240),
     status_min_minutes: asInt(input.status_min_minutes, DEFAULT_SETTINGS.status_min_minutes, 1, 240),
     status_max_minutes: asInt(input.status_max_minutes, DEFAULT_SETTINGS.status_max_minutes, 1, 240),
+    detail_min_minutes: asInt(input.detail_min_minutes, DEFAULT_SETTINGS.detail_min_minutes, 1, 240),
+    detail_max_minutes: asInt(input.detail_max_minutes, DEFAULT_SETTINGS.detail_max_minutes, 1, 240),
+    finance_min_minutes: asInt(input.finance_min_minutes, DEFAULT_SETTINGS.finance_min_minutes, 1, 240),
+    finance_max_minutes: asInt(input.finance_max_minutes, DEFAULT_SETTINGS.finance_max_minutes, 1, 240),
+    label_min_minutes: asInt(input.label_min_minutes, DEFAULT_SETTINGS.label_min_minutes, 1, 240),
+    label_max_minutes: asInt(input.label_max_minutes, DEFAULT_SETTINGS.label_max_minutes, 1, 240),
+    customer_min_minutes: asInt(input.customer_min_minutes, DEFAULT_SETTINGS.customer_min_minutes, 1, 240),
+    customer_max_minutes: asInt(input.customer_max_minutes, DEFAULT_SETTINGS.customer_max_minutes, 1, 240),
+    chat_min_minutes: asInt(input.chat_min_minutes, DEFAULT_SETTINGS.chat_min_minutes, 1, 240),
+    chat_max_minutes: asInt(input.chat_max_minutes, DEFAULT_SETTINGS.chat_max_minutes, 1, 240),
     run_start_time: runStartTime,
     run_end_time: runEndTime,
     run_start_hour: hourFromTime(runStartTime, DEFAULT_SETTINGS.run_start_hour),
@@ -76,6 +118,11 @@ function normalizeSettings(input = {}) {
 
   if (settings.order_max_minutes < settings.order_min_minutes) settings.order_max_minutes = settings.order_min_minutes
   if (settings.status_max_minutes < settings.status_min_minutes) settings.status_max_minutes = settings.status_min_minutes
+  if (settings.detail_max_minutes < settings.detail_min_minutes) settings.detail_max_minutes = settings.detail_min_minutes
+  if (settings.finance_max_minutes < settings.finance_min_minutes) settings.finance_max_minutes = settings.finance_min_minutes
+  if (settings.label_max_minutes < settings.label_min_minutes) settings.label_max_minutes = settings.label_min_minutes
+  if (settings.customer_max_minutes < settings.customer_min_minutes) settings.customer_max_minutes = settings.customer_min_minutes
+  if (settings.chat_max_minutes < settings.chat_min_minutes) settings.chat_max_minutes = settings.chat_min_minutes
   return settings
 }
 
@@ -92,6 +139,10 @@ async function readSettings(env) {
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
+}
+
+export async function readBotSettings(env) {
+  return readSettings(env)
 }
 
 async function writeSettings(env, settings) {

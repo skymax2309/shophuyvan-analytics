@@ -14,6 +14,138 @@ function filteredShopApiRows() {
     });
 }
 
+const SHOP_RUNNER_HELPER_URL = 'http://127.0.0.1:8765';
+
+function canCallShopRunnerHelper() {
+    const host = window.location.hostname || '';
+    return host === 'localhost'
+        || host === '127.0.0.1'
+        || host.endsWith('.workers.dev')
+        || host.includes('shophuyvan-analytics');
+}
+
+async function loadShopRunnerHealth() {
+    if (!canCallShopRunnerHelper()) {
+        return { ok: false, error: 'browser_blocks_loopback' };
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    try {
+        const response = await fetch(`${SHOP_RUNNER_HELPER_URL}/health?t=${Date.now()}`, {
+            cache: 'no-store',
+            signal: controller.signal
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            return { ok: false, error: data.error || `local_helper_${response.status}` };
+        }
+        return data && typeof data === 'object' ? data : { ok: false, error: 'invalid_local_helper_health' };
+    } catch (error) {
+        return { ok: false, error: error?.name === 'AbortError' ? 'local_helper_timeout' : (error?.message || 'local_helper_unreachable') };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function mergeShopRunnerHealth(shop, health) {
+    const next = { ...shop };
+    if (next.order_runner_running_source !== 'local_helper_health') return next;
+
+    next.local_helper_ok = health?.ok ? 1 : 0;
+    next.radar_running = health?.radar_running ? 1 : 0;
+    next.radar_pid = health?.radar_pid || '';
+    next.radar_started_at = health?.radar_started_at || '';
+    next.report_worker_running = health?.report_worker_running ? 1 : 0;
+    next.report_worker_pid = health?.report_worker_pid || '';
+    next.report_worker_started_at = health?.report_worker_started_at || '';
+    next.report_worker_log_file = health?.report_worker_log_file || '';
+    next.report_worker_error_file = health?.report_worker_error_file || '';
+    next.report_worker_autostarted = health?.report_worker_autostarted ? 1 : 0;
+    next.report_worker_autostart_error = health?.report_worker_autostart_error || '';
+    const tiktokRunner = health?.tiktok_runner || {};
+    next.tiktok_runner_state = tiktokRunner.runner_state || tiktokRunner.state || '';
+    next.tiktok_runner_paused = tiktokRunner.paused ? 1 : 0;
+    next.tiktok_runner_pause_reason = tiktokRunner.pause_reason || '';
+    next.tiktok_runner_type = tiktokRunner.runner_type || '';
+    next.tiktok_runner_profile_dir = tiktokRunner.chrome_profile || tiktokRunner.profile_dir || '';
+    next.tiktok_runner_pid = tiktokRunner.pid || '';
+    next.tiktok_runner_browser_pids = Array.isArray(tiktokRunner.browser_pids) ? tiktokRunner.browser_pids.join(', ') : '';
+    next.tiktok_runner_started_at = tiktokRunner.started_at || '';
+    next.tiktok_runner_last_heartbeat_at = tiktokRunner.heartbeat || tiktokRunner.last_heartbeat_at || '';
+    next.tiktok_runner_last_run_at = tiktokRunner.last_run_at || '';
+    next.tiktok_runner_current_order_no = tiktokRunner.current_order_no || '';
+    next.tiktok_runner_queue_pending = Number(tiktokRunner.queue_pending || 0) || 0;
+    next.tiktok_runner_queue_processing = Number(tiktokRunner.queue_processing || 0) || 0;
+    next.tiktok_runner_queue_failed = Number(tiktokRunner.queue_failed || 0) || 0;
+    next.tiktok_runner_last_error = tiktokRunner.last_error || '';
+    next.tiktok_runner_next_retry_at = tiktokRunner.next_retry_at || '';
+    next.tiktok_runner_touched_24h = Number(tiktokRunner.touched_24h || 0) || 0;
+    next.tiktok_runner_profile_login_required = tiktokRunner.profile_login_required ? 1 : 0;
+
+    if (!health?.ok) {
+        next.order_runner_running = '';
+        next.order_runner_status = 'helper_unavailable';
+        next.order_runner_status_label = 'Không đọc được helper local';
+        next.order_runner_last_error = `${health?.error || 'Không đọc được local helper'}; chưa xác minh runner tự động`;
+        return next;
+    }
+
+    const type = String(next.order_runner_type || '');
+    const platform = String(next.platform || next.Platform || '').toLowerCase();
+    if (platform === 'tiktok') {
+        const running = Boolean(tiktokRunner.running);
+        next.order_runner_running = running ? 1 : 0;
+        next.order_runner_pid = tiktokRunner.pid || '';
+        next.order_runner_started_at = tiktokRunner.started_at || '';
+        next.order_runner_last_error = tiktokRunner.last_error || next.report_worker_autostart_error || '';
+        next.order_runner_status = tiktokRunner.paused ? 'paused' : (running ? 'running' : (tiktokRunner.state || 'not_running'));
+        next.order_runner_status_label = tiktokRunner.paused
+            ? 'Đang tạm dừng tự động TikTok'
+            : (running ? 'TikTok runner đang chạy' : (tiktokRunner.profile_login_required ? 'Cần đăng nhập TikTok Seller Center cho profile automation' : 'TikTok runner không chạy'));
+        return next;
+    }
+    const useRadar = type.includes('radar');
+    const running = useRadar ? Boolean(health.radar_running) : Boolean(health.report_worker_running);
+    next.order_runner_running = running ? 1 : 0;
+    next.order_runner_pid = useRadar ? (health.radar_pid || '') : (health.report_worker_pid || '');
+    next.order_runner_started_at = useRadar ? (health.radar_started_at || '') : (health.report_worker_started_at || '');
+    next.order_runner_last_error = next.report_worker_autostart_error || '';
+    next.order_runner_status = running ? 'running' : 'not_running';
+    next.order_runner_status_label = running
+        ? (useRadar ? 'Radar đang chạy' : (health.report_worker_autostarted ? 'report_worker vừa bật' : 'report_worker đang chạy'))
+        : 'Chưa có runner tự động';
+    return next;
+}
+
+window.controlTikTokRunner = async function(action) {
+    const endpoint = {
+        pause: '/tiktok-runner/pause',
+        resume: '/tiktok-runner/resume',
+        stop: '/tiktok-runner/stop'
+    }[action];
+    if (!endpoint) return;
+    try {
+        const payload = { reason: `admin_${action}` };
+        if (action === 'resume') {
+            payload.allow_run = false;
+        }
+        const response = await fetch(`${SHOP_RUNNER_HELPER_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            cache: 'no-store'
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.ok === false) throw new Error(data?.error || `local_helper_${response.status}`);
+        notifyShopApi(action === 'resume'
+            ? 'Đã kiểm API resume TikTok runner; runner vẫn tạm dừng cho tới khi được cho phép chạy thật.'
+            : 'Đã cập nhật TikTok runner.');
+        await loadShopWarehouses();
+    } catch (error) {
+        notifyShopApi('Không điều khiển được TikTok runner: ' + (error?.message || error), true);
+    }
+};
+
 function renderShopPlatformTabs() {
     const wrap = document.getElementById('shop-api-platform-tabs');
     if (!wrap) return;
@@ -71,10 +203,15 @@ window.setShopApiView = function(view) {
 window.loadShopWarehouses = async function() {
     try {
         if (typeof loadProductCatalogOverview === 'function') loadProductCatalogOverview();
-        const res = await fetch(API + '/api/shops/api-configs?t=' + Date.now());
-        if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        const rows = (Array.isArray(data) ? data : []).filter(shop => !isTechnicalShopeeRow(shop));
+        const apiPromise = fetch(API + '/api/shops/api-configs?t=' + Date.now()).then(async res => {
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
+        });
+        const [data, runnerHealth] = await Promise.all([apiPromise, loadShopRunnerHealth()]);
+        window.__shopRunnerHealth = runnerHealth;
+        const rows = (Array.isArray(data) ? data : [])
+            .filter(shop => !isTechnicalShopeeRow(shop))
+            .map(shop => mergeShopRunnerHealth(shop, runnerHealth));
         window.__shopApiRows = rows;
         renderShopPlatformTabs();
         renderCatalogPreviewShopOptions();
@@ -99,7 +236,9 @@ window.renderShopWarehouses = function() {
     if (summary) {
         const apiActive = rows.filter(shop => String(shop.capability_mode || '') === 'api_active').length;
         const nonApi = rows.filter(shop => String(shop.capability_mode || '') !== 'api_active').length;
-        summary.textContent = `${rows.length} shop đang hiển thị • ${apiActive} shop chạy API • ${nonApi} shop đi luồng không API`;
+        const noRunner = rows.filter(shop => shop.order_runner_running_source === 'local_helper_health' && shop.order_runner_status === 'not_running').length;
+        const unknownRunner = rows.filter(shop => shop.order_runner_running_source === 'local_helper_health' && shop.order_runner_status === 'helper_unavailable').length;
+        summary.textContent = `${rows.length} shop đang hiển thị • ${apiActive} shop chạy API • ${nonApi} shop đi luồng không API${noRunner ? ` • ${noRunner} shop chưa có runner tự động` : ''}${unknownRunner ? ` • ${unknownRunner} shop chưa xác minh runner local` : ''}`;
     }
 
     if (rows.length === 0) {
@@ -409,51 +548,6 @@ window.connectLazadaApi = function() {
     window.location.href = API + '/api/auth/lazada/url';
 };
 
-window.connectLazadaChatApi = function(shopId) {
-    const shop = getCachedShop(shopId);
-    if (!shop?.id) {
-        notifyShopApi('❌ Không tìm thấy shop Lazada cần kết nối chat.', true);
-        return;
-    }
-    window.location.href = API + '/api/auth/lazada/chat/url';
-};
-
-window.syncLazadaChatApi = async function(shopId) {
-    const shop = getCachedShop(shopId);
-    if (!shop?.id) {
-        notifyShopApi('❌ Không tìm thấy shop Lazada cần đồng bộ chat.', true);
-        return;
-    }
-    const chatState = getLazadaChatApiState(shop);
-    if (!chatState.connected || chatState.accessExpired) {
-        notifyShopApi('❌ Lazada Chat API chưa sẵn sàng. Hãy kết nối hoặc gia hạn chat trước khi đồng bộ.', true);
-        return;
-    }
-    try {
-        notifyShopApi('⏳ Đang đồng bộ hội thoại Lazada từ IM API...');
-        const res = await fetch(API + '/api/chat/api-sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                platform: 'lazada',
-                shop: shop.shop_name || shop.user_name || shop.api_shop_id || '',
-                days: 60,
-                limit: 40
-            })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.error) throw new Error(data.error || 'Không đồng bộ được chat Lazada');
-        const result = Array.isArray(data.results)
-            ? data.results.find(item => String(item.platform || '').toLowerCase() === 'lazada')
-            : null;
-        const sessions = Number(result?.pulled_sessions || result?.saved_conversations || 0).toLocaleString('vi-VN');
-        const messages = Number(result?.pulled_messages || result?.saved_messages || 0).toLocaleString('vi-VN');
-        notifyShopApi(`✅ Đã đồng bộ chat Lazada: ${sessions} hội thoại, ${messages} tin nhắn.`);
-    } catch (e) {
-        notifyShopApi('❌ Lỗi đồng bộ chat Lazada: ' + e.message, true);
-    }
-};
-
 window.refreshShopToken = async function(shopId) {
     const shop = getCachedShop(shopId);
     if (!shop?.id) {
@@ -501,32 +595,6 @@ window.disconnectShopApi = async function(shopId) {
         loadShopWarehouses();
     } catch (e) {
         notifyShopApi('❌ Lỗi ngắt kết nối API: ' + e.message, true);
-    }
-};
-
-window.disconnectLazadaChatApi = async function(shopId) {
-    const shop = getCachedShop(shopId);
-    if (!shop?.id) {
-        notifyShopApi('❌ Không tìm thấy shop Lazada cần ngắt chat API.', true);
-        return;
-    }
-
-    const ok = confirm('Ngắt riêng Lazada Chat API của shop "' + (shop.shop_name || shop.user_name || shop.id) + '"? API chính vẫn được giữ nguyên.');
-    if (!ok) return;
-
-    try {
-        const res = await fetch(API + '/api/shops/disconnect-chat-api', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ shop_id: shop.id })
-        });
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) throw new Error(data.error || 'Không ngắt được Lazada Chat API');
-        notifyShopApi('✅ ' + (data.message || 'Đã ngắt Lazada Chat API'));
-        loadShopWarehouses();
-    } catch (e) {
-        notifyShopApi('❌ Lỗi ngắt Lazada Chat API: ' + e.message, true);
     }
 };
 

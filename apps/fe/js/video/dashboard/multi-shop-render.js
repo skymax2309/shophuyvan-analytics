@@ -413,6 +413,15 @@ function renderPublishPreview() {
   `
 }
 
+function queueErrorDisplayText(value) {
+  const text = cleanText(value)
+  if (!text) return ''
+  if (looksLikeMojibake(text) || /[�]/.test(text)) {
+    return 'Log lỗi cũ bị sai mã hóa. Vui lòng chạy lại job để lấy lỗi chuẩn tiếng Việt.'
+  }
+  return text
+}
+
 function renderQueueList() {
   const summaryNode = document.getElementById('videoQueueSummary')
   const listNode = document.getElementById('videoQueueList')
@@ -468,7 +477,7 @@ function renderQueueList() {
           </div>
           <div class="video-analysis-cell" data-label="Trạng thái">
             <span class="video-pill ${status.tone}">${escapeHtml(status.label)}</span>
-            ${cleanText(row.last_error) ? `<span class="video-error-inline">${escapeHtml(cleanText(row.last_error))}</span>` : ''}
+            ${queueErrorDisplayText(row.last_error) ? `<span class="video-error-inline">${escapeHtml(queueErrorDisplayText(row.last_error))}</span>` : ''}
             ${cleanText(row.finished_at) ? `<span>Kết thúc: ${escapeHtml(shortDateTime(row.finished_at))}</span>` : ''}
           </div>
           <div class="video-analysis-cell video-row-actions" data-label="Thao tác">

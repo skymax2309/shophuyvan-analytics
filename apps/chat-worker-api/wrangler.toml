@@ -1,0 +1,39 @@
+name = "shophuyvan-chat-api"
+main = "src/index.js"
+account_id = "39cf0fe9b3eda88bda53e369770cabeb"
+compatibility_date = "2024-03-12"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "shophuyvan-chat-db"
+database_id = "25574cfd-ee6b-4128-af7b-fdfe1aa91e96"
+
+[[r2_buckets]]
+binding = "CHAT_FILES"
+bucket_name = "shophuyvan-chat-files"
+
+[[durable_objects.bindings]]
+name = "CHAT_REALTIME"
+class_name = "ChatRealtimeRoom"
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ChatRealtimeRoom"]
+
+[triggers]
+crons = ["*/2 * * * *"]
+
+# KV/Queue chưa bật ở production config cho đến khi tạo resource thật trên Cloudflare.
+# Tên dự kiến khi bật: KV `shophuyvan-chat-kv`, Queue `shophuyvan-chat-queue`.
+
+[vars]
+APP_NAME = "ShopHuyVan Chat API"
+CHAT_AI_MODE = "suggest_only"
+CHAT_DEFAULT_POLL_SECONDS = "12"
+SHOPEE_CHAT_BRIDGE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/internal/chat-bridge/shopee"
+LAZADA_CHAT_BRIDGE_URL = "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/internal/chat-bridge/lazada"
+SHOP_CORE_API_BASE = "https://huyvan-worker-api.nghiemchihuy.workers.dev"
+CHAT_VAPID_PUBLIC_KEY = "BNizHSrM_PFQvzXiOohJkSY4wPGafAHgiMAbQLfrqQPLG27-Lel6xcGaWFvXLVFn40Ms4ixfOFOCiMh-UW5XZKg"
+CHAT_VAPID_SUBJECT = "https://shophuyvan-analytics.nghiemchihuy.workers.dev"

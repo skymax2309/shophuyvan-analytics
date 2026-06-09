@@ -17,6 +17,10 @@ export function installDiscountsCommonPromotionQueue(core) {
 
   const PROMOTION_WRITE_ENDPOINTS = {
     shopee: {
+      discount: ['/api/v2/discount/update_discount_item'],
+      discounts: ['/api/v2/discount/update_discount_item'],
+      shopee_discount: ['/api/v2/discount/update_discount_item'],
+      product_discount: ['/api/v2/discount/update_discount_item'],
       voucher: ['/api/v2/voucher/add_voucher', '/api/v2/voucher/update_voucher', '/api/v2/voucher/end_voucher', '/api/v2/voucher/delete_voucher'],
       bundle_deal: ['/api/v2/bundle_deal/add_bundle_deal', '/api/v2/bundle_deal/update_bundle_deal', '/api/v2/bundle_deal/end_bundle_deal'],
       add_on_deal: ['/api/v2/add_on_deal/add_add_on_deal', '/api/v2/add_on_deal/update_add_on_deal', '/api/v2/add_on_deal/end_add_on_deal'],

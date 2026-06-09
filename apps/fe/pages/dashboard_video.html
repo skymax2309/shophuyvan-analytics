@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trung tâm video | ShopHuyVan</title>
-  <link rel="stylesheet" href="../css/video/video-dashboard.css?v=video-multishop-split-20260512a">
-  <link rel="stylesheet" href="../css/video/multi-shop.css?v=video-multishop-split-20260512a">
+  <link rel="stylesheet" href="../css/video/video-dashboard.css?v=video-multishop-split-20260531b">
+  <link rel="stylesheet" href="../css/video/multi-shop.css?v=video-multishop-split-20260531b">
   <script src="../js/auth/auth-guard.js?v=account-widget-20260506"></script>
 </head>
 <body class="video-body">
@@ -22,6 +22,7 @@
           </p>
         </div>
         <div class="video-actions-row">
+          <a class="video-link-btn" href="https://shophuyvan.vn" target="_blank" rel="noopener">Trang chủ</a>
           <a class="video-link-btn" href="oms-dashboard.html">Về OMS</a>
           <a class="video-link-btn" href="admin-products.html#shops">Về sản phẩm / SKU</a>
         </div>
@@ -32,61 +33,16 @@
         <button class="video-tab-btn" type="button" data-video-tab="packing">Kho video đóng gói</button>
       </div>
       <div id="videoSubtabSwitch" class="video-subtab-switch" role="tablist" aria-label="Chọn tính năng video">
-        <button class="video-subtab-btn active" type="button" data-video-subtab="library">Video đã đăng</button>
-        <button class="video-subtab-btn" type="button" data-video-subtab="overview">Phân tích</button>
-        <button class="video-subtab-btn" type="button" data-video-subtab="detail">Chi tiết</button>
-        <button class="video-subtab-btn" type="button" data-video-subtab="upload">Đăng video</button>
-        <button class="video-subtab-btn" type="button" data-video-subtab="multi">Đa shop</button>
-        <button class="video-subtab-btn" type="button" data-video-subtab="lazada">Lazada video</button>
-        <button class="video-subtab-btn" type="button" data-video-subtab="shop">Shop / API</button>
+        <button class="video-subtab-btn active" type="button" data-video-subtab="library" tabindex="0">Video đã đăng</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="overview" tabindex="0">Phân tích</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="detail" tabindex="0">Chi tiết</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="upload" tabindex="0">Đăng video</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="multi" tabindex="0">Đa shop</button>
+        <button class="video-subtab-btn" type="button" data-video-subtab="lazada" tabindex="0">Lazada video</button>
       </div>
     </header>
 
     <main class="video-main">
-      <section class="video-panel" data-video-subview="shop">
-        <div class="video-panel-head">
-          <div>
-            <h2>Hướng dẫn sử dụng</h2>
-            <p class="video-panel-help">
-              Tất cả ghi chú đều viết bằng tiếng Việt có dấu. Luồng API chỉ áp dụng cho shop đủ điều kiện.
-              Shop không có API sẽ đi luồng tham chiếu tay hoặc browser hỗ trợ có log.
-            </p>
-          </div>
-        </div>
-        <div class="video-guide-grid">
-          <article class="video-guide-card">
-            <h3>Shop có API video</h3>
-            <ul>
-              <li>Đồng bộ thư viện video, dashboard hiệu quả, cover và chi tiết video trực tiếp từ Shopee Open Platform.</li>
-              <li>Có thể tải video mới, sửa caption, đổi cover, gắn sản phẩm và xóa video sau khi xác nhận.</li>
-              <li>Dữ liệu được lưu snapshot về core để giảm request và dùng lại cho phân tích sản phẩm / ads.</li>
-            </ul>
-          </article>
-          <article class="video-guide-card">
-            <h3>Shop không có API / Lazada chưa đủ quyền</h3>
-            <ul>
-              <li>Không giả lập đồng bộ video API.</li>
-              <li>Dùng tab <b>Kho video đóng gói</b> để xem video thực tế đã quay theo đơn.</li>
-              <li>Nếu cần theo dõi video bán hàng, lưu tham chiếu tay theo SKU và chỉ mở browser/Seller Center khi cần xác minh.</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section class="video-panel" data-video-subview="shop">
-        <div class="video-panel-head">
-          <div>
-            <h2>Khả năng video theo shop</h2>
-            <p class="video-panel-help">
-              Mỗi shop có một nhãn rõ ràng: có API video, thiếu user_id video, cần gia hạn API hoặc chỉ tham chiếu tay.
-            </p>
-          </div>
-        </div>
-        <div id="videoCapabilitySummary" class="video-kpi-grid"></div>
-        <div id="videoManualPlan" class="video-grid" style="margin-top:10px;"></div>
-        <div id="videoCapabilityRows" class="video-capability-list" style="margin-top:10px;"></div>
-      </section>
-
       <section id="videoCenterTab">
         <section class="video-panel video-control-panel" data-video-shopee-control>
           <div class="video-panel-head">
@@ -356,6 +312,6 @@
     </main>
   </div>
 
-  <script type="module" src="../js/video/video-dashboard.js?v=video-tab-init-20260513a"></script>
+  <script type="module" src="../js/video/video-dashboard.js?v=video-tab-init-20260531b"></script>
 </body>
 </html>

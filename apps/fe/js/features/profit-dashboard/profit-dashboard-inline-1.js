@@ -2,3 +2,6 @@
   if ((window.location.hash || '').replace('#', '') === 'ads') {
     window.location.replace('ads.html')
   }
+  if ((window.location.hash || '').replace('#', '') === 'promotion') {
+    window.location.replace('promotions.html')
+  }

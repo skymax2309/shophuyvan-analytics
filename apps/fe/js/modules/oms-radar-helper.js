@@ -40,11 +40,33 @@ export async function checkRadarLocal() {
   }
 }
 
+export async function saveRadarSchedulerConfig(settings = {}) {
+  try {
+    return await helperFetch('/scheduler/config', {
+      method: 'POST',
+      body: JSON.stringify(settings)
+    });
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
 export async function wakeRadarLocal(reason = 'manual', jobId = null) {
   try {
     return await helperFetch('/wake', {
       method: 'POST',
       body: JSON.stringify({ reason, job_id: jobId })
+    });
+  } catch (error) {
+    return { ok: false, error: error.message };
+  }
+}
+
+export async function runRadarJobsLocal(payload = {}) {
+  try {
+    return await helperFetch('/report-run', {
+      method: 'POST',
+      body: JSON.stringify(payload)
     });
   } catch (error) {
     return { ok: false, error: error.message };

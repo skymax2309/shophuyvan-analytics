@@ -1,7 +1,41 @@
-import { getFilters, buildWhere } from '../../utils/filters.js'
+import { getFilters } from '../../utils/filters.js'
 import { getCostSettings, calcProfit } from '../../utils/db.js'
 import { orderStatusKind } from '../../core/orders/status-core.js'
 import { vietnameseCancelReason } from '../../core/dashboard/summary-core.js'
+import { loadOrderFinanceCore } from '../../core/orders/finance-core.js'
+import { buildAnalyticsWhere, ensureSourceTables } from '../../core/orders/analytics-shared-core.js'
+import { rebuildOrderAnalytics } from '../order-analytics/order-analytics-rebuild-core.js'
+
+function analyticsOptionsFromFilters(filters = {}) {
+  return {
+    from: filters.from,
+    to: filters.to,
+    platform: filters.platform,
+    shop: filters.shop,
+    shops: filters.shops || []
+  }
+}
+
+function cleanLimit(value, fallback = 20, max = 200) {
+  return Math.min(Math.max(Number(value || fallback) || fallback, 1), max)
+}
+
+async function ensureFreshAnalyticsForDashboard(env, options = {}) {
+  const financeCore = await loadOrderFinanceCore(env, options)
+  const staleReasons = financeCore?.snapshot_health?.stale_reasons || []
+  if (financeCore?.status === 'stale' && staleReasons.includes('missing_order_analytics_rows')) {
+    // Top chart phải nối lại Finance Core khi đơn mới đã có trong Warehouse nhưng order_analytics thiếu shop.
+    await rebuildOrderAnalytics(env, { ...options, rebuild: true, sync_payment: false })
+  }
+}
+
+const itemFinanceRatioSql = `
+  CASE
+    WHEN COALESCE(oa.revenue, 0) > 0 AND COALESCE(oi.revenue_line, 0) > 0
+      THEN COALESCE(oi.revenue_line, 0) * 1.0 / COALESCE(oa.revenue, 0)
+    ELSE 1.0 / COALESCE(NULLIF(ic.item_count, 0), 1)
+  END
+`
 
 async function uniqueSkus(request, env, cors) {
   const rows = await env.DB.prepare(`
@@ -21,88 +55,108 @@ async function uniqueSkus(request, env, cors) {
 }
 
 async function topSku(request, env, cors) {
+  // Các chart doanh thu/lãi đọc Finance Core để không tái tính từ orders_v2 theo nhánh riêng.
+  await ensureSourceTables(env)
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
-  const limit = new URL(request.url).searchParams.get("limit") || 20
+  await ensureFreshAnalyticsForDashboard(env, analyticsOptionsFromFilters(filters))
+  const filter = buildAnalyticsWhere(analyticsOptionsFromFilters(filters), 'oa')
+  const limit = cleanLimit(new URL(request.url).searchParams.get("limit"))
 
   const rows = await env.DB.prepare(`
+    WITH item_counts AS (
+      SELECT order_id, COUNT(*) AS item_count
+      FROM order_items
+      GROUP BY order_id
+    )
     SELECT
-      oi.sku,
-      SUM(oi.qty)                    AS total_qty,
-      SUM(oi.revenue_line)           AS total_revenue,
-      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS total_profit,
-      COUNT(DISTINCT oi.order_id)    AS total_orders
-    FROM order_items oi
-    JOIN orders_v2 o ON oi.order_id = o.order_id
-    ${where.replace("WHERE", "WHERE o.order_type='normal' AND").replace("orders_v2","o")}
-    GROUP BY oi.sku
+      COALESCE(NULLIF(oi.sku, ''), '(no sku)') AS sku,
+      SUM(COALESCE(oi.qty, 0)) AS total_qty,
+      SUM(COALESCE(oa.revenue, 0) * (${itemFinanceRatioSql})) AS total_revenue,
+      SUM(COALESCE(oa.net_profit, 0) * (${itemFinanceRatioSql})) AS total_profit,
+      COUNT(DISTINCT oa.order_sn) AS total_orders
+    FROM order_analytics oa
+    JOIN order_items oi ON oi.order_id = oa.order_sn
+    LEFT JOIN item_counts ic ON ic.order_id = oa.order_sn
+    ${filter.where}
+    GROUP BY COALESCE(NULLIF(oi.sku, ''), '(no sku)')
     ORDER BY total_revenue DESC
-    LIMIT ${limit}
-  `).bind(...params).all()
+    LIMIT ?
+  `).bind(...filter.params, limit).all()
 
   return Response.json(rows.results, { headers: cors })
 }
 
 async function topProduct(request, env, cors) {
+  await ensureSourceTables(env)
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
-  const limit = new URL(request.url).searchParams.get("limit") || 20
+  await ensureFreshAnalyticsForDashboard(env, analyticsOptionsFromFilters(filters))
+  const filter = buildAnalyticsWhere(analyticsOptionsFromFilters(filters), 'oa')
+  const limit = cleanLimit(new URL(request.url).searchParams.get("limit"))
 
   const rows = await env.DB.prepare(`
+    WITH item_counts AS (
+      SELECT order_id, COUNT(*) AS item_count
+      FROM order_items
+      GROUP BY order_id
+    )
     SELECT
-      oi.product_name,
-      SUM(oi.qty)                    AS total_qty,
-      SUM(oi.revenue_line)           AS total_revenue,
-      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS total_profit,
-      COUNT(DISTINCT oi.order_id)    AS total_orders
-    FROM order_items oi
-    JOIN orders_v2 o ON oi.order_id = o.order_id
-    ${where.replace("WHERE", "WHERE o.order_type='normal' AND").replace("orders_v2","o")}
-    GROUP BY oi.product_name
+      COALESCE(NULLIF(oi.product_name, ''), '(chưa có tên sản phẩm)') AS product_name,
+      SUM(COALESCE(oi.qty, 0)) AS total_qty,
+      SUM(COALESCE(oa.revenue, 0) * (${itemFinanceRatioSql})) AS total_revenue,
+      SUM(COALESCE(oa.net_profit, 0) * (${itemFinanceRatioSql})) AS total_profit,
+      COUNT(DISTINCT oa.order_sn) AS total_orders
+    FROM order_analytics oa
+    JOIN order_items oi ON oi.order_id = oa.order_sn
+    LEFT JOIN item_counts ic ON ic.order_id = oa.order_sn
+    ${filter.where}
+    GROUP BY COALESCE(NULLIF(oi.product_name, ''), '(chưa có tên sản phẩm)')
     ORDER BY total_revenue DESC
-    LIMIT ${limit}
-  `).bind(...params).all()
+    LIMIT ?
+  `).bind(...filter.params, limit).all()
 
   return Response.json(rows.results, { headers: cors })
 }
 
 async function topShop(request, env, cors) {
+  await ensureSourceTables(env)
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
+  await ensureFreshAnalyticsForDashboard(env, analyticsOptionsFromFilters(filters))
+  const filter = buildAnalyticsWhere(analyticsOptionsFromFilters(filters), 'oa')
 
   const rows = await env.DB.prepare(`
     SELECT
-      shop,
-      platform,
-      SUM(revenue)             AS total_revenue,
-      SUM(profit_real)         AS total_profit,
-      COUNT(DISTINCT order_id) AS total_orders
-    FROM orders_v2
-    ${where}
-    GROUP BY shop, platform
+      COALESCE(oa.shop, '') AS shop,
+      COALESCE(oa.platform, '') AS platform,
+      SUM(COALESCE(oa.revenue, 0)) AS total_revenue,
+      SUM(COALESCE(oa.net_profit, 0)) AS total_profit,
+      COUNT(DISTINCT oa.order_sn) AS total_orders
+    FROM order_analytics oa
+    ${filter.where}
+    GROUP BY COALESCE(oa.shop, ''), COALESCE(oa.platform, '')
     ORDER BY total_revenue DESC
-  `).bind(...params).all()
+  `).bind(...filter.params).all()
 
   return Response.json(rows.results, { headers: cors })
 }
 
 async function topPlatform(request, env, cors) {
+  await ensureSourceTables(env)
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
+  await ensureFreshAnalyticsForDashboard(env, analyticsOptionsFromFilters(filters))
+  const filter = buildAnalyticsWhere(analyticsOptionsFromFilters(filters), 'oa')
 
   const rows = await env.DB.prepare(`
     SELECT
-      o.platform,
-      SUM(o.revenue)             AS total_revenue,
-      SUM(o.profit_real)         AS total_profit,
-      COUNT(DISTINCT o.order_id) AS total_orders,
-      SUM(oi.qty)                AS total_qty
-    FROM orders_v2 o
-    LEFT JOIN order_items oi ON oi.order_id = o.order_id
-    ${where.replace("order_id","o.order_id").replace("order_date","o.order_date").replace("platform","o.platform").replace("shop","o.shop")}
-    GROUP BY o.platform
+      COALESCE(oa.platform, '') AS platform,
+      SUM(COALESCE(oa.revenue, 0)) AS total_revenue,
+      SUM(COALESCE(oa.net_profit, 0)) AS total_profit,
+      COUNT(DISTINCT oa.order_sn) AS total_orders,
+      SUM(COALESCE(oa.qty_total, 0)) AS total_qty
+    FROM order_analytics oa
+    ${filter.where}
+    GROUP BY COALESCE(oa.platform, '')
     ORDER BY total_revenue DESC
-  `).bind(...params).all()
+  `).bind(...filter.params).all()
 
   return Response.json(rows.results, { headers: cors })
 }
@@ -217,41 +271,39 @@ async function priceCalc(request, env, cors) {
 }
 
 async function topSkuFull(request, env, cors) {
+  await ensureSourceTables(env)
   const url = new URL(request.url)
-  const from = url.searchParams.get("from") || ""
-  const to = url.searchParams.get("to") || ""
-  const platform = url.searchParams.get("platform") || ""
-  const shop = url.searchParams.get("shop") || ""
+  const filters = getFilters(url)
+  await ensureFreshAnalyticsForDashboard(env, analyticsOptionsFromFilters(filters))
+  const filter = buildAnalyticsWhere(analyticsOptionsFromFilters(filters), 'oa')
   const sortBy = url.searchParams.get("sort") || "qty"
-
-  const conds = ["o.order_type = 'normal'"]
-  const params = []
-  if (from) { conds.push("date(o.order_date) >= ?"); params.push(from) }
-  if (to) { conds.push("date(o.order_date) <= ?"); params.push(to) }
-  if (platform) { conds.push("o.platform = ?"); params.push(platform) }
-  if (shop) { conds.push("o.shop = ?"); params.push(shop) }
-  const where = "WHERE " + conds.join(" AND ")
 
   const orderCol = sortBy === "revenue" ? "total_revenue"
     : sortBy === "profit" ? "total_profit"
     : "total_qty"
 
   const rows = await env.DB.prepare(`
+    WITH item_counts AS (
+      SELECT order_id, COUNT(*) AS item_count
+      FROM order_items
+      GROUP BY order_id
+    )
     SELECT
-      oi.sku,
-      oi.product_name,
-      SUM(oi.qty)                                                          AS total_qty,
-      SUM(oi.revenue_line)                                                 AS total_revenue,
-      SUM(o.profit_real * oi.revenue_line / NULLIF(o.revenue, 0))         AS total_profit,
-      COUNT(DISTINCT oi.order_id)                                          AS total_orders,
-      GROUP_CONCAT(DISTINCT o.platform)                                    AS platforms,
-      GROUP_CONCAT(DISTINCT o.shop)                                        AS shops
+      COALESCE(NULLIF(oi.sku, ''), '(no sku)') AS sku,
+      MAX(COALESCE(oi.product_name, '')) AS product_name,
+      SUM(COALESCE(oi.qty, 0)) AS total_qty,
+      SUM(COALESCE(oa.revenue, 0) * (${itemFinanceRatioSql})) AS total_revenue,
+      SUM(COALESCE(oa.net_profit, 0) * (${itemFinanceRatioSql})) AS total_profit,
+      COUNT(DISTINCT oa.order_sn) AS total_orders,
+      GROUP_CONCAT(DISTINCT oa.platform) AS platforms,
+      GROUP_CONCAT(DISTINCT oa.shop) AS shops
     FROM order_items oi
-    JOIN orders_v2 o ON oi.order_id = o.order_id
-    ${where}
-    GROUP BY oi.sku
+    JOIN order_analytics oa ON oa.order_sn = oi.order_id
+    LEFT JOIN item_counts ic ON ic.order_id = oa.order_sn
+    ${filter.where}
+    GROUP BY COALESCE(NULLIF(oi.sku, ''), '(no sku)')
     ORDER BY ${orderCol} DESC
-  `).bind(...params).all()
+  `).bind(...filter.params).all()
 
   return Response.json(rows.results, { headers: cors })
 }

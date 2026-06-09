@@ -1,3 +1,5 @@
+import { mapMarketplaceOrderStatus } from '../../../core/orders/status-core.js'
+
 export function installApiSyncCommonFoundationOrders(core) {
   const calcProfit = core.calcProfit
   const getCostSettings = core.getCostSettings
@@ -407,39 +409,7 @@ export function installApiSyncCommonFoundationOrders(core) {
   core.mapLazadaTraceStatus = mapLazadaTraceStatus
 
   function mapPlatformStatus(platform, rawStatus, carrier = '', tracking = '') {
-    const status = cleanText(rawStatus).toUpperCase()
-    const hasShippingIdentity = !!cleanText(carrier) || !!cleanText(tracking)
-
-    if (platform === 'lazada') {
-      const raw = status.toLowerCase()
-      if (['delivered', 'completed'].includes(raw)) return { oms: 'COMPLETED', shipping: 'COMPLETED', type: 'normal' }
-      if (['shipped', 'shipping', 'in_transit'].includes(raw)) return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
-      if (['canceled', 'cancelled'].includes(raw)) return { oms: 'CANCELLED', shipping: 'CANCELLED', type: 'cancel' }
-      if (['returned', 'return'].includes(raw)) return { oms: 'RETURN', shipping: 'RETURN', type: 'return' }
-      if (['failed', 'failed_delivery'].includes(raw)) return { oms: 'SHIPPING', shipping: 'FAILED_DELIVERY_ATTEMPT', type: 'normal', reason: 'Lazada giao khong thanh cong, cho xu ly tiep' }
-      if (['ready_to_ship', 'packed', 'repacked', 'pending', 'unpaid', 'topack', 'to_pack', 'toship', 'to_ship'].includes(raw)) {
-        return { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
-      }
-      return { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
-    }
-
-    if (['COMPLETED'].includes(status)) return { oms: 'COMPLETED', shipping: 'COMPLETED', type: 'normal' }
-    if (['SHIPPED'].includes(status)) return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
-    if (['TO_CONFIRM_RECEIVE'].includes(status)) return { oms: 'SHIPPING', shipping: 'TO_CONFIRM_RECEIVE', type: 'normal' }
-    if (['READY_TO_SHIP'].includes(status)) {
-      return hasShippingIdentity
-        ? { oms: 'PENDING', shipping: 'LOGISTICS_PACKAGED', type: 'normal' }
-        : { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
-    }
-    if (['PROCESSED'].includes(status)) {
-      return hasShippingIdentity
-        ? { oms: 'PENDING', shipping: 'LOGISTICS_PACKAGED', type: 'normal' }
-        : { oms: 'PENDING', shipping: 'LOGISTICS_REQUEST_CREATED', type: 'normal' }
-    }
-    if (['IN_CANCEL'].includes(status)) return { oms: 'PENDING', shipping: 'IN_CANCEL', type: 'normal', reason: 'Khách yêu cầu hủy, cần xác nhận' }
-    if (['CANCELLED'].includes(status)) return { oms: 'CANCELLED', shipping: 'CANCELLED', type: 'cancel' }
-    if (['TO_RETURN'].includes(status)) return { oms: 'RETURN', shipping: 'RETURN', type: 'return' }
-    return { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
+    return mapMarketplaceOrderStatus(platform, rawStatus, { carrier, tracking })
   }
   core.mapPlatformStatus = mapPlatformStatus
 

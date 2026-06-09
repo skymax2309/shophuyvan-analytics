@@ -144,6 +144,18 @@
     scrollbar-width: none;
   }
   .summary-bar::-webkit-scrollbar { display: none; }
+  .oms-load-banner {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 9px 12px;
+  }
+  .oms-load-banner small {
+    max-width: 100%;
+  }
+  .oms-load-banner button {
+    width: 100%;
+  }
   .table-wrap {
     overflow-x: hidden;
     overflow-y: visible;
@@ -157,7 +169,11 @@
     right: 10px !important;
     top: 72px !important;
     width: auto !important;
-    z-index: 260 !important;
+    z-index: 1600 !important;
+  }
+  .oms-finance-row,
+  .oms-finance-source-row {
+    grid-template-columns: minmax(0, 1fr) 52px 88px;
   }
   .oms-finance-tabs button {
     font-size: 12px;

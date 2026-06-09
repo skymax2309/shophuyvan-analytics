@@ -3,11 +3,13 @@ import {
   saveProductCatalogSnapshotsBatch,
   saveProductCatalogState,
   saveProductShopLimit,
-  getProductCatalogSettings
+  getProductCatalogSettings,
+  saveProductActionLog
 } from '../../core/products/catalog-core.js'
 import { listApiCapableShopCredentials } from '../../core/marketplace/shop-capability-core.js'
 import { ensureReturnReverseLedgerTable, buildShopeeReturnLedgerRows, buildLazadaReverseLedgerRows, loadReturnReverseOrderMap, saveReturnReverseLedgerRows } from '../../core/returns/reverse-core.js'
-import { ORDER_SOURCE_MODES, cleanupLegacyOrderSourceMeta } from '../../core/orders/transport-core.js'
+import { ORDER_SOURCE_MODES, cleanupLegacyOrderSourceMeta, ensureOrderTransportColumns } from '../../core/orders/transport-core.js'
+import { saveOrderTrackingCore } from '../../core/logistics/tracking-core.js'
 import { normalizeBangkokDateTime, normalizeBangkokDate, nowBangkokText, ymdToBangkokMs } from '../../core/orders/time-core.js'
 import {
   mergeLazadaStockSources,
@@ -16,10 +18,13 @@ import {
 } from '../../core/inventory/stock-core.js'
 import { importOrdersV2 } from '../orders/index.js'
 import { handleVariations } from '../products/index.js'
-import { notifyOrderSubscribers, saveProductKnowledgeBatch } from '../marketplace-chat/index.js'
+import { notifyOrderSubscribers } from '../marketplace-chat/index.js'
+import { saveProductKnowledgeBatch } from '../../core/products/product-knowledge-core.js'
+import { upsertMarketplaceCustomerContact, marketplaceContactFromLazadaOrder } from '../../core/customer/contacts-core.js'
 import { getCostSettings, calcProfit } from '../../utils/db.js'
 import { refreshLazadaTokenForShop, refreshShopeeTokenForShop } from '../shops/index.js'
 import { collectShopeePackageStatus, mapShopeeStatus } from '../../core/orders/shopee-status-core.js'
+import { trackingSummary } from '../operations/carrier-analytics.js'
 import { installApiSyncCommonFoundationConstants } from '../api-sync/common/foundation-constants.js'
 import { installApiSyncCommonFoundationOrders } from '../api-sync/common/foundation-orders.js'
 import { installApiSyncCommonShopAuth } from '../api-sync/common/shop-auth.js'
@@ -51,7 +56,7 @@ import { installApiSyncShopeeProductsSync } from '../api-sync/shopee/products/sy
 import { installApiSyncLazadaProductsSync } from '../api-sync/lazada/products/sync.js'
 import { installApiSyncCommonHandlers } from '../api-sync/common/handlers.js'
 
-const core = { getShopeeAppFromRow, getShopeeAppFromRowForClient, signHmacHex, saveProductCatalogSnapshotsBatch, saveProductCatalogState, saveProductShopLimit, getProductCatalogSettings, listApiCapableShopCredentials, ensureReturnReverseLedgerTable, buildShopeeReturnLedgerRows, buildLazadaReverseLedgerRows, loadReturnReverseOrderMap, saveReturnReverseLedgerRows, ORDER_SOURCE_MODES, cleanupLegacyOrderSourceMeta, normalizeBangkokDateTime, normalizeBangkokDate, nowBangkokText, ymdToBangkokMs, mergeLazadaStockSources, normalizeLazadaAdvancedStockSource, normalizeLazadaFblStockSource, importOrdersV2, handleVariations, notifyOrderSubscribers, saveProductKnowledgeBatch, getCostSettings, calcProfit, refreshLazadaTokenForShop, refreshShopeeTokenForShop, collectShopeePackageStatus, mapShopeeStatus }
+const core = { getShopeeAppFromRow, getShopeeAppFromRowForClient, signHmacHex, saveProductCatalogSnapshotsBatch, saveProductCatalogState, saveProductShopLimit, getProductCatalogSettings, saveProductActionLog, listApiCapableShopCredentials, ensureReturnReverseLedgerTable, buildShopeeReturnLedgerRows, buildLazadaReverseLedgerRows, loadReturnReverseOrderMap, saveReturnReverseLedgerRows, ORDER_SOURCE_MODES, cleanupLegacyOrderSourceMeta, ensureOrderTransportColumns, saveOrderTrackingCore, trackingSummary, normalizeBangkokDateTime, normalizeBangkokDate, nowBangkokText, ymdToBangkokMs, mergeLazadaStockSources, normalizeLazadaAdvancedStockSource, normalizeLazadaFblStockSource, importOrdersV2, handleVariations, notifyOrderSubscribers, saveProductKnowledgeBatch, upsertMarketplaceCustomerContact, marketplaceContactFromLazadaOrder, getCostSettings, calcProfit, refreshLazadaTokenForShop, refreshShopeeTokenForShop, collectShopeePackageStatus, mapShopeeStatus }
 
 installApiSyncCommonFoundationConstants(core)
 installApiSyncCommonFoundationOrders(core)
@@ -151,4 +156,5 @@ export const handleApiStatusSync = (...args) => core.handleApiStatusSync(...args
 export const handleApiOrderSync = (...args) => core.handleApiOrderSync(...args)
 export const handleBackfillMissingOrderItems = (...args) => core.handleBackfillMissingOrderItems(...args)
 export const handleApiProductSync = (...args) => core.handleApiProductSync(...args)
+export const handleLazadaPromoAction = (...args) => core.handleLazadaPromoAction(...args)
 export const __test__ = core.__test__

@@ -64,6 +64,13 @@ export async function ensureOrderTransportColumns(env) {
   await addColumnIfMissing(env, 'orders_v2', 'source_mode', `TEXT DEFAULT '${ORDER_SOURCE_MODES.MANUAL_REFERENCE}'`)
   await addColumnIfMissing(env, 'orders_v2', 'source_detail', `TEXT DEFAULT ''`)
   await addColumnIfMissing(env, 'orders_v2', 'source_updated_at', `TEXT DEFAULT ''`)
+  // Các cột này giữ bằng chứng chi tiết từ API sàn để OMS chỉ render lại, không tự đoán.
+  await addColumnIfMissing(env, 'orders_v2', 'payment_method', `TEXT DEFAULT ''`)
+  await addColumnIfMissing(env, 'orders_v2', 'payment_method_source', `TEXT DEFAULT ''`)
+  await addColumnIfMissing(env, 'orders_v2', 'payment_time', `TEXT DEFAULT ''`)
+  await addColumnIfMissing(env, 'orders_v2', 'payment_time_source', `TEXT DEFAULT ''`)
+  await addColumnIfMissing(env, 'orders_v2', 'customer_note', `TEXT DEFAULT ''`)
+  await addColumnIfMissing(env, 'orders_v2', 'customer_note_source', `TEXT DEFAULT ''`)
 }
 
 function cleanupSourceGuide(mode) {

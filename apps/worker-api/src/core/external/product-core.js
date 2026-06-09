@@ -15,6 +15,42 @@ function firstImage(row = {}) {
   return Array.isArray(images) ? cleanExternalText(images[0]) : ''
 }
 
+function uniqueTexts(values = []) {
+  const seen = new Set()
+  const result = []
+  for (const value of values) {
+    const text = cleanExternalText(value)
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    result.push(text)
+  }
+  return result
+}
+
+function productImages(row = {}) {
+  const direct = cleanExternalText(row.image_url)
+  const images = externalJson(row.images, [])
+  return uniqueTexts([
+    direct,
+    ...(Array.isArray(images) ? images : [])
+  ])
+}
+
+function buildPromptAssets(row = {}) {
+  const name = cleanExternalText(row.product_name)
+  const description = cleanExternalText(row.description)
+  const sku = cleanExternalText(row.sku)
+  const category = cleanExternalText(row.category)
+  const promptText = [name, description, sku ? `SKU: ${sku}` : '', category ? `Category: ${category}` : '']
+    .filter(Boolean)
+    .join('\n\n')
+
+  return {
+    allImageUrls: productImages(row),
+    promptText
+  }
+}
+
 export function normalizePriceFields(row = {}) {
   const originalPrice = Math.max(
     externalNumber(row.original_price),
@@ -55,6 +91,7 @@ function normalizeProductRow(row = {}) {
   const stock = productStock(row)
   const reservedStock = externalNumber(row.reserved_stock)
   const price = normalizePriceFields(row)
+  const images = productImages(row)
   return {
     id: cleanExternalText(row.sku),
     platform: cleanExternalText(row.platform),
@@ -64,12 +101,14 @@ function normalizeProductRow(row = {}) {
     category: cleanExternalText(row.category),
     description: cleanExternalText(row.description),
     ...price,
-    imageUrl: firstImage(row),
+    imageUrl: images[0] || firstImage(row),
+    images,
     status: cleanExternalText(row.status) || 'active',
     stock,
     availableStock: Math.max(0, stock - reservedStock),
     reservedStock,
-    updatedAt: cleanExternalText(row.updated_at || row.price_updated_at)
+    updatedAt: cleanExternalText(row.updated_at || row.price_updated_at),
+    promptAssets: buildPromptAssets(row)
   }
 }
 
@@ -272,6 +311,8 @@ export async function getExternalProductDetail(env, id) {
       variantId: variant.sku,
       sku: variant.sku,
       variantName: variant.name,
+      imageUrl: variant.imageUrl,
+      images: Array.isArray(variant.images) ? variant.images : [],
       costPrice: variant.costPrice,
       originalPrice: variant.originalPrice,
       salePrice: variant.salePrice,
@@ -288,6 +329,13 @@ export async function getExternalProductDetail(env, id) {
 
   return {
     ...product,
+    promptAssets: {
+      ...product.promptAssets,
+      allImageUrls: uniqueTexts([
+        ...(product.promptAssets?.allImageUrls || []),
+        ...variants.flatMap(variant => Array.isArray(variant.images) ? variant.images : [])
+      ])
+    },
     variants
   }
 }
@@ -309,4 +357,3 @@ export async function getExternalProductPrice(env, sku) {
     priceUpdatedAt: product.priceUpdatedAt
   }
 }
-

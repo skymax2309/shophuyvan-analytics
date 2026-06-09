@@ -8,6 +8,12 @@ function applyCatalogSettingsToUi(settings = {}) {
     if (manualToggle) manualToggle.checked = Number(settings.manual_internal_stock_edit_enabled || 0) === 1;
     if (stockToggle) stockToggle.checked = Number(settings.marketplace_stock_push_enabled || 0) === 1;
     if (priceToggle) priceToggle.checked = Number(settings.marketplace_price_push_enabled || 0) === 1;
+    const tiktokUrlInput = document.getElementById('catalogTikTokPromotionUrl');
+    const tiktokShop = document.getElementById('catalogPriceEditorShop')?.value || '0909128999';
+    const tiktokUrls = settings.tiktok_promotion_urls && typeof settings.tiktok_promotion_urls === 'object'
+        ? settings.tiktok_promotion_urls
+        : {};
+    if (tiktokUrlInput) tiktokUrlInput.value = tiktokUrls[tiktokShop] || tiktokUrls['0909128999'] || tiktokUrls.default || '';
     if (guardNote) {
         guardNote.textContent = settings.stock_push_guard_note || 'Kho thật đang tham chiếu ngoài hệ thống nên phần ghi tồn được khóa mặc định.';
     }
@@ -36,6 +42,8 @@ function getCatalogPreviewEligibleShops() {
     const rows = Array.isArray(window.__shopApiRows) ? window.__shopApiRows : [];
     return rows.filter(shop => {
         const mode = String(shop.capability_mode || '');
+        const shopPlatform = String(shop.platform || '').toLowerCase();
+        if (platform === 'lazada') return shopPlatform === platform && mode === 'api_active';
         return String(shop.platform || '').toLowerCase() === platform
             && mode === 'api_active'
             && truthyApiFlag(shop.supports_write_preview);
@@ -81,10 +89,12 @@ function renderCatalogPreviewResult(result = null) {
     const listWrap = document.getElementById('catalogWritePreviewList');
     if (!summaryWrap || !listWrap) return;
     if (!result) {
+        window.catalogWritePreviewLastResult = null;
         summaryWrap.textContent = 'Chưa chạy preview.';
         listWrap.innerHTML = '<div>Chưa có kết quả preview.</div>';
         return;
     }
+    window.catalogWritePreviewLastResult = result;
     const summary = result.summary || {};
     const settings = result.settings || {};
     summaryWrap.innerHTML = `
@@ -103,9 +113,20 @@ function renderCatalogPreviewResult(result = null) {
         return;
     }
 
-    listWrap.innerHTML = rows.map(row => {
+    listWrap.innerHTML = rows.map((row, rowIndex) => {
         const ready = Number(row.can_send_now || 0) === 1;
         const warnings = Array.isArray(row.warnings) ? row.warnings : [];
+        const promotionCore = row.promotion_core && typeof row.promotion_core === 'object' ? row.promotion_core : null;
+        const actionType = String(row.action_type || summary.action_type || '').toLowerCase();
+        const isPromotionPriceFlow = actionType === 'update_price';
+        const proposedStockLine = isPromotionPriceFlow
+            ? ''
+            : `<div><strong>Tồn đề xuất:</strong> ${escapeHtml(formatCatalogNumber(row.proposed_stock))}</div>`;
+        const blockReason = row.block_reason || promotionCore?.block_reason || '';
+        const statusKey = row.status || promotionCore?.status || '';
+        const liveButton = promotionCore?.live_action && ready
+            ? `<button type="button" class="btn btn-primary btn-sm" onclick="applyCatalogPromotionLive(${rowIndex})">Gửi giá KM thật</button>`
+            : '';
         const borderColor = ready ? '#bbf7d0' : '#fed7aa';
         const bgColor = ready ? '#f0fdf4' : '#fff7ed';
         const statusText = ready
@@ -121,17 +142,30 @@ function renderCatalogPreviewResult(result = null) {
                         </div>
                     </div>
                     <div style="font-size:12px;font-weight:800;color:${ready ? '#166534' : '#b45309'};">
-                        ${escapeHtml(statusText)}
+                        ${escapeHtml(ready ? `ready${statusKey ? ` - ${statusKey}` : ''}` : (blockReason ? `blocked - ${blockReason}` : (statusKey || statusText)))}
                     </div>
                 </div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:10px;">
                     <div><strong>Giá hiện tại:</strong> ${escapeHtml(formatCatalogNumber(row.current_price))}đ</div>
                     <div><strong>Giá đề xuất:</strong> ${escapeHtml(formatCatalogNumber(row.proposed_price))}đ</div>
                     <div><strong>Tồn hiện tại:</strong> ${escapeHtml(formatCatalogNumber(row.current_stock))}</div>
-                    <div><strong>Tồn đề xuất:</strong> ${escapeHtml(formatCatalogNumber(row.proposed_stock))}</div>
+                    ${proposedStockLine}
                     <div><strong>Giá vốn chặn:</strong> ${escapeHtml(formatCatalogNumber(row.guard_price))}đ</div>
                     <div><strong>Giá vốn tham chiếu:</strong> ${escapeHtml(formatCatalogNumber(row.cost_base))}đ</div>
                 </div>
+                ${promotionCore ? `
+                  <div class="catalog-promotion-core-preview">
+                    <div><strong>Promotion Core:</strong> ${escapeHtml(promotionCore.sync_status || '')}</div>
+                    <div><strong>${row.platform === 'lazada' ? 'seller_sku' : 'discount_id'}:</strong> ${escapeHtml(row.platform === 'lazada' ? (promotionCore.seller_sku || 'thiếu') : (promotionCore.discount_id || 'thiếu'))}</div>
+                    <div><strong>item_id:</strong> ${escapeHtml(promotionCore.item_id || 'thiếu')}</div>
+                    <div><strong>model_id:</strong> ${escapeHtml(promotionCore.model_id || 'thiếu')}</div>
+                    <div><strong>Endpoint:</strong> ${escapeHtml(promotionCore.endpoint || 'chưa hỗ trợ')}</div>
+                    <div><strong>Giá KM hiện tại:</strong> ${escapeHtml(formatCatalogNumber(promotionCore.current_promotion_price || 0))}đ</div>
+                    <div><strong>Giá KM mới:</strong> ${escapeHtml(formatCatalogNumber(promotionCore.target_promotion_price || 0))}đ</div>
+                    <div><strong>Readback:</strong> ${promotionCore.readback_required ? 'Bắt buộc đọc lại từ Core/sàn sau khi chạy thật' : 'Chưa yêu cầu'}</div>
+                  </div>
+                ` : ''}
+                ${liveButton ? `<div style="margin-top:10px;">${liveButton}</div>` : ''}
                 <div style="margin-top:8px;color:#475569;">
                     ${warnings.length ? warnings.map(escapeHtml).join('<br>') : 'Không có cảnh báo thêm.'}
                 </div>
@@ -216,6 +250,56 @@ window.runCatalogWritePreview = async function() {
     } catch (error) {
         renderCatalogPreviewResult(null);
         notifyShopApi('Lỗi preview ghi dữ liệu: ' + error.message, true);
+    }
+};
+
+window.applyCatalogPromotionLive = async function(rowIndex) {
+    const result = window.catalogWritePreviewLastResult || {};
+    const rows = Array.isArray(result.rows) ? result.rows : [];
+    const row = rows[rowIndex] || {};
+    const promotionCore = row.promotion_core && typeof row.promotion_core === 'object' ? row.promotion_core : null;
+    const liveAction = promotionCore?.live_action;
+    if (!liveAction || Number(row.can_send_now || 0) !== 1) {
+        notifyShopApi('Dòng này chưa đạt trạng thái ready để ghi giá khuyến mại thật.', true);
+        return;
+    }
+    const ok = window.confirm([
+        `Xác nhận ghi giá khuyến mại thật lên ${String(row.platform || '').toUpperCase()} qua Promotion Core?`,
+        `Shop: ${row.shop || ''}`,
+        `SKU: ${row.platform_sku || ''}`,
+        row.platform === 'lazada' ? `seller_sku: ${promotionCore.seller_sku || row.platform_sku || ''}` : `discount_id: ${promotionCore.discount_id || ''}`,
+        `item_id: ${promotionCore.item_id || ''}`,
+        `model_id: ${promotionCore.model_id || ''}`,
+        `Giá mới: ${formatCatalogNumber(promotionCore.proposed_promotion_price || promotionCore.target_promotion_price || row.proposed_price)}đ`
+    ].join('\n'));
+    if (!ok) return;
+    try {
+        const res = await fetch(API + liveAction.route, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                shop: row.shop,
+                action: liveAction.action,
+                execute: true,
+                confirm: liveAction.confirm,
+                payload: liveAction.payload
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        row.live_result = data;
+        if (!res.ok || data.error || data.status === 'error' || data.status === 'readback_mismatch' || data.verified !== true) {
+            renderCatalogPreviewResult(result);
+            throw new Error(data.message || data.error || data.status || 'Sàn chưa xác nhận readback đúng.');
+        }
+        promotionCore.status = 'written';
+        promotionCore.write_status = data.write_status || 'success';
+        promotionCore.promotion_sync_status = data.promotion_sync_status || 'synced';
+        promotionCore.last_write_at = new Date().toISOString();
+        promotionCore.last_readback_at = new Date().toISOString();
+        renderCatalogPreviewResult(result);
+        notifyShopApi(`Đã ghi giá khuyến mại thật và readback ${String(row.platform || 'sàn').toUpperCase()} thành công.`);
+    } catch (error) {
+        notifyShopApi('Lỗi ghi giá khuyến mại thật: ' + error.message, true);
     }
 };
 

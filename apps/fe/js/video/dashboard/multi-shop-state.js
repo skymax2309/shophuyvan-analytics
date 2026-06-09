@@ -448,7 +448,8 @@ function renderTabState() {
 function normalizeVideoSubtab(value) {
   const text = cleanText(value)
   if (text === 'automation') return 'upload'
-  return ['overview', 'library', 'detail', 'upload', 'multi', 'lazada', 'shop'].includes(text) ? text : 'overview'
+  if (text === 'shop') return 'library'
+  return ['overview', 'library', 'detail', 'upload', 'multi', 'lazada'].includes(text) ? text : 'overview'
 }
 
 function setVideoSubtab(value) {
@@ -471,7 +472,7 @@ function renderSubtabState() {
     node.hidden = cleanText(node.dataset.videoSubview) !== state.activeSubtab
   })
   document.querySelectorAll('[data-video-shopee-control]').forEach(node => {
-    node.hidden = ['lazada', 'shop'].includes(state.activeSubtab)
+    node.hidden = ['lazada'].includes(state.activeSubtab)
   })
   const workArea = document.getElementById('videoWorkArea')
   if (workArea) workArea.hidden = !['library', 'detail', 'upload', 'multi'].includes(state.activeSubtab)

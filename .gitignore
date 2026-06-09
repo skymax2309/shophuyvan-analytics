@@ -51,3 +51,9 @@ tmp-*.pdf
 auto OMS Python/
 shophuyvan-runtime/
 shophuyvan-python-automation/
+
+# Local project secrets / auth profiles
+profiles.local.json
+profiles*.local.json
+.secrets/
+.secrets/**

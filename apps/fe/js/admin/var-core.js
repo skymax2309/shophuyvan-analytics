@@ -1,8 +1,6 @@
 window.allVariations = [];
 window.currentVarPage = 1;
 window.VARS_PER_PAGE = 48;
-window.productReviewRiskRows = [];
-window.productReviewRiskByKey = new Map();
 
 window.escapeHtml = function(unsafe) {
   return (unsafe || '').toString()
@@ -27,100 +25,6 @@ function statusBadge(status) {
   return badges[status] || escapeHtml(status || '');
 }
 
-function reviewRiskKey(platform, shop, type, value) {
-  const normalized = (value || '').toString().trim().toLowerCase();
-  if (!normalized || normalized === 'sản phẩm chưa rõ') return '';
-  return [
-    (platform || '').toString().trim().toLowerCase(),
-    (shop || '').toString().trim().toLowerCase(),
-    type,
-    normalized
-  ].join('|');
-}
-
-function reviewRiskKeys(row = {}) {
-  // Review_core có thể thiếu SKU hoặc tên, nên key phải giữ cả item_id để match đúng sản phẩm sàn.
-  return [
-    reviewRiskKey(row.platform, row.shop, 'item', row.platform_item_id),
-    reviewRiskKey(row.platform, row.shop, 'sku', row.item_sku || row.platform_sku || row.sku),
-    reviewRiskKey(row.platform, row.shop, 'name', row.product_name)
-  ].filter(Boolean);
-}
-
-function indexProductReviewRisk(rows = []) {
-  const map = new Map();
-  rows.forEach(row => {
-    reviewRiskKeys(row).forEach(key => {
-      if (!map.has(key)) map.set(key, row);
-    });
-  });
-  window.productReviewRiskByKey = map;
-}
-
-function findProductReviewRisk(row = {}) {
-  const map = window.productReviewRiskByKey || new Map();
-  for (const key of reviewRiskKeys(row)) {
-    if (map.has(key)) return map.get(key);
-  }
-  return null;
-}
-
-function reviewRiskBadge(row = {}) {
-  if (!row) return '';
-  const adsSpend = Number(row.ads_spend_14d || 0);
-  const adsText = adsSpend > 0 ? ` · ADS ${formatVnd(adsSpend)}` : '';
-  return `<span class="review-risk-chip variation-review-risk" title="Review xấu từ review_core">Review xấu ${Number(row.negative_reviews || 0).toLocaleString('vi-VN')}${adsText}</span>`;
-}
-
-function renderProductReviewRiskPanel() {
-  const list = document.getElementById('productReviewRiskList');
-  if (!list) return;
-  const rows = window.productReviewRiskRows || [];
-  if (!rows.length) {
-    list.innerHTML = '<div class="variation-empty">Chưa có sản phẩm nào bị review xấu trong core hiện tại.</div>';
-    return;
-  }
-  list.innerHTML = rows.slice(0, 6).map(row => {
-    const adsSpend = Number(row.ads_spend_14d || 0);
-    const adsChip = adsSpend > 0
-      ? `<span class="review-risk-chip ads">ADS 14 ngày: ${formatVnd(adsSpend)}</span>`
-      : '<span class="review-risk-chip good">Chưa trùng ADS đang chi tiền</span>';
-    return `
-      <div class="review-risk-item">
-        <b title="${escapeHtml(row.product_name)}">${escapeHtml(row.product_name || 'Sản phẩm chưa rõ')}</b>
-        <span>${escapeHtml(row.item_sku || row.platform_item_id || 'Chưa rõ SKU')} · ${escapeHtml(row.platform || '')} / ${escapeHtml(row.shop || '')}</span>
-        <div class="review-risk-meta">
-          <span class="review-risk-chip">${Number(row.negative_reviews || 0).toLocaleString('vi-VN')} review xấu</span>
-          <span class="review-risk-chip">${Number(row.need_reply_reviews || 0).toLocaleString('vi-VN')} cần trả lời</span>
-          ${adsChip}
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-window.loadProductReviewRisk = async function(options = {}) {
-  const list = document.getElementById('productReviewRiskList');
-  if (list && options.force) list.innerHTML = '<div class="variation-empty">Đang tải lại review xấu...</div>';
-  try {
-    const data = await fetch(API + '/api/reviews/product-risk?limit=30&t=' + Date.now()).then(r => {
-      if (!r.ok) throw new Error('Review API HTTP ' + r.status);
-      return r.json();
-    });
-    window.productReviewRiskRows = Array.isArray(data.rows) ? data.rows : [];
-    indexProductReviewRisk(window.productReviewRiskRows);
-    renderProductReviewRiskPanel();
-    if (!options.skipRender && window.allVariations && window.allVariations.length) {
-      renderVariations(window.currentVarPage || 1);
-    }
-  } catch (error) {
-    window.productReviewRiskRows = [];
-    indexProductReviewRisk([]);
-    if (list) list.innerHTML = `<div class="variation-empty" style="color:#b91c1c;">Không tải được review_core: ${escapeHtml(error.message)}</div>`;
-    if (!options.silent) showToast('Không tải được review_core: ' + error.message, true);
-  }
-};
-
 function selectedVariationIds() {
   return Array.from(document.querySelectorAll('.var-checkbox:checked'))
     .map(cb => Number(cb.getAttribute('data-id')))
@@ -137,8 +41,7 @@ window.loadVariations = async function() {
     const skuPromise = (!window.allSkus || window.allSkus.length === 0)
       ? fetch(API + '/api/products?t=' + Date.now()).then(r => r.json())
       : Promise.resolve(window.allSkus);
-    const reviewPromise = window.loadProductReviewRisk({ silent: true, skipRender: true }).catch(() => null);
-    const [variationRows, skuRows] = await Promise.all([variationPromise, skuPromise, reviewPromise]);
+    const [variationRows, skuRows] = await Promise.all([variationPromise, skuPromise]);
     window.allVariations = variationRows;
     window.allSkus = skuRows;
     updateShopDropdown();
@@ -242,7 +145,6 @@ window.renderVariations = function(page = 1) {
       .join('');
 
     const rows = pagedGroups.map(parent => {
-      const productReviewRisk = findProductReviewRisk(parent);
       const childHtml = parent.variations.map(v => {
         let mappedHtml = '';
         if (v.map_status === 'MAPPED') {
@@ -313,7 +215,6 @@ window.renderVariations = function(page = 1) {
               <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap;">
                 <span class="variation-chip" style="background:#f1f5f9;color:#475569;text-transform:uppercase;">${escapeHtml(parent.platform)} - ${escapeHtml(parent.shop)}</span>
                 <span class="variation-chip" style="background:#e0e7ff;color:#4338ca;">${parent.variations.length} phân loại</span>
-                ${reviewRiskBadge(productReviewRisk)}
               </div>
             </div>
             <div class="variation-stock-summary">

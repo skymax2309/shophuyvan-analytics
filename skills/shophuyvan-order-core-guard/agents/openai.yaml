@@ -1,0 +1,4 @@
+interface:
+  display_name: "ShopHuyVan Order Core Guard"
+  short_description: "Guard Order Core, status, detail, and date scans"
+  default_prompt: "Use this guard before editing ShopHuyVan order status, order detail, Order Core read-model, sync_detail, or manual date-scan flows."

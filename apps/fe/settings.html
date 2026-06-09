@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ee4d2d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="HV Chat">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icons/shophuyvan-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/theme/shophuyvan-design-tokens.css">
+  <link rel="stylesheet" href="/css/dashboard/chat-settings.css?v=chat-ai-learning-20260603a">
+  <title>Cài đặt Chat/AI - Shop Huy Vân</title>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="mark">SHV</span>
+      <span><strong>Cài đặt Chat/AI</strong><small>Shop Huy Vân</small></span>
+    </div>
+    <div class="actions">
+      <a class="btn" href="/pages/chat-cskh.html">Về Chat</a>
+      <button class="btn" id="reloadBtn">Làm mới</button>
+      <button class="btn primary" id="syncBtn">Sync ngay</button>
+    </div>
+  </header>
+  <div class="layout">
+    <nav class="nav" id="tabs">
+      <button class="active" data-tab="overview">Tổng quan</button>
+      <button data-tab="ai">AI</button>
+      <button data-tab="channels">Kênh chat</button>
+      <button data-tab="keywords">Từ khóa sàn</button>
+      <button data-tab="notifications">Thông báo</button>
+      <button data-tab="advanced">Nâng cao</button>
+    </nav>
+    <main class="main">
+      <section id="overview" class="tab active">
+        <div class="grid">
+          <div class="card"><h2>Trạng thái</h2><div id="channelStatus" class="chips"></div></div>
+          <div class="card"><h2>AI</h2><p id="aiStatus" class="muted">Đang tải...</p></div>
+          <div class="card"><h2>24h</h2><div id="statsBox" class="chips"></div></div>
+          <div class="card"><h2>WebSocket</h2><span class="badge warn" id="wsStatus">Đang kiểm tra</span></div>
+        </div>
+      </section>
+      <section id="ai" class="tab">
+        <div class="grid">
+          <div class="card">
+            <h2>Kết nối Gemini</h2>
+            <div class="field"><span>Nhà cung cấp</span><select id="aiProvider"><option value="gemini">Gemini</option><option value="fallback">Tắt AI</option></select></div>
+            <div class="field"><span>Model Gemini</span><input id="aiModel" value="gemini-2.5-flash"></div>
+            <div class="field"><span>Thêm API Gemini xoay vòng</span><textarea id="geminiKeys" class="masked" spellcheck="false" placeholder="Mỗi dòng một API key mới. Key cũ vẫn được giữ. Tối đa 5 key."></textarea></div>
+            <p id="geminiSavedStatus" class="muted">Đang đọc số key đã lưu...</p>
+            <div class="row">
+              <button class="btn" id="toggleKeysBtn">Hiện/Ẩn key</button>
+              <button class="btn" id="testGeminiBtn">Kiểm tra kết nối</button>
+              <button class="btn primary" id="saveGeminiBtn">Thêm/Lưu API Gemini</button>
+            </div>
+            <p id="geminiResult" class="muted"></p>
+          </div>
+          <div class="card">
+            <h2>Mô hình và luật tự động</h2>
+            <div class="field"><span>Chế độ</span><select id="aiMode"><option value="suggest_only">Chỉ gợi ý</option><option value="auto_send_guarded">Tự động gửi có kiểm tra</option></select></div>
+            <label class="switch"><input id="allowAutoSend" type="checkbox"><span class="track"><span class="knob"></span></span></label>
+            <b>Cho phép tự gửi khi đủ an toàn</b>
+            <div class="field settings-spaced"><span>Gợi ý khi chưa trả lời sau (phút)</span><input id="autoReplyMinutes" type="number" min="1" max="60" value="5"></div>
+            <button class="btn primary" id="saveAiBtn">Lưu cài đặt AI</button>
+          </div>
+          <div class="card settings-full settings-agent-card">
+            <div class="settings-card-head">
+              <div>
+                <h2>Huấn luyện AI CSKH</h2>
+                <p class="muted">Cài cách AI soạn câu trả lời, nguồn dữ liệu được dùng và lúc nào phải chuyển nhân viên duyệt.</p>
+              </div>
+              <div id="agentConfigBadge"><span class="badge warn">Cần lưu cấu hình</span></div>
+            </div>
+            <div class="settings-agent-grid">
+              <div class="field"><span>Chế độ trả lời</span><select id="agentReplyMode"><option value="suggest_only">Chỉ soạn gợi ý để nhân viên gửi</option><option value="reviewed_auto_ready">Sẵn sàng kiểm duyệt trước khi tự gửi</option></select></div>
+              <div class="field"><span>Cách xưng hô và vai trò</span><input id="agentReplyIdentity" placeholder="Ví dụ: nhân viên Shop Huy Vân, gọi khách là anh/chị, xưng em."></div>
+              <div class="field"><span>Độ chắc chắn tối thiểu</span><select id="agentMinConfidence"><option value="high">Cao - thiếu dữ liệu thì hỏi thêm</option><option value="very_high">Rất cao - chỉ trả lời khi đủ căn cứ</option></select></div>
+              <div class="field"><span>Khi không đủ dữ liệu</span><textarea id="agentHandoffPolicy" class="settings-textarea-compact" placeholder="Quy tắc chuyển nhân viên duyệt khi thiếu dữ liệu, khiếu nại, đổi trả, bảo hành..."></textarea></div>
+            </div>
+            <div class="settings-source-grid" aria-label="Nguồn dữ liệu AI được phép dùng">
+              <label class="settings-check"><input id="agentUseProductData" type="checkbox"> Dữ liệu sản phẩm đã kiểm</label>
+              <label class="settings-check"><input id="agentUseOrderData" type="checkbox"> Dữ liệu đơn hàng đã kiểm</label>
+              <label class="settings-check"><input id="agentUsePolicyData" type="checkbox"> Chính sách shop</label>
+              <label class="settings-check"><input id="agentUseApprovedReplies" type="checkbox"> Câu trả lời đã duyệt</label>
+              <label class="settings-check"><input id="agentUseZaloNotes" type="checkbox"> Ghi chú riêng cho Zalo/Facebook</label>
+            </div>
+            <div class="settings-inline-rule">
+              <label class="settings-check settings-check-inline"><input id="agentEvidenceRequired" type="checkbox"> Bắt buộc hiện căn cứ trước khi dùng gợi ý</label>
+              <span>Nếu sau này bật tự gửi thì chờ</span>
+              <input id="agentAutoDelaySeconds" type="number" min="10" max="60" value="15">
+              <span>giây để nhân viên kịp hủy.</span>
+            </div>
+            <div class="settings-locked-rule">AI không tự học từ hội thoại thô. Chỉ học khi nhân viên thêm câu trả lời tốt vào bộ nhớ.</div>
+            <p id="agentConfigStatus" class="settings-note">Chưa đọc cấu hình huấn luyện AI.</p>
+            <button class="btn primary" id="saveAgentConfigBtn">Lưu cấu hình huấn luyện AI</button>
+          </div>
+          <div class="card settings-full">
+            <h2>Bộ nhớ học AI</h2>
+            <p id="learningStatus" class="muted">AI học từ ghi chú này và các câu trả lời nhân viên đã gửi từ gợi ý AI.</p>
+            <div class="field"><span>Kiến thức shop để AI học</span><textarea id="learningNotes" placeholder="Chính sách, cách xưng hô, quy trình xử lý..."></textarea></div>
+            <button class="btn primary" id="saveLearningBtn">Lưu bộ nhớ AI</button>
+          </div>
+          <div class="card settings-full">
+            <h2>Bộ nhớ trả lời</h2>
+            <p class="muted">AI chỉ tự học từ câu trả lời nhân viên đã gửi thành công hoặc nội dung được nhập tay tại đây. Dữ liệu riêng của khách sẽ được ẩn trước khi lưu.</p>
+            <div id="kbSummary" class="chips settings-spaced"></div>
+            <div class="settings-kb-toolbar">
+              <label class="field"><span>Tìm trong bộ nhớ</span><input id="kbSearch" placeholder="Tìm câu hỏi, câu trả lời, intent, nguồn..."></label>
+              <label class="field"><span>Trạng thái</span><select id="kbStatusFilter"><option value="">Tất cả</option><option value="active">Đang dùng</option><option value="disabled">Đang tắt</option></select></label>
+            </div>
+            <input id="kbEditingId" type="hidden">
+            <h3 id="kbFormTitle" class="settings-subtitle">Thêm câu trả lời tốt</h3>
+            <div class="grid">
+              <div><div class="field"><span>Câu hỏi</span><textarea id="kbQuestion"></textarea></div></div>
+              <div><div class="field"><span>Câu trả lời tốt</span><textarea id="kbAnswer"></textarea></div></div>
+            </div>
+            <div class="settings-kb-toolbar">
+              <label class="field"><span>Kênh dùng</span><select id="kbChannel"><option value="">Dùng chung</option><option value="shopee">Shopee</option><option value="lazada">Lazada</option><option value="tiktok">TikTok</option><option value="zalo">Zalo</option><option value="facebook">Facebook</option></select></label>
+              <label class="field"><span>Shop cụ thể nếu cần</span><input id="kbShopId" placeholder="Để trống nếu dùng chung trong kênh"></label>
+            </div>
+            <div class="row settings-spaced"><button class="btn primary" id="addKbBtn">Lưu vào bộ nhớ</button><button class="btn" id="kbCancelEditBtn" hidden>Hủy sửa</button></div>
+            <div id="kbRows" class="settings-kb-list"></div>
+            <h3 class="settings-subtitle">Lịch sử học gần nhất</h3>
+            <div id="kbAuditRows" class="settings-audit-list"></div>
+          </div>
+        </div>
+      </section>
+      <section id="channels" class="tab">
+        <div class="grid">
+          <div class="card">
+            <h2>Tự trả lời Zalo</h2>
+            <p class="muted">Cấu hình cách AI soạn câu trả lời cho Zalo tại đây. Tự gửi vẫn khóa an toàn cho tới khi bộ nhớ đã được kiểm duyệt.</p>
+            <div id="zaloAutoRuleStatus" class="settings-status-grid"></div>
+            <div class="settings-zalo-config">
+              <div class="field"><span>Chế độ dùng AI Zalo</span><select id="zaloReplyMode"><option value="suggest_only">Chỉ soạn gợi ý để nhân viên gửi</option><option value="reviewed_auto_ready">Đã sẵn sàng bật tự gửi sau kiểm duyệt</option></select></div>
+              <div class="field"><span>Cách xưng hô và giọng trả lời</span><input id="zaloReplyStyle" placeholder="Ví dụ: lịch sự, gọi khách là anh/chị, xưng em, không dùng emoji."></div>
+              <div class="field"><span>Câu chào khi có bạn mới</span><textarea id="zaloWelcomeTemplate" class="settings-textarea-compact" placeholder="Mẫu câu chào bạn mới. Có thể dùng {name} để thay tên khách."></textarea></div>
+              <div class="field"><span>Câu trả lời khi khách nhắn trước</span><textarea id="zaloFirstInboundTemplate" class="settings-textarea-compact" placeholder="Mẫu câu đầu tiên khi khách nhắn vào Zalo. Có thể dùng {name}."></textarea></div>
+              <div class="field"><span>Nội dung train AI riêng cho Zalo</span><textarea id="zaloTrainingNotes" placeholder="Nhập chính sách trả lời Zalo, cách tư vấn, câu cần tránh, luồng hỏi thêm thông tin, cách chuyển nhân viên..."></textarea></div>
+              <div class="settings-inline-rule">
+                <span>Nếu sau này bật tự gửi thì chờ</span>
+                <input id="zaloAutoDelaySeconds" type="number" min="5" max="30" value="10">
+                <span>giây để nhân viên kịp hủy.</span>
+              </div>
+              <p id="zaloConfigStatus" class="settings-note">Chưa đọc cấu hình Zalo AI.</p>
+              <div class="row">
+                <button class="btn primary" id="saveZaloAiConfigBtn">Lưu cách trả lời & train AI Zalo</button>
+              </div>
+            </div>
+            <div id="zaloAccountAiRows" class="settings-zalo-list"></div>
+            <div class="row"><button class="btn danger" id="disableZaloAutoReplyBtn">Tắt tự trả lời Zalo</button></div>
+          </div>
+          <div class="card">
+            <h2>Cấu hình kéo tin</h2>
+            <div class="field"><span>Thời gian kéo tin tự động: <b id="pollValue">15</b> giây</span><input id="pollSeconds" type="range" min="10" max="120" value="15"></div>
+            <div class="field"><span>Đọc từ trình duyệt: <b id="helperValue">45</b> giây</span><input id="helperSeconds" type="range" min="30" max="300" value="45"></div>
+            <div class="field"><span>Giới hạn mỗi lần kéo</span><input id="syncLimit" type="number" min="10" max="50" value="30"></div>
+            <label class="settings-check"><input id="forceHistory" type="checkbox"> Kéo lịch sử cũ khi sync</label>
+            <p><button class="btn primary" id="saveChannelBtn">Lưu cài đặt kênh</button></p>
+          </div>
+          <div class="card">
+            <h2>Cửa sổ automation</h2>
+            <div class="field"><span>Kiểu hiển thị</span><select id="automationBrowserPreset"><option value="compact">Nhỏ góc trái</option><option value="top_right">Nhỏ góc phải</option><option value="desktop">Desktop khi cần thao tác sàn</option><option value="custom">Tùy chỉnh</option></select></div>
+            <div class="settings-browser-grid">
+              <div class="field"><span>Rộng</span><input id="automationBrowserWidth" type="number" min="300" max="1600" value="620"></div>
+              <div class="field"><span>Cao</span><input id="automationBrowserHeight" type="number" min="320" max="1000" value="480"></div>
+              <div class="field"><span>Trái</span><input id="automationBrowserLeft" type="number" min="0" max="2400" value="0"></div>
+              <div class="field"><span>Trên</span><input id="automationBrowserTop" type="number" min="0" max="1400" value="0"></div>
+            </div>
+            <p class="settings-note">Automation luôn mở visible để theo dõi thao tác. Chế độ nhỏ/góc màn hình giúp không che vùng làm việc chính.</p>
+          </div>
+          <div class="card" id="zaloLocalCard">
+            <h2>Kết nối Zalo</h2>
+            <p id="zaloLocalStatus" class="muted">Đang kiểm tra Zalo local...</p>
+            <div id="zaloSchedulerStatus" class="settings-status-grid"></div>
+            <div id="zaloSafeMode" class="settings-zalo-mode"></div>
+            <div class="field"><span>Quét Zalo tự động: <b id="zaloScanValue">--</b> giây</span><input id="zaloScanSeconds" type="range" min="15" max="3600" step="5" value="30"></div>
+            <div id="zaloSlotStatus" class="chips settings-spaced"></div>
+            <div class="row"><button class="btn primary" id="saveZaloLocalBtn">Lưu Zalo helper</button><button class="btn" id="syncZaloHistoryBtn">Đồng bộ lịch sử Zalo</button></div>
+            <p id="zaloHistoryResult" class="muted"></p>
+          </div>
+          <div class="card">
+            <h2>Trạng thái kênh</h2>
+            <table class="table"><tbody id="syncRows"></tbody></table>
+          </div>
+        </div>
+      </section>
+      <section id="keywords" class="tab">
+        <div class="grid">
+          <div class="card">
+            <h2>Danh sách từ khóa chat sàn</h2>
+            <p class="muted">Chỉ áp dụng cho Shopee, Lazada, TikTok. Zalo và Facebook dùng chính sách social riêng, không chặn theo bộ từ khóa này.</p>
+            <div class="chips settings-spaced" id="keywordChips"></div>
+            <div class="split"><label class="field"><span>Thêm từ khóa</span><input id="keywordInput"></label><button class="btn" id="addKeywordBtn">Thêm</button></div>
+            <div class="field"><span>Import danh sách</span><textarea id="keywordImport" placeholder="Mỗi dòng một từ hoặc phân tách bằng dấu phẩy"></textarea></div>
+            <div class="row"><button class="btn" id="importKeywordBtn">Import danh sách</button><button class="btn" id="defaultKeywordBtn">Khôi phục mặc định</button><button class="btn primary" id="saveKeywordBtn">Lưu danh sách từ khóa</button></div>
+          </div>
+          <div class="card">
+            <h2>Preview</h2>
+            <div class="field"><span>Test câu văn</span><textarea id="keywordPreview"></textarea></div>
+            <div class="highlight" id="keywordPreviewResult"></div>
+          </div>
+        </div>
+      </section>
+      <section id="notifications" class="tab">
+        <div class="grid">
+          <div class="card">
+            <h2>Thông báo trình duyệt</h2>
+            <div class="field"><span>Mã đăng ký trình duyệt</span><input id="vapidKey" readonly></div>
+            <p id="pushCount" class="muted"></p>
+            <div class="row"><button class="btn" id="allowPushBtn">Cho phép thông báo</button><button class="btn" id="testPushBtn">Gửi thử thông báo</button></div>
+            <p id="pushResult" class="muted"></p>
+          </div>
+          <div class="card ios-box">
+            <h2>iPhone</h2>
+            <p>Để nhận thông báo trên iPhone:</p>
+            <p>1. Mở trang này bằng Safari<br>2. Nhấn nút Chia sẻ<br>3. Chọn Thêm vào màn hình chính<br>4. Mở lại app từ màn hình chính và cho phép thông báo</p>
+          </div>
+        </div>
+      </section>
+      <section id="advanced" class="tab">
+        <div class="grid">
+          <div class="card">
+            <h2>Dữ liệu lưu trữ</h2>
+            <table class="table"><tbody><tr><td>Dữ liệu gốc từ sàn</td><td>30 ngày</td></tr><tr><td>Tệp đính kèm chat</td><td>90 ngày</td></tr><tr><td>Bản xuất AI</td><td>180 ngày</td></tr><tr><td>Bản xuất hội thoại</td><td>365 ngày</td></tr></tbody></table>
+            <p class="settings-spaced"><button class="btn" id="exportKbBtn">Xuất bộ nhớ AI ngay</button></p>
+          </div>
+          <div class="card">
+            <h2>Thống kê dữ liệu</h2>
+            <div id="dbStats" class="chips settings-spaced"></div>
+            <p><button class="btn" id="cleanupBtn">Xóa dữ liệu phụ trợ cũ</button></p>
+          </div>
+          <div class="card danger-zone settings-full">
+            <h2>Nguy hiểm</h2>
+            <div class="split"><label class="field"><span>Gõ XAC NHAN để reset</span><input id="resetConfirm"></label><button class="btn danger" id="resetBtn" disabled>Reset cài đặt</button></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <script src="/js/dashboard/chat-settings-agent.js?v=chat-ai-learning-20260603a" defer></script>
+  <script src="/js/dashboard/chat-settings-knowledge.js?v=chat-ai-learning-20260603a" defer></script>
+  <script src="/js/dashboard/chat-settings-automation-browser.js?v=automation-window-20260604a" defer></script>
+  <script src="/js/dashboard/chat-settings.js?v=chat-ai-learning-20260603a" defer></script>
+</body>
+</html>

@@ -27,6 +27,9 @@ import { installDiscountsShopeeDiscountsAnalysis } from './shopee/discounts/anal
 import { installDiscountsShopeeDiscountsActions } from './shopee/discounts/actions.js'
 import { installDiscountsShopeePromotionsActions } from './shopee/promotions/actions.js'
 import { installDiscountsCommonRouteHandler } from './common/route-handler.js'
+import { installDiscountsFlashDealEndpoints } from './flash-deal-endpoints.js'
+import { installDiscountsFlashAutoSettings } from './flash-auto-settings.js'
+import { installDiscountsFlashAutoRun } from './flash-auto-run.js'
 
 const core = {
   getShopeeAppFromRow,
@@ -61,6 +64,9 @@ installDiscountsShopeeDiscountsAnalysis(core)
 installDiscountsShopeeDiscountsActions(core)
 installDiscountsShopeePromotionsActions(core)
 installDiscountsCommonRouteHandler(core)
+installDiscountsFlashDealEndpoints(core)
+installDiscountsFlashAutoSettings(core)
+installDiscountsFlashAutoRun(core)
 
 export const ensureShopeeDiscountTables = (...args) => core.ensureShopeeDiscountTables(...args)
 export const syncShopeeDiscounts = (...args) => core.syncShopeeDiscounts(...args)

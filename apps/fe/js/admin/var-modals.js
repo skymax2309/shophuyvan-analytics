@@ -101,7 +101,7 @@ window.saveEditVar = async function() {
         let finalImageUrl = document.getElementById('editVarOldImg').value;
         if (fileInput.files.length > 0) {
             const fileName = 'img_' + Date.now() + '_' + fileInput.files[0].name.replace(/[^a-zA-Z0-9.]/g, '');
-            const res = await fetch(`${API}/api/upload?file=${fileName}&token=huyvan_secret_2026`, { method: 'PUT', body: fileInput.files[0] });
+            const res = await fetch(`${API}/api/upload?file=${fileName}`, { method: 'PUT', body: fileInput.files[0] });
             if (!res.ok) throw new Error("Lỗi upload ảnh");
             finalImageUrl = `${API}/api/file/${fileName}`;
         }

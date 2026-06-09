@@ -1,0 +1,18 @@
+{
+  "name": "Shop Huy Vân Chat",
+  "short_name": "HV Chat",
+  "description": "Hệ thống chat CSKH Shop Huy Vân",
+  "start_url": "/pages/chat-cskh.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ee4d2d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/shophuyvan-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

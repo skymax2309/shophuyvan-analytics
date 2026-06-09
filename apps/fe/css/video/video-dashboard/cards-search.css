@@ -1,3 +1,4 @@
+@charset "UTF-8";
 .video-table-wrap {
   overflow-x: auto;
 }
@@ -37,10 +38,11 @@
 
 .video-thumb {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 9 / 16;
   object-fit: cover;
   border-radius: 8px;
   background: #dbe6f1;
+  max-height: 200px;
 }
 
 .video-library-grid {
@@ -246,7 +248,11 @@
 }
 
 .video-packing-card video {
-  width: 100%;
+  width: min(100%, 420px);
+  max-height: 240px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
   border-radius: 8px;
   background: #000;
 }
@@ -264,7 +270,50 @@
   background: #fff;
 }
 
-@media (min-width: 720px) {
+@media (max-width: 719px) {
+  .video-table {
+    min-width: 0;
+  }
+
+  .video-table thead {
+    display: none;
+  }
+
+  .video-table tbody tr {
+    display: block;
+    border: 1px solid var(--video-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: #fff;
+  }
+
+  .video-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px dashed #f0f0f0;
+    font-size: 13px;
+  }
+
+  .video-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .video-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--video-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+}
+
+@media (min-width: 720px) and (max-width: 1079px) {
   .video-shell {
     padding: 18px;
   }
@@ -282,7 +331,7 @@
   }
 
   .video-subtab-switch {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .video-form-grid.two,
@@ -296,6 +345,12 @@
 
   .video-library-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 720px) and (max-width: 859px) {
+  .video-subtab-switch {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -313,6 +368,26 @@
   }
 
   .video-grid-stack.main {
-    grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
+    grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
+    align-items: start;
+  }
+
+  .video-subtab-switch {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: visible;
+  }
+
+  .video-subtab-btn {
+    flex: 1 1 0;
+  }
+
+  .video-packing-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .video-packing-card video {
+    max-height: 220px;
   }
 }

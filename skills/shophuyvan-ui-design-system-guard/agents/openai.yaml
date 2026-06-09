@@ -1,0 +1,4 @@
+interface:
+  display_name: "ShopHuyVan UI Design System Guard"
+  short_description: "Enforce ShopHuyVan UI design system before UI edits."
+  default_prompt: "Use this guard before changing any ShopHuyVan user-facing UI."

@@ -11,13 +11,6 @@ import { validateShopeeBundlePayload } from '../apps/worker-api/src/features/sho
 import { validateShopeeAddOnPayload } from '../apps/worker-api/src/features/shopee/api/addOnDeal.js'
 import { validateShopeeFlashSalePayload } from '../apps/worker-api/src/features/shopee/api/flashSale.js'
 import { buildShopeeChatTextPayload } from '../apps/worker-api/src/features/shopee/api/chatClient.js'
-import {
-  GHN_NOTICE_DEFAULT_TEMPLATE,
-  isGhnAutoOrderEligible,
-  isGhnCarrier,
-  renderGhnNoticeMessage,
-  validateGhnTemplate
-} from '../apps/worker-api/src/core/chat/ghn-auto-message-core.js'
 
 const env = {
   SHOPEE_ENV: 'live',
@@ -90,19 +83,5 @@ assert.deepEqual(buildShopeeChatTextPayload({ buyer_id: '123', text: 'Dạ shop 
   message_type: 'text',
   content: { text: 'Dạ shop hỗ trợ mình ạ.' }
 })
-
-assert.equal(isGhnCarrier('Giao Hàng Nhanh'), true)
-assert.equal(isGhnCarrier('GHN Express'), true)
-assert.equal(isGhnCarrier('SPX Express'), false)
-assert.equal(validateGhnTemplate(GHN_NOTICE_DEFAULT_TEMPLATE).ok, true)
-assert.equal(validateGhnTemplate('Anh/chị vui lòng hủy đơn giúp shop.').error, 'missing_required_phrase')
-assert.equal(validateGhnTemplate('Anh/chị chọn không tiếp tục đơn hiện tại, không hủy đơn.').error, 'banned_cancel_phrase')
-assert.equal(renderGhnNoticeMessage({
-  order_sn: '250101ABC',
-  shipping_carrier: 'GHN',
-  tracking_number: 'GHN123'
-}).includes('không tiếp tục đơn hiện tại'), true)
-assert.equal(isGhnAutoOrderEligible({ shipping_carrier: 'GHN', oms_status: 'Đang xử lý' }).ok, true)
-assert.equal(isGhnAutoOrderEligible({ shipping_carrier: 'GHN', oms_status: 'Đã hoàn tất' }).ok, false)
 
 console.log('Shopee API core tests passed')

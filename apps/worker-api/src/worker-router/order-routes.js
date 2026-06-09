@@ -6,42 +6,42 @@ async function responseJsonSafe(response) {
   }
 }
 
-function localRequest(path, init = {}) {
-  return new Request(`https://worker.local${path}`, init)
+const OMS_BADGE_CACHE_TTL_MS = 30 * 1000
+const omsBadgeCache = new Map()
+
+function readOmsBadgeCache(key) {
+  const cached = omsBadgeCache.get(key)
+  if (!cached || cached.expiresAt <= Date.now()) {
+    omsBadgeCache.delete(key)
+    return null
+  }
+  return { ...cached.badges }
 }
 
-async function createPackedLabelRefreshJob(env, cors, createJob, group) {
-  const now = new Date()
-  const response = await createJob(localRequest('/api/jobs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      task_type: 'refresh_label',
-      shop_name: group.shop,
-      platform: group.platform,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
-      payload: JSON.stringify({
-        order_ids: group.order_ids,
-        download_only: true,
-        source: 'packed_status_auto_retry'
-      })
-    })
-  }), env, cors)
-  const data = await responseJsonSafe(response)
-  return { ...data, platform: group.platform, shop: group.shop, order_ids: group.order_ids }
+function writeOmsBadgeCache(key, badges = {}) {
+  omsBadgeCache.set(key, {
+    expiresAt: Date.now() + OMS_BADGE_CACHE_TTL_MS,
+    badges: { ...badges }
+  })
+}
+
+function localRequest(path, init = {}) {
+  return new Request(`https://worker.local${path}`, init)
 }
 
 async function autoRefreshMissingLabelsForPacked(orderIds, env, cors, deps) {
   const summary = {
     checked: 0,
-    already_has_label: 0,
-    api_refreshed: 0,
-    fallback_jobs: 0,
-    fallback_order_ids: 0,
+    downloaded: 0,
+    eligible: 0,
+    manual_required: 0,
+    not_ready: 0,
+    not_supported: 0,
+    error: 0,
+    auto_refresh_disabled: false,
+    reason: 'Tự tải tem read-only cho đơn đủ điều kiện; shop không hỗ trợ được ghi manual_required.',
     errors: []
   }
-  const groups = new Map()
   const orderList = [...new Set((orderIds || []).map(id => String(id || '').trim()).filter(Boolean))].slice(0, 50)
 
   for (const orderId of orderList) {
@@ -52,43 +52,36 @@ async function autoRefreshMissingLabelsForPacked(orderIds, env, cors, deps) {
       cors
     )
     const status = await responseJsonSafe(statusResponse)
-    if (status?.has_label) {
-      summary.already_has_label += 1
-      continue
-    }
-
-    if (status?.refresh_mode === 'api') {
-      const refreshResponse = await deps.refreshOrderLabel(
-        localRequest(`/api/labels/refresh/${encodeURIComponent(orderId)}`, { method: 'POST' }),
-        env,
-        cors,
-        orderId
-      )
-      const refreshed = await responseJsonSafe(refreshResponse)
-      if (refreshResponse.ok && refreshed.status === 'ok') {
-        summary.api_refreshed += 1
-      } else {
-        summary.errors.push({ order_id: orderId, mode: 'api', error: refreshed.error || 'refresh_label_failed' })
+    const labelStatus = String(status?.label_status || (status?.has_label ? 'downloaded' : '') || '').trim()
+    if (labelStatus && Object.prototype.hasOwnProperty.call(summary, labelStatus)) {
+      summary[labelStatus] += 1
+      if (labelStatus === 'eligible' && deps.refreshOrderLabel) {
+        const refreshResponse = await deps.refreshOrderLabel(
+          localRequest(`/api/label/${encodeURIComponent(orderId)}/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trigger: 'bulk_oms_status' })
+          }),
+          env,
+          cors,
+          orderId
+        )
+        const refreshPayload = await responseJsonSafe(refreshResponse)
+        if (refreshResponse.ok && refreshPayload.status === 'ok') summary.downloaded += 1
+        else {
+          summary.error += 1
+          summary.errors.push({ order_id: orderId, mode: status?.refresh_mode || 'unknown', error: refreshPayload.error || refreshPayload.message || `HTTP ${refreshResponse.status}` })
+        }
       }
-      continue
-    }
-
-    if (status?.platform && status?.shop) {
-      const key = `${status.platform}||${status.shop}`
-      if (!groups.has(key)) groups.set(key, { platform: status.platform, shop: status.shop, order_ids: [] })
-      groups.get(key).order_ids.push(orderId)
-    } else {
+    } else if (status?.error && status.error !== 'not_found') {
+      summary.error += 1
       summary.errors.push({ order_id: orderId, mode: status?.refresh_mode || 'unknown', error: status?.error || 'missing_platform_shop' })
+    } else {
+      summary.not_ready += 1
     }
   }
 
   summary.jobs = []
-  for (const group of groups.values()) {
-    const job = await createPackedLabelRefreshJob(env, cors, deps.createJob, group)
-    summary.jobs.push(job)
-    summary.fallback_jobs += 1
-    summary.fallback_order_ids += group.order_ids.length
-  }
   return summary
 }
 
@@ -168,7 +161,6 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
     getReportSummary,
     getOperationCosts,
     getReportFile,
-    createJob,
     getJobs,
     updateJob,
     deleteJob,
@@ -194,6 +186,9 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
     return getOrders(request, env, cors)
 
   if (url.pathname.startsWith("/api/customer-risk"))
+    return handleCustomerRisk(request, env, cors)
+
+  if (url.pathname.startsWith("/api/customers/marketplace"))
     return handleCustomerRisk(request, env, cors)
 
   if (url.pathname === "/api/orders/filter-options" && request.method === "GET")
@@ -247,8 +242,7 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
       // Đơn đã đóng gói phải có tem thật; nếu thiếu thì ưu tiên API, shop không API được đưa vào job Radar hiện có.
       label_autofill = await autoRefreshMissingLabelsForPacked(order_ids, env, cors, {
         getLabelStatus,
-        refreshOrderLabel,
-        createJob
+        refreshOrderLabel
       }).catch(error => ({ checked: order_ids.length, errors: [{ error: error.message || String(error) }] }))
     }
     return Response.json({ status: "ok", updated: order_ids.length, label_autofill }, { headers: cors })
@@ -297,57 +291,29 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
 
 // [BỌC THÉP] API CHUẨN HÓA TRẠNG THÁI ĐƠN LỊCH SỬ (CHUẨN 2 TẦNG MỚI NHẤT)
   if (url.pathname === "/api/orders/archive-old" && request.method === "POST") {
-    // 1. Đơn Hoàn Hàng
-    await env.DB.prepare(`UPDATE orders_v2 SET oms_status='RETURN', shipping_status='RETURN' WHERE order_type='return' AND oms_status='PENDING'`).run()
-    
-    // 2. Đơn Đã Hủy
-    await env.DB.prepare(`UPDATE orders_v2 SET oms_status='CANCELLED', shipping_status='CANCELLED' WHERE order_type='cancel' AND oms_status='PENDING'`).run()
-    
-    // 3. Đơn Hoàn Thành (Đã giao)
-    await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED', shipping_status='COMPLETED' WHERE (shipping_status LIKE '%Người mua xác nhận%' OR shipping_status LIKE '%Đã giao%') AND oms_status='PENDING'`).run()
-    
-    // 4. Đơn Đang Giao
-    await env.DB.prepare(`UPDATE orders_v2 SET oms_status='SHIPPING', shipping_status='SHIPPED' WHERE (shipping_status LIKE '%Đang giao%' OR shipping_status LIKE '%Đang trung chuyển%') AND oms_status='PENDING'`).run()
-    
-    // 5. Đơn Đã Chuẩn Bị (Tab: Chưa Xử Lý -> Đã Xử Lý)
-    await env.DB.prepare(`UPDATE orders_v2 SET oms_status='PENDING', shipping_status='LOGISTICS_REQUEST_CREATED' WHERE (shipping_status LIKE '%Chờ giao hàng%' OR shipping_status LIKE '%Chờ lấy hàng%') AND oms_status='PENDING'`).run()
-    
-    // 6. Sửa sai cho các đơn đang rỗng hoặc mang mã cũ (Về đúng Tab: Chưa Xử Lý -> Chưa Xử Lý)
-    await env.DB.prepare(`UPDATE orders_v2 SET oms_status='PENDING', shipping_status='LOGISTICS_PENDING_ARRANGE' WHERE (shipping_status IS NULL OR shipping_status = '' OR shipping_status = 'READY_TO_SHIP' OR shipping_status = 'Chưa Xử Lý' OR shipping_status = 'Chưa rõ') AND oms_status='PENDING'`).run()
-
-    // 7. LỆNH VÉT MÁNG: Quét sạch các đơn Chưa xử lý từ hôm qua trở về trước -> Ép vào Hoàn thành cho sạch Dashboard
-    await env.DB.prepare(`UPDATE orders_v2 SET oms_status='COMPLETED', shipping_status='COMPLETED' WHERE oms_status='PENDING' AND date(order_date) <= date('now', '-1 day')`).run()
-    
-    return Response.json({ status: "ok" }, { headers: cors })
+    return Response.json({
+      error: 'legacy_order_archive_old_disabled',
+      message: 'Route chuẩn hóa lịch sử cũ đã bị cắt khỏi runtime. Dùng /api/orders/normalize-workflow-status để chuẩn hóa theo Order Core.'
+    }, { status: 410, headers: cors })
   }
 	  // [API BẢO TRÌ] ĐỒNG BỘ TÊN SHOP CŨ THÀNH USERNAME MỚI (BẢN VÉT MÁNG)
   if (url.pathname === "/api/fix-shop-names" && request.method === "GET") {
-    try {
-      // Bác điền các cặp Tên Cũ -> Username Mới vào đây
-      const shopMapping = {
-        "KHOGIADUNGHUYVAN": "chihuy1984", // Ví dụ, bác sửa lại cho đúng username của shop này nhé
-        "shophuyvan.vn": "chihuy2309",             // Ví dụ
-        "Huy Vân Store Q.Bình Tân": "phambich2312",        // Ví dụ
-        "khogiadungcona": "khogiadungcona"         // Ví dụ
-      };
-
-      let updated = 0;
-      for (const [oldName, newName] of Object.entries(shopMapping)) {
-        if (oldName !== newName) {
-            const res = await env.DB.prepare(`UPDATE orders_v2 SET shop = ? WHERE shop = ?`).bind(newName, oldName).run();
-            updated += res.meta.changes || 0;
-        }
-      }
-      
-      return Response.json({ status: "ok", message: `Quá đã! Đã gộp thành công ${updated} đơn hàng lịch sử về Username!` }, { headers: cors })
-    } catch (e) {
-      return Response.json({ error: e.message }, { status: 500, headers: cors })
-    }
+    return Response.json({
+      error: 'legacy_fix_shop_names_disabled',
+      message: 'Route sửa shop hard-code cũ đã bị cắt khỏi runtime. Shop display phải đi qua Shop Warehouse/Core.'
+    }, { status: 410, headers: cors })
   }
 
   // [BỌC THÉP] API ĐẾM TỔNG SỐ ĐƠN TUYỆT ĐỐI (KHÔNG NHẢY MÚA THEO TRANG)
   if (url.pathname === "/api/orders/badges" && request.method === "GET") {
     try {
+      const badgeCacheKey = url.searchParams.toString()
+      if (url.searchParams.get('fresh') !== '1') {
+        const cachedBadges = readOmsBadgeCache(badgeCacheKey)
+        if (cachedBadges) return Response.json(cachedBadges, {
+          headers: { ...cors, 'X-OMS-Cache': 'hit', 'X-OMS-Data-Source': 'orders_badge_ttl_cache' }
+        })
+      }
       // Badge phải nhận cùng bộ lọc thời gian/shop/search với bảng để người vận hành không thấy lệch số lượng.
       const badgeConds = ['1=1']
       const badgeParams = []
@@ -373,10 +339,23 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
       const { results: pCount } = await env.DB.prepare(`SELECT platform, COUNT(*) as c FROM orders_v2 WHERE ${badgeWhere} GROUP BY platform`).bind(...badgeParams).all()
       const { results: allCount } = await env.DB.prepare(`SELECT COUNT(*) as c FROM orders_v2 WHERE ${badgeWhere}`).bind(...badgeParams).all()
       const { results: statusRows } = await env.DB.prepare(`
-        SELECT order_id, order_date, created_at, order_type, oms_status, shipping_status,
+        SELECT o.order_id, o.order_date, o.created_at, o.order_type, o.oms_status, o.shipping_status,
+               o.platform, o.shop, o.tracking_number,
                '' AS logistics_status, '' AS delivery_status,
-               cancel_reason
-        FROM orders_v2
+               o.cancel_reason,
+               CASE WHEN LOWER(COALESCE(o.platform, '')) = 'shopee'
+                 AND EXISTS (
+                   SELECT 1 FROM shops s
+                   WHERE LOWER(COALESCE(s.platform, '')) = 'shopee'
+                     AND COALESCE(s.access_token, '') != ''
+                     AND (s.shop_name = o.shop OR s.user_name = o.shop OR CAST(s.api_shop_id AS TEXT) = o.shop)
+                   LIMIT 1
+                 )
+                 THEN 1 ELSE 0 END AS shopee_api_shop,
+               COALESCE((SELECT otc.tracking_number FROM order_tracking_core otc WHERE otc.order_id = o.order_id AND COALESCE(otc.tracking_number, '') != '' LIMIT 1), '') AS tracking_core_tracking_number,
+               COALESCE((SELECT ol.storage_key FROM order_labels ol WHERE ol.order_id = o.order_id ORDER BY ol.refreshed_at DESC LIMIT 1), '') AS label_file_path,
+               COALESCE((SELECT ol.error FROM order_labels ol WHERE ol.order_id = o.order_id ORDER BY ol.refreshed_at DESC LIMIT 1), '') AS label_error
+        FROM orders_v2 o
         WHERE ${badgeWhere}
       `).bind(...badgeParams).all()
 
@@ -418,7 +397,25 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
         })
         if (!parentStatuses.size) parentStatuses.add('PENDING')
 
-        const shippingKey = row.shipping_status || 'UNKNOWN'
+        const labelError = String(row.label_error || '').trim().toLowerCase()
+        const hasTracking = Boolean(String(row.tracking_number || row.tracking_core_tracking_number || '').trim())
+        const hasLabelFile = Boolean(String(row.label_file_path || '').trim())
+          && ![
+            'pending_document_generation',
+            'shopee_pdf_not_ready',
+            'pending_retry',
+            'manual_required',
+            'label_download_blocked',
+            'tiktok_label_not_saved_before_packed',
+            'not_found'
+          ].includes(labelError)
+        const isShopeeApiPending = Number(row.shopee_api_shop || 0) === 1 && parentStatuses.has('PENDING')
+        let shippingKey = row.shipping_status || 'UNKNOWN'
+        if (isShopeeApiPending) {
+          if (hasTracking && !hasLabelFile) shippingKey = 'WAITING_LABEL'
+          else if (!hasTracking) shippingKey = 'READY_TO_SHIP'
+          else if (hasTracking && hasLabelFile) shippingKey = 'PROCESSED'
+        }
         parentStatuses.forEach(parent => {
           coreMainCounts[parent] = (coreMainCounts[parent] || 0) + 1
           const scopedKey = `${parent}:shipping:${shippingKey}`
@@ -445,6 +442,12 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
         badges[scopedKey] = count
         badges[`shipping:${key}`] = count
       })
+      ;['WAITING_LABEL'].forEach(key => {
+        const scopedKey = `PENDING:shipping:${key}`
+        const count = scopedShippingCounts[scopedKey] || 0
+        badges[scopedKey] = count
+        badges[`shipping:${key}`] = count
+      })
       badges.pending_active_window_days = ACTIVE_PENDING_ORDER_WINDOW_DAYS
       // Badge hủy/hoàn dùng core chung để OMS không hiện 0 khi DB chỉ có RETURN/CANCELLED ở cột trạng thái sàn.
       badges.normal = coreTypeCounts.normal
@@ -464,7 +467,8 @@ export async function handleOrderWorkerRoutes(request, env, ctx, cors, url, deps
         badges['shipping:RETURN_COMPLAINT'] = Number(complaint?.c || 0)
       } catch {}
 
-      return Response.json(badges, { headers: cors })
+      writeOmsBadgeCache(badgeCacheKey, badges)
+      return Response.json(badges, { headers: { ...cors, 'X-OMS-Cache': 'miss', 'X-OMS-Data-Source': 'orders_v2_badge_queries' } })
     } catch (e) {
       return Response.json({ error: e.message }, { headers: cors })
     }

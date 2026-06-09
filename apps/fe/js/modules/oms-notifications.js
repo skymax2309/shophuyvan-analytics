@@ -15,6 +15,8 @@ const DEFAULT_SETTINGS = {
   volume: 0.65
 };
 
+const CHAT_PUSH_API = (window.SHOPHUYVAN_CHAT_API_BASE || 'https://shophuyvan-chat-api.zacha030596.workers.dev').replace(/\/+$/, '');
+
 let settings = loadSettings();
 let audioContext = null;
 let checkTimer = null;
@@ -55,6 +57,8 @@ function normalizeOrder(order) {
     id,
     status: cleanText(order.oms_status),
     shipping: cleanText(order.shipping_status || order.status),
+    displayStatusVi: cleanText(order.display_status_vi || order.status_label_vi),
+    statusLabelVi: cleanText(order.status_label_vi || order.display_status_vi),
     tracking: cleanText(order.tracking_number),
     carrier: cleanText(order.shipping_carrier),
     type: cleanText(order.order_type),
@@ -69,6 +73,8 @@ function normalizeOrder(order) {
   row.signature = [
     row.status,
     row.shipping,
+    row.displayStatusVi,
+    row.statusLabelVi,
     row.tracking,
     row.carrier,
     row.type
@@ -77,36 +83,38 @@ function normalizeOrder(order) {
 }
 
 function labelStatus(row) {
-  return row.shipping || row.status || 'chưa rõ';
+  return row.displayStatusVi || row.statusLabelVi || row.shipping || row.status || 'Chưa rõ';
 }
 
 function orderStatusLabel(row) {
+  const directLabel = cleanText(row.displayStatusVi || row.statusLabelVi);
+  if (directLabel) return directLabel;
   const raw = cleanText(row.shipping || row.status || row.type);
   const key = raw.toUpperCase();
   const labels = {
-    UNPAID: 'chưa thanh toán',
-    PENDING: 'chờ xử lý',
-    READY_TO_SHIP: 'chờ chuẩn bị hàng',
-    PROCESSED: 'đã xử lý',
-    LOGISTICS_PENDING_ARRANGE: 'chờ lấy hàng',
-    LOGISTICS_REQUEST_CREATED: 'đã tạo vận đơn',
-    LOGISTICS_PACKAGED: 'đã đóng gói',
-    SHIPPING: 'đang giao',
-    SHIPPED: 'đang giao',
-    TO_CONFIRM_RECEIVE: 'chờ khách nhận',
-    COMPLETED: 'đã hoàn thành',
-    CANCELLED: 'đã hủy',
-    IN_CANCEL: 'đang hủy',
-    TO_RETURN: 'trả hàng/hoàn tiền',
-    RETURN: 'trả hàng/hoàn tiền',
-    RETURN_REFUND: 'trả hàng/hoàn tiền',
-    LOGISTICS_IN_RETURN: 'đang hoàn hàng',
-    LOGISTICS_RETURNED_BY_SHIPPER: 'đơn hoàn về shop',
-    LOGISTICS_RETURN_PACKAGE_RECEIVED: 'shop đã nhận hàng hoàn',
-    LOGISTICS_LOST: 'thất lạc hàng',
-    FAILED_DELIVERY: 'giao không thành công'
+    UNPAID: 'Chưa thanh toán',
+    PENDING: 'Chờ xử lý',
+    READY_TO_SHIP: 'Chờ chuẩn bị hàng',
+    PROCESSED: 'Đã xử lý',
+    LOGISTICS_PENDING_ARRANGE: 'Chờ lấy hàng',
+    LOGISTICS_REQUEST_CREATED: 'Đã tạo vận đơn',
+    LOGISTICS_PACKAGED: 'Đã đóng gói',
+    SHIPPING: 'Đang giao',
+    SHIPPED: 'Đang giao',
+    TO_CONFIRM_RECEIVE: 'Chờ khách nhận',
+    COMPLETED: 'Đã hoàn thành',
+    CANCELLED: 'Đã hủy',
+    IN_CANCEL: 'Đang hủy',
+    TO_RETURN: 'Trả hàng/hoàn tiền',
+    RETURN: 'Trả hàng/hoàn tiền',
+    RETURN_REFUND: 'Trả hàng/hoàn tiền',
+    LOGISTICS_IN_RETURN: 'Đang hoàn hàng',
+    LOGISTICS_RETURNED_BY_SHIPPER: 'Đơn hoàn về shop',
+    LOGISTICS_RETURN_PACKAGE_RECEIVED: 'Shop đã nhận hàng hoàn',
+    LOGISTICS_LOST: 'Thất lạc hàng',
+    FAILED_DELIVERY: 'Giao không thành công'
   };
-  return labels[key] || raw || 'chưa rõ trạng thái';
+  return labels[key] || raw || 'Chưa rõ trạng thái';
 }
 
 function orderChangeKind(row, previous = null) {
@@ -228,24 +236,136 @@ async function playNotificationSound(kind = 'change') {
   return true;
 }
 
-async function requestBrowserPermission() {
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+}
+
+function isStandaloneMode() {
+  return window.navigator.standalone === true || window.matchMedia?.('(display-mode: standalone)')?.matches;
+}
+
+function requiresStandaloneIosPush() {
+  return isIosDevice() && !isStandaloneMode();
+}
+
+function base64UrlToUint8Array(value) {
+  const padded = String(value || '') + '='.repeat((4 - (String(value || '').length % 4)) % 4);
+  const raw = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+  const output = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) output[index] = raw.charCodeAt(index);
+  return output;
+}
+
+function subscriptionPayload(subscription) {
+  if (!subscription) return null;
+  if (typeof subscription.toJSON === 'function') return subscription.toJSON();
+  return { endpoint: subscription.endpoint, keys: {} };
+}
+
+async function chatPushApi(path, options = {}) {
+  const response = await fetch(`${CHAT_PUSH_API}${path}`, {
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    throw new Error(cleanText(data.error_message || data.message || data.error || `http_${response.status}`));
+  }
+  return data;
+}
+
+async function requestBrowserPermission({ prompt = false } = {}) {
   if (!('Notification' in window)) return false;
   if (Notification.permission === 'granted') return true;
   if (Notification.permission === 'denied') return false;
+  if (!prompt) return false;
   const result = await Notification.requestPermission();
   return result === 'granted';
 }
 
-function sendBrowserNotification(title, body) {
+async function registerOmsServiceWorker() {
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    await navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => null);
+    return await navigator.serviceWorker.ready;
+  } catch {
+    return null;
+  }
+}
+
+async function serviceWorkerRegistration() {
+  return registerOmsServiceWorker();
+}
+
+async function ensureOmsPushSubscription({ test = false } = {}) {
+  if (!('PushManager' in window)) return { ok: false, skipped: true, reason: 'push_not_supported' };
+  const registration = await registerOmsServiceWorker();
+  if (!registration?.pushManager) return { ok: false, skipped: true, reason: 'service_worker_not_ready' };
+  const status = await chatPushApi('/api/chat/notifications/status');
+  const publicKey = cleanText(status?.vapid_public_key);
+  if (!publicKey) return { ok: false, skipped: true, reason: 'missing_vapid_public_key' };
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: base64UrlToUint8Array(publicKey)
+    });
+  }
+  const payload = subscriptionPayload(subscription);
+  const result = await chatPushApi('/api/chat/notifications/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ subscription: payload, test })
+  });
+  return { ...result, subscription: payload };
+}
+
+async function disableOmsPushSubscription() {
+  const registration = await registerOmsServiceWorker();
+  const subscription = await registration?.pushManager?.getSubscription?.();
+  if (!subscription) return { ok: true, disabled: 0 };
+  await chatPushApi('/api/chat/notifications/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ subscription: subscriptionPayload(subscription) })
+  }).catch(() => null);
+  await subscription.unsubscribe().catch(() => null);
+  return { ok: true, disabled: 1 };
+}
+
+async function sendOmsPushTest(subscription = null) {
+  const payload = {
+    type: 'order',
+    title: 'OMS · Thu thong bao don hang',
+    body: 'Kiem tra thong bao ngoai man hinh cho thiet bi nay.',
+    channel: 'oms',
+    channel_label: 'OMS',
+    order_id: 'TEST',
+    order_ids: ['TEST'],
+    url: '/pages/oms-dashboard.html',
+    tag: `oms-order-test-${Date.now()}`
+  };
+  return chatPushApi('/api/chat/notifications/test', {
+    method: 'POST',
+    body: JSON.stringify(subscription?.endpoint ? { subscription, payload } : { payload })
+  });
+}
+
+async function sendBrowserNotification(title, body) {
   if (!settings.enabled || !settings.browserEnabled) return;
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   try {
-    new Notification(title, {
+    const options = {
       body,
       tag: `oms-order-change-${simpleHash(`${title}|${body}`)}`,
       renotify: false,
-      silent: true
-    });
+      silent: true,
+      badge: '/icons/shophuyvan-icon.svg',
+      icon: '/icons/shophuyvan-icon.svg',
+      data: { type: 'order', url: '/pages/oms-dashboard.html' }
+    };
+    const registration = await serviceWorkerRegistration();
+    if (registration?.showNotification) await registration.showNotification(title, options);
+    else new Notification(title, options);
   } catch {}
 }
 
@@ -310,7 +430,7 @@ function notifyChanges(newOrders, changedOrders) {
   window.__omsRealtimeUpdatedIds = [...newOrders, ...changedOrders.map(c => c.current)].map(row => row.id);
   window.__omsRealtimeUpdatedAt = Date.now();
   showToast(`${summary.title}. ${summary.body}`, 8000);
-  sendBrowserNotification(summary.title, summary.body);
+  sendBrowserNotification(summary.title, summary.body).catch(() => {});
   playNotificationSound(newOrders.length ? 'new' : 'change').catch(() => {});
   if (document.visibilityState === 'visible' && typeof refreshCurrentView === 'function') {
     refreshCurrentView();
@@ -376,13 +496,48 @@ function renderControls() {
   `;
 
   document.getElementById('notifyToggle')?.addEventListener('click', async () => {
-    settings.enabled = !settings.enabled;
-    if (settings.enabled) {
-      await requestBrowserPermission();
+    const nextEnabled = !settings.enabled;
+    if (!nextEnabled) {
+      settings.enabled = false;
+      saveSettings();
+      renderControls();
+      await disableOmsPushSubscription().catch(() => null);
+      showToast('Da tat thong bao don hang tren thiet bi nay.', 4000);
+      return;
+    }
+    if (requiresStandaloneIosPush()) {
+      settings.enabled = false;
+      saveSettings();
+      renderControls();
+      showToast('iPhone chi nhan push khi OMS duoc mo tu icon Add to Home Screen.', 6500);
+      return;
+    }
+    const granted = await requestBrowserPermission({ prompt: true });
+    settings.enabled = granted;
+    settings.browserEnabled = granted;
+    let pushResult = null;
+    if (granted) {
+      pushResult = await ensureOmsPushSubscription({ test: true }).catch(error => ({
+        ok: false,
+        error_message: error?.message || String(error)
+      }));
       await playNotificationSound('change');
     }
     saveSettings();
     renderControls();
+    if (!granted) {
+      showToast('Trinh duyet chua cap quyen thong bao cho OMS.', 5000);
+      return;
+    }
+    if (pushResult?.ok && pushResult?.test_push?.ok !== false) {
+      showToast('Da bat thong bao don hang va dang ky day nen cho thiet bi nay.', 5000);
+      return;
+    }
+    if (pushResult?.ok) {
+      showToast(`Da luu thiet bi nhung test push loi: ${cleanText(pushResult?.test_push?.error || 'push_failed')}`, 7000);
+      return;
+    }
+    showToast(`Da bat am thanh, nhung chua dang ky duoc day nen: ${cleanText(pushResult?.error_message || pushResult?.error || 'push_failed')}`, 7000);
   });
 
   document.getElementById('notifyVolume')?.addEventListener('input', event => {
@@ -394,13 +549,48 @@ function renderControls() {
   });
 
   document.getElementById('notifyTest')?.addEventListener('click', async () => {
+    if (requiresStandaloneIosPush()) {
+      showToast('iPhone can mo OMS tu icon Add to Home Screen moi test duoc push nen.', 6500);
+      return;
+    }
     settings.enabled = true;
     settings.soundEnabled = settings.volume > 0;
-    await requestBrowserPermission();
+    settings.browserEnabled = true;
+    const granted = await requestBrowserPermission({ prompt: true });
+    if (!granted) {
+      settings.browserEnabled = false;
+      saveSettings();
+      renderControls();
+      showToast('Trinh duyet chua cap quyen thong bao cho OMS.', 5000);
+      return;
+    }
     const played = await playNotificationSound('new');
+    const pushResult = await ensureOmsPushSubscription({ test: false }).catch(error => ({
+      ok: false,
+      error_message: error?.message || String(error)
+    }));
+    const testResult = pushResult?.ok
+      ? await sendOmsPushTest(pushResult.subscription).catch(error => ({
+        ok: false,
+        error: error?.message || String(error)
+      }))
+      : null;
     saveSettings();
     renderControls();
-    showToast(played ? 'Đã bật âm thanh thông báo.' : 'Trình duyệt chưa cho phát âm thanh. Hãy chạm nút Thử lại.', 4000);
+    if (testResult?.ok) {
+      showToast('Da gui thu push den thiet bi nay. Neu dang dung iPhone, hay khoa man hinh hoac ve man hinh chinh de xem banner.', 8000);
+      return;
+    }
+    if (pushResult?.ok === false) {
+      showToast(`Chua dang ky duoc push nen: ${cleanText(pushResult?.error_message || pushResult?.error || 'push_failed')}`, 7000);
+      return;
+    }
+    showToast(
+      played
+        ? `Da bat am thanh, nhung test push loi: ${cleanText(testResult?.error || 'push_failed')}`
+        : 'Trinh duyet chua cho phat am thanh. Hay cham nut Thu lai.',
+      7000
+    );
   });
 }
 
@@ -420,6 +610,10 @@ function unlockAudioOnFirstTouch() {
 
 export function initOmsNotifications(options = {}) {
   refreshCurrentView = options.refreshCurrentView || null;
+  registerOmsServiceWorker().catch(() => {});
+  if (settings.enabled && settings.browserEnabled && Notification.permission === 'granted' && !requiresStandaloneIosPush()) {
+    ensureOmsPushSubscription({ test: false }).catch(() => {});
+  }
   renderControls();
   unlockAudioOnFirstTouch();
   checkOrderNotifications({ silent: true });
@@ -427,3 +621,4 @@ export function initOmsNotifications(options = {}) {
     checkTimer = setInterval(() => checkOrderNotifications(), POLL_MS);
   }
 }
+

@@ -48,6 +48,45 @@ export function installDiscountsShopeePromotionsActions(core) {
     return cleanText(payload?.[key] || responseBody?.[key] || responseBody?.program_id || payload?.program_id || payload?.promotion_id)
   }
 
+  function parseJson(value, fallback = {}) {
+    if (!value) return fallback
+    if (typeof value === 'object') return value
+    try {
+      return JSON.parse(String(value))
+    } catch {
+      return fallback
+    }
+  }
+
+  async function loadCachedPromotionPayload(env, module, shop, programId) {
+    const safeShop = cleanText(shop)
+    const safeProgramId = cleanText(programId)
+    if (!safeShop || !safeProgramId) return {}
+    const row = module === 'voucher'
+      ? await env.DB.prepare(`
+          SELECT raw_data, detail_raw_data
+          FROM marketplace_vouchers
+          WHERE platform = 'shopee'
+            AND shop = ?
+            AND voucher_id = ?
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `).bind(safeShop, safeProgramId).first().catch(() => null)
+      : await env.DB.prepare(`
+          SELECT raw_data, detail_raw_data
+          FROM marketplace_promotion_programs
+          WHERE platform = 'shopee'
+            AND module = ?
+            AND shop = ?
+            AND program_id = ?
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `).bind(module, safeShop, safeProgramId).first().catch(() => null)
+    const raw = parseJson(row?.raw_data, {})
+    const detail = parseJson(row?.detail_raw_data, {})
+    return { ...raw, ...detail }
+  }
+
   function normalizePromotionPayload(module, action, payload = {}) {
     const data = payload && typeof payload === 'object' && !Array.isArray(payload) ? { ...payload } : {}
     const programId = cleanText(data.program_id || data.promotion_id)
@@ -165,7 +204,17 @@ export function installDiscountsShopeePromotionsActions(core) {
     const endpoint = SHOPEE_PROMOTION_MUTATIONS?.[module]?.[action]
     const shopFilter = cleanText(options.shop)
     const dryRun = !(options.execute === true || String(options.execute).toLowerCase() === 'true')
-    const rawPayload = options.payload && typeof options.payload === 'object' ? options.payload : {}
+    const inputPayload = options.payload && typeof options.payload === 'object' ? { ...options.payload } : {}
+    const useCachedPayload = options.use_cached_payload === true
+      || String(options.use_cached_payload || inputPayload.use_cached_payload || inputPayload.useCachedPayload || '').toLowerCase() === 'true'
+    if (useCachedPayload) {
+      delete inputPayload.use_cached_payload
+      delete inputPayload.useCachedPayload
+    }
+    const cachedPayload = useCachedPayload
+      ? await loadCachedPromotionPayload(env, module, shopFilter, cleanText(inputPayload.program_id || inputPayload.promotion_id || inputPayload[MODULE_META[module]?.idKey]))
+      : {}
+    const rawPayload = useCachedPayload ? { ...cachedPayload, ...inputPayload } : inputPayload
     const payload = normalizePromotionPayload(module, action, rawPayload)
     const confirmed = cleanText(options.confirm) === DISCOUNT_CONFIRM_TEXT
     const base = {

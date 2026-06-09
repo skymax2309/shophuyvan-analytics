@@ -1,0 +1,22 @@
+/* Token giao diện chung ShopHuyVan: mọi UI mới/sửa phải dùng các biến này trước khi tạo màu riêng. */
+:root {
+  --shv-bg-page: #071321;
+  --shv-bg-panel: #0b1a2d;
+  --shv-bg-card: #10233a;
+  --shv-border: rgba(148, 163, 184, 0.22);
+  --shv-text-main: #f8fafc;
+  --shv-text-muted: #a7b6cc;
+  --shv-primary: #2f6df6;
+  --shv-success: #22c55e;
+  --shv-warning: #f59e0b;
+  --shv-danger: #ef4444;
+  --shv-info: #7c3aed;
+  --shv-radius-sm: 8px;
+  --shv-radius-md: 12px;
+  --shv-radius-lg: 16px;
+  --shv-space-xs: 4px;
+  --shv-space-sm: 8px;
+  --shv-space-md: 12px;
+  --shv-space-lg: 16px;
+  --shv-shadow-card: 0 18px 48px rgba(2, 8, 23, 0.26);
+}

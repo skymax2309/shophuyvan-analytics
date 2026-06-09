@@ -9,6 +9,100 @@ function num(value) {
   return Number.isFinite(n) ? n : 0
 }
 
+async function ensureColumn(env, table, column, definition) {
+  const info = await env.DB.prepare(`PRAGMA table_info(${table})`).all()
+  const exists = (info.results || []).some(row => cleanText(row.name).toLowerCase() === column.toLowerCase())
+  if (!exists) await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run()
+}
+
+function parseJson(value, fallback = {}) {
+  if (!value) return fallback
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return fallback
+  }
+}
+
+function compactHash(value) {
+  const text = cleanText(value)
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(16)
+}
+
+const MARKETPLACE_PUSH_SYNC_ACTIONS = new Set([
+  'sync_order',
+  'sync_order_label',
+  'sync_return_order',
+  'sync_products',
+  'record_chat_signal'
+])
+
+function pushQueuePriority(action, eventGroup) {
+  const actionKey = cleanText(action)
+  const groupKey = cleanText(eventGroup)
+  if (actionKey === 'sync_order_label') return 5
+  if (actionKey === 'sync_order') return 10
+  if (actionKey === 'sync_return_order') return 12
+  if (groupKey === 'authorization') return 20
+  if (actionKey === 'sync_products') return 30
+  if (actionKey === 'record_chat_signal') return 40
+  return 90
+}
+
+function queueKeyForPush(event = {}) {
+  const payload = event.payload || {}
+  const payloadBody = payload.body || payload.data || payload
+  const payloadTime = cleanText(
+    payloadBody.update_time ||
+    payloadBody.updated_at ||
+    payloadBody.event_time ||
+    payloadBody.timestamp ||
+    payloadBody.create_time ||
+    payloadBody.message_time
+  )
+  return [
+    cleanText(event.platform).toLowerCase(),
+    cleanText(event.shop_id || event.shop),
+    cleanText(event.event_code),
+    cleanText(event.order_id || event.entity_id),
+    payloadTime,
+    compactHash(JSON.stringify(payload).slice(0, 4000))
+  ].join('|')
+}
+
+function normalizeQueueRow(row = {}, options = {}) {
+  if (!row) return null
+  const normalized = {
+    id: row.id,
+    queue_key: cleanText(row.queue_key),
+    platform: cleanText(row.platform),
+    shop: cleanText(row.shop),
+    shop_id: cleanText(row.shop_id),
+    event_code: cleanText(row.event_code),
+    event_group: cleanText(row.event_group),
+    action_taken: cleanText(row.action_taken),
+    entity_id: cleanText(row.entity_id),
+    order_id: cleanText(row.order_id),
+    status: cleanText(row.status),
+    priority: num(row.priority),
+    attempts: num(row.attempts),
+    last_error: cleanText(row.last_error),
+    run_after: cleanText(row.run_after),
+    created_at: cleanText(row.created_at),
+    updated_at: cleanText(row.updated_at),
+    processed_at: cleanText(row.processed_at),
+    result: parseJson(row.result, {})
+  }
+  if (options.includePayload) normalized.payload = parseJson(row.payload, {})
+  return normalized
+}
+
 const SHOPEE_PUSH_COVERAGE = {
   shop_authorization_push: { group: 'authorization', action: 'log', status: 'đã xong' },
   shop_authorization_canceled_push: { group: 'authorization', action: 'log', status: 'đã xong' },

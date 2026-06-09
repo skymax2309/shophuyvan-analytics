@@ -3,32 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Import đơn hàng</title>
-  <link rel="stylesheet" href="css/orders/import-orders.css">
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <meta name="theme-color" content="#f8fafc">
+  <title>ShopHuyVan - Trung tâm vận hành</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/shophuyvan-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/shophuyvan-icon.svg">
+  <link rel="stylesheet" href="css/dashboard-home.css?v=home-hub-20260520a">
+  <script src="js/config.js?v=home-hub-20260520a"></script>
+  <script src="js/auth/auth-guard.js?v=home-hub-20260520a"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-  <main class="import-shell">
-    <section class="import-panel">
-      <header class="import-header">
-        <h1>Upload file bán hàng</h1>
-        <nav class="import-links" aria-label="Điều hướng nhanh">
-          <a href="pages/profit-dashboard.html">Dashboard</a>
-          <a href="pages/cost-settings.html">Cài đặt chi phí</a>
-          <a href="pages/admin-products.html">Sản phẩm</a>
-        </nav>
-      </header>
+  <main class="home-shell">
+    <header class="home-topbar">
+      <a class="home-back" href="pages/profit-dashboard.html" aria-label="Mở dashboard lợi nhuận">
+        <i data-lucide="arrow-left"></i>
+      </a>
+      <div class="home-brand">
+        <span class="home-logo">SHV</span>
+        <div>
+          <b>ShopHuyVan</b>
+          <span>Trung tâm vận hành</span>
+        </div>
+      </div>
+      <button class="home-menu" type="button" aria-label="Mở danh sách trang">
+        <i data-lucide="menu"></i>
+      </button>
+    </header>
 
-      <label class="file-box" for="file">
-        <span>Chọn file Excel đơn hàng</span>
-        <input type="file" id="file" accept=".xlsx">
-      </label>
-
-      <button id="btnImport" class="primary-button" type="button">Import Excel</button>
-      <div id="log" class="import-log" aria-live="polite"></div>
+    <section class="home-overview" aria-label="Tổng quan hôm nay">
+      <article class="home-revenue">
+        <div class="home-clock" id="homeClock">Đang tải thời gian</div>
+        <div class="home-revenue-value" id="homeRevenue">--</div>
+        <div class="home-mini-chart" aria-hidden="true">
+          <span style="height:28%"></span>
+          <span style="height:54%"></span>
+          <span style="height:42%"></span>
+          <span style="height:76%"></span>
+          <span style="height:50%"></span>
+          <span style="height:62%"></span>
+          <span style="height:34%"></span>
+        </div>
+      </article>
+      <div class="home-stat-grid">
+        <article class="home-stat">
+          <b id="homeOrderValid">--</b>
+          <span>Đơn hợp lệ</span>
+        </article>
+        <article class="home-stat">
+          <b id="homeOrderShipping">--</b>
+          <span>Đang giao</span>
+        </article>
+        <article class="home-stat">
+          <b id="homeOrderIssue">--</b>
+          <span>Hủy / hoàn</span>
+        </article>
+        <article class="home-stat">
+          <b id="homeNetProfit">--</b>
+          <span>Lãi tạm tính</span>
+        </article>
+      </div>
     </section>
+
+    <section class="home-section">
+      <div class="home-section-title">
+        <span></span>
+        <b>Truy cập nhanh</b>
+        <span></span>
+      </div>
+      <div class="home-module-grid" id="homeModuleGrid" aria-label="Danh sách trang vận hành"></div>
+    </section>
+
+    <footer class="home-footer">
+      <a href="pages/chat-cskh.html">
+        <i data-lucide="message-circle"></i>
+        CSKH
+      </a>
+      <span>036.797.6660 - 032.880.3015</span>
+    </footer>
   </main>
 
-  <script type="module" src="js/orders/import-orders.js"></script>
+  <script src="js/dashboard-home.js?v=home-hub-20260531b"></script>
 </body>
 </html>

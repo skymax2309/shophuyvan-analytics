@@ -1,4 +1,4 @@
-import { orderStatusKind, orderTypeFromStatus } from '../orders/status-core.js'
+import { normalizeOrderStatusCore, orderTypeFromStatus } from '../orders/status-core.js'
 
 function moneyNumber(value) {
   const number = Number(value)
@@ -91,12 +91,13 @@ function dashboardStatusAggregate(rows = []) {
     if (!orderId) continue
     const platform = String(row.platform || '').trim().toLowerCase()
     const shop = String(row.shop || '').trim()
-    const type = normalizeDashboardOrderType(row)
-    const statusKind = orderStatusKind({
+    const statusCore = normalizeOrderStatusCore({
       ...row,
       order_type: row.order_type || row.ledger_kind || '',
-      return_status: row.return_status || row.ledger_status || ''
+      shipping_status: row.shipping_status || row.return_status || row.ledger_status || ''
     }, row.cancel_reason || row.return_status || row.ledger_status || '')
+    const type = statusCore.order_type || normalizeDashboardOrderType(row)
+    const statusKind = statusCore.status_kind
     const returnFee = moneyNumber(row.return_fee)
     const revenue = moneyNumber(row.revenue)
     const rawRevenue = moneyNumber(row.raw_revenue || row.revenue)
@@ -165,8 +166,10 @@ function dashboardStatusAggregate(rows = []) {
       }
     }
 
-    if (!shopMap.has(shop)) {
-      shopMap.set(shop, {
+    const shopKey = `${platform}::${shop}`
+    if (!shopMap.has(shopKey)) {
+      shopMap.set(shopKey, {
+        platform,
         shop,
         shop_orders: new Set(),
         shop_success_orders: new Set(),
@@ -178,7 +181,7 @@ function dashboardStatusAggregate(rows = []) {
         shop_revenue: 0
       })
     }
-    const shopRow = shopMap.get(shop)
+    const shopRow = shopMap.get(shopKey)
     shopRow.shop_total_orders.add(orderId)
     if (type === 'normal') {
       shopRow.shop_orders.add(orderId)
@@ -220,6 +223,7 @@ function dashboardStatusAggregate(rows = []) {
     shop_breakdown: Array.from(shopMap.values())
       .map(item => ({
         shop: item.shop,
+        platform: item.platform,
         shop_orders: item.shop_orders.size,
         shop_success_orders: item.shop_success_orders.size,
         shop_completed_orders: item.shop_completed_orders.size,

@@ -1,112 +1,229 @@
-// Route mua hàng nội bộ, đã chuyển vào feature purchase.
+import { getAdminUserFromRequest } from '../admin/index.js'
+import {
+  confirmPurchaseRows,
+  editPurchaseBatchItem,
+  ensurePurchaseCoreTables,
+  getImportBatchDetail,
+  getLogisticsProfileBySku,
+  getPurchaseBatchRevisions,
+  getPurchaseHistoryBySku,
+  getPurchaseSettings,
+  listImportBatches,
+  listPurchaseReadModel,
+  previewPurchaseRows,
+  purchaseExportRows,
+  upsertLogisticsProfile
+} from '../../core/purchase/purchase-core.js'
+
+function json(data, cors, status = 200) {
+  return Response.json(data, {
+    status,
+    headers: {
+      ...cors,
+      'Cache-Control': 'no-store'
+    }
+  })
+}
+
+function cleanText(value) {
+  return String(value ?? '').replace(/\u00a0/g, ' ').trim()
+}
+
+async function requirePurchaseWriter(request, env, cors) {
+  const user = await getAdminUserFromRequest(request, env)
+  if (!user) {
+    return json({
+      ok: false,
+      error: 'purchase_auth_required',
+      message: 'Cần đăng nhập tài khoản admin/manager/warehouse để ghi Purchase Core.'
+    }, cors, 401)
+  }
+  if (!['admin', 'manager', 'warehouse'].includes(user.role)) {
+    return json({
+      ok: false,
+      error: 'purchase_permission_denied',
+      message: 'Tài khoản không có quyền ghi Purchase Core.'
+    }, cors, 403)
+  }
+  return null
+}
+
+async function readJson(request) {
+  return request.json().catch(() => ({}))
+}
+
+async function updateSettings(request, env, cors) {
+  const blocked = await requirePurchaseWriter(request, env, cors)
+  if (blocked) return blocked
+  const body = await readJson(request)
+  const updates = Array.isArray(body) ? body : (Array.isArray(body.settings) ? body.settings : [body])
+  await ensurePurchaseCoreTables(env)
+  for (const item of updates) {
+    const key = cleanText(item.key)
+    if (!key) continue
+    // Cài đặt là tham số đầu vào của Core; không ghi công thức cuối từ UI.
+    await env.DB.prepare(`
+      UPDATE settings_import
+      SET value = ?, updated_at = datetime('now','+7 hours')
+      WHERE key = ?
+    `).bind(String(item.value ?? ''), key).run()
+  }
+  return json({ ok: true, status: 'updated', settings: await getPurchaseSettings(env) }, cors)
+}
+
+function requestRows(body = {}) {
+  if (Array.isArray(body)) return body
+  if (Array.isArray(body.rows)) return body.rows
+  if (Array.isArray(body.items)) return body.items
+  return []
+}
 
 export async function handlePurchase(request, env, cors) {
-  const url = new URL(request.url);
+  const url = new URL(request.url)
+  await ensurePurchaseCoreTables(env)
 
-  // 1. Lấy Cài đặt (Tỉ giá, Phí ship)
-  if (request.method === "GET" && url.pathname === "/api/purchase/settings") {
-    const { results } = await env.DB.prepare("SELECT * FROM settings_import").all();
-    return Response.json(results, { headers: cors });
-  }
-
-  // 2. Cập nhật Cài đặt
-  if (request.method === "POST" && url.pathname === "/api/purchase/settings") {
-    const { key, value } = await request.json();
-    await env.DB.prepare("UPDATE settings_import SET value = ?, updated_at = datetime('now','+7 hours') WHERE key = ?")
-      .bind(value, key).run();
-    return Response.json({ status: "ok" }, { headers: cors });
-  }
-
-  // 3. Lấy danh sách Sản phẩm Nhập hàng
-  if (request.method === "GET") {
-    const search = url.searchParams.get("search") || "";
-    let query = "SELECT * FROM purchase_orders";
-    let params = [];
-
-    if (search) {
-      query += " WHERE ten_san_pham LIKE ? OR ma_hang LIKE ? OR ma_van_don LIKE ?";
-      params = [`%${search}%`, `%${search}%`, `%${search}%`];
+  if (url.pathname === '/api/purchase/settings') {
+    if (request.method === 'GET') {
+      const settings = await getPurchaseSettings(env)
+      return json({
+        ok: true,
+        settings,
+        rows: Object.entries(settings).map(([key, value]) => ({ key, value }))
+      }, cors)
     }
-
-    query += " ORDER BY created_at DESC";
-    const { results } = await env.DB.prepare(query).bind(...params).all();
-    return Response.json(results, { headers: cors });
+    if (request.method === 'POST' || request.method === 'PATCH') return updateSettings(request, env, cors)
   }
 
-  // 4. Thêm hoặc Cập nhật Sản phẩm
-  if (request.method === "POST") {
-    const data = await request.json();
+  if (url.pathname === '/api/purchase/read-model' && request.method === 'GET') {
+    const result = await listPurchaseReadModel(env, {
+      search: url.searchParams.get('search') || url.searchParams.get('q'),
+      category: url.searchParams.get('category'),
+      supplier: url.searchParams.get('supplier'),
+      date_from: url.searchParams.get('date_from'),
+      date_to: url.searchParams.get('date_to'),
+      cost_status: url.searchParams.get('cost_status'),
+      stock_status: url.searchParams.get('stock_status'),
+      logistics_status: url.searchParams.get('logistics_status'),
+      limit: url.searchParams.get('limit')
+    })
+    return json(result, cors)
+  }
 
-    // Ép kiểu cực kỳ chặt chẽ để tránh lỗi D1_TYPE_ERROR (undefined)
-    const id = data.id || null;
-    const ma_van_don = String(data.ma_van_don || "");
-    const image_url = String(data.image_url || "");
-    const ten_san_pham = String(data.ten_san_pham || "Sản phẩm mới");
-    const ma_hang = String(data.ma_hang || "");
-    const sl_nhap = Number(data.sl_nhap) || 0;
-    const gia_nhap_te = Number(data.gia_nhap_te) || 0;
-    const gia_khai_thue = Number(data.gia_khai_thue) || 0;
-    const cong_dung = String(data.cong_dung || "");
-    const chat_lieu = String(data.chat_lieu || "");
-    const so_kien = Number(data.so_kien) || 1;
-    const sl_sp_tren_kien = Number(data.sl_sp_tren_kien) || 1;
-    const ship_noi_dia_te = Number(data.ship_noi_dia_te) || 0;
-    const thue_vat_percent = Number(data.thue_vat_percent) || 10;
-    const kich_thuoc_d = Number(data.kich_thuoc_d) || 0;
-    const kich_thuoc_r = Number(data.kich_thuoc_r) || 0;
-    const kich_thuoc_c = Number(data.kich_thuoc_c) || 0;
-    const trong_luong_kg = Number(data.trong_luong_kg) || 0;
-    const cach_tinh_vc = String(data.cach_tinh_vc || "TÍNH KG");
-    const phi_vanchuyen_thuc = Number(data.phi_vanchuyen_thuc) || 0;
-    const link_nhap_hang = String(data.link_nhap_hang || "");
+  if (url.pathname === '/api/purchase/import-batches' && request.method === 'GET') {
+    return json(await listImportBatches(env, {
+      search: url.searchParams.get('search') || url.searchParams.get('q'),
+      limit: url.searchParams.get('limit') || 100
+    }), cors)
+  }
 
-    if (id) {
-      // ── UPDATE (20 cột + 1 ID = 21 dấu ?)
-      const sql = `UPDATE purchase_orders SET
-        ma_van_don=?, image_url=?, ten_san_pham=?, ma_hang=?, sl_nhap=?,
-        gia_nhap_te=?, gia_khai_thue=?, cong_dung=?, chat_lieu=?, so_kien=?,
-        sl_sp_tren_kien=?, ship_noi_dia_te=?, thue_vat_percent=?,
-        kich_thuoc_d=?, kich_thuoc_r=?, kich_thuoc_c=?, trong_luong_kg=?,
-        cach_tinh_vc=?, phi_vanchuyen_thuc=?, link_nhap_hang=?
-        WHERE id=?`;
+  if (url.pathname === '/api/purchase/import-batch' && request.method === 'GET') {
+    const batchId = url.searchParams.get('id') || url.searchParams.get('import_batch_id') || url.searchParams.get('purchase_batch_id')
+    if (!cleanText(batchId)) return json({ ok: false, error: 'missing_import_batch_id' }, cors, 400)
+    return json(await getImportBatchDetail(env, batchId), cors)
+  }
 
-      await env.DB.prepare(sql).bind(
-        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap,
-        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
-        sl_sp_tren_kien, ship_noi_dia_te, thue_vat_percent,
-        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
-        cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang, id
-      ).run();
+  if (url.pathname === '/api/purchase/history' && request.method === 'GET') {
+    const sku = url.searchParams.get('sku_id') || url.searchParams.get('sku') || url.searchParams.get('internal_sku')
+    if (!cleanText(sku)) return json({ ok: false, error: 'missing_sku' }, cors, 400)
+    return json(await getPurchaseHistoryBySku(env, sku), cors)
+  }
 
-      return Response.json({ status: "updated" }, { headers: cors });
-    } else {
-      // ── INSERT (20 cột = 20 dấu ?)
-      const sql = `INSERT INTO purchase_orders (
-        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap,
-        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
-        sl_sp_tren_kien, ship_noi_dia_te, thue_vat_percent,
-        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
-        cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
-
-      await env.DB.prepare(sql).bind(
-        ma_van_don, image_url, ten_san_pham, ma_hang, sl_nhap,
-        gia_nhap_te, gia_khai_thue, cong_dung, chat_lieu, so_kien,
-        sl_sp_tren_kien, ship_noi_dia_te, thue_vat_percent,
-        kich_thuoc_d, kich_thuoc_r, kich_thuoc_c, trong_luong_kg,
-        cach_tinh_vc, phi_vanchuyen_thuc, link_nhap_hang
-      ).run();
-
-      return Response.json({ status: "created" }, { headers: cors });
+  if (url.pathname === '/api/purchase/logistics-profile') {
+    if (request.method === 'GET') {
+      const sku = url.searchParams.get('sku_id') || url.searchParams.get('sku') || url.searchParams.get('internal_sku')
+      if (!cleanText(sku)) return json({ ok: false, error: 'missing_sku' }, cors, 400)
+      return json({ ok: true, profile: await getLogisticsProfileBySku(env, sku) }, cors)
+    }
+    if (request.method === 'POST' || request.method === 'PATCH') {
+      const blocked = await requirePurchaseWriter(request, env, cors)
+      if (blocked) return blocked
+      const body = await readJson(request)
+      const sku = body.sku_id || body.internal_sku || body.ma_hang
+      if (!cleanText(sku)) return json({ ok: false, error: 'missing_sku' }, cors, 400)
+      return json({ ok: true, profile: await upsertLogisticsProfile(env, sku, body, await getAdminUserFromRequest(request, env)) }, cors)
     }
   }
 
-  // 5. Xóa sản phẩm
-  if (request.method === "DELETE") {
-    const { id } = await request.json();
-    await env.DB.prepare("DELETE FROM purchase_orders WHERE id = ?").bind(id).run();
-    return Response.json({ status: "deleted" }, { headers: cors });
+  if (url.pathname === '/api/purchase/revisions' && request.method === 'GET') {
+    const id = url.searchParams.get('item_id') || url.searchParams.get('purchase_batch_item_id') || url.searchParams.get('purchase_batch_id') || url.searchParams.get('id')
+    if (!cleanText(id)) return json({ ok: false, error: 'missing_revision_target' }, cors, 400)
+    return json({ ok: true, revisions: await getPurchaseBatchRevisions(env, id) }, cors)
   }
 
-  return new Response("Method not allowed", { status: 405, headers: cors });
+  if (url.pathname === '/api/purchase/import-preview' && request.method === 'POST') {
+    const body = await readJson(request)
+    return json(await previewPurchaseRows(env, requestRows(body), { settings: body.settings || {} }), cors)
+  }
+
+  if (url.pathname === '/api/purchase/import-confirm' && request.method === 'POST') {
+    const blocked = await requirePurchaseWriter(request, env, cors)
+    if (blocked) return blocked
+    const body = await readJson(request)
+    return json(await confirmPurchaseRows(env, requestRows(body), {
+      settings: body.settings || {},
+      import_batch: body.import_batch || body.batch || {},
+      update_logistics_profile: Boolean(body.update_logistics_profile),
+      user: await getAdminUserFromRequest(request, env)
+    }), cors)
+  }
+
+  if (url.pathname === '/api/purchase/manual-preview' && request.method === 'POST') {
+    const body = await readJson(request)
+    return json(await previewPurchaseRows(env, [body], { settings: body.settings || {} }), cors)
+  }
+
+  if (url.pathname === '/api/purchase/manual-confirm' && request.method === 'POST') {
+    const blocked = await requirePurchaseWriter(request, env, cors)
+    if (blocked) return blocked
+    const body = await readJson(request)
+    return json(await confirmPurchaseRows(env, [body], {
+      settings: body.settings || {},
+      import_batch: body.import_batch || body.batch || {},
+      update_logistics_profile: Boolean(body.update_logistics_profile),
+      user: await getAdminUserFromRequest(request, env)
+    }), cors)
+  }
+
+  if (url.pathname === '/api/purchase/batch-item-edit' && request.method === 'PATCH') {
+    const blocked = await requirePurchaseWriter(request, env, cors)
+    if (blocked) return blocked
+    const body = await readJson(request)
+    const itemId = body.purchase_batch_item_id || body.item_id || body.id
+    if (!cleanText(itemId)) return json({ ok: false, error: 'missing_purchase_batch_item_id' }, cors, 400)
+    return json(await editPurchaseBatchItem(env, itemId, body.patch || body, await getAdminUserFromRequest(request, env)), cors)
+  }
+
+  if (url.pathname === '/api/purchase/export' && request.method === 'GET') {
+    const result = await listPurchaseReadModel(env, {
+      search: url.searchParams.get('search') || url.searchParams.get('q'),
+      category: url.searchParams.get('category'),
+      supplier: url.searchParams.get('supplier'),
+      date_from: url.searchParams.get('date_from'),
+      date_to: url.searchParams.get('date_to'),
+      cost_status: url.searchParams.get('cost_status'),
+      stock_status: url.searchParams.get('stock_status'),
+      logistics_status: url.searchParams.get('logistics_status'),
+      limit: url.searchParams.get('limit') || 500
+    })
+    return json({
+      ok: true,
+      source: 'warehouse_purchase_core',
+      rows: purchaseExportRows(result.products || [])
+    }, cors)
+  }
+
+  // Giữ endpoint cũ ở chế độ đọc tương thích, nhưng dữ liệu trả về đi qua read-model mới.
+  if (url.pathname === '/api/purchase' && request.method === 'GET') {
+    const result = await listPurchaseReadModel(env, {
+      search: url.searchParams.get('search'),
+      limit: url.searchParams.get('limit') || 200
+    })
+    return json(result.products || [], cors)
+  }
+
+  return json({
+    ok: false,
+    error: 'purchase_route_not_found',
+    message: 'Route Purchase Core chưa hỗ trợ thao tác này.'
+  }, cors, 404)
 }

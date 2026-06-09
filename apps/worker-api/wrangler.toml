@@ -25,9 +25,13 @@ bucket_name = "shophuyvan-reports"
 [vars]
 APP_NAME = "HuyVan Analytics"
 VERSION = "1.0"
+SHOPEE_DISCOUNT_LIVE_WRITE_ENABLED = "true"
+SHOPEE_LIVE_WRITE_ENABLED = "true"
+SHOPEE_ADS_LIVE_WRITE_ENABLED = "true"
+LAZADA_PRICE_LIVE_WRITE_ENABLED = "true"
 CHAT_VAPID_PUBLIC_KEY = "BAYizvHyPSJqGaZl7ugbE44195Tp1i2kZqrpa34hHOiCNBL97msbSoDvT4Uo2PwQ6hd0E4EVkFxgQLbilYVCHR8"
 CHAT_VAPID_SUBJECT = "https://shophuyvan-analytics.nghiemchihuy.workers.dev"
 
 # Lên lịch tự động chạy mỗi 24h (0h00 mỗi ngày UTC)
 [triggers]
-crons = ["0 0 * * *", "*/5 * * * *"]
+crons = ["0 0 * * *", "*/5 * * * *", "*/15 * * * *"]

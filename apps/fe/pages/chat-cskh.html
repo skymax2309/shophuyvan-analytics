@@ -1,0 +1,88 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ee4d2d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="HV Chat">
+  <title>ShopHuyVan - Chat/CSKH</title>
+  <link rel="icon" href="../icons/shophuyvan-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/shophuyvan-icon.svg">
+  <link rel="manifest" href="../manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/theme/shophuyvan-design-tokens.css">
+  <link rel="stylesheet" href="../css/dashboard/chat.css?v=chat-auto-send-20260603a">
+  <link rel="stylesheet" href="../css/dashboard/chat-ai-settings.css?v=chat-auto-send-20260603a">
+  <script>
+    window.SHOPHUYVAN_CHAT_API_BASE = 'https://shophuyvan-chat-api.zacha030596.workers.dev'
+    window.SHOPHUYVAN_CORE_API_BASE = window.SHV_API || 'https://huyvan-worker-api.nghiemchihuy.workers.dev'
+    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+      window.SHOPHUYVAN_CHAT_API_BASE = location.origin
+      window.SHOPHUYVAN_CORE_API_BASE = location.origin
+    }
+  </script>
+</head>
+<body>
+  <div id="chatApp" class="chat-app" data-loading="true">
+    <header class="chat-topbar">
+      <a class="chat-brand" href="../index.html" aria-label="Về trang chính">
+        <span class="chat-brand-mark">SHV</span>
+        <span>
+          <strong>Chat/CSKH sàn</strong>
+          <small>Vận hành hội thoại đa kênh</small>
+        </span>
+      </a>
+      <div class="chat-topbar-actions">
+        <button class="chat-switch-btn" type="button" data-action="toggle-notifications" aria-pressed="false">
+          <span class="chat-switch-track" aria-hidden="true"><span class="chat-switch-knob"></span></span>
+          <span class="chat-switch-text">Thông báo</span>
+          <span class="chat-switch-state">Đang tắt</span>
+        </button>
+        <button class="chat-btn ghost" type="button" data-action="reload">Làm mới</button>
+        <button class="chat-btn primary" type="button" data-action="sync-current-channel">Sync ngay</button>
+      </div>
+    </header>
+
+    <main class="chat-shell" aria-live="polite">
+      <aside class="chat-sidebar" aria-label="Danh sách hội thoại">
+        <section class="chat-search">
+          <label class="chat-field">
+            <span>Tìm hội thoại</span>
+            <input id="chatSearch" type="search" placeholder="Tên khách, mã hội thoại, nội dung..." autocomplete="off">
+          </label>
+          <div class="chat-filter-row" role="tablist" aria-label="Bộ lọc hội thoại">
+            <button class="chat-chip active" type="button" data-filter="all">Tất cả</button>
+            <button class="chat-chip" type="button" data-filter="unread">Chưa đọc</button>
+            <button class="chat-chip" type="button" data-filter="reply">Cần phản hồi</button>
+            <button class="chat-chip" type="button" data-filter="issues">Có vấn đề</button>
+          </div>
+        </section>
+        <section id="conversationList" class="conversation-list" tabindex="0" aria-label="Hội thoại"></section>
+        <footer id="syncStatusBar" class="sync-status-bar" aria-label="Trạng thái đồng bộ"></footer>
+      </aside>
+
+      <section class="chat-thread-panel" aria-label="Nội dung hội thoại">
+        <header id="threadHeader" class="thread-header"></header>
+        <div id="realtimeBanner" class="realtime-banner" hidden>Mất kết nối realtime, đang thử lại...</div>
+        <section id="messageThread" class="message-thread"></section>
+        <footer id="messageComposer" class="message-composer"></footer>
+      </section>
+
+      <aside id="conversationDetail" class="chat-detail" aria-label="Chi tiết hội thoại"></aside>
+    </main>
+  </div>
+
+  <div id="toastStack" class="toast-stack" aria-live="assertive"></div>
+  <div id="iosInstallBanner" class="ios-install-banner" hidden>
+    <span>Để nhận thông báo trên iPhone, mở bằng Safari, nhấn Chia sẻ rồi chọn Thêm vào màn hình chính.</span>
+    <button type="button" data-action="dismiss-ios-install">Đóng</button>
+  </div>
+  <div id="chatModalRoot"></div>
+    <script type="module" src="../js/dashboard/chat/index.js?v=chat-auto-send-20260603a"></script>
+</body>
+</html>
+
+

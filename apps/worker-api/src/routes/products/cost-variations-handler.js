@@ -1,6 +1,95 @@
 import { syncProductKnowledgeFromVariationPayload } from '../../core/product/product-knowledge-sync-core.js'
 import { cleanProductText, ensureProductVariationWriteColumns, filterProductPayloadByStock, filterVariationPayloadByStock, getApiManagedShopKeys, getInventoryMovementAdjustments, productBooleanOption, productStockNumber } from './marketplace-preview.js'
 
+function normalizePromotionMatchText(value = '') {
+  return cleanProductText(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+async function overlayShopeeDiscountCorePrices(env, rows = [], shop = '') {
+  if (!rows.length || !shop) return rows
+  const itemIds = [...new Set(rows.map(row => cleanProductText(row.platform_item_id)).filter(Boolean))]
+  if (!itemIds.length) return rows
+  const placeholders = itemIds.map(() => '?').join(',')
+  try {
+    const discountRows = await env.DB.prepare(`
+      SELECT shop, api_shop_id, discount_id, item_id, model_id, model_name,
+             original_price, promotion_price, status, synced_at, updated_at
+      FROM marketplace_discount_items
+      WHERE platform = 'shopee'
+        AND (shop = ? OR api_shop_id = ?)
+        AND item_id IN (${placeholders})
+        AND COALESCE(promotion_price, 0) > 0
+        AND LOWER(COALESCE(status, '')) IN ('ongoing', 'upcoming', 'active', 'normal', '')
+      ORDER BY updated_at DESC
+    `).bind(shop, shop, ...itemIds).all()
+    const byItemModel = new Map()
+    const byItemModelName = new Map()
+    const byItem = new Map()
+    for (const item of discountRows.results || []) {
+      const itemId = cleanProductText(item.item_id)
+      if (!itemId) continue
+      const modelId = cleanProductText(item.model_id)
+      const modelNameKey = normalizePromotionMatchText(item.model_name)
+      const itemRows = byItem.get(itemId) || []
+      itemRows.push(item)
+      byItem.set(itemId, itemRows)
+      if (modelId) byItemModel.set(`${itemId}|${modelId}`, item)
+      if (modelNameKey) byItemModelName.set(`${itemId}|${modelNameKey}`, item)
+    }
+    return rows.map(row => {
+      if (cleanProductText(row.platform).toLowerCase() !== 'shopee') return row
+      const itemId = cleanProductText(row.platform_item_id)
+      const modelId = cleanProductText(row.model_id)
+      const variationKey = normalizePromotionMatchText(row.variation_name)
+      const candidates = byItem.get(itemId) || []
+      const promotion = (modelId && byItemModel.get(`${itemId}|${modelId}`))
+        || (variationKey && byItemModelName.get(`${itemId}|${variationKey}`))
+        || (candidates.length === 1 ? candidates[0] : null)
+      if (!promotion) return row
+      const promotionPrice = productStockNumber(promotion.promotion_price)
+      if (promotionPrice <= 0) return row
+      return {
+        ...row,
+        discount_price: promotionPrice,
+        promotion_core_discount_id: cleanProductText(promotion.discount_id),
+        promotion_core_item_id: cleanProductText(promotion.item_id),
+        promotion_core_model_id: cleanProductText(promotion.model_id),
+        discount_price_source: 'promotion_core',
+        promotion_core_synced_at: cleanProductText(promotion.synced_at || promotion.updated_at)
+      }
+    })
+  } catch (error) {
+    return rows.map(row => ({
+      ...row,
+      promotion_core_warning: `promotion_core_overlay_failed:${cleanProductText(error?.message || error)}`
+    }))
+  }
+}
+
+async function addProductVariationColumnIfMissing(env, definition) {
+  try {
+    await env.DB.prepare(`ALTER TABLE product_variations ADD COLUMN ${definition}`).run()
+  } catch (error) {
+    const message = String(error?.message || '').toLowerCase()
+    if (!message.includes('duplicate column') && !message.includes('already exists')) throw error
+  }
+}
+
+async function ensurePromoUploadStatusColumns(env) {
+  await addProductVariationColumnIfMissing(env, "promo_upload_status TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_message TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_file TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_job_id TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_price REAL DEFAULT 0")
+  await addProductVariationColumnIfMissing(env, "promo_upload_at TEXT DEFAULT ''")
+}
+
 export async function handleCostSettings(request, env, cors) {
 
   if (request.method === "GET") {
@@ -39,6 +128,7 @@ export async function handleCostSettings(request, env, cors) {
 }
 
 export async function handleVariations(request, env, cors) {
+  await ensurePromoUploadStatusColumns(env)
 
   // GET: Lấy danh sách variations (có filter map_status, shop)
   if (request.method === 'GET') {
@@ -63,6 +153,8 @@ export async function handleVariations(request, env, cors) {
         v.id, v.platform, v.shop, v.platform_item_id, v.model_id, v.product_name,
         v.variation_name, v.platform_sku, v.internal_sku, v.price,
         v.discount_price, v.stock, v.map_status, v.mapped_items,
+        v.promo_upload_status, v.promo_upload_message, v.promo_upload_file,
+        v.promo_upload_job_id, v.promo_upload_price, v.promo_upload_at,
         v.created_at, v.updated_at,
         COALESCE(
           NULLIF(TRIM(v.image_url), ''),
@@ -75,7 +167,11 @@ export async function handleVariations(request, env, cors) {
       ORDER BY v.map_status, v.product_name
     `;
     const rows = await env.DB.prepare(query).bind(...params).all()
-    return Response.json(rows.results, { headers: cors })
+    const baseRows = rows.results || []
+    const resultRows = shop && (platform === 'shopee' || baseRows.some(row => cleanProductText(row.platform).toLowerCase() === 'shopee'))
+      ? await overlayShopeeDiscountCorePrices(env, baseRows, shop)
+      : baseRows
+    return Response.json(resultRows, { headers: cors })
   }
 
 // POST /api/sync-variations — Bot gửi lên sau khi crawl SP Shopee
@@ -333,24 +429,61 @@ export async function handleVariations(request, env, cors) {
     // Nhánh 2: Lưu map thủ công từ FE
     const body = await request.json()
     const { id, internal_sku, mapped_items, platform_sku } = body;
+    const quickPlatform = cleanProductText(body.platform || '').toLowerCase()
+    const quickShop = cleanProductText(body.shop || body.shop_id || body.shopId || '')
+    const quickOrderId = cleanProductText(body.order_id || body.orderId || '')
+    const quickProductName = cleanProductText(body.product_name || body.productName || '')
+    const quickVariationName = cleanProductText(body.variation_name || body.variationName || '')
 
     // 🌟 LUỒNG QUICK MAP: Xử lý Map nóng trực tiếp từ màn hình Đơn hàng
     if (platform_sku && !id) {
         console.log(`[API QUICK MAP] Đang xử lý map: ${platform_sku} -> ${internal_sku}`);
+        await ensureProductVariationWriteColumns(env)
+        const mappedItemsJson = mapped_items || JSON.stringify([{ sku: internal_sku, qty: 1 }])
         
 // 1. Gắn map vào Biến thể
-        const resVar = await env.DB.prepare(`
-            UPDATE product_variations 
-            SET internal_sku = ?, map_status = 'MAPPED', updated_at = datetime('now')
-            WHERE platform_sku = ? OR variation_name = ?
-        `).bind(internal_sku, platform_sku, platform_sku).run();
+        const resVar = quickPlatform && quickShop
+          ? await env.DB.prepare(`
+              UPDATE product_variations
+              SET internal_sku = ?, mapped_items = ?, map_status = 'MAPPED', updated_at = datetime('now')
+              WHERE LOWER(COALESCE(platform, '')) = ?
+                AND COALESCE(shop, '') = ?
+                AND (platform_sku = ? OR variation_name = ? OR product_name = ?)
+          `).bind(internal_sku, mappedItemsJson, quickPlatform, quickShop, platform_sku, quickVariationName || platform_sku, quickProductName || platform_sku).run()
+          : await env.DB.prepare(`
+              UPDATE product_variations
+              SET internal_sku = ?, mapped_items = ?, map_status = 'MAPPED', updated_at = datetime('now')
+              WHERE platform_sku = ? OR variation_name = ?
+          `).bind(internal_sku, mappedItemsJson, platform_sku, platform_sku).run();
+        if ((resVar.meta?.changes || 0) === 0 && quickPlatform && quickShop) {
+          await env.DB.prepare(`
+            INSERT INTO product_variations
+              (platform, shop, platform_item_id, model_id, product_name, variation_name,
+               platform_sku, internal_sku, mapped_items, image_url, price, discount_price, stock,
+               map_status, updated_at)
+            VALUES (?, ?, '', '', ?, ?, ?, ?, ?, '', 0, 0, 0, 'MAPPED', datetime('now'))
+            ON CONFLICT(platform, shop, platform_sku) DO UPDATE SET
+              product_name = CASE WHEN excluded.product_name != '' THEN excluded.product_name ELSE product_variations.product_name END,
+              variation_name = CASE WHEN excluded.variation_name != '' THEN excluded.variation_name ELSE product_variations.variation_name END,
+              internal_sku = excluded.internal_sku,
+              mapped_items = excluded.mapped_items,
+              map_status = 'MAPPED',
+              updated_at = datetime('now')
+          `).bind(quickPlatform, quickShop, quickProductName, quickVariationName, platform_sku, internal_sku, mappedItemsJson).run()
+        }
         console.log(`[API QUICK MAP] Đã update ${resVar.meta?.changes || 0} dòng trong bảng product_variations`);
 
         // 2. Chữa cháy: Cập nhật ngược lại toàn bộ các Đơn hàng cũ đang bị trống SKU
-        const resOrder = await env.DB.prepare(`
-            UPDATE order_items SET sku = ? 
-            WHERE variation_name = ? OR sku = ? OR product_name = ?
-        `).bind(internal_sku, platform_sku, platform_sku, platform_sku).run();
+        const resOrder = quickOrderId
+          ? await env.DB.prepare(`
+              UPDATE order_items SET sku = ?
+              WHERE order_id = ?
+                AND (variation_name = ? OR sku = ? OR product_name = ?)
+          `).bind(internal_sku, quickOrderId, quickVariationName || platform_sku, platform_sku, quickProductName || platform_sku).run()
+          : await env.DB.prepare(`
+              UPDATE order_items SET sku = ?
+              WHERE variation_name = ? OR sku = ? OR product_name = ?
+          `).bind(internal_sku, platform_sku, platform_sku, platform_sku).run();
         console.log(`[API QUICK MAP] Đã update ${resOrder.meta?.changes || 0} dòng trong bảng order_items`);
 
         // 3. Đưa vào sổ tay bí kíp (sku_alias) để lần sau auto-map

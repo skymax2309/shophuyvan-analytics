@@ -32,14 +32,16 @@
       <a href="#" onclick="showTab('top')">🔥 Top SKU</a>
       <a href="#" onclick="showTab('cancel')">⚠️ Hủy / Hoàn</a>
       <a href="reviews.html">⭐ Đánh giá khách hàng</a>
-      <a href="chat-marketplace.html">💬 Chat khách hàng</a>
+      <a href="chat-cskh.html">💬 Chat/CSKH</a>
       <a href="ads.html">📣 ADS quảng cáo</a>
+      <a href="promotions.html">🏷️ Khuyến mãi sàn</a>
       <a href="#" onclick="showTab('calc')">🧮 Máy tính</a>
       <a href="admin-products.html#variations">📦 Sản phẩm</a>
       <a href="oms-dashboard.html">📦 Đơn Hàng</a>
       <a href="report-upload.html">📁 Báo Cáo</a>
       <a href="admin-users.html">🔐 Quản trị phân quyền</a>
-      <a href="../index.html">⬆️ Import</a>
+      <a href="../index.html">🏠 Trung tâm</a>
+      <a href="import-orders.html">⬆️ Import</a>
       <a href="import-sku-tool.html">📁 UP SẢN PHẨM BẰNG EXCEL</a>
       <a href="admin-purchase.html">🚢 Nhập Hàng Chính Ngạch</a>
     </nav>
@@ -133,17 +135,18 @@
           <thead>
             <tr>
               <th>Ngày</th>
+              <th>Sàn / Shop</th>
               <th style="text-align:right">Đơn</th>
               <th style="text-align:right">Doanh thu</th>
               <th style="text-align:right">Vốn thực</th>
-              <th style="text-align:right">Phí sàn</th>
+              <th style="text-align:right">Khấu trừ</th>
               <th style="text-align:right">Vận hành</th>
               <th style="text-align:right">Lãi thực</th>
               <th style="text-align:right">Biên lãi</th>
             </tr>
           </thead>
           <tbody id="dailyProfitTable">
-            <tr><td colspan="8" class="loading">Đang tải dữ liệu...</td></tr>
+            <tr><td colspan="9" class="loading">Đang tải dữ liệu...</td></tr>
           </tbody>
         </table>
       </div>
@@ -162,7 +165,7 @@
 
   <div id="tab-monthly" class="tab-content">
     <div class="monthly-notice">
-      <span>🔒</span> Doanh thu năm được gom theo tháng từ file đối soát của sàn, có tách phí sàn, ADS, hoàn/refund, vốn, vận hành và thuế để nhìn nhanh lãi bỏ túi.
+      <span>🔒</span> Doanh thu năm được gom theo tháng từ file đối soát của sàn, có tách khấu trừ sàn, ADS, hoàn/refund, vốn, vận hành và thuế để nhìn nhanh lãi bỏ túi.
     </div>
     
     <div class="kpi-grid" id="kpiGridMonthly">
@@ -189,7 +192,7 @@
             <th>Sàn</th>
             <th style="text-align:right">Doanh thu chốt</th>
             <th style="text-align:right">Tiền sàn trả</th>
-            <th style="text-align:right">Phí sàn</th>
+            <th style="text-align:right">Khấu trừ sàn</th>
             <th style="text-align:right">ADS</th>
             <th style="text-align:right">Hoàn/refund</th>
             <th style="text-align:right">Vốn phân bổ</th>
@@ -314,99 +317,6 @@
     </div>
   </div>
 
-  <!-- ── CHAT TAB ── -->
-  <div id="tab-chat" class="tab-content">
-    <div class="chat-page">
-      <div class="chat-heading">
-        <div>
-          <div class="chat-eyebrow">CSKH realtime</div>
-          <h2>Chat khách hàng tất cả shop</h2>
-          <p>Theo dõi nội dung khách nhắn theo từng shop, ưu tiên hội thoại chưa đọc và kiểm tra trạng thái kết nối webhook.</p>
-        </div>
-        <div class="chat-heading-actions">
-          <button class="chat-sync-btn" id="chatRefreshNowBtn" onclick="refreshChatNow()">Làm mới tin nhắn</button>
-          <button class="chat-sync-btn secondary" id="chatAutomationSettingsBtn" onclick="openChatAutomationSettings()">Cài đặt chat</button>
-        </div>
-      </div>
-
-      <div class="chat-filters">
-        <select id="chatPlatform" onchange="loadChatConversations()">
-          <option value="">Tất cả sàn</option>
-          <option value="shopee">Shopee</option>
-          <option value="lazada">Lazada</option>
-          <option value="tiktok">TikTok</option>
-        </select>
-        <select id="chatShop" onchange="loadChatConversations()">
-          <option value="">Tất cả shop</option>
-        </select>
-        <input id="chatSearch" type="search" placeholder="Tìm khách, nội dung chat, mã hội thoại..." onkeydown="if(event.key==='Enter') loadChatConversations()">
-        <button onclick="loadChatConversations()">Lọc chat</button>
-      </div>
-
-      <div class="chat-workspace">
-        <section class="chat-panel chat-list-panel">
-          <div class="chat-panel-title">
-            <span>Cuộc trò chuyện</span>
-            <small id="chatSummary">Đang tải...</small>
-          </div>
-          <div id="chatConversationList" class="chat-conversation-list">
-            <div class="chat-empty">Đang tải chat...</div>
-          </div>
-        </section>
-
-        <section class="chat-panel chat-thread-panel">
-          <div id="chatThreadHeader" class="chat-thread-header">
-            <div>
-              <strong>Chọn một cuộc trò chuyện</strong>
-              <small>Nội dung tin nhắn sẽ hiện ở đây.</small>
-            </div>
-          </div>
-          <div id="chatMessages" class="chat-messages">
-            <div class="chat-empty">Chưa chọn hội thoại.</div>
-          </div>
-          <div class="chat-reply-box">
-            <div class="chat-mobile-tools" aria-label="Thao tác nhanh">
-              <button type="button" onclick="focusChatReply()">Dịch</button>
-              <button type="button" onclick="insertChatQuickReply()">Trả lời nhanh</button>
-              <button type="button" onclick="openChatMobileContext('orders')">Đơn hàng</button>
-              <button type="button" onclick="openChatMobileContext('products')">Sản phẩm</button>
-              <button type="button" onclick="toggleChatMobileAttachments()">Ảnh/video API</button>
-            </div>
-            <textarea id="chatReplyText" rows="3" disabled placeholder="Chọn hội thoại để soạn trả lời. Nội dung sẽ được kiểm duyệt từ khóa trước khi gửi." oninput="onChatReplyInput()"></textarea>
-            <div id="chatMediaApiStatus" class="chat-media-api-status disabled">Ảnh/video API: chọn hội thoại để gửi.</div>
-            <div id="chatMediaPreview" class="chat-media-preview" hidden></div>
-            <div id="chatReplyGuardStatus" class="chat-guard-status muted">Bộ lọc sẽ kiểm tra nội dung trước khi gửi.</div>
-            <div class="chat-mobile-attach-grid" aria-label="Gửi nội dung nhanh">
-              <label for="chatMediaInput">Album API</label>
-              <label for="chatCameraInput">Chụp API</label>
-              <button type="button" onclick="setChatTaskDraft()">Giao việc</button>
-            </div>
-            <div class="chat-reply-actions">
-              <button id="chatQuickReplyBtn" class="chat-quick-reply-action" type="button" onclick="insertChatQuickReply()">Trả lời nhanh</button>
-              <label id="chatMediaPickBtn" class="chat-media-pick disabled" for="chatMediaInput">Ảnh/video API</label>
-              <input id="chatMediaInput" class="chat-hidden-file" type="file" accept="image/*,video/*" multiple disabled onchange="onChatMediaSelected(event)">
-              <input id="chatCameraInput" class="chat-hidden-file" type="file" accept="image/*,video/*" capture="environment" disabled onchange="onChatMediaSelected(event)">
-              <button id="chatAiBtn" type="button" disabled onclick="generateChatAiReply()">AI gợi ý</button>
-              <button id="chatGuardBtn" type="button" disabled onclick="validateChatReplyContent()">Kiểm tra</button>
-              <button id="chatSendBtn" type="button" disabled onclick="sendChatReply()">Gửi</button>
-            </div>
-          </div>
-        </section>
-
-        <aside class="chat-panel chat-setup-panel">
-          <div class="chat-panel-title">
-            <span>Thông tin chat</span>
-            <small id="chatSetupStatus">Đang kiểm tra...</small>
-          </div>
-          <div id="chatSetupList" class="chat-setup-list">
-            <div class="chat-empty">Đang tải shop...</div>
-          </div>
-        </aside>
-        <button class="chat-mobile-context-backdrop" type="button" onclick="closeChatMobileContext()" aria-label="Đóng thông tin chat"></button>
-      </div>
-    </div>
-  </div>
-
   <!-- ── CALC TAB ── -->
   <div id="tab-calc" class="tab-content">
     <div class="calc-card">
@@ -496,14 +406,14 @@
 <script src="../js/components/DateRangePicker.js?v=lazada-status-20260504"></script>
 <script src="../js/components/ShopTreePicker.js?v=shop-tree-all-shops-20260513"></script>
 <script src="../js/dashboard/filters.js?v=dashboard-filter-platform-20260511"></script>
-<script src="../js/dashboard/calc.js"></script>
+<script src="../js/dashboard/calc.js?v=finance-taxonomy-20260519"></script>
 <script src="../js/dashboard/cancel.js?v=cancel-reason-vi-20260509"></script>
 <script src="../js/dashboard/top.js"></script>
-<script src="../js/dashboard/kpi-cost-core.js?v=dashboard-fee-core-20260512"></script>
-<script src="../js/dashboard/kpi-card-render.js?v=dashboard-render-core-20260512"></script>
-<script src="../js/dashboard/kpi-daily-render.js?v=shop-tree-all-shops-20260513"></script>
-<script src="../js/dashboard/kpi.js?v=shop-tree-all-shops-20260513"></script>
-<script src="../js/dashboard/monthly.js?v=yearly-revenue-ads-20260509b"></script>
+<script src="../js/dashboard/kpi-cost-core.js?v=finance-taxonomy-20260519"></script>
+<script src="../js/dashboard/kpi-card-render.js?v=finance-taxonomy-20260519"></script>
+<script src="../js/dashboard/kpi-daily-render.js?v=daily-shop-core-20260527"></script>
+<script src="../js/dashboard/kpi.js?v=finance-taxonomy-20260519"></script>
+<script src="../js/dashboard/monthly.js?v=finance-taxonomy-20260519"></script>
 <script src="../js/dashboard/templates/income-template-a.js?v=core-first-20260514a"></script>
 <script src="../js/dashboard/templates/income-template-b.js?v=core-first-20260514a"></script>
 <script src="../js/dashboard/income/income-core-query.js?v=core-first-20260513a"></script>
@@ -513,10 +423,9 @@
 <script src="../js/dashboard/income/income-actions-escrow-fee.js?v=core-first-20260513a"></script>
 <script src="../js/dashboard/income/income-actions-report-statement.js?v=core-first-20260513a"></script>
 <script src="../js/dashboard/order-status-core.js?v=order-status-core-20260506"></script>
-<script src="../js/dashboard/fe-chat-marketplace-loader.js?v=fe-chat-marketplace-20260513f"></script>
 <script src="../js/dashboard/templates/netprofit-template.js?v=core-first-20260514a"></script>
 <script src="../js/dashboard/order-analytics.js?v=netprofit-escrow-fix-20260513"></script>
-<script src="../js/dashboard/main.js?v=ads-page-redirect-20260506"></script>
+<script src="../js/dashboard/main.js?v=finance-taxonomy-20260519"></script>
 
 </body>
 </html>

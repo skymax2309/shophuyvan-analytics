@@ -412,8 +412,19 @@ export async function handleVideoUploadQueueCancel(request, env, cors) {
   }, cors)
 }
 
+function normalizeQueueUploadErrorMessage(error) {
+  const raw = cleanVideoText(error?.message)
+  if (!raw) return 'Upload video theo lịch thất bại.'
+  if (/too many subrequests/i.test(raw)) {
+    return 'Worker vượt giới hạn số lượt gọi API trong một lần chạy. Hệ thống đã giảm tải bước đồng bộ sau đăng; hãy chạy lại job này.'
+  }
+  return raw
+}
+
 export async function runVideoUploadQueueBatch(env, options = {}) {
-  const maxJobs = Math.min(Math.max(Number(options.max_jobs || 1) || 1, 1), 3)
+  // Mỗi job upload có nhiều external fetch tới Shopee, nên giữ 1 job/lượt để tránh vượt ngưỡng subrequest.
+  const maxJobs = Math.min(Math.max(Number(options.max_jobs || 1) || 1, 1), 1)
+  const maxExternalSubrequests = Math.min(Math.max(Number(options.max_external_subrequests || 45) || 45, 20), 50)
   const claimed = await claimDueMarketplaceVideoUploadJobs(env, {
     platform: 'shopee',
     limit: maxJobs
@@ -444,6 +455,9 @@ export async function runVideoUploadQueueBatch(env, options = {}) {
         actionType: 'auto_upload_post_video',
         queueId: job.queue_id,
         scheduledAt: job.scheduled_at,
+        syncAfterPost: 0,
+        pollMaxRounds: 6,
+        maxExternalSubrequests,
         note: 'Cron upload video theo lịch đã duyệt'
       })
       const updated = await updateMarketplaceVideoUploadQueueJob(env, job.id, {
@@ -455,7 +469,7 @@ export async function runVideoUploadQueueBatch(env, options = {}) {
       result.done += 1
       result.rows.push(updated)
     } catch (error) {
-      const message = cleanVideoText(error?.message) || 'Upload video theo lịch thất bại.'
+      const message = normalizeQueueUploadErrorMessage(error)
       const updated = await updateMarketplaceVideoUploadQueueJob(env, job.id, {
         status: 'error',
         last_error: message,
@@ -503,7 +517,8 @@ export async function handleVideoUploadQueueRun(request, env, cors) {
     }, cors)
   }
   const result = await runVideoUploadQueueBatch(env, {
-    max_jobs: body.max_jobs || 1
+    max_jobs: body.max_jobs || 1,
+    max_external_subrequests: body.max_external_subrequests || 45
   })
   return json(result, cors)
 }

@@ -1,6 +1,7 @@
 import { orderStatusKind } from './status-core.js'
 import { buildZeroRevenueReturnFinance } from './return-inference-core.js'
 import { cleanText, ESTIMATE_SOURCE, ESCROW_SOURCE, INFERRED_RETURN_SOURCE, LAZADA_FINANCE_SOURCE, PAYMENT_SOURCE, num, round2 } from './analytics-shared-core.js'
+import { buildOrderFinanceTaxonomy } from './finance-taxonomy-core.js'
 
 function parseJsonSafe(value) {
   try {
@@ -22,19 +23,22 @@ export function extractShopeeFinanceInfo(order) {
   const raw = parseJsonSafe(order.fee_raw_data)
   const income = raw.order_income || raw.escrow_detail?.order_income || raw || {}
   const buyerPayment = income.buyer_payment_info || {}
+  const taxonomy = buildOrderFinanceTaxonomy(order)
   const refundAmount = round2(Math.max(
     Math.abs(num(income.seller_return_refund)),
     Math.abs(num(income.return_refund_amount)),
     Math.abs(num(income.refund_amount))
   ))
   const revenueBasis = round2(Math.max(
-    num(income.order_selling_price),
-    num(income.order_discounted_price),
-    num(buyerPayment.merchant_subtotal),
+    num(taxonomy.gross_revenue),
+    num(income.order_selling_price) + num(income.buyer_paid_shipping_fee),
+    num(income.order_discounted_price) + num(income.buyer_paid_shipping_fee),
+    num(buyerPayment.merchant_subtotal) + num(buyerPayment.shipping_fee),
     num(buyerPayment.order_amount)
   ))
   return {
     revenueBasis,
+    taxonomy,
     refundAmount,
     returnOrderCount: Array.isArray(raw.return_order_sn_list) ? raw.return_order_sn_list.length : 0
   }
@@ -84,27 +88,57 @@ export function chooseActualIncome(order, revenueBasis, orderItems = []) {
       inferredReturn: inferred
     }
   }
+  const taxonomy = buildOrderFinanceTaxonomy(order, orderItems)
+  const platform = cleanText(order.platform).toLowerCase()
+  const requiresConfirmedSettlement = platform === 'tiktok' || platform === 'lazada'
+  const estimatedIncome = round2(taxonomy.estimated_income ?? taxonomy.profit_basis ?? taxonomy.actual_income ?? 0)
   const existingSource = cleanText(order.existing_actual_income_source)
   if ([PAYMENT_SOURCE, LAZADA_FINANCE_SOURCE].includes(existingSource)) {
     return {
       amount: round2(order.existing_actual_income),
       source: existingSource,
-      platformFees: resolvePlatformFees(order, revenueBasis, order.existing_actual_income)
+      platformFees: round2(Math.max(taxonomy.platform_deduction_total, resolvePlatformFees(order, revenueBasis, order.existing_actual_income))),
+      taxonomy
     }
   }
   if (Number(order.has_fee_detail || 0) && cleanText(order.fee_source)) {
     const feeSource = cleanText(order.fee_source)
+    if (taxonomy.actual_income_available === false || taxonomy.settlement_status === 'pending_settlement') {
+      if (!requiresConfirmedSettlement) {
+        return {
+          amount: round2(taxonomy.actual_income),
+          estimatedAmount: estimatedIncome,
+          source: ESTIMATE_SOURCE,
+          platformFees: round2(taxonomy.platform_deduction_total),
+          actualIncomeAvailable: false,
+          taxonomy
+        }
+      }
+      return {
+        amount: null,
+        estimatedAmount: estimatedIncome,
+        source: ESTIMATE_SOURCE,
+        platformFees: round2(taxonomy.platform_deduction_total),
+        actualIncomeAvailable: false,
+        taxonomy
+      }
+    }
     return {
-      amount: round2(order.settlement),
-      source: feeSource === LAZADA_FINANCE_SOURCE ? LAZADA_FINANCE_SOURCE : ESCROW_SOURCE,
-      platformFees: resolvePlatformFees(order, revenueBasis, order.settlement)
+      amount: round2(taxonomy.actual_income),
+      source: feeSource === LAZADA_FINANCE_SOURCE || feeSource === 'tiktok_seller_center_detail' ? feeSource : ESCROW_SOURCE,
+      platformFees: round2(taxonomy.platform_deduction_total),
+      taxonomy
     }
   }
-  const feeNoAds = estimateOrderFeeNoAds(order)
+  const feeNoAds = round2(taxonomy.platform_deduction_total || estimateOrderFeeNoAds(order))
+  const fallbackEstimate = round2(num(revenueBasis) - feeNoAds)
   return {
-    amount: round2(num(revenueBasis) - feeNoAds),
+    amount: requiresConfirmedSettlement ? null : fallbackEstimate,
+    estimatedAmount: fallbackEstimate,
     source: ESTIMATE_SOURCE,
-    platformFees: feeNoAds
+    platformFees: feeNoAds,
+    actualIncomeAvailable: !requiresConfirmedSettlement,
+    taxonomy
   }
 }
 

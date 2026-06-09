@@ -68,11 +68,19 @@ export function renderPickListModal(selectedOrders) {
 
 // ── 2. QUICK MAP SKU CORE ─────────────────────────────────────────────
 let mapSearchTimer = null;
+let currentMapContext = {};
 export function openMapModal(rawName, orderId) {
-  document.getElementById('mapTargetName').textContent = rawName || 'Sản phẩm lỗi tên';
-  document.getElementById('mapTargetRawSku').value = rawName;
-  document.getElementById('mapTargetOrderId').value = orderId;
+  const context = rawName && typeof rawName === 'object'
+    ? rawName
+    : { platform_sku: rawName, order_id: orderId };
+  currentMapContext = context || {};
+  const targetName = currentMapContext.platform_sku || currentMapContext.variation_name || currentMapContext.product_name || rawName;
+  document.getElementById('mapTargetName').textContent = targetName || 'Sản phẩm lỗi tên';
+  document.getElementById('mapTargetRawSku').value = targetName || '';
+  document.getElementById('mapTargetOrderId').value = currentMapContext.order_id || '';
   document.getElementById('mapSearchInput').value = '';
+  const tempToggle = document.getElementById('mapShowTempSku');
+  if (tempToggle) tempToggle.checked = false;
   document.getElementById('mapSkuResults').innerHTML = '<div style="padding:10px;color:var(--muted);text-align:center;">Gõ tên sản phẩm để tìm...</div>';
   document.getElementById('mapSkuModal').classList.add('open');
   document.getElementById('mapSearchInput').focus();
@@ -92,7 +100,8 @@ async function searchDbSku() {
   }
   box.innerHTML = '<div style="padding:10px;text-align:center;">⏳ Đang tìm...</div>';
   try {
-    const res = await fetch(`${API}/api/products?search=${encodeURIComponent(keyword)}`).then(r => r.json());
+    const includeTemp = document.getElementById('mapShowTempSku')?.checked ? '&include_temp=1' : '';
+    const res = await fetch(`${API}/api/products?search=${encodeURIComponent(keyword)}${includeTemp}`).then(r => r.json());
     if (!res.data || res.data.length === 0) {
       box.innerHTML = '<div style="padding:10px;color:var(--red);text-align:center;">Không tìm thấy SKU nào!</div>';
       return;
@@ -102,7 +111,7 @@ async function searchDbSku() {
         <div style="display:flex; gap: 10px; align-items:center;">
           <img src="${p.image_url || ''}" style="width:30px; height:30px; border-radius:4px; background:var(--surface);">
           <div>
-             <div style="color:var(--blue); font-weight:bold; font-size:12px;">${p.sku}</div>
+             <div style="color:var(--blue); font-weight:bold; font-size:12px;">${p.sku}${/^SP_/i.test(p.sku || '') ? ' <span style="color:var(--muted);font-weight:800;">Mã tạm</span>' : ''}</div>
              <div style="font-size:11px; color:var(--text);">${(p.product_name||'').substring(0,35)}</div>
           </div>
         </div>
@@ -118,7 +127,11 @@ export async function saveMapSku(internalSku) {
   const rawName = document.getElementById('mapTargetRawSku').value;
   document.getElementById('mapSkuResults').innerHTML = '<div style="padding:10px;text-align:center;color:var(--green);font-weight:bold;">🚀 Đang đẩy dữ liệu Map lên Server...</div>';
   try {
-    const payload = { platform_sku: rawName, internal_sku: internalSku };
+    const payload = {
+      ...currentMapContext,
+      platform_sku: currentMapContext.platform_sku || rawName,
+      internal_sku: internalSku
+    };
     const response = await fetch(`${API}/api/sync-variations`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

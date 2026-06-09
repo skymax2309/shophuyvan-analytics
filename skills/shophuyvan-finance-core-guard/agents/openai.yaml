@@ -1,0 +1,4 @@
+interface:
+  display_name: "ShopHuyVan Finance Core Guard"
+  short_description: "Guard Finance Core and settlement OMS work"
+  default_prompt: "Use this guard before editing ShopHuyVan finance, fee, settlement, TikTok Seller Center finance, sync_finance, or cost-setting fallback flows."

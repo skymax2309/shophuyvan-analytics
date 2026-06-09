@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8fafc">
+  <title>Quét mã đơn - ShopHuyVan</title>
+  <link rel="stylesheet" href="../css/scan-qr.css?v=scan-camera-20260523a">
+  <script src="../js/auth/auth-guard.js?v=scan-camera-20260523a"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="../js/vendor/qrcode.min.js?v=scan-camera-20260523a"></script>
+</head>
+<body>
+  <main class="scan-shell">
+    <header class="scan-topbar">
+      <a href="../index.html" aria-label="Về trang chủ"><i data-lucide="arrow-left"></i></a>
+      <div>
+        <span>Vận hành kho</span>
+        <h1>Quét mã</h1>
+      </div>
+      <a href="cctv_packing.html" aria-label="Mở ghi hình"><i data-lucide="video"></i></a>
+    </header>
+
+    <section class="scan-panel" id="desktopBridge" aria-label="Kết nối điện thoại quét mã">
+      <div class="bridge-layout">
+        <div class="qr-box">
+          <div id="sessionQr" class="session-qr" aria-label="QR kết nối điện thoại"></div>
+          <div class="qr-fallback" id="qrFallback">Đang tạo phiên quét...</div>
+        </div>
+        <div class="bridge-copy">
+          <span class="eyebrow">PC scanner bridge</span>
+          <h2>Dùng điện thoại để quét mã</h2>
+          <p id="bridgeStatusText">Đang kết nối máy quét/QR qua điện thoại.</p>
+          <a id="phoneLink" class="phone-link" href="#" target="_blank" rel="noopener">Mở link trên điện thoại</a>
+        </div>
+      </div>
+      <div class="scan-tabs" role="tablist" aria-label="Nhóm quét">
+        <button type="button" class="active">Quét đơn đã đóng gói</button>
+        <button type="button">Quét đơn hủy</button>
+        <button type="button">Quét đơn hoàn</button>
+      </div>
+      <div class="scan-result" id="desktopResult">
+        <span>Trạng thái</span>
+        <b>Chờ điện thoại</b>
+        <p>Scan chỉ nhận diện mã đơn/vận đơn để kho xác nhận bước sau.</p>
+      </div>
+    </section>
+
+    <section class="scan-panel phone-mode" id="phoneScanner" hidden aria-label="Máy quét trên điện thoại">
+      <div class="camera-stage">
+        <video id="cameraPreview" playsinline muted></video>
+        <div class="scan-reticle"></div>
+      </div>
+      <div class="phone-toolbar">
+        <button type="button" id="startCameraBtn"><i data-lucide="camera"></i><span>Mở camera</span></button>
+        <button type="button" id="torchBtn" disabled><i data-lucide="flashlight"></i><span>Đèn</span></button>
+      </div>
+      <div class="manual-scan">
+        <input id="manualCodeInput" type="text" autocomplete="off" placeholder="Nhập mã đơn hoặc mã vận đơn">
+        <button type="button" id="manualSubmitBtn">Gửi mã</button>
+      </div>
+      <div class="scan-result" id="phoneResult">
+        <span>Trạng thái</span>
+        <b>Chờ cấp quyền camera</b>
+        <p>Nếu camera không đọc được mã, nhập tay rồi gửi về PC.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API = 'https://huyvan-worker-api.nghiemchihuy.workers.dev'
+    const params = new URLSearchParams(location.search)
+    const sessionIdFromUrl = params.get('session_id') || params.get('session')
+    const isCoarseMobile = window.matchMedia?.('(max-width: 768px), (pointer: coarse)')?.matches
+    const isPhone = params.get('role') === 'phone' || (!sessionIdFromUrl && isCoarseMobile)
+    const desktopBridge = document.getElementById('desktopBridge')
+    const phoneScanner = document.getElementById('phoneScanner')
+    const bridgeStatusText = document.getElementById('bridgeStatusText')
+    const desktopResult = document.getElementById('desktopResult')
+    const phoneResult = document.getElementById('phoneResult')
+    const phoneLink = document.getElementById('phoneLink')
+    const qrFallback = document.getElementById('qrFallback')
+    const cameraPreview = document.getElementById('cameraPreview')
+    const startCameraBtn = document.getElementById('startCameraBtn')
+    const torchBtn = document.getElementById('torchBtn')
+    const manualCodeInput = document.getElementById('manualCodeInput')
+    const manualSubmitBtn = document.getElementById('manualSubmitBtn')
+    let activeSessionId = sessionIdFromUrl || ''
+    let pollTimer = null
+    let detector = null
+    let scanLoopActive = false
+    let cameraTrack = null
+
+    function setResult(box, title, message, tone = '') {
+      box.dataset.tone = tone
+      box.querySelector('b').textContent = title
+      box.querySelector('p').textContent = message
+    }
+
+    async function apiFetch(path, options = {}) {
+      const response = await fetch(`${API}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        }
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.status === 'error') {
+        const error = new Error(data.error || data.message || `HTTP ${response.status}`)
+        error.data = data
+        throw error
+      }
+      return data
+    }
+
+    function renderOrderResult(session) {
+      const result = session?.result || {}
+      const order = result.order || null
+      if (!session?.scan_code) {
+        setResult(desktopResult, 'Đang chờ mã', 'Điện thoại đã kết nối, chưa có mã quét.', 'pending')
+        return
+      }
+      if (!order) {
+        setResult(desktopResult, `Đã quét: ${session.scan_code}`, result.advice || 'Không tìm thấy đơn trong OMS.', 'warn')
+        return
+      }
+      setResult(
+        desktopResult,
+        `${order.platform || 'Sàn'} - ${order.order_id}`,
+        `Shop ${order.shop || '--'} · Trạng thái ${order.oms_status || '--'} · Mã vận đơn ${order.tracking_number || '--'}`,
+        'ok'
+      )
+    }
+
+    async function pollSession() {
+      if (!activeSessionId) return
+      try {
+        const data = await apiFetch(`/api/scan-bridge/session/${encodeURIComponent(activeSessionId)}`)
+        const session = data.session || {}
+        if (session.status === 'scanner_session_expired') {
+          setResult(desktopResult, 'Hết hạn phiên', 'Tạo lại phiên mới để tiếp tục quét.', 'error')
+          bridgeStatusText.textContent = 'Phiên đã hết hạn.'
+          clearInterval(pollTimer)
+          return
+        }
+        if (session.status === 'phone_connected') {
+          bridgeStatusText.textContent = 'Đã kết nối điện thoại.'
+          renderOrderResult(session)
+        } else if (session.status === 'scanned') {
+          bridgeStatusText.textContent = 'Đã nhận mã từ điện thoại.'
+          renderOrderResult(session)
+        } else {
+          bridgeStatusText.textContent = 'Đang chờ điện thoại quét QR.'
+        }
+      } catch (error) {
+        setResult(desktopResult, 'Không tải được phiên quét', error.message, 'error')
+      }
+    }
+
+    async function startDesktopBridge() {
+      desktopBridge.hidden = false
+      phoneScanner.hidden = true
+      try {
+        const data = await apiFetch('/api/scan-bridge/session', {
+          method: 'POST',
+          body: JSON.stringify({ purpose: 'oms_scan' })
+        })
+        activeSessionId = data.session_id
+        phoneLink.href = data.scanner_url
+        phoneLink.textContent = data.scanner_url
+        bridgeStatusText.textContent = 'Quét QR bằng điện thoại để kết nối.'
+        if (window.QRCode) {
+          const qrMount = document.getElementById('sessionQr')
+          qrMount.innerHTML = ''
+          new QRCode(qrMount, { text: data.scanner_url, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M })
+          qrFallback.textContent = ''
+        } else {
+          qrFallback.textContent = data.scanner_url
+        }
+        pollTimer = setInterval(pollSession, 1600)
+        await pollSession()
+      } catch (error) {
+        setResult(desktopResult, 'Không tạo được phiên quét', error.message, 'error')
+        bridgeStatusText.textContent = 'scan_bridge_session_failed'
+      }
+    }
+
+    async function connectPhone() {
+      if (!activeSessionId) {
+        setResult(phoneResult, 'Sẵn sàng quét trên điện thoại', 'Không có phiên PC, mã quét sẽ hiển thị ngay trên màn hình này.', 'pending')
+        return false
+      }
+      try {
+        await apiFetch(`/api/scan-bridge/session/${encodeURIComponent(activeSessionId)}/connect`, { method: 'POST', body: '{}' })
+        return true
+      } catch (error) {
+        setResult(phoneResult, 'Không kết nối được PC', error.message, 'error')
+        return false
+      }
+    }
+
+    async function submitCode(code) {
+      const value = String(code || '').trim()
+      if (!value) {
+        setResult(phoneResult, 'Thiếu mã', 'Nhập mã đơn hoặc mã vận đơn.', 'warn')
+        return
+      }
+      try {
+        if (!activeSessionId) {
+          scanLoopActive = false
+          setResult(phoneResult, 'Đã quét mã', value, 'ok')
+          return
+        }
+        const data = await apiFetch(`/api/scan-bridge/session/${encodeURIComponent(activeSessionId)}/result`, {
+          method: 'POST',
+          body: JSON.stringify({ code: value })
+        })
+        scanLoopActive = false
+        setResult(phoneResult, 'Đã gửi mã về PC', data.session?.scan_code || value, 'ok')
+      } catch (error) {
+        setResult(phoneResult, 'Không gửi được mã', error.message, 'error')
+      }
+    }
+
+    async function scanFrame() {
+      if (!scanLoopActive || !detector || !cameraPreview.videoWidth) {
+        if (scanLoopActive) requestAnimationFrame(scanFrame)
+        return
+      }
+      try {
+        const codes = await detector.detect(cameraPreview)
+        if (codes && codes[0]?.rawValue) {
+          await submitCode(codes[0].rawValue)
+          return
+        }
+      } catch {}
+      requestAnimationFrame(scanFrame)
+    }
+
+    function cameraErrorCode(error) {
+      if (!window.isSecureContext) return 'insecure_context'
+      if (error?.name === 'NotAllowedError') return 'camera_permission_denied'
+      if (error?.name === 'NotFoundError') return 'camera_not_found'
+      return error?.message || 'camera_open_failed'
+    }
+
+    async function startCamera() {
+      if (!window.isSecureContext) {
+        setResult(phoneResult, 'Không mở được camera', 'insecure_context', 'error')
+        return
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setResult(phoneResult, 'Không tìm thấy camera', 'camera_not_found', 'error')
+        return
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+        cameraPreview.srcObject = stream
+        await cameraPreview.play()
+        cameraTrack = stream.getVideoTracks()[0] || null
+        const capabilities = cameraTrack?.getCapabilities?.() || {}
+        torchBtn.disabled = !capabilities.torch
+        if ('BarcodeDetector' in window) {
+          detector = new BarcodeDetector({ formats: ['qr_code', 'code_128', 'code_39', 'ean_13'] })
+          scanLoopActive = true
+          setResult(phoneResult, 'Đang quét', 'Đưa mã vào khung hoặc nhập tay nếu máy không đọc được.', 'pending')
+          requestAnimationFrame(scanFrame)
+        } else {
+          setResult(phoneResult, 'Camera đã mở', 'Thiết bị chưa hỗ trợ đọc mã tự động, nhập mã tay để gửi về PC.', 'warn')
+        }
+      } catch (error) {
+        setResult(phoneResult, 'Không mở được camera', cameraErrorCode(error), 'error')
+      }
+    }
+
+    async function startPhoneScanner() {
+      desktopBridge.hidden = true
+      phoneScanner.hidden = false
+      const connected = await connectPhone()
+      if (connected) setResult(phoneResult, 'Đã kết nối PC', 'Đang xin quyền camera để quét bằng điện thoại.', 'ok')
+      await startCamera()
+    }
+
+    document.querySelectorAll('.scan-tabs button').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.scan-tabs button').forEach(item => item.classList.remove('active'))
+        button.classList.add('active')
+      })
+    })
+    startCameraBtn?.addEventListener('click', startCamera)
+    manualSubmitBtn?.addEventListener('click', () => submitCode(manualCodeInput.value))
+    manualCodeInput?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') submitCode(manualCodeInput.value)
+    })
+    torchBtn?.addEventListener('click', async () => {
+      if (!cameraTrack) return
+      const enabled = torchBtn.dataset.on !== '1'
+      await cameraTrack.applyConstraints({ advanced: [{ torch: enabled }] }).catch(() => null)
+      torchBtn.dataset.on = enabled ? '1' : '0'
+    })
+
+    window.lucide?.createIcons?.()
+    if (isPhone) startPhoneScanner()
+    else startDesktopBridge()
+  </script>
+</body>
+</html>

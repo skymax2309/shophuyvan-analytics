@@ -1,0 +1,3 @@
+interface:
+  display_name: "Shophuyvan Automation Guard"
+  short_description: "Keeps Shophuyvan automation files, profiles, runtime logs, and OMS runner work in the right places."

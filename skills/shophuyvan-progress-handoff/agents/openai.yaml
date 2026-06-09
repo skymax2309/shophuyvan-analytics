@@ -1,0 +1,7 @@
+interface:
+  display_name: "ShopHuyVan Progress Handoff"
+  short_description: "Luu viec dang do de tiep tuc chat moi"
+  default_prompt: "Use $shophuyvan-progress-handoff to read the latest unfinished ShopHuyVan work and continue from verified facts."
+
+policy:
+  allow_implicit_invocation: true

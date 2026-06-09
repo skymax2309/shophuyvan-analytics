@@ -93,11 +93,11 @@ function renderTrendTable() {
   }
   body.innerHTML = rows.map(row => `
     <tr>
-      <td>${escapeHtml(cleanText(row.data_period))}</td>
-      <td>${formatNumber(row.total_views)}</td>
-      <td>${formatNumber(row.total_likes)}</td>
-      <td>${formatNumber(row.placed_orders)}</td>
-      <td>${formatCurrency(row.placed_sales)}</td>
+      <td data-label="Ngày / kỳ">${escapeHtml(cleanText(row.data_period))}</td>
+      <td data-label="Lượt xem">${formatNumber(row.total_views)}</td>
+      <td data-label="Lượt thích">${formatNumber(row.total_likes)}</td>
+      <td data-label="Đơn đặt">${formatNumber(row.placed_orders)}</td>
+      <td data-label="Doanh thu đặt">${formatCurrency(row.placed_sales)}</td>
     </tr>
   `).join('')
 }

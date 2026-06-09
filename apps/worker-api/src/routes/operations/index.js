@@ -242,7 +242,7 @@ function shopeeShopForLocalOrder(shops = [], order = {}) {
   }) || shops[0]
 }
 
-async function readShopeeOrderSignals(env, shop, order, options = {}) {
+export async function readShopeeOrderSignals(env, shop, order, options = {}) {
   const app = getShopeeAppFromRow(env, shop, shop.api_partner_id || shop.shop_name || shop.user_name)
   const detailUrl = signedShopeeUrl(app, SHOPEE_ORDER_DETAIL_PATH, shop.access_token, shop.api_shop_id)
   const shippingUrl = signedShopeeUrl(app, SHOPEE_GET_SHIPPING_PARAMETER_PATH, shop.access_token, shop.api_shop_id)
@@ -462,6 +462,25 @@ export async function executeShopeeOperation(env, options = {}) {
   const dryRun = isWrite && !(options.execute === true || String(options.execute).toLowerCase() === 'true')
   const confirmed = cleanText(options.confirm) === OPERATIONS_CONFIRM_TEXT
   const orderSn = cleanText(payload.order_sn || options.order_sn)
+
+  if (isWrite) {
+    // Khoá cứng thao tác ghi vận hành; lượt này chỉ cho phép preview để tránh ship/arrange/cancel ngoài ý muốn.
+    const result = {
+      status: 'error',
+      mode: 'shopee_operation_action',
+      endpoint: cfg.endpoint,
+      action,
+      order_sn: orderSn,
+      payload,
+      dry_run: true,
+      sent_to_shopee: false,
+      confirmation_required: OPERATIONS_CONFIRM_TEXT,
+      error: 'write_action_disabled',
+      message: 'Đã chặn thao tác ghi Shopee. Chỉ dùng route read-only/Core hoặc quy trình được mở khóa riêng.'
+    }
+    await saveOperationAction(env, result)
+    return result
+  }
 
   if (isWrite && (dryRun || !confirmed)) {
     const result = {

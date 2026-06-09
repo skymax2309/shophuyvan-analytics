@@ -34,6 +34,20 @@ const ORDER_KIND_LABELS = {
   changed: 'cập nhật trạng thái'
 }
 
+const DISPLAY_STATUS_VI = {
+  PENDING: 'Chờ xử lý',
+  READY_TO_SHIP: 'Đã xử lý / sẵn sàng giao',
+  WAIT_PICKUP: 'Chờ lấy hàng',
+  SHIPPING: 'Đang giao',
+  COMPLETED: 'Đã giao',
+  CANCELLED: 'Đã hủy',
+  RETURN: 'Hoàn / trả',
+  FAILED_DELIVERY: 'Giao thất bại',
+  UNKNOWN: 'Lỗi / cần kiểm tra'
+}
+
+const TERMINAL_STATUS_CODES = new Set(['COMPLETED', 'CANCELLED', 'RETURN', 'FAILED_DELIVERY'])
+
 export const OMS_STATUS_ALIASES = {
   PENDING: ['PENDING', 'LOGISTICS_PENDING_ARRANGE', 'LOGISTICS_REQUEST_CREATED', 'LOGISTICS_PACKAGED', 'ADVANCE_FULFILMENT', 'IN_CANCEL'],
   SHIPPING: ['SHIPPING', 'SHIPPED', 'TO_CONFIRM_RECEIVE'],
@@ -119,6 +133,114 @@ export function getOrderStatusValue(row = {}, fallback = '') {
     || row.order_type
     || fallback
   )
+}
+
+function firstStatusText(...values) {
+  for (const value of values) {
+    const text = cleanStatusText(value)
+    if (text) return text
+  }
+  return ''
+}
+
+function hasStatusSignal(key, patterns = []) {
+  return patterns.some(pattern => pattern.test(key))
+}
+
+function coreStatusFromText(value) {
+  const key = normalizeOrderStatusText(value)
+  if (!key) return 'UNKNOWN'
+  if (hasStatusSignal(key, [/FAILED_DELIVERY/, /DELIVERY_FAILED/, /LOGISTICS_LOST/, /LOST/, /GIAO KHONG THANH CONG/, /GIAO THAT BAI/])) {
+    return 'FAILED_DELIVERY'
+  }
+  if (hasStatusSignal(key, [/RETURN/, /REFUND/, /TO_RETURN/, /HOAN/, /TRA HANG/])) return 'RETURN'
+  if (hasStatusSignal(key, [/CANCEL/, /HUY/])) return 'CANCELLED'
+  if (hasStatusSignal(key, [/COMPLETED/, /DELIVERED/, /RECEIVED/, /DA GIAO/, /GIAO THANH CONG/])) return 'COMPLETED'
+  if (hasStatusSignal(key, [/SHIPPED/, /SHIPPING/, /TO_CONFIRM_RECEIVE/, /IN_TRANSIT/, /DANG GIAO/, /VAN CHUYEN/])) return 'SHIPPING'
+  if (hasStatusSignal(key, [/LOGISTICS_PACKAGED/, /PROCESSED/, /ADVANCE_FULFILMENT/, /DA DONG GOI/, /PACKAGED/, /PACKED/])) {
+    return 'READY_TO_SHIP'
+  }
+  if (hasStatusSignal(key, [/READY_TO_SHIP/, /PICKUP/, /LOGISTICS_REQUEST/, /LOGISTICS_PENDING/, /CHO LAY HANG/])) {
+    return 'WAIT_PICKUP'
+  }
+  const pendingExact = new Set(['UNPAID', 'PENDING_PAYMENT', 'PENDING', 'PROCESSING', 'CONFIRMED', 'WAITING', 'NEW', 'IN_CANCEL'])
+  if (pendingExact.has(key) || hasStatusSignal(key, [/CHO THANH TOAN/, /PENDING/, /PROCESS/, /CONFIRM/, /WAIT/, /CHO XU LY/, /DANG XU LY/, /IN_CANCEL/])) {
+    return 'PENDING'
+  }
+  return 'UNKNOWN'
+}
+
+function fulfillmentStatusFromText(value, coreStatus) {
+  const key = normalizeOrderStatusText(value)
+  if (!key) return coreStatus || 'UNKNOWN'
+  const aliases = [
+    'LOGISTICS_PENDING_ARRANGE',
+    'LOGISTICS_REQUEST_CREATED',
+    'LOGISTICS_PACKAGED',
+    'ADVANCE_FULFILMENT',
+    'IN_CANCEL',
+    'SHIPPED',
+    'TO_CONFIRM_RECEIVE',
+    'COMPLETED',
+    'CANCELLED',
+    'CANCELLED_TRANSIT',
+    'RETURN_REFUND',
+    'RETURN_COMPLAINT',
+    'LOGISTICS_IN_RETURN',
+    'LOGISTICS_RETURNED_BY_SHIPPER',
+    'LOGISTICS_RETURN_PACKAGE_RECEIVED',
+    'LOGISTICS_LOST',
+    'FAILED_DELIVERY',
+    'FAILED_DELIVERY_ATTEMPT',
+    'READY_TO_SHIP',
+    'PROCESSED',
+    'UNPAID',
+    'RETURN'
+  ]
+  const exact = aliases.find(alias => key === alias)
+  if (exact) return exact
+  if (coreStatus === 'READY_TO_SHIP') return 'LOGISTICS_PACKAGED'
+  if (coreStatus === 'WAIT_PICKUP') return 'LOGISTICS_REQUEST_CREATED'
+  if (coreStatus === 'SHIPPING') return 'SHIPPED'
+  if (coreStatus === 'FAILED_DELIVERY') return 'FAILED_DELIVERY'
+  return coreStatus || 'UNKNOWN'
+}
+
+export function displayStatusViForCore(coreStatus) {
+  return DISPLAY_STATUS_VI[cleanStatusText(coreStatus).toUpperCase()] || DISPLAY_STATUS_VI.UNKNOWN
+}
+
+export function normalizeOrderStatusCore(row = {}, fallback = '') {
+  const rawPlatformStatus = getOrderStatusValue(row, fallback)
+  const normalizedType = orderTypeFromStatus(row, row?.order_type || 'normal')
+  const rawCoreStatus = coreStatusFromText(rawPlatformStatus)
+  const statusKind = orderStatusKind({ ...row, order_type: normalizedType }, row?.cancel_reason || '')
+  let orderStatusCore = rawCoreStatus
+  let labelReason = ''
+
+  // order_type là kết quả Core/return ledger đã chuẩn hóa; khi sàn vẫn để COMPLETED, read model phải ưu tiên loại đơn hoàn.
+  if (normalizedType === 'return' && rawCoreStatus !== 'FAILED_DELIVERY') {
+    if (rawCoreStatus === 'COMPLETED') labelReason = 'order_type=return nên không hiển thị như đơn đã giao.'
+    orderStatusCore = 'RETURN'
+  } else if (normalizedType === 'cancel') {
+    orderStatusCore = 'CANCELLED'
+  } else if (statusKind === 'failed') {
+    orderStatusCore = 'FAILED_DELIVERY'
+  }
+
+  const fulfillmentStatusCore = fulfillmentStatusFromText(rawPlatformStatus, orderStatusCore)
+  const unknown = orderStatusCore === 'UNKNOWN'
+  return {
+    raw_platform_status: rawPlatformStatus,
+    order_status_core: orderStatusCore,
+    fulfillment_status_core: unknown ? 'UNKNOWN' : fulfillmentStatusCore,
+    display_status_vi: displayStatusViForCore(orderStatusCore),
+    order_type: normalizedType,
+    status_kind: statusKind,
+    terminal_status: TERMINAL_STATUS_CODES.has(orderStatusCore),
+    status_parent: orderStatusCore,
+    status_reason: labelReason || (unknown ? 'Raw status chưa có trong Order Status Core.' : '')
+  }
 }
 
 export function orderStatusLabel(value, fallback = 'chưa rõ trạng thái') {
@@ -239,6 +361,151 @@ export function orderStatusUiClass(value) {
   if (kind === 'return' || kind === 'cancelled' || kind === 'failed') return 'bad'
   if (kind === 'shipping') return 'ship'
   return 'wait'
+}
+
+export function mapMarketplaceOrderStatus(platform = '', rawStatus = '', details = {}) {
+  const platformKey = cleanStatusText(platform).toLowerCase()
+  const status = cleanStatusText(rawStatus).toUpperCase()
+  const statusKey = normalizeOrderStatusText(rawStatus)
+  const packageStatus = firstStatusText(details.packageStatus, details.package_status, details.logisticsStatus, details.logistics_status)
+  const logistics = packageStatus.toUpperCase()
+  const logisticsLower = packageStatus.toLowerCase()
+  const logisticsKey = normalizeOrderStatusText(packageStatus)
+  const tracking = firstStatusText(details.tracking, details.tracking_number, details.trackingNo, details.tracking_no)
+  const hasTracking = Boolean(tracking)
+
+  if (platformKey === 'tiktok') {
+    const tiktokTextKey = `${statusKey} ${logisticsKey}`
+    const isCancelled = /DA HUY|CANCELLED|CANCELED/.test(tiktokTextKey)
+    const isFailedDelivery = /GIAO KHONG THANH CONG|GIAO THAT BAI|LOST BY 3PL|FAILED_DELIVERY/.test(tiktokTextKey)
+    const isReturn = /TRA HANG|HOAN HANG|RETURN|REFUND|HUY & TRA HANG/.test(tiktokTextKey)
+    const isCompleted = /NGUOI MUA XAC NHAN|DA GIAO|COMPLETED|DA HOAN TAT|HOAN TAT|HOAN THANH|DA HOAN THANH/.test(tiktokTextKey)
+    const isShipping = /DANG GIAO|DA VAN CHUYEN|SHIPPED|DA GUI|DANG TRUNG CHUYEN|IN_TRANSIT/.test(tiktokTextKey)
+    const isPrepared = /DANG CHO LAY HANG|CHO LAY HANG|DA CHUAN BI|CHO BAN GIAO|DA XU LY|PROCESSED/.test(tiktokTextKey)
+    const isPending = /CHO XAC NHAN|READY_TO_SHIP|CHO DONG GOI|CHUA XU LY|DANG CHO VAN CHUYEN|CAN XU LY/.test(tiktokTextKey)
+
+    if (isFailedDelivery) return { oms: 'RETURN', shipping: 'FAILED_DELIVERY', type: 'return', reason: 'Giao hàng thất bại' }
+    if (isCancelled) return { oms: 'CANCELLED', shipping: 'CANCELLED', type: 'cancel', reason: 'Đã hủy' }
+    if (isReturn) return { oms: 'RETURN', shipping: 'RETURN', type: 'return', reason: 'Trả hàng/Hoàn tiền' }
+    if (isCompleted) return { oms: 'COMPLETED', shipping: 'COMPLETED', type: 'normal' }
+    if (isShipping) return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
+    if (isPrepared) return { oms: 'PENDING', shipping: hasTracking ? 'LOGISTICS_PACKAGED' : 'LOGISTICS_REQUEST_CREATED', type: 'normal' }
+    if (isPending) return { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
+  }
+
+  if (platformKey === 'shopee') {
+    const shopeeTextKey = `${statusKey} ${logisticsKey}`
+    const isCarrierHandoff = /DA GIAO CHO (DVVC|DON VI VAN CHUYEN)|DANG DUOC GIAO TOI NGUOI MUA|DON HANG DA ROI BUU CUC/.test(shopeeTextKey)
+    const isCompleted = status === 'COMPLETED' ||
+      /LOGISTICS_DELIVERY_DONE|COMPLETED|DELIVERED|RECEIVED|DA GIAO|GIAO THANH CONG|GIAO HANG THANH CONG/.test(shopeeTextKey) ||
+      logistics.includes('LOGISTICS_DELIVERY_DONE') ||
+      logistics.includes('DELIVERED') ||
+      logisticsLower.includes('đã giao') ||
+      logisticsLower.includes('da giao')
+    const isBuyerCancelRequest = status === 'IN_CANCEL' ||
+      logistics.includes('IN_CANCEL') ||
+      logisticsLower.includes('khách yêu cầu hủy') ||
+      logisticsLower.includes('khach yeu cau huy') ||
+      logisticsLower.includes('yêu cầu hủy') ||
+      logisticsLower.includes('yeu cau huy') ||
+      logisticsLower.includes('yeu cau bi huy')
+    const isCancelled = status === 'CANCELLED' ||
+      logistics.includes('CANCELED') ||
+      logistics.includes('CANCELLED') ||
+      logisticsLower.includes('đã hủy') ||
+      logisticsLower.includes('đã huỷ') ||
+      logisticsLower.includes('da huy') ||
+      logisticsLower.includes('yêu cầu bị hủy') ||
+      logisticsLower.includes('yeu cau bi huy')
+    const explicitReturnStatus = ['TO_RETURN', 'RETURN', 'RETURN_REFUND'].includes(status)
+    const logisticsReturnSignal = logistics.includes('RETURN') ||
+      logistics.includes('REFUND') ||
+      logisticsLower.includes('trả hàng') ||
+      logisticsLower.includes('tra hang') ||
+      logisticsLower.includes('hoàn tiền') ||
+      logisticsLower.includes('hoan tien') ||
+      logisticsLower.includes('khiếu nại') ||
+      logisticsLower.includes('khieu nai')
+    const isReturnLike = explicitReturnStatus || (!isCompleted && logisticsReturnSignal)
+    const isFailedDelivery = status === 'FAILED_DELIVERY' ||
+      status === 'FAILED_DELIVERY_ATTEMPT' ||
+      logistics.includes('FAILED') ||
+      logisticsLower.includes('giao hàng không thành công') ||
+      logisticsLower.includes('giao hang khong thanh cong') ||
+      logisticsLower.includes('giao không thành công') ||
+      logisticsLower.includes('giao khong thanh cong')
+
+    if (isFailedDelivery) return { oms: 'RETURN', shipping: 'FAILED_DELIVERY', type: 'return', reason: 'Giao hàng thất bại' }
+    if (isBuyerCancelRequest) return { oms: 'PENDING', shipping: 'IN_CANCEL', type: 'normal', reason: 'Khách yêu cầu hủy, cần xác nhận' }
+    if (isCancelled) return { oms: 'CANCELLED', shipping: 'CANCELLED', type: 'cancel', reason: 'Đã hủy' }
+    if (isCarrierHandoff) return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal', reason: 'Đã giao cho ĐVVC' }
+    if (isCompleted) return { oms: 'COMPLETED', shipping: 'COMPLETED', type: 'normal' }
+    if (isReturnLike) {
+      return {
+        oms: 'RETURN',
+        shipping: explicitReturnStatus || logistics.includes('REFUND') ? 'RETURN_REFUND' : 'RETURN',
+        type: 'return',
+        reason: 'Trả hàng/Hoàn tiền'
+      }
+    }
+    if (/DANG GIAO|DANG VAN CHUYEN|DANG TRUNG CHUYEN|IN_TRANSIT|SHIPPING|SHIPPED/.test(shopeeTextKey)) {
+      return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
+    }
+    if (/CHO LAY HANG|DANG CHO LAY HANG|CHO DON VI VAN CHUYEN LAY HANG|CHO VAN CHUYEN|DA XU LY|DA DONG GOI|READY_TO_SHIP|PROCESSED|PACKED|PACKAGED/.test(shopeeTextKey)) {
+      return hasTracking
+        ? { oms: 'PENDING', shipping: 'LOGISTICS_PACKAGED', type: 'normal' }
+        : { oms: 'PENDING', shipping: 'LOGISTICS_REQUEST_CREATED', type: 'normal' }
+    }
+    if (status === 'SHIPPED') return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
+    if (status === 'TO_CONFIRM_RECEIVE') return { oms: 'SHIPPING', shipping: 'TO_CONFIRM_RECEIVE', type: 'normal' }
+    if (logistics.includes('PICKUP_DONE') || logistics.includes('DELIVERY')) return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
+    if (status === 'PROCESSED') {
+      return hasTracking
+        ? { oms: 'PENDING', shipping: 'LOGISTICS_PACKAGED', type: 'normal' }
+        : { oms: 'PENDING', shipping: 'LOGISTICS_REQUEST_CREATED', type: 'normal' }
+    }
+    if (status === 'READY_TO_SHIP') {
+      return hasTracking
+        ? { oms: 'PENDING', shipping: 'LOGISTICS_PACKAGED', type: 'normal' }
+        : { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
+    }
+    if (status === 'TO_RETURN') return { oms: 'RETURN', shipping: 'RETURN_REFUND', type: 'return' }
+  }
+
+  if (platformKey === 'lazada') {
+    const raw = status.toLowerCase()
+    if (['delivered', 'completed'].includes(raw)) return { oms: 'COMPLETED', shipping: 'COMPLETED', type: 'normal' }
+    if (['shipped', 'shipping', 'in_transit'].includes(raw)) return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
+    if (['canceled', 'cancelled'].includes(raw)) return { oms: 'CANCELLED', shipping: 'CANCELLED', type: 'cancel' }
+    if (['returned', 'return'].includes(raw)) return { oms: 'RETURN', shipping: 'RETURN', type: 'return' }
+    if (['failed', 'failed_delivery'].includes(raw)) return { oms: 'SHIPPING', shipping: 'FAILED_DELIVERY_ATTEMPT', type: 'normal', reason: 'Lazada giao không thành công, chờ xử lý tiếp' }
+    if (['ready_to_ship', 'packed', 'repacked', 'pending', 'unpaid', 'topack', 'to_pack', 'toship', 'to_ship'].includes(raw)) {
+      return { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
+    }
+  }
+
+  if (['COMPLETED', 'DELIVERED'].includes(status)) return { oms: 'COMPLETED', shipping: 'COMPLETED', type: 'normal' }
+  if (['SHIPPED', 'SHIPPING', 'IN_TRANSIT'].includes(status)) return { oms: 'SHIPPING', shipping: 'SHIPPED', type: 'normal' }
+  if (['TO_CONFIRM_RECEIVE'].includes(status)) return { oms: 'SHIPPING', shipping: 'TO_CONFIRM_RECEIVE', type: 'normal' }
+  if (['READY_TO_SHIP'].includes(status)) {
+    return hasTracking
+      ? { oms: 'PENDING', shipping: 'LOGISTICS_PACKAGED', type: 'normal' }
+      : { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
+  }
+  if (['PROCESSED', 'PACKED', 'PACKAGED'].includes(status)) {
+    return hasTracking
+      ? { oms: 'PENDING', shipping: 'LOGISTICS_PACKAGED', type: 'normal' }
+      : { oms: 'PENDING', shipping: 'LOGISTICS_REQUEST_CREATED', type: 'normal' }
+  }
+  if (['IN_CANCEL'].includes(status)) return { oms: 'PENDING', shipping: 'IN_CANCEL', type: 'normal', reason: 'Khách yêu cầu hủy, cần xác nhận' }
+  if (['CANCELLED', 'CANCELED'].includes(status)) return { oms: 'CANCELLED', shipping: 'CANCELLED', type: 'cancel' }
+  if (['TO_RETURN', 'RETURN', 'RETURN_REFUND'].includes(status)) return { oms: 'RETURN', shipping: status === 'TO_RETURN' ? 'RETURN_REFUND' : status, type: 'return' }
+  if (['FAILED_DELIVERY', 'FAILED_DELIVERY_ATTEMPT'].includes(status)) return { oms: 'RETURN', shipping: 'FAILED_DELIVERY', type: 'return', reason: 'Giao hàng thất bại' }
+  if (['UNPAID'].includes(status)) return { oms: 'UNPAID', shipping: 'UNPAID', type: 'normal' }
+  if (['PENDING', 'READY', ''].includes(status)) return { oms: 'PENDING', shipping: 'LOGISTICS_PENDING_ARRANGE', type: 'normal' }
+
+  // Không đoán trạng thái lạ: giữ mã raw trong shipping_status để read model đánh dấu cần kiểm tra.
+  return { oms: 'PENDING', shipping: status || 'UNKNOWN', type: 'normal', reason: 'Raw status chưa có trong Order Status Core' }
 }
 
 export function normalizeReverseLifecycleStatus(platform = '', ...values) {

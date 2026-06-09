@@ -1,6 +1,7 @@
+import { FINANCE_CORE_CALC_VERSION, FINANCE_CORE_SOURCE_MARKER, LAZADA_FINANCE_SOURCE } from './analytics-shared-core.js'
+
 const PAYMENT_SOURCE = 'shopee.payment.get_income_detail'
 const ESCROW_SOURCE = 'shopee.payment.get_escrow_detail'
-const LAZADA_FINANCE_SOURCE = 'lazada.finance.transaction.detail.get'
 const ESTIMATE_SOURCE = 'orders_v2_estimate_no_ads'
 
 function cleanText(value) {
@@ -19,6 +20,11 @@ function roundMoney(value) {
 function cleanYmd(value) {
   const text = cleanText(value)
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
+function cleanList(value) {
+  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean)
+  return cleanText(value).split(',').map(cleanText).filter(Boolean)
 }
 
 function addDaysYmd(ymd, days = 1) {
@@ -45,11 +51,13 @@ function defaultRange(days = 30) {
 
 export function parseOrderFinanceOptions(options = {}) {
   const defaults = defaultRange(options.days || 30)
+  const shops = cleanList(options.shops || options.shop)
   return {
     from: cleanYmd(options.from || options.date_from) || defaults.from,
     to: cleanYmd(options.to || options.date_to) || defaults.to,
     platform: cleanText(options.platform).toLowerCase(),
-    shop: cleanText(options.shop),
+    shop: shops.length === 1 ? shops[0] : cleanText(options.shop),
+    shops,
     limit: Math.min(Math.max(Number(options.limit || 80) || 80, 1), 500)
   }
 }
@@ -74,9 +82,15 @@ function financeWhere(options, alias = 'oa') {
     params.push(options.platform)
   }
 
-  if (options.shop) {
+  const shops = Array.isArray(options.shops) && options.shops.length
+    ? options.shops.map(cleanText).filter(Boolean)
+    : (options.shop ? [cleanText(options.shop)] : [])
+  if (shops.length > 1) {
+    conds.push(`${prefix}shop IN (${shops.map(() => '?').join(',')})`)
+    params.push(...shops)
+  } else if (shops.length === 1) {
     conds.push(`${prefix}shop = ?`)
-    params.push(options.shop)
+    params.push(shops[0])
   }
 
   return { where: `WHERE ${conds.join(' AND ')}`, params }
@@ -85,6 +99,250 @@ function financeWhere(options, alias = 'oa') {
 async function tableExists(env, name) {
   const row = await env.DB.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).bind(name).first()
   return Boolean(row)
+}
+
+function financeNormalOrderWhere(options, alias = 'o') {
+  const prefix = alias ? `${alias}.` : ''
+  const conds = [`${prefix}order_type = 'normal'`]
+  const params = []
+
+  if (options.from) {
+    conds.push(`${prefix}order_date >= ?`)
+    params.push(options.from)
+  }
+
+  if (options.to) {
+    conds.push(`${prefix}order_date < ?`)
+    params.push(addDaysYmd(options.to, 1))
+  }
+
+  if (options.platform) {
+    conds.push(`LOWER(COALESCE(${prefix}platform, '')) = ?`)
+    params.push(options.platform)
+  }
+
+  const shops = Array.isArray(options.shops) && options.shops.length
+    ? options.shops.map(cleanText).filter(Boolean)
+    : (options.shop ? [cleanText(options.shop)] : [])
+  if (shops.length > 1) {
+    conds.push(`${prefix}shop IN (${shops.map(() => '?').join(',')})`)
+    params.push(...shops)
+  } else if (shops.length === 1) {
+    conds.push(`${prefix}shop = ?`)
+    params.push(shops[0])
+  }
+
+  return { where: `WHERE ${conds.join(' AND ')}`, params }
+}
+
+function financeDailySnapshotWhere(options, alias = 's') {
+  const prefix = alias ? `${alias}.` : ''
+  const conds = ['1=1']
+  const params = []
+
+  if (options.from) {
+    conds.push(`${prefix}snapshot_date >= ?`)
+    params.push(options.from)
+  }
+  if (options.to) {
+    conds.push(`${prefix}snapshot_date <= ?`)
+    params.push(options.to)
+  }
+  if (options.platform) {
+    conds.push(`LOWER(COALESCE(${prefix}platform, '')) = ?`)
+    params.push(options.platform)
+  }
+  const shops = Array.isArray(options.shops) && options.shops.length
+    ? options.shops.map(cleanText).filter(Boolean)
+    : (options.shop ? [cleanText(options.shop)] : [])
+  if (shops.length > 1) {
+    conds.push(`${prefix}shop IN (${shops.map(() => '?').join(',')})`)
+    params.push(...shops)
+  } else if (shops.length === 1) {
+    conds.push(`${prefix}shop = ?`)
+    params.push(shops[0])
+  }
+
+  return { where: `WHERE ${conds.join(' AND ')}`, params }
+}
+
+export function summarizeFinanceSnapshotHealth(raw = {}) {
+  const health = {
+    current_calc_version: FINANCE_CORE_CALC_VERSION,
+    source_marker: FINANCE_CORE_SOURCE_MARKER,
+    analytics_rows: num(raw.analytics_rows),
+    source_normal_orders: num(raw.source_normal_orders),
+    missing_order_analytics_rows: num(raw.missing_order_analytics_rows),
+    orphan_order_analytics_rows: num(raw.orphan_order_analytics_rows),
+    invalid_source_json_rows: num(raw.invalid_source_json_rows),
+    partial_sync_rows: num(raw.partial_sync_rows),
+    missing_calc_version_rows: num(raw.missing_calc_version_rows),
+    outdated_calc_version_rows: num(raw.outdated_calc_version_rows),
+    revenue_formula_mismatch_orders: num(raw.revenue_formula_mismatch_orders),
+    revenue_formula_mismatch_delta: roundMoney(raw.revenue_formula_mismatch_delta),
+    daily_snapshot_rows: num(raw.daily_snapshot_rows),
+    daily_snapshot_missing_calc_version_rows: num(raw.daily_snapshot_missing_calc_version_rows),
+    daily_snapshot_outdated_calc_version_rows: num(raw.daily_snapshot_outdated_calc_version_rows)
+  }
+  const reasons = []
+  if (health.missing_order_analytics_rows) reasons.push('missing_order_analytics_rows')
+  if (health.orphan_order_analytics_rows) reasons.push('orphan_order_analytics_rows')
+  if (health.invalid_source_json_rows) reasons.push('invalid_source_json_rows')
+  if (health.partial_sync_rows) reasons.push('payment_sync_partial_requires_rebuild')
+  if (health.missing_calc_version_rows) reasons.push('missing_calc_version')
+  if (health.outdated_calc_version_rows) reasons.push('outdated_calc_version')
+  if (health.revenue_formula_mismatch_orders) reasons.push('revenue_formula_mismatch')
+  if (health.daily_snapshot_missing_calc_version_rows) reasons.push('daily_snapshot_missing_calc_version')
+  if (health.daily_snapshot_outdated_calc_version_rows) reasons.push('daily_snapshot_outdated_calc_version')
+  return {
+    ...health,
+    is_stale: reasons.length > 0,
+    stale_reasons: reasons,
+    action: reasons.length ? 'rebuild_order_analytics_without_live_payment_sync' : 'ok'
+  }
+}
+
+async function readFinanceSnapshotHealth(env, options) {
+  const hasOrders = await tableExists(env, 'orders_v2')
+  const hasItems = await tableExists(env, 'order_items')
+  const hasFees = await tableExists(env, 'order_fee_details')
+  const hasAnalytics = await tableExists(env, 'order_analytics')
+  const hasDailySnapshots = await tableExists(env, 'marketplace_order_finance_daily_snapshots')
+  if (!hasAnalytics || !hasOrders) {
+    return summarizeFinanceSnapshotHealth({
+      missing_order_analytics_rows: hasOrders && !hasAnalytics ? 1 : 0,
+      source_normal_orders: 0
+    })
+  }
+
+  const analyticsFilter = financeWhere(options, 'oa')
+  const sourceFilter = financeNormalOrderWhere(options, 'o')
+  const snapshotFilter = financeDailySnapshotWhere(options, 's')
+
+  const analyticsRow = await env.DB.prepare(`
+    SELECT COUNT(*) AS analytics_rows,
+           COUNT(CASE WHEN NOT json_valid(COALESCE(oa.source_json, '')) THEN 1 END) AS invalid_source_json_rows,
+           COUNT(CASE
+             WHEN json_valid(COALESCE(oa.source_json, '')) THEN
+               CASE WHEN COALESCE(json_extract(oa.source_json, '$.source_marker'), '') = 'order_analytics.payment_sync_partial' THEN 1 END
+           END) AS partial_sync_rows,
+           COUNT(CASE
+             WHEN NOT json_valid(COALESCE(oa.source_json, '')) THEN 1
+             WHEN COALESCE(json_extract(oa.source_json, '$.calc_version'), '') = '' THEN 1
+           END) AS missing_calc_version_rows,
+           COUNT(CASE
+             WHEN json_valid(COALESCE(oa.source_json, '')) THEN
+               CASE
+                 WHEN COALESCE(json_extract(oa.source_json, '$.calc_version'), '') != ''
+                  AND COALESCE(json_extract(oa.source_json, '$.calc_version'), '') != ?
+                 THEN 1
+               END
+           END) AS outdated_calc_version_rows
+    FROM order_analytics oa
+    ${analyticsFilter.where}
+  `).bind(FINANCE_CORE_CALC_VERSION, ...analyticsFilter.params).first()
+
+  const itemRevenueCte = hasItems
+    ? `item_revenue AS (
+        SELECT order_id, SUM(COALESCE(revenue_line, 0)) AS item_revenue
+        FROM order_items
+        GROUP BY order_id
+      )`
+    : `item_revenue AS (SELECT '' AS order_id, 0 AS item_revenue WHERE 0)`
+  const feeRevenueCte = hasFees
+    ? `fee_revenue AS (
+        SELECT order_id,
+               MAX(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN max(
+                 COALESCE(CAST(json_extract(raw_data, '$.order_income.order_selling_price') AS REAL), 0) +
+                   COALESCE(CAST(json_extract(raw_data, '$.order_income.buyer_paid_shipping_fee') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.order_selling_price') AS REAL), 0) +
+                   COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.buyer_paid_shipping_fee') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_income.order_selling_price') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.order_selling_price') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_selling_price') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_income.order_discounted_price') AS REAL), 0) +
+                   COALESCE(CAST(json_extract(raw_data, '$.order_income.buyer_paid_shipping_fee') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.order_discounted_price') AS REAL), 0) +
+                   COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.buyer_paid_shipping_fee') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_income.order_discounted_price') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.order_discounted_price') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_discounted_price') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_income.buyer_payment_info.merchant_subtotal') AS REAL), 0) +
+                   COALESCE(CAST(json_extract(raw_data, '$.order_income.buyer_payment_info.shipping_fee') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.buyer_payment_info.merchant_subtotal') AS REAL), 0) +
+                   COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.buyer_payment_info.shipping_fee') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.buyer_payment_info.merchant_subtotal') AS REAL), 0) +
+                   COALESCE(CAST(json_extract(raw_data, '$.buyer_payment_info.shipping_fee') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_income.buyer_payment_info.merchant_subtotal') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.buyer_payment_info.merchant_subtotal') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.buyer_payment_info.merchant_subtotal') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.order_income.buyer_payment_info.order_amount') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.escrow_detail.order_income.buyer_payment_info.order_amount') AS REAL), 0),
+                 COALESCE(CAST(json_extract(raw_data, '$.buyer_payment_info.order_amount') AS REAL), 0)
+               ) ELSE 0 END) AS finance_revenue_basis
+        FROM order_fee_details
+        GROUP BY order_id
+      )`
+    : `fee_revenue AS (SELECT '' AS order_id, 0 AS finance_revenue_basis WHERE 0)`
+
+  const formulaRow = await env.DB.prepare(`
+    WITH ${itemRevenueCte}, ${feeRevenueCte}, expected_orders AS (
+      SELECT o.order_id,
+             max(
+               COALESCE(o.revenue, 0),
+               COALESCE(ir.item_revenue, 0),
+               COALESCE(fr.finance_revenue_basis, 0)
+             ) AS expected_revenue,
+             COALESCE(oa.revenue, 0) AS analytics_revenue,
+             oa.order_sn AS analytics_order_sn
+      FROM orders_v2 o
+      LEFT JOIN order_analytics oa ON oa.order_sn = o.order_id
+      LEFT JOIN item_revenue ir ON ir.order_id = o.order_id
+      LEFT JOIN fee_revenue fr ON fr.order_id = o.order_id
+      ${sourceFilter.where}
+    )
+    SELECT COUNT(*) AS source_normal_orders,
+           COUNT(CASE WHEN analytics_order_sn IS NULL THEN 1 END) AS missing_order_analytics_rows,
+           COUNT(CASE WHEN analytics_order_sn IS NOT NULL AND ABS(analytics_revenue - expected_revenue) > 0.5 THEN 1 END) AS revenue_formula_mismatch_orders,
+           SUM(CASE WHEN analytics_order_sn IS NOT NULL AND ABS(analytics_revenue - expected_revenue) > 0.5 THEN ABS(analytics_revenue - expected_revenue) ELSE 0 END) AS revenue_formula_mismatch_delta
+    FROM expected_orders
+  `).bind(...sourceFilter.params).first()
+
+  const orphanRow = await env.DB.prepare(`
+    SELECT COUNT(*) AS orphan_order_analytics_rows
+    FROM order_analytics oa
+    LEFT JOIN orders_v2 o ON o.order_id = oa.order_sn
+    ${analyticsFilter.where}
+      AND (o.order_id IS NULL OR COALESCE(o.order_type, '') != 'normal')
+  `).bind(...analyticsFilter.params).first()
+
+  let dailyRow = {}
+  if (hasDailySnapshots) {
+    dailyRow = await env.DB.prepare(`
+      SELECT COUNT(*) AS daily_snapshot_rows,
+             COUNT(CASE
+               WHEN NOT json_valid(COALESCE(s.source_json, '')) THEN 1
+               WHEN COALESCE(json_extract(s.source_json, '$.calc_version'), '') = '' THEN 1
+             END) AS daily_snapshot_missing_calc_version_rows,
+             COUNT(CASE
+               WHEN json_valid(COALESCE(s.source_json, '')) THEN
+                 CASE
+                   WHEN COALESCE(json_extract(s.source_json, '$.calc_version'), '') != ''
+                    AND COALESCE(json_extract(s.source_json, '$.calc_version'), '') != ?
+                   THEN 1
+                 END
+             END) AS daily_snapshot_outdated_calc_version_rows
+      FROM marketplace_order_finance_daily_snapshots s
+      ${snapshotFilter.where}
+    `).bind(FINANCE_CORE_CALC_VERSION, ...snapshotFilter.params).first()
+  }
+
+  return summarizeFinanceSnapshotHealth({
+    ...analyticsRow,
+    ...formulaRow,
+    ...orphanRow,
+    ...dailyRow
+  })
 }
 
 export async function ensureOrderFinanceCoreTables(env) {
@@ -128,6 +386,7 @@ export async function rebuildOrderFinanceDailySnapshots(env, rawOptions = {}) {
            COALESCE(oa.platform, '') AS platform,
            COALESCE(oa.shop, '') AS shop,
            COUNT(*) AS orders,
+           SUM(COALESCE(oa.revenue, 0)) AS gross_revenue,
            SUM(COALESCE(oa.actual_income, 0)) AS actual_income,
            SUM(COALESCE(oa.platform_fees, 0)) AS platform_fees,
            SUM(COALESCE(oa.cost_of_goods, 0)) AS cost_of_goods,
@@ -190,7 +449,10 @@ export async function rebuildOrderFinanceDailySnapshots(env, rawOptions = {}) {
       num(row.estimated_orders),
       num(row.loss_orders),
       JSON.stringify({
+        source_marker: 'marketplace_order_finance_daily_snapshot',
+        calc_version: FINANCE_CORE_CALC_VERSION,
         source: 'order_analytics',
+        source_calc_marker: FINANCE_CORE_SOURCE_MARKER,
         payment_api: PAYMENT_SOURCE,
         lazada_finance_api: LAZADA_FINANCE_SOURCE,
         escrow_api: ESCROW_SOURCE,
@@ -243,6 +505,7 @@ async function readGrouped(env, options, groupExpr, orderExpr, limit = 120) {
            COALESCE(oa.platform, '') AS platform,
            COALESCE(oa.shop, '') AS shop,
            COUNT(*) AS orders,
+           SUM(COALESCE(oa.revenue, 0)) AS gross_revenue,
            SUM(COALESCE(oa.actual_income, 0)) AS actual_income,
            SUM(COALESCE(oa.platform_fees, 0)) AS platform_fees,
            SUM(COALESCE(oa.cost_of_goods, 0)) AS cost_of_goods,
@@ -261,6 +524,7 @@ async function readGrouped(env, options, groupExpr, orderExpr, limit = 120) {
   `).bind(PAYMENT_SOURCE, LAZADA_FINANCE_SOURCE, ESCROW_SOURCE, ESTIMATE_SOURCE, ...filter.params, limit).all()
   return (rows.results || []).map(row => ({
     ...row,
+    gross_revenue: roundMoney(row.gross_revenue),
     actual_income: roundMoney(row.actual_income),
     platform_fees: roundMoney(row.platform_fees),
     cost_of_goods: roundMoney(row.cost_of_goods),
@@ -314,11 +578,27 @@ export async function loadOrderFinanceCore(env, rawOptions = {}) {
     `).bind(options.from, options.to).first()
   ])
 
+  let snapshotHealth
+  try {
+    snapshotHealth = await readFinanceSnapshotHealth(env, options)
+  } catch (error) {
+    snapshotHealth = {
+      current_calc_version: FINANCE_CORE_CALC_VERSION,
+      source_marker: FINANCE_CORE_SOURCE_MARKER,
+      is_stale: true,
+      stale_reasons: ['snapshot_health_check_failed'],
+      action: 'rebuild_order_analytics_without_live_payment_sync',
+      error: error?.message || String(error)
+    }
+  }
+
   const orders = num(summary.orders)
+  const isStale = Boolean(snapshotHealth?.is_stale)
   return {
-    status: 'ok',
+    status: isStale ? 'stale' : 'ok',
     mode: 'order_finance_core',
     source: 'order_analytics + order_fee_details + marketplace_return_reverse_ledger + marketplace_ads_*',
+    calc_version: FINANCE_CORE_CALC_VERSION,
     filters: options,
     summary: {
       orders,
@@ -339,6 +619,9 @@ export async function loadOrderFinanceCore(env, rawOptions = {}) {
       loss_orders: num(summary.loss_orders),
       daily_snapshots: num(snapshotCount?.total)
     },
+    stale_snapshot: isStale,
+    snapshot_health: snapshotHealth,
+    warning: isStale ? `Finance snapshot stale: ${(snapshotHealth?.stale_reasons || []).join(', ')}` : '',
     by_day: byDay,
     by_month: byMonth,
     by_shop: byShop,

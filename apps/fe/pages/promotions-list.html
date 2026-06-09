@@ -1,0 +1,122 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#071321">
+  <title>ShopHuyVan - Danh sách khuyến mãi</title>
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" href="../icons/shophuyvan-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/shophuyvan-icon.svg">
+  <link rel="stylesheet" href="../css/dashboard/dashboard.css?v=promotions-20260526g">
+  <link rel="stylesheet" href="../css/dashboard/promotions-page.css?v=promotions-20260526g">
+  <script src="../js/auth/auth-guard.js?v=promotions-20260526g"></script>
+</head>
+<body data-active-tab="promotions">
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">ShopHuyVan</div>
+        <button class="btn-close-sidebar" type="button" onclick="toggleSidebar()" aria-label="Đóng menu">×</button>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="profit-dashboard.html">Doanh thu ngày</a>
+        <a href="profit-dashboard.html#monthly">Doanh thu tháng</a>
+        <a href="profit-dashboard.html#income">Số dư doanh thu</a>
+        <a href="profit-dashboard.html#netprofit">Lãi ròng API</a>
+        <a href="profit-dashboard.html#top">Top SKU</a>
+        <a href="profit-dashboard.html#cancel">Hủy / Hoàn</a>
+        <a href="chat-cskh.html">Chat/CSKH</a>
+        <a href="ads.html">ADS quảng cáo</a>
+        <a href="promotions.html" class="active">Flash Sale tự động</a>
+        <a href="profit-dashboard.html#calc">Máy tính</a>
+        <a href="admin-products.html#variations">Sản phẩm</a>
+        <a href="oms-dashboard.html">Đơn hàng</a>
+        <a href="report-upload.html">Báo cáo</a>
+        <a href="admin-users.html">Phân quyền</a>
+        <a href="../index.html">Import</a>
+        <a href="admin-purchase.html">Nhập hàng</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="cost-settings.html" class="btn-settings">Cài đặt chi phí</a>
+      </div>
+    </aside>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <div class="main-wrapper">
+      <div class="mobile-topbar">
+        <button class="mobile-menu-btn" type="button" onclick="toggleSidebar()" aria-label="Mở menu">☰</button>
+        <div class="logo">Danh sách khuyến mãi</div>
+      </div>
+
+      <main class="promo-page" id="promotionSection">
+        <header class="promo-header">
+          <div class="promo-title-block">
+            <a class="promo-back-home" href="../" aria-label="Về trang chính">←</a>
+            <div>
+              <p class="promo-breadcrumb" id="promotionBreadcrumb">Khuyến mãi sàn</p>
+              <h1 id="promotionTitle">Danh sách chương trình</h1>
+              <p id="promotionSubtitle">Theo dõi chương trình, sản phẩm áp dụng và thao tác an toàn theo dữ liệu chuẩn.</p>
+            </div>
+          </div>
+          <div class="promo-header-actions">
+            <span id="promotionLastUpdated">Đang tải dữ liệu</span>
+            <a class="promo-btn secondary" href="promotions.html">Flash Sale tự động</a>
+            <button class="promo-btn secondary" type="button" id="promotionRefreshBtn">Làm mới</button>
+            <button class="promo-btn primary" type="button" id="promotionSyncBtn">Đồng bộ khuyến mãi</button>
+            <button class="promo-btn warning" type="button" id="promotionCleanupBtn">Dọn chương trình cũ</button>
+          </div>
+        </header>
+
+        <section class="promo-filterbar" aria-label="Bộ lọc khuyến mãi">
+          <label>Khoảng ngày
+            <span class="promo-date-range">
+              <input type="date" id="promotionFrom">
+              <input type="date" id="promotionTo">
+            </span>
+          </label>
+          <label>Sàn
+            <select id="promotionPlatform">
+              <option value="">Tất cả sàn</option>
+              <option value="shopee">Shopee</option>
+              <option value="lazada">Lazada</option>
+            </select>
+          </label>
+          <label>Shop
+            <select id="promotionShop">
+              <option value="">Tất cả shop</option>
+            </select>
+          </label>
+          <label>Trạng thái
+            <select id="promotionStatus">
+              <option value="not_expired">Đang hoạt động</option>
+              <option value="ongoing">Đang chạy</option>
+              <option value="upcoming">Sắp chạy</option>
+              <option value="expired">Đã kết thúc</option>
+            </select>
+          </label>
+          <label>Tìm kiếm
+            <input id="promotionSearch" type="search" autocomplete="off" aria-label="Tìm chương trình hoặc SKU">
+          </label>
+        </section>
+
+        <section class="promo-overview" id="promotionOverview"></section>
+        <section class="promo-module-grid" id="promotionModuleCards" aria-label="Module khuyến mãi"></section>
+        <section class="promo-detail" id="promotionModuleDetail"></section>
+        <section class="promo-work-panel" id="promotionWorkPanel" hidden></section>
+      </main>
+    </div>
+  </div>
+
+  <div class="promo-drawer" id="promotionSkuDrawer" hidden></div>
+  <div class="promo-toast-host" id="promotionToastHost" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="../js/utils/api.js"></script>
+  <script src="../js/dashboard/promotions-core.js?v=promotions-20260526g"></script>
+  <script src="../js/dashboard/promotions-api.js?v=promotions-20260526g"></script>
+  <script src="../js/dashboard/promotions-render.js?v=promotions-20260526g"></script>
+  <script src="../js/dashboard/promotions-flash.js?v=promotions-20260526g"></script>
+  <script src="../js/dashboard/promotions-cleanup.js?v=promotions-20260526g"></script>
+  <script src="../js/dashboard/promotions-actions.js?v=promotions-20260526g"></script>
+</body>
+</html>

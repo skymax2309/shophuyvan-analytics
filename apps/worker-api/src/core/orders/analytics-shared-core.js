@@ -2,9 +2,11 @@ import { ensureReturnReverseLedgerTable } from '../returns/reverse-core.js'
 
 export const PAYMENT_SOURCE = 'shopee.payment.get_income_detail'
 export const ESCROW_SOURCE = 'shopee.payment.get_escrow_detail'
-export const LAZADA_FINANCE_SOURCE = 'lazada.finance.transaction.detail.get'
+export const LAZADA_FINANCE_SOURCE = 'lazada.finance.transaction.details.get'
 export const ESTIMATE_SOURCE = 'orders_v2_estimate_no_ads'
 export const INFERRED_RETURN_SOURCE = 'orders_v2_zero_revenue_return_fee'
+export const FINANCE_CORE_CALC_VERSION = 'finance-core-tiktok-detail-basis-v20260519'
+export const FINANCE_CORE_SOURCE_MARKER = 'order_analytics.finance_core'
 
 export function cleanText(value) {
   return String(value ?? '').replace(/\u00a0/g, ' ').trim()

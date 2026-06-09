@@ -11,6 +11,7 @@ export function installApiSyncShopeeOrdersSync(core) {
   const fromUnixSeconds = (...args) => core.fromUnixSeconds(...args)
   const getCostSettings = core.getCostSettings
   const getRecentOpenOrders = (...args) => core.getRecentOpenOrders(...args)
+  const ensureOrderTransportColumns = (...args) => core.ensureOrderTransportColumns(...args)
   const loadSyncedOrderForPush = (...args) => core.loadSyncedOrderForPush(...args)
   const mapShopeeStatus = core.mapShopeeStatus
   const notifyOrderSubscribers = core.notifyOrderSubscribers
@@ -18,6 +19,8 @@ export function installApiSyncShopeeOrdersSync(core) {
   const pickFee = (...args) => core.pickFee(...args)
   const pickSignedFee = (...args) => core.pickSignedFee(...args)
   const saveOrderFeeDetails = (...args) => core.saveOrderFeeDetails(...args)
+  const saveOrderTrackingCore = (...args) => core.saveOrderTrackingCore(...args)
+  const trackingSummary = (...args) => core.trackingSummary(...args)
   const updateOrderFinancialsFromFeeDetail = (...args) => core.updateOrderFinancialsFromFeeDetail(...args)
   const updateSyncedOrder = (...args) => core.updateSyncedOrder(...args)
   const updateSyncedOrderBuyerIdentity = (...args) => core.updateSyncedOrderBuyerIdentity(...args)
@@ -66,6 +69,15 @@ export function installApiSyncShopeeOrdersSync(core) {
   }
   core.shouldFetchShopeeFee = shouldFetchShopeeFee
 
+  function parseShopeeSyncBooleanOption(value, defaultValue = false) {
+    if (value === undefined || value === null || value === '') return defaultValue
+    if (typeof value === 'boolean') return value
+    const normalized = String(value).trim().toLowerCase()
+    if (['1', 'true', 'yes', 'y', 'on'].includes(normalized)) return true
+    if (['0', 'false', 'no', 'n', 'off'].includes(normalized)) return false
+    return defaultValue
+  }
+
   async function getShopeeTrackingNumber(fetchTrackingNumber, orderSn, packageNumber) {
     if (!orderSn || !packageNumber) return ''
     try {
@@ -81,7 +93,79 @@ export function installApiSyncShopeeOrdersSync(core) {
   }
   core.getShopeeTrackingNumber = getShopeeTrackingNumber
 
-  async function syncShopeeShop(env, shop, limitPerShop, onlyOrderId, offsetRows = 0, days = 60) {
+  async function syncShopeeTrackingTimeline(env, shop, fetchTrackingInfo, order = {}, pkg = {}, trackingNumber = '') {
+    const orderSn = firstText(order.order_sn)
+    const packageNumber = firstText(pkg.package_number)
+    if (!orderSn || !packageNumber) return null
+    const data = await fetchTrackingInfo({
+      order_sn: orderSn,
+      package_number: packageNumber
+    })
+    const summary = trackingSummary(data)
+    const saved = await saveOrderTrackingCore(env, {
+      order_id: orderSn,
+      platform: 'shopee',
+      shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
+      tracking_number: firstText(summary.tracking_number, trackingNumber),
+      logistics_provider: firstText(summary.carrier, order.shipping_carrier, pkg.shipping_carrier, pkg.logistics_channel_name),
+      tracking_status_core: firstText(summary.latest_status, summary.latest_description),
+      tracking_source: 'shopee_open_platform:/api/v2/logistics/get_tracking_info',
+      events: summary.events || [],
+      raw_data: data
+    })
+    return saved
+  }
+  core.syncShopeeTrackingTimeline = syncShopeeTrackingTimeline
+
+  function shopeePaymentMethod(order = {}) {
+    const paymentInfo = Array.isArray(order.payment_info) ? order.payment_info[0] : order.payment_info
+    return firstText(order.payment_method, paymentInfo?.payment_method, order.paymentInfo?.payment_method)
+  }
+  core.shopeePaymentMethod = shopeePaymentMethod
+
+  function shopeeCustomerNote(order = {}) {
+    return firstText(order.message_to_seller, order.buyer_note, order.note)
+  }
+  core.shopeeCustomerNote = shopeeCustomerNote
+
+  async function updateShopeeOrderDetailEvidence(env, order = {}) {
+    const orderSn = firstText(order.order_sn)
+    if (!orderSn) return 0
+    const paymentMethod = shopeePaymentMethod(order)
+    const paymentTime = fromUnixSeconds(order.pay_time)
+    const customerNote = shopeeCustomerNote(order)
+    if (!paymentMethod && !paymentTime && !customerNote) return 0
+    await ensureOrderTransportColumns(env)
+    // Ghi bằng chứng từ order detail vào Core để UI Chat/OMS chỉ render lại, không tự đoán.
+    const result = await env.DB.prepare(`
+      UPDATE orders_v2
+      SET payment_method = CASE WHEN ? != '' THEN ? ELSE payment_method END,
+          payment_method_source = CASE WHEN ? != '' THEN ? ELSE payment_method_source END,
+          payment_time = CASE WHEN ? != '' THEN ? ELSE payment_time END,
+          payment_time_source = CASE WHEN ? != '' THEN ? ELSE payment_time_source END,
+          customer_note = CASE WHEN ? != '' THEN ? ELSE customer_note END,
+          customer_note_source = CASE WHEN ? != '' THEN ? ELSE customer_note_source END
+      WHERE order_id = ?
+    `).bind(
+      paymentMethod,
+      paymentMethod,
+      paymentMethod ? 'shopee_open_platform:/api/v2/order/get_order_detail.payment_method' : '',
+      paymentMethod ? 'shopee_open_platform:/api/v2/order/get_order_detail.payment_method' : '',
+      paymentTime,
+      paymentTime,
+      paymentTime ? 'shopee_open_platform:/api/v2/order/get_order_detail.pay_time' : '',
+      paymentTime ? 'shopee_open_platform:/api/v2/order/get_order_detail.pay_time' : '',
+      customerNote,
+      customerNote,
+      customerNote ? 'shopee_open_platform:/api/v2/order/get_order_detail.message_to_seller' : '',
+      customerNote ? 'shopee_open_platform:/api/v2/order/get_order_detail.message_to_seller' : '',
+      orderSn
+    ).run()
+    return result.meta?.changes || 0
+  }
+  core.updateShopeeOrderDetailEvidence = updateShopeeOrderDetailEvidence
+
+  async function syncShopeeShop(env, shop, limitPerShop, onlyOrderId, offsetRows = 0, days = 60, options = {}) {
     if (!shop.api_shop_id) return { shop: shop.shop_name, checked: 0, updated: 0 }
     const orders = await getRecentOpenOrders(env, 'shopee', shop, limitPerShop, onlyOrderId, offsetRows, days)
     if (!orders.length) return { shop: shop.shop_name, checked: 0, updated: 0 }
@@ -89,6 +173,7 @@ export function installApiSyncShopeeOrdersSync(core) {
     const path = '/api/v2/order/get_order_detail'
     const fetchOrderDetail = params => fetchShopeeShopJson(env, shop, path, params)
     const fetchTrackingNumber = params => fetchShopeeShopJson(env, shop, '/api/v2/logistics/get_tracking_number', params)
+    const fetchTrackingInfo = params => fetchShopeeShopJson(env, shop, '/api/v2/logistics/get_tracking_info', params)
     const fetchEscrowDetail = params => fetchShopeeShopJson(env, shop, '/api/v2/payment/get_escrow_detail', params)
     let checked = 0
     let updated = 0
@@ -97,7 +182,17 @@ export function installApiSyncShopeeOrdersSync(core) {
     const pushRows = []
     const warnings = []
     const cfg = await getCostSettings(env)
-    const feeRefreshBudget = onlyOrderId ? 1 : Math.min(Math.max(Number(limitPerShop || 0) || 0, 0), 20)
+    const fetchTracking = parseShopeeSyncBooleanOption(options.fetchTracking ?? options.fetch_tracking, true)
+    const fetchTrackingTimeline = parseShopeeSyncBooleanOption(options.fetchTrackingTimeline ?? options.fetch_tracking_timeline, fetchTracking)
+    const fetchFees = parseShopeeSyncBooleanOption(options.fetchFees ?? options.fetch_fees, true)
+    const suppressPush = parseShopeeSyncBooleanOption(options.suppress_push ?? options.suppressPush, false)
+    const feeRefreshBudget = fetchFees
+      ? (onlyOrderId ? 1 : Math.min(Math.max(Number(limitPerShop || 0) || 0, 0), 20))
+      : 0
+    const trackingTimelineBudget = fetchTrackingTimeline
+      ? (onlyOrderId ? 1 : Math.min(Math.max(Number(limitPerShop || 0) || 0, 0), 12))
+      : 0
+    let trackingTimelineUpdated = 0
 
     for (let i = 0; i < orders.length; i += 50) {
       const chunk = orders.slice(i, i + 50)
@@ -112,10 +207,24 @@ export function installApiSyncShopeeOrdersSync(core) {
           const pkg = firstPackage(order)
           const carrier = cleanCarrier(firstText(order.shipping_carrier, pkg.shipping_carrier, pkg.logistics_channel_name, order.checkout_shipping_carrier))
           let tracking = firstText(order.tracking_no, order.tracking_number, pkg.tracking_number, pkg.tracking_no)
-          if (!tracking) tracking = await getShopeeTrackingNumber(fetchTrackingNumber, order.order_sn, pkg.package_number)
+          if (!tracking && fetchTracking) tracking = await getShopeeTrackingNumber(fetchTrackingNumber, order.order_sn, pkg.package_number)
+          if (trackingTimelineUpdated < trackingTimelineBudget && pkg.package_number) {
+            try {
+              await syncShopeeTrackingTimeline(env, shop, fetchTrackingInfo, order, pkg, tracking)
+              trackingTimelineUpdated += 1
+            } catch (trackingError) {
+              warnings.push({
+                stage: 'logistics.get_tracking_info',
+                order_id: order.order_sn,
+                message: trackingError?.message || String(trackingError)
+              })
+              console.error(`[API_SYNC_SHOPEE_TRACKING_TIMELINE] ${shop.shop_name} ${order.order_sn}: ${trackingError.message}`)
+            }
+          }
           const mapped = mapShopeeStatus(order.order_status, collectShopeePackageStatus(order, pkg), tracking)
           const changed = await updateSyncedOrder(env, order.order_sn, mapped, carrier, tracking)
           await updateSyncedOrderBuyerIdentity(env, order)
+          await updateShopeeOrderDetailEvidence(env, order)
           updated += changed
           if (changed) {
             const pushRow = await loadSyncedOrderForPush(env, order.order_sn, 'changed')
@@ -150,8 +259,10 @@ export function installApiSyncShopeeOrdersSync(core) {
     }
 
     const saved_fee_details = await saveOrderFeeDetails(env, feeDetails)
-    let orderPush = { sent: 0, total: 0, notified: 0 }
-    if (pushRows.length) {
+    let orderPush = suppressPush
+      ? { sent: 0, total: pushRows.length, notified: 0, suppressed: true }
+      : { sent: 0, total: 0, notified: 0 }
+    if (pushRows.length && !suppressPush) {
       // Batch reconcile chạy nền ưu tiên cập nhật dữ liệu đơn trước; chỉ gửi push ngay với lô rất nhỏ để tránh quá quota Worker.
       orderPush = await notifyOrderSubscribers(env, pushRows, { reason: 'changed', deliver_now: pushRows.length <= 5 }).catch(error => ({
         sent: 0,
@@ -160,7 +271,7 @@ export function installApiSyncShopeeOrdersSync(core) {
         error: error?.message || String(error)
       }))
     }
-    return { shop: shop.shop_name, checked, updated, fee_updated: feeUpdated, saved_fee_details, order_push: orderPush, warnings }
+    return { shop: shop.shop_name, checked, updated, fee_updated: feeUpdated, saved_fee_details, tracking_timeline_updated: trackingTimelineUpdated, shopee_fetch_fees: fetchFees, shopee_fetch_tracking: fetchTracking, shopee_fetch_tracking_timeline: fetchTrackingTimeline, order_push: orderPush, warnings }
   }
   core.syncShopeeShop = syncShopeeShop
 
@@ -257,11 +368,13 @@ export function installApiSyncShopeeOrdersSync(core) {
   }
   core.normalizeShopeeCarrier = normalizeShopeeCarrier
 
-  function buildShopeeImportPayload(shop, orders) {
+  function buildShopeeImportPayload(shop, orders, options = {}) {
+    const suppressPush = parseShopeeSyncBooleanOption(options.suppress_push ?? options.suppressPush, false)
     const payload = {
       source_mode: ORDER_SOURCE_MODES.API_SYNC,
       source_detail: 'Open Platform API Shopee kéo đơn và trạng thái theo thời gian thực.',
       source_updated_at: nowBangkokText(),
+      suppress_push: suppressPush,
       orders: [],
       items: []
     }
@@ -291,6 +404,9 @@ export function installApiSyncShopeeOrdersSync(core) {
       }
 
       const revenue = Number(order.total_amount || 0) || itemTotal
+      const paymentMethod = shopeePaymentMethod(order)
+      const paymentTime = fromUnixSeconds(order.pay_time)
+      const customerNote = shopeeCustomerNote(order)
       payload.orders.push({
         order_id: order.order_sn,
         shop: shop.shop_name || shop.user_name || String(shop.api_shop_id || ''),
@@ -298,6 +414,12 @@ export function installApiSyncShopeeOrdersSync(core) {
         buyer_id: firstText(order.buyer_user_id, order.buyer_id),
         buyer_username: firstText(order.buyer_username),
         customer_name: firstText(order.buyer_username, order.recipient_address?.name, 'Khách Shopee'),
+        payment_method: paymentMethod,
+        payment_method_source: paymentMethod ? 'shopee_open_platform:/api/v2/order/get_order_detail.payment_method' : '',
+        payment_time: paymentTime,
+        payment_time_source: paymentTime ? 'shopee_open_platform:/api/v2/order/get_order_detail.pay_time' : '',
+        customer_note: customerNote,
+        customer_note_source: customerNote ? 'shopee_open_platform:/api/v2/order/get_order_detail.message_to_seller' : '',
         order_date: fromUnixSeconds(order.create_time),
         revenue,
         raw_revenue: revenue,

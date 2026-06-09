@@ -176,6 +176,426 @@ export async function ensureProductVariationWriteColumns(env) {
   await ensureInventoryStockColumns(env)
 }
 
+const PROMOTION_WRITE_ENDPOINT_ALLOWLIST = {
+  shopee: {
+    discount: {
+      module: 'promotion',
+      action: 'update_discount_item',
+      endpoint: '/api/v2/discount/update_discount_item',
+      allowed: true,
+      requires_admin_confirm: true,
+      dry_run_required: true,
+      readback_required: true
+    },
+    discounts: {
+      module: 'promotion',
+      action: 'update_discount_item',
+      endpoint: '/api/v2/discount/update_discount_item',
+      allowed: true,
+      requires_admin_confirm: true,
+      dry_run_required: true,
+      readback_required: true
+    },
+    shopee_discount: {
+      module: 'promotion',
+      action: 'update_discount_item',
+      endpoint: '/api/v2/discount/update_discount_item',
+      allowed: true,
+      requires_admin_confirm: true,
+      dry_run_required: true,
+      readback_required: true
+    },
+    product_discount: {
+      module: 'promotion',
+      action: 'update_discount_item',
+      endpoint: '/api/v2/discount/update_discount_item',
+      allowed: true,
+      requires_admin_confirm: true,
+      dry_run_required: true,
+      readback_required: true
+    }
+  },
+  lazada: {
+    special_price: {
+      module: 'product',
+      action: 'update_special_price',
+      endpoint: '/product/price_quantity/update',
+      allowed: true,
+      requires_admin_confirm: true,
+      dry_run_required: true,
+      readback_required: true
+    },
+    product_special_price: {
+      module: 'product',
+      action: 'update_special_price',
+      endpoint: '/product/price_quantity/update',
+      allowed: true,
+      requires_admin_confirm: true,
+      dry_run_required: true,
+      readback_required: true
+    }
+  }
+}
+
+export function promotionWriteEndpointRule(platform, module) {
+  const key = cleanProductText(platform).toLowerCase()
+  const moduleKey = cleanProductText(module || 'discount').toLowerCase()
+  return PROMOTION_WRITE_ENDPOINT_ALLOWLIST[key]?.[moduleKey] || null
+}
+
+function promotionPreviewEndpoint(platform, module) {
+  const key = cleanProductText(platform).toLowerCase()
+  const moduleKey = cleanProductText(module).toLowerCase()
+  const rule = promotionWriteEndpointRule(key, moduleKey)
+  if (rule?.allowed) return rule.endpoint
+  return ''
+}
+
+function promotionMapKeys(row = {}) {
+  return [
+    row.sku,
+    row.sku_id,
+    row.model_id,
+    row.item_id,
+    row.platform_sku,
+    row.platform_item_id
+  ].map(lowerProductText).filter(Boolean)
+}
+
+function promotionModelNameKey(itemId, modelName) {
+  const itemKey = lowerProductText(itemId)
+  const nameKey = lowerProductText(modelName)
+  return itemKey && nameKey ? `item_model_name:${itemKey}:${nameKey}` : ''
+}
+
+function lookupPromotionPreviewItem(promotionMap, platformSku, variation = {}) {
+  const skuKey = lowerProductText(platformSku)
+  if (skuKey && promotionMap.has(skuKey)) return promotionMap.get(skuKey)
+  const modelKey = lowerProductText(variation?.model_id)
+  if (modelKey && promotionMap.has(modelKey)) return promotionMap.get(modelKey)
+  const modelNameKey = promotionModelNameKey(variation?.platform_item_id, variation?.variation_name)
+  if (modelNameKey && promotionMap.has(modelNameKey)) return promotionMap.get(modelNameKey)
+  // Không fallback theo item_id khi có SKU/model vì một item Shopee có nhiều phân loại dùng chung item_id.
+  if (!skuKey && !modelKey) {
+    const itemKey = lowerProductText(variation?.platform_item_id)
+    if (itemKey && promotionMap.has(itemKey)) return promotionMap.get(itemKey)
+  }
+  return null
+}
+
+async function loadPromotionPreviewMap(env, platform, shop, variationRows = []) {
+  if (platform !== 'shopee' || !shop || !variationRows.length) return new Map()
+  const skuValues = [...new Set(variationRows.map(row => cleanProductText(row.platform_sku)).filter(Boolean))]
+  const itemValues = [...new Set(variationRows.map(row => cleanProductText(row.platform_item_id)).filter(Boolean))]
+  const modelValues = [...new Set(variationRows.map(row => cleanProductText(row.model_id)).filter(Boolean))]
+  const makeOrs = (fieldGroups = []) => {
+    const ors = []
+    const params = []
+    for (const [field, values] of fieldGroups) {
+      const cleanValues = values.slice(0, 200)
+      if (!cleanValues.length) continue
+      ors.push(`${field} IN (${cleanValues.map(() => '?').join(',')})`)
+      params.push(...cleanValues)
+    }
+    return { ors, params }
+  }
+
+  const promotionFilter = makeOrs([
+    ['sku', skuValues],
+    ['item_id', itemValues],
+    ['model_id', modelValues],
+    ['sku_id', modelValues]
+  ])
+  const discountFilter = makeOrs([
+    ['item_id', itemValues],
+    ['model_id', modelValues],
+    ["CAST(json_extract(raw_data, '$.model.model_sku') AS TEXT)", skuValues],
+    ["CAST(json_extract(raw_data, '$.item.item_sku') AS TEXT)", skuValues]
+  ])
+  if (!promotionFilter.ors.length && !discountFilter.ors.length) return new Map()
+  for (const definition of [
+    "write_status TEXT DEFAULT ''",
+    "promotion_sync_status TEXT DEFAULT ''",
+    "last_write_at TEXT DEFAULT ''",
+    "last_readback_at TEXT DEFAULT ''",
+    "write_source TEXT DEFAULT ''",
+    "readback_source TEXT DEFAULT ''",
+    "raw_write_payload TEXT DEFAULT '{}'",
+    "raw_readback_payload TEXT DEFAULT '{}'"
+  ]) {
+    await addProductColumnIfMissing(env, 'marketplace_discount_items', definition).catch(() => {})
+  }
+
+  const discountRows = discountFilter.ors.length
+    ? await env.DB.prepare(`
+      SELECT
+        platform,
+        shop,
+        api_shop_id,
+        'discount' AS module,
+        discount_id AS program_id,
+        discount_name AS program_name,
+        item_id,
+        model_id,
+        model_id AS sku_id,
+        COALESCE(
+          NULLIF(CAST(json_extract(raw_data, '$.model.model_sku') AS TEXT), ''),
+          NULLIF(CAST(json_extract(raw_data, '$.item.item_sku') AS TEXT), ''),
+          model_name
+        ) AS sku,
+        item_name,
+        model_name,
+        status,
+        original_price,
+        promotion_price,
+        promotion_stock AS stock,
+        promotion_stock AS campaign_stock,
+        write_status,
+        promotion_sync_status,
+        last_write_at,
+        last_readback_at,
+        write_source,
+        readback_source,
+        raw_write_payload,
+        raw_readback_payload,
+        synced_at,
+        updated_at,
+        'marketplace_discount_items' AS mapping_source
+      FROM marketplace_discount_items
+      WHERE LOWER(platform) = ? AND shop = ?
+        AND (${discountFilter.ors.join(' OR ')})
+      ORDER BY updated_at DESC
+      LIMIT 500
+    `).bind(platform, shop, ...discountFilter.params).all().catch(() => ({ results: [] }))
+    : { results: [] }
+
+  const promotionRows = promotionFilter.ors.length
+    ? await env.DB.prepare(`
+    SELECT platform, shop, api_shop_id, module, program_id, program_name,
+           item_id, model_id, sku_id, sku, item_name, model_name, status,
+           original_price, promotion_price, stock, campaign_stock,
+           '' AS write_status,
+           '' AS promotion_sync_status,
+           '' AS last_write_at,
+           '' AS last_readback_at,
+           '' AS write_source,
+           '' AS readback_source,
+           '{}' AS raw_write_payload,
+           '{}' AS raw_readback_payload,
+           updated_at,
+           synced_at,
+           'marketplace_promotion_items' AS mapping_source
+    FROM marketplace_promotion_items
+    WHERE LOWER(platform) = ? AND shop = ?
+      AND (${promotionFilter.ors.join(' OR ')})
+    ORDER BY CASE
+        WHEN LOWER(module) IN ('discount', 'discounts', 'shopee_discount', 'product_discount') THEN 0
+        WHEN LOWER(module) = 'bundle_deal' THEN 1
+        ELSE 2
+      END,
+      updated_at DESC
+    LIMIT 500
+  `).bind(platform, shop, ...promotionFilter.params).all().catch(() => ({ results: [] }))
+    : { results: [] }
+
+  const map = new Map()
+  for (const row of [...(discountRows.results || []), ...(promotionRows.results || [])]) {
+    for (const key of promotionMapKeys(row)) {
+      if (!map.has(key)) map.set(key, row)
+    }
+    const modelNameKey = promotionModelNameKey(row.item_id, row.model_name)
+    if (modelNameKey && !map.has(modelNameKey)) map.set(modelNameKey, row)
+  }
+  return map
+}
+
+export function buildLazadaPromotionCorePreview(platform, shop, variation = {}, proposedPrice = 0, options = {}) {
+  const endpointRule = promotionWriteEndpointRule(platform, 'special_price')
+  const endpoint = endpointRule?.allowed ? endpointRule.endpoint : ''
+  const sellerSku = cleanProductText(variation.platform_sku)
+  const currentPromotionPrice = productStockNumber(variation.discount_price)
+  const guardPrice = productStockNumber(options.guard_price)
+  const enforceCostGuard = Boolean(options.enforce_cost_guard)
+  const blockReasons = []
+  if (!sellerSku) blockReasons.push('missing_seller_sku')
+  if (!endpointRule?.allowed || !endpoint) blockReasons.push('promotion_write_endpoint_not_allowlisted')
+  if (!proposedPrice) blockReasons.push('proposed_price_invalid')
+  if (enforceCostGuard && guardPrice > 0 && proposedPrice > 0 && proposedPrice < guardPrice) blockReasons.push('below_cost_guard')
+  const uniqueBlockReasons = [...new Set(blockReasons)]
+  const noChange = !uniqueBlockReasons.length && currentPromotionPrice > 0 && Math.abs(currentPromotionPrice - proposedPrice) <= 0.01
+  const status = uniqueBlockReasons.length ? 'blocked' : (noChange ? 'no_change' : 'ready')
+  const preview = {
+    source: 'Promotion Core',
+    write_path: 'Product Master UI -> Promotion Core -> Lazada Open Platform adapter -> Core readback',
+    platform,
+    shop,
+    shop_key: shop,
+    promotion_type: 'special_price',
+    seller_sku: sellerSku,
+    sku_id: cleanProductText(variation.model_id),
+    item_id: cleanProductText(variation.platform_item_id),
+    model_id: cleanProductText(variation.model_id),
+    internal_sku: cleanProductText(options.internal_sku || variation.internal_sku),
+    original_price: productStockNumber(variation.price),
+    current_promotion_price: currentPromotionPrice,
+    proposed_promotion_price: proposedPrice,
+    target_promotion_price: proposedPrice,
+    endpoint,
+    mapping_source: 'product_variations',
+    readback_source: endpoint ? 'lazada_open_platform:/products/get' : '',
+    endpoint_rule: endpointRule || null,
+    status,
+    block_reason: uniqueBlockReasons[0] || '',
+    block_reasons: uniqueBlockReasons,
+    sync_status: sellerSku ? 'resolved_from_product_core' : 'missing_seller_sku',
+    apply_supported: status === 'ready',
+    readback_required: true,
+    warnings: uniqueBlockReasons
+  }
+  if (preview.apply_supported) {
+    preview.live_action = {
+      route: '/api/products/lazada-promo-action',
+      action: 'update_special_price',
+      confirm: 'TOI_HIEU_DAY_LA_THAY_DOI_GIA_LAZADA',
+      payload: {
+        seller_sku: sellerSku,
+        special_price: proposedPrice,
+        sku_id: preview.sku_id,
+        item_id: preview.item_id
+      }
+    }
+  }
+  return preview
+}
+
+export function buildPromotionLivePayload(preview = {}) {
+  const toShopeeId = value => {
+    const text = cleanProductText(value)
+    if (/^\d+$/.test(text)) {
+      const number = Number(text)
+      if (Number.isSafeInteger(number)) return number
+    }
+    return text
+  }
+  const discountId = toShopeeId(preview.discount_id || preview.promotion_id)
+  const itemId = toShopeeId(preview.item_id)
+  const modelId = toShopeeId(preview.model_id)
+  const price = productStockNumber(preview.proposed_promotion_price || preview.target_promotion_price)
+  const item = { item_id: itemId }
+  if (modelId) {
+    item.model_list = [{
+      model_id: modelId,
+      model_promotion_price: price,
+      promotion_price: price
+    }]
+  } else {
+    item.item_promotion_price = price
+    item.promotion_price = price
+  }
+  return {
+    discount_id: discountId,
+    item_list: [item]
+  }
+}
+
+export function buildPromotionCorePreview(platform, shop, variation = {}, promotionItem = null, proposedPrice = 0, options = {}) {
+  const warnings = []
+  const module = cleanProductText(promotionItem?.module || 'discount').toLowerCase()
+  const endpoint = promotionPreviewEndpoint(platform, module)
+  {
+    const endpointRule = promotionWriteEndpointRule(platform, module)
+    const isDiscountModule = ['discount', 'discounts', 'shopee_discount', 'product_discount'].includes(module)
+    const discountId = cleanProductText(promotionItem?.program_id || promotionItem?.discount_id)
+    const itemId = cleanProductText(promotionItem?.item_id || variation.platform_item_id)
+    const modelId = cleanProductText(promotionItem?.model_id || variation.model_id)
+    const currentPromotionPrice = productStockNumber(promotionItem?.promotion_price || variation.discount_price)
+    const guardPrice = productStockNumber(options.guard_price)
+    const enforceCostGuard = Boolean(options.enforce_cost_guard)
+    const blockReasons = []
+    if (!promotionItem) blockReasons.push('missing_discount_mapping')
+    if (promotionItem && !isDiscountModule) blockReasons.push('bundle_deal_not_discount_item')
+    if (!endpointRule?.allowed || !endpoint) blockReasons.push('promotion_write_endpoint_not_allowlisted')
+    if (!discountId || !itemId || (cleanProductText(variation.model_id) && !modelId)) blockReasons.push('missing_discount_mapping')
+    if (!proposedPrice) blockReasons.push('proposed_price_invalid')
+    if (promotionItem && ['ended', 'expired', 'end', 'inactive'].includes(cleanProductText(promotionItem.status).toLowerCase())) blockReasons.push('no_active_discount_for_sku')
+    if (enforceCostGuard && guardPrice > 0 && proposedPrice > 0 && proposedPrice < guardPrice) blockReasons.push('below_cost_guard')
+    for (const reason of [...new Set(blockReasons)]) warnings.push(reason)
+    const noChange = !blockReasons.length && currentPromotionPrice > 0 && Math.abs(currentPromotionPrice - proposedPrice) <= 0.01
+    const status = blockReasons.length ? 'blocked' : (noChange ? 'no_change' : 'ready')
+    const preview = {
+      source: 'Promotion Core',
+      write_path: 'Product Master UI -> Promotion Core -> Shopee Open Platform adapter -> Core readback',
+      platform,
+      shop,
+      shop_key: shop,
+      promotion_type: module,
+      discount_id: discountId,
+      promotion_id: discountId,
+      item_id: itemId,
+      model_id: modelId,
+      seller_sku: cleanProductText(promotionItem?.sku || variation.platform_sku),
+      internal_sku: cleanProductText(options.internal_sku || variation.internal_sku),
+      original_price: productStockNumber(promotionItem?.original_price || variation.price),
+      current_promotion_price: currentPromotionPrice,
+      proposed_promotion_price: proposedPrice,
+      target_promotion_price: proposedPrice,
+      endpoint,
+      mapping_source: cleanProductText(promotionItem?.mapping_source) || (promotionItem ? 'Promotion Core cache' : ''),
+      readback_source: endpoint ? 'shopee_open_platform:/api/v2/discount/get_discount' : '',
+      endpoint_rule: endpointRule || null,
+      status,
+      block_reason: blockReasons[0] || '',
+      block_reasons: [...new Set(blockReasons)],
+      sync_status: promotionItem ? 'resolved_from_core_cache' : 'missing_discount_mapping',
+      write_status: cleanProductText(promotionItem?.write_status),
+      promotion_sync_status: cleanProductText(promotionItem?.promotion_sync_status),
+      last_write_at: cleanProductText(promotionItem?.last_write_at),
+      last_readback_at: cleanProductText(promotionItem?.last_readback_at),
+      last_synced_at: cleanProductText(promotionItem?.synced_at || promotionItem?.updated_at),
+      apply_supported: status === 'ready',
+      readback_required: true,
+      warnings
+    }
+    if (preview.apply_supported) {
+      preview.live_action = {
+        route: '/api/discounts/shopee/action',
+        action: 'update_discount_item',
+        confirm: 'TOI_HIEU_DAY_LA_THAY_DOI_GIA_SHOPEE',
+        payload: buildPromotionLivePayload(preview)
+      }
+    }
+    return preview
+  }
+  if (!promotionItem) warnings.push('Chưa resolve được discount_id/item_id/model_id trong Promotion Core. Cần đồng bộ khuyến mại từ sàn trước khi ghi thật.')
+  if (!endpoint) warnings.push('Module khuyến mại này chưa có endpoint ghi chính thức trong allowlist Core.')
+  if (!cleanProductText(promotionItem?.program_id)) warnings.push('Thiếu discount_id/program_id.')
+  if (!cleanProductText(promotionItem?.item_id || variation.platform_item_id)) warnings.push('Thiếu item_id.')
+  if (!cleanProductText(promotionItem?.model_id || variation.model_id) && cleanProductText(variation.model_id)) warnings.push('Thiếu model_id trong cache khuyến mại.')
+  if (!proposedPrice) warnings.push('Thiếu giá khuyến mại mới.')
+  const currentPromotionPrice = productStockNumber(promotionItem?.promotion_price || variation.discount_price)
+  return {
+    source: 'Promotion Core',
+    write_path: 'Product Master UI -> Promotion Core -> Shopee Open Platform adapter -> Core readback',
+    platform,
+    shop,
+    promotion_type: module,
+    discount_id: cleanProductText(promotionItem?.program_id),
+    promotion_id: cleanProductText(promotionItem?.program_id),
+    item_id: cleanProductText(promotionItem?.item_id || variation.platform_item_id),
+    model_id: cleanProductText(promotionItem?.model_id || variation.model_id),
+    seller_sku: cleanProductText(promotionItem?.sku || variation.platform_sku),
+    original_price: productStockNumber(promotionItem?.original_price || variation.price),
+    current_promotion_price: currentPromotionPrice,
+    target_promotion_price: proposedPrice,
+    endpoint,
+    sync_status: promotionItem ? 'resolved_from_core_cache' : 'missing_promotion_cache',
+    last_synced_at: cleanProductText(promotionItem?.synced_at || promotionItem?.updated_at),
+    apply_supported: Boolean(promotionItem && endpoint && proposedPrice > 0),
+    readback_required: true,
+    warnings
+  }
+}
+
 export async function previewMarketplaceWriteAction(env, payload = {}) {
   const platform = cleanProductText(payload.platform).toLowerCase()
   const shop = cleanProductText(payload.shop || payload.user_name)
@@ -189,9 +609,10 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
   const platformSkus = [...new Set(requestedItems.map(item => cleanProductText(item.platform_sku || item.sku)).filter(Boolean))]
   if (!platformSkus.length) throw new Error('Thiếu SKU sàn để xem trước')
 
+  await ensureProductVariationWriteColumns(env)
   const placeholders = platformSkus.map(() => '?').join(',')
   const variationRows = await env.DB.prepare(`
-    SELECT platform, shop, platform_item_id, platform_sku, internal_sku, mapped_items, price, discount_price, stock
+    SELECT platform, shop, platform_item_id, model_id, variation_name, platform_sku, internal_sku, mapped_items, price, discount_price, stock
     FROM product_variations
     WHERE platform = ? AND shop = ? AND platform_sku IN (${placeholders})
   `).bind(platform, shop, ...platformSkus).all()
@@ -218,6 +639,7 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
   }
 
   const variationMap = new Map(skuRows.map(row => [cleanProductText(row.platform_sku), row]))
+  const promotionMap = await loadPromotionPreviewMap(env, platform, shop, skuRows)
   const minimumMargin = Math.max(0, Number(settings.minimum_profit_margin_percent || 0) || 0)
   const enforceCostGuard = Number(settings.enforce_cost_price_guard || 0) === 1
   const rows = []
@@ -226,6 +648,7 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
     const platformSku = cleanProductText(item.platform_sku || item.sku)
     if (!platformSku) continue
     const variation = variationMap.get(platformSku)
+    const promotionItem = lookupPromotionPreviewItem(promotionMap, platformSku, variation)
     const mappedItems = parseMappedSkuItems(variation?.mapped_items, variation?.internal_sku)
     const internalSku = cleanProductText(mappedItems[0]?.sku || variation?.internal_sku)
     const internalProduct = productMap.get(internalSku) || {}
@@ -233,22 +656,40 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
     const currentPrice = productStockNumber(variation?.discount_price || variation?.price)
     const currentStock = productStockNumber(variation?.stock)
     const proposedPrice = productStockNumber(item.original_price ?? item.price ?? item.proposed_price)
-    const proposedStock = productStockNumber(item.stock ?? item.proposed_stock)
+    const proposedStock = actionType === 'update_stock' ? productStockNumber(item.stock ?? item.proposed_stock) : undefined
     const guardPrice = costBase > 0 ? Math.ceil(costBase * (1 + minimumMargin / 100)) : 0
     const warnings = []
 
     let canSendNow = false
     if (actionType === 'update_price') {
+      const promotionCore = platform === 'shopee'
+        ? buildPromotionCorePreview(platform, shop, variation || {}, promotionItem, proposedPrice, {
+          internal_sku: internalSku,
+          guard_price: guardPrice,
+          enforce_cost_guard: enforceCostGuard
+        })
+        : (platform === 'lazada'
+          ? buildLazadaPromotionCorePreview(platform, shop, variation || {}, proposedPrice, {
+            internal_sku: internalSku,
+            guard_price: guardPrice,
+            enforce_cost_guard: enforceCostGuard
+          })
+          : null)
       if (!Number(settings.marketplace_price_push_enabled || 0)) {
         warnings.push('Công tắc đẩy giá lên sàn đang tắt. Hiện chỉ xem trước, chưa gửi lệnh thật.')
       } else {
         canSendNow = true
+      }
+      if (promotionCore) {
+        warnings.push(...promotionCore.warnings)
+        canSendNow = Boolean(promotionCore.apply_supported)
       }
       if (enforceCostGuard && guardPrice > 0 && proposedPrice > 0 && proposedPrice < guardPrice) {
         canSendNow = false
         warnings.push(`Giá đề xuất thấp hơn giá bảo vệ ${guardPrice.toLocaleString('vi-VN')}đ.`)
       }
       if (!variation) warnings.push('SKU sàn chưa có trong bảng product_variations nên chưa thể gửi giá thật.')
+      item.promotion_core = promotionCore
     } else {
       if (!Number(settings.marketplace_stock_push_enabled || 0)) {
         warnings.push('Công tắc đẩy tồn lên sàn đang tắt. Hiện chỉ xem trước, chưa gửi lệnh thật.')
@@ -268,6 +709,7 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
       action_type: actionType,
       platform_sku: platformSku,
       platform_item_id: cleanProductText(variation?.platform_item_id),
+      model_id: cleanProductText(variation?.model_id),
       internal_sku: internalSku,
       internal_product_name: cleanProductText(internalProduct.product_name),
       current_price: currentPrice,
@@ -276,9 +718,12 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
       proposed_stock: proposedStock,
       cost_base: costBase,
       guard_price: guardPrice,
-      status: previewActionStatusLabel(actionType, canSendNow),
+      status: actionType === 'update_price' && item.promotion_core?.status ? item.promotion_core.status : previewActionStatusLabel(actionType, canSendNow),
+      block_reason: actionType === 'update_price' ? cleanProductText(item.promotion_core?.block_reason) : '',
+      block_reasons: actionType === 'update_price' ? (item.promotion_core?.block_reasons || []) : [],
       can_send_now: canSendNow ? 1 : 0,
-      warnings
+      promotion_core: item.promotion_core,
+      warnings: [...new Set(warnings.filter(Boolean))]
     })
   }
 
@@ -292,7 +737,8 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
     preview_payload: {
       total_rows: rows.length,
       ready_rows: rows.filter(row => row.can_send_now).length,
-      blocked_rows: rows.filter(row => !row.can_send_now).length
+      blocked_rows: rows.filter(row => row.status === 'blocked').length,
+      no_change_rows: rows.filter(row => row.status === 'no_change').length
     },
     note: `Xem trước ${actionType} cho ${shop}`
   })
@@ -303,7 +749,8 @@ export async function previewMarketplaceWriteAction(env, payload = {}) {
     summary: {
       total_rows: rows.length,
       ready_rows: rows.filter(row => row.can_send_now).length,
-      blocked_rows: rows.filter(row => !row.can_send_now).length,
+      blocked_rows: rows.filter(row => row.status === 'blocked').length,
+      no_change_rows: rows.filter(row => row.status === 'no_change').length,
       action_type: actionType
     },
     rows

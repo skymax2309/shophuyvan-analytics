@@ -1,4 +1,5 @@
 import { loadOrderFinanceCore } from '../../core/orders/finance-core.js'
+import { normalizeOrderListRowForCore } from '../../core/orders/read-core.js'
 import { buildAnalyticsWhere, cleanDate, cleanText, defaultRange, ensureSourceTables, ESCROW_SOURCE, ESTIMATE_SOURCE, LAZADA_FINANCE_SOURCE, PAYMENT_SOURCE, splitList } from '../../core/orders/analytics-shared-core.js'
 import { rebuildOrderAnalytics, syncOrderAnalyticsIncome } from './order-analytics-rebuild-core.js'
 
@@ -228,6 +229,11 @@ export async function loadOrderAnalytics(env, options = {}) {
     rebuild = await rebuildOrderAnalytics(env, options)
     rows = await loadRows(env, options)
   }
+  rows = rows.map(row => normalizeOrderListRowForCore({
+    ...row,
+    order_id: row.order_sn || row.order_id,
+    order_type: row.order_type || ''
+  }))
   const [summary, shop_summary, top_skus, loss_order_items, finance_core] = await Promise.all([
     loadSummary(env, options),
     loadShopSummary(env, options),
@@ -248,7 +254,7 @@ export async function loadOrderAnalytics(env, options = {}) {
     finance_core,
     rebuild,
     source: {
-      payment_actual: 'Shopee /api/v2/payment/get_income_detail và Lazada /finance/transaction/detail/get -> order_analytics.actual_income',
+      payment_actual: 'Shopee /api/v2/payment/get_income_detail và Lazada /finance/transaction/details/get -> order_analytics.actual_income',
       payment_escrow: 'order_fee_details.settlement từ Shopee Escrow hoặc Lazada Finance khi dòng payment chi tiết chưa ghi trực tiếp vào order_analytics',
       estimate: 'orders_v2 fee estimate without fee_ads only when Payment API row is missing',
       ads: 'CPO = real Ads API spend / eligible SKU or shop orders. Source: marketplace_ads_campaign_snapshots/marketplace_ads_hourly_snapshots only; no cost setting and no orders_v2.fee_ads',

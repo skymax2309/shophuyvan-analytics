@@ -5,7 +5,7 @@ import {
   listMarketplaceShopCapabilities,
   summarizeMarketplaceCapabilities
 } from '../marketplace/shop-capability-core.js'
-import { ensureProductKnowledgeTables } from '../../routes/marketplace-chat/index.js'
+import { ensureProductKnowledgeTables } from './product-knowledge-core.js'
 
 const PRODUCT_CATALOG_SETTINGS_KEY = 'product_catalog_runtime_settings'
 
@@ -20,6 +20,9 @@ const DEFAULT_PRODUCT_CATALOG_SETTINGS = {
   minimum_profit_margin_percent: 10,
   enforce_cost_price_guard: 1,
   price_push_preview_limit: 50,
+  tiktok_promotion_urls: {
+    '0909128999': 'https://seller-vn.tiktok.com/promotion/marketing-tools/discount/edit/7614469433056216853?back=1&source_ver=mpa&shop_region=VN'
+  },
   stock_push_guard_note: 'Kho thật đang tham chiếu từ ShipXanh nên công tắc sửa tồn và đẩy tồn lên sàn mặc định bị khóa cho đến khi kích hoạt.',
   updated_at: ''
 }

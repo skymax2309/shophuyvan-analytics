@@ -13,6 +13,7 @@ export function installApiSyncAdsShopeeSuggestions(core) {
   const parseBooleanOption = (...args) => core.parseBooleanOption(...args)
   const parseIdList = (...args) => core.parseIdList(...args)
   const resolveShopeeProductCampaignIds = (...args) => core.resolveShopeeProductCampaignIds(...args)
+  const normalizeShopeeProductCampaignSettingRows = (...args) => core.normalizeShopeeProductCampaignSettingRows(...args)
   const roundAds = (...args) => core.roundAds(...args)
   const shopeeCampaignInfoTypeList = (...args) => core.shopeeCampaignInfoTypeList(...args)
 

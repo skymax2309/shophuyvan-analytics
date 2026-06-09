@@ -167,6 +167,8 @@ export function mapShopeeError(data = {}, httpStatus = 0) {
 
 export function assertShopeeLiveWriteAllowed(env, clientType = 'marketplace_client') {
   if (boolEnv(env?.SHOPEE_LIVE_WRITE_ENABLED)) return null
+  // Cho phép bật riêng live-write ADS mà không mở rộng sang các nhóm Shopee khác.
+  if (normalizeShopeeClientType(clientType) === 'ads_client' && boolEnv(env?.SHOPEE_ADS_LIVE_WRITE_ENABLED)) return null
   return {
     status: 'error',
     error: 'live_write_disabled',

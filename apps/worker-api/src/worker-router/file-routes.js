@@ -1,3 +1,165 @@
+function scanBridgeJson(payload, cors = {}, init = {}) {
+  return Response.json(payload, {
+    ...init,
+    headers: {
+      ...cors,
+      'Cache-Control': 'no-store',
+      ...(init.headers || {})
+    }
+  })
+}
+
+function routeWriteToken(request, headerName = 'X-Local-Runner-Token') {
+  const url = new URL(request.url)
+  return String(request.headers.get(headerName) || url.searchParams.get('token') || '').trim()
+}
+
+async function hasRouteWriteAccess(request, env, getAdminUserFromRequest, envKey, headerName) {
+  const expected = String(env?.[envKey] || '').trim()
+  const token = routeWriteToken(request, headerName)
+  if (expected && token && token === expected) return true
+  if (typeof getAdminUserFromRequest === 'function') {
+    return Boolean(await getAdminUserFromRequest(request, env))
+  }
+  return false
+}
+
+async function ensureScanBridgeSessionsTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS scan_bridge_sessions (
+      session_id TEXT PRIMARY KEY,
+      purpose TEXT DEFAULT 'oms_scan',
+      status TEXT DEFAULT 'waiting_phone',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      expires_at TEXT,
+      connected_at TEXT DEFAULT '',
+      scanned_at TEXT DEFAULT '',
+      scan_code TEXT DEFAULT '',
+      scan_payload TEXT DEFAULT '',
+      result_json TEXT DEFAULT '',
+      last_error TEXT DEFAULT ''
+    )
+  `).run()
+}
+
+function buildPhoneScannerUrl(request, sessionId) {
+  const origin = request.headers.get('Origin') || 'https://shophuyvan-analytics.nghiemchihuy.workers.dev'
+  return `${origin.replace(/\/$/, '')}/pages/scan-qr.html?role=phone&session_id=${encodeURIComponent(sessionId)}`
+}
+
+function scanBridgeSessionId() {
+  const fallback = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return `scan_${globalThis.crypto?.randomUUID?.() || fallback}`.replace(/[^a-zA-Z0-9_-]/g, '')
+}
+
+async function loadScanBridgeSession(env, sessionId) {
+  const row = await env.DB.prepare(`
+    SELECT *
+    FROM scan_bridge_sessions
+    WHERE session_id = ?
+    LIMIT 1
+  `).bind(sessionId).first()
+  if (!row) return null
+  const expired = row.expires_at && Date.parse(row.expires_at) < Date.now()
+  let result = null
+  try {
+    result = row.result_json ? JSON.parse(row.result_json) : null
+  } catch {
+    result = null
+  }
+  return {
+    ...row,
+    expired,
+    status: expired && row.status !== 'scanned' ? 'scanner_session_expired' : row.status,
+    result
+  }
+}
+
+async function handleScanBridgeRoutes(request, env, cors, url, handlePackingScanOrder) {
+  await ensureScanBridgeSessionsTable(env)
+
+  if (url.pathname === '/api/scan-bridge/session' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}))
+    const sessionId = scanBridgeSessionId()
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    await env.DB.prepare(`
+      DELETE FROM scan_bridge_sessions
+      WHERE expires_at < ?
+    `).bind(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()).run().catch(() => null)
+    await env.DB.prepare(`
+      INSERT INTO scan_bridge_sessions (session_id, purpose, status, expires_at)
+      VALUES (?, ?, 'waiting_phone', ?)
+    `).bind(sessionId, body.purpose || 'oms_scan', expiresAt).run()
+    return scanBridgeJson({
+      status: 'ok',
+      session_id: sessionId,
+      scanner_url: buildPhoneScannerUrl(request, sessionId),
+      expires_at: expiresAt
+    }, cors)
+  }
+
+  const match = url.pathname.match(/^\/api\/scan-bridge\/session\/([^/]+)(?:\/(connect|result))?$/)
+  if (!match) return null
+
+  const sessionId = decodeURIComponent(match[1])
+  const action = match[2] || 'status'
+  const session = await loadScanBridgeSession(env, sessionId)
+  if (!session) {
+    return scanBridgeJson({ status: 'error', error: 'scanner_session_not_found' }, cors, { status: 404 })
+  }
+  if (session.expired && action !== 'status') {
+    return scanBridgeJson({ status: 'error', error: 'scanner_session_expired', session }, cors, { status: 410 })
+  }
+
+  if (action === 'connect' && request.method === 'POST') {
+    await env.DB.prepare(`
+      UPDATE scan_bridge_sessions
+      SET status = CASE WHEN status = 'scanned' THEN status ELSE 'phone_connected' END,
+          connected_at = COALESCE(NULLIF(connected_at, ''), CURRENT_TIMESTAMP)
+      WHERE session_id = ?
+    `).bind(sessionId).run()
+    return scanBridgeJson({ status: 'ok', session: await loadScanBridgeSession(env, sessionId) }, cors)
+  }
+
+  if (action === 'result' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}))
+    const code = String(body.code || body.scan_code || '').trim()
+    if (!code) return scanBridgeJson({ status: 'error', error: 'scan_code_missing' }, cors, { status: 400 })
+
+    // Scan bridge chỉ tra cứu đơn/tem/video để PC xác nhận bước sau, không tự gọi giao/hủy/hoàn.
+    const lookupRequest = new Request(`${url.origin}/api/cctv/scan-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, source: 'phone_scanner_bridge', session_id: sessionId })
+    })
+    const lookupResponse = await handlePackingScanOrder(lookupRequest, env, cors)
+    const lookup = await lookupResponse.json().catch(() => ({ status: 'error', error: 'scan_lookup_failed' }))
+    await env.DB.prepare(`
+      UPDATE scan_bridge_sessions
+      SET status = 'scanned',
+          scanned_at = CURRENT_TIMESTAMP,
+          scan_code = ?,
+          scan_payload = ?,
+          result_json = ?,
+          last_error = ?
+      WHERE session_id = ?
+    `).bind(
+      code,
+      JSON.stringify({ source: 'phone_scanner_bridge' }).slice(0, 2000),
+      JSON.stringify(lookup).slice(0, 20000),
+      lookup?.status === 'error' ? String(lookup.error || 'scan_lookup_failed') : '',
+      sessionId
+    ).run()
+    return scanBridgeJson({ status: 'ok', session: await loadScanBridgeSession(env, sessionId) }, cors)
+  }
+
+  if (action === 'status' && request.method === 'GET') {
+    return scanBridgeJson({ status: 'ok', session }, cors)
+  }
+
+  return scanBridgeJson({ status: 'error', error: 'method_not_allowed' }, cors, { status: 405 })
+}
+
 export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps) {
   const {
     handlePurchase,
@@ -48,6 +210,7 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
     buildWhere,
     getApiShops,
     buildPublicShopRows,
+    exportOrders,
     recalcCost,
     cleanupOrderFeePhase1,
     updateCostPrices,
@@ -80,6 +243,7 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
     deleteJob,
     handleBotSettings,
     getLabelStatus,
+    backfillEligibleLabels,
     refreshOrderLabel,
     getOrderLabel,
     recordLabelFile,
@@ -150,10 +314,14 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
   if (url.pathname === "/api/upload-url" && request.method === "GET") {
     const fileName = url.searchParams.get("file")
     if (!fileName) return new Response("Missing file param", { status: 400, headers: cors })
+    const uploadToken = String(env.SHV_LOCAL_RUNNER_TOKEN || '').trim()
+    if (!uploadToken) {
+      return Response.json({ error: 'local_runner_upload_token_missing' }, { status: 503, headers: cors })
+    }
 
     // Tạo một token đơn giản để bot có thể upload trong vòng 15 phút
     // Trong SaaS thực tế, bạn có thể dùng JWT hoặc HMAC ở đây
-    const uploadUrl = `${url.origin}/api/upload?file=${encodeURIComponent(fileName)}&token=huyvan_secret_2026`
+    const uploadUrl = `${url.origin}/api/upload?file=${encodeURIComponent(fileName)}&token=${encodeURIComponent(uploadToken)}`
 
     return Response.json({ uploadUrl }, { headers: cors })
   }
@@ -161,9 +329,9 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
 // Route nhận file thực tế từ Bot và lưu vào R2
   if (url.pathname === "/api/upload" && request.method === "PUT") {
     const fileName = url.searchParams.get("file")
-    const token = url.searchParams.get("token")
-
-    if (token !== "huyvan_secret_2026") return new Response("Unauthorized", { status: 401 })
+    if (!(await hasRouteWriteAccess(request, env, getAdminUserFromRequest, 'SHV_LOCAL_RUNNER_TOKEN', 'X-Local-Runner-Token'))) {
+      return new Response("Unauthorized", { status: 401, headers: cors })
+    }
     
     const fileData = await request.arrayBuffer()
     await env.STORAGE.put(fileName, fileData, { httpMetadata: { contentType: request.headers.get("Content-Type") || "application/octet-stream" } })
@@ -182,6 +350,17 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
   // ── API MỚI: XEM VÀ TẢI LẠI PHIẾU IN (LABELS) ──────────
   if (url.pathname === "/api/labels/status" && request.method === "GET") {
     return getLabelStatus(request, env, cors)
+  }
+
+  if ((url.pathname === "/api/label/backfill-eligible" || url.pathname === "/api/label/retry-failed") && request.method === "POST") {
+    return backfillEligibleLabels(request, env, cors)
+  }
+
+  if (url.pathname.startsWith("/api/labels/refresh/") && request.method === "POST") {
+    return Response.json({
+      error: 'legacy_label_refresh_route_disabled',
+      message: 'Route tải tem cũ đã bị cắt khỏi runtime. Dùng POST /api/label/:orderId/refresh nếu cần thao tác tải tem có kiểm soát.'
+    }, { status: 410, headers: cors })
   }
 
   if (url.pathname.startsWith("/api/label/") && url.pathname.endsWith("/refresh") && request.method === "POST") {
@@ -219,6 +398,9 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
 // ── BẢNG TỌA ĐỘ TRẠM PC (HẦM TUNNEL) ──────────
   if (url.pathname === "/api/cctv-config") {
     if (request.method === "POST") {
+      if (!(await hasRouteWriteAccess(request, env, getAdminUserFromRequest, 'CCTV_UPLOAD_TOKEN', 'X-CCTV-Upload-Token'))) {
+        return Response.json({ error: "Unauthorized" }, { status: 401, headers: cors })
+      }
       const body = await request.json();
       const tunnelUrl = body.ngrok_url || body.url; 
       if (!tunnelUrl) return Response.json({ error: "Missing url" }, { status: 400, headers: cors });
@@ -233,6 +415,10 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
     }
   }
 
+  if (url.pathname === "/api/scan-bridge/session" || url.pathname.startsWith("/api/scan-bridge/session/")) {
+    return handleScanBridgeRoutes(request, env, cors, url, handlePackingScanOrder)
+  }
+
 // ── API MỚI: TRẠM MẮT THẦN LÊN MÂY (R2 + D1) ──────────
   // 1. Nhận Video chuẩn MP4 từ PC và lưu vào R2
   if (url.pathname === "/api/cctv/scan-order" && (request.method === "GET" || request.method === "POST")) {
@@ -241,6 +427,9 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
 
   if (url.pathname === "/api/cctv/upload" && request.method === "POST") {
     try {
+      if (!(await hasRouteWriteAccess(request, env, getAdminUserFromRequest, 'CCTV_UPLOAD_TOKEN', 'X-CCTV-Upload-Token'))) {
+        return Response.json({ error: "Unauthorized" }, { status: 401, headers: cors })
+      }
       await ensurePackingVideosTable(env)
       const formData = await request.formData();
       const orderId = formData.get("order_id");
@@ -251,15 +440,21 @@ export async function handleFileWorkerRoutes(request, env, ctx, cors, url, deps)
       }
 
       // Trích xuất đuôi file chuẩn do PC gửi lên (MP4)
-      const originalName = videoFile.name || "video.mp4";
-      const ext = originalName.split('.').pop();
+      const contentType = String(videoFile.type || "").toLowerCase();
+      if (!["video/mp4", "video/webm"].includes(contentType)) {
+        return Response.json({ error: "invalid_video_mime" }, { status: 415, headers: cors });
+      }
+      if (Number(videoFile.size || 0) > 250 * 1024 * 1024) {
+        return Response.json({ error: "video_too_large" }, { status: 413, headers: cors });
+      }
+      const ext = contentType === "video/mp4" ? "mp4" : "webm";
       
       const timestamp = Date.now();
       const fileName = `packing_videos/${orderId}_${timestamp}.${ext}`;
       const videoBuffer = await videoFile.arrayBuffer();
 
       // Lưu vào Kho R2
-      await env.STORAGE.put(fileName, videoBuffer);
+      await env.STORAGE.put(fileName, videoBuffer, { httpMetadata: { contentType } });
 
       // Ghi sổ Video D1
       await env.DB.prepare(`

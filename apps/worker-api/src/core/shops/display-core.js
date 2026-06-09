@@ -6,8 +6,26 @@ export function isGeneratedShopeeShopName(value) {
   return /^Shopee\s+\d+$/i.test(cleanShopText(value))
 }
 
+export function isRawShopIdentity(value, platform = '') {
+  const text = cleanShopText(value)
+  const cleanPlatform = cleanShopText(platform).toLowerCase()
+  if (/^(shopee|lazada)\s+\d+$/i.test(text)) return true
+  if (!/^\d{6,}$/.test(text)) return false
+  return cleanPlatform === 'shopee' || cleanPlatform === 'lazada'
+}
+
 function displayName(row = {}) {
-  return cleanShopText(row.shop_name || row.shop || row.user_name || row.api_shop_id)
+  const platform = cleanShopText(row.platform).toLowerCase()
+  return [row.shop_display_name, row.shop_name, row.shop, row.user_name]
+    .map(cleanShopText)
+    .find(value => value && !isRawShopIdentity(value, platform)) || ''
+}
+
+function rawIdentityApiId(value) {
+  const text = cleanShopText(value)
+  const match = text.match(/^(shopee|lazada)\s+(\d+)$/i)
+  if (match?.[2]) return match[2]
+  return /^\d{6,}$/.test(text) ? text : ''
 }
 
 export function buildPublicShopRows(shopRows = [], orderRows = []) {
@@ -26,13 +44,16 @@ export function buildPublicShopRows(shopRows = [], orderRows = []) {
   const map = new Map()
   const add = (platform, shopName, source = {}) => {
     const cleanPlatform = cleanShopText(platform).toLowerCase()
-    const cleanName = cleanShopText(shopName)
+    let cleanName = cleanShopText(shopName)
     if (!cleanPlatform || !cleanName) return
-    const apiId = cleanShopText(source.api_shop_id)
+    const apiId = cleanShopText(source.api_shop_id) || rawIdentityApiId(cleanName)
     if (apiId) {
       const canonical = apiById.get(`${cleanPlatform}|${apiId}`)
+      if (canonical?.name && isRawShopIdentity(cleanName, cleanPlatform)) cleanName = canonical.name
       if (canonical && canonical.name !== cleanName && isGeneratedShopeeShopName(cleanName)) return
     }
+    // Không đưa ID kỹ thuật lên UI public; nếu chưa có tên Core thì giữ trong DB và chờ đồng bộ profile.
+    if (isRawShopIdentity(cleanName, cleanPlatform)) return
     map.set(`${cleanPlatform}|${cleanName}`, { platform: cleanPlatform, shop_name: cleanName })
   }
 

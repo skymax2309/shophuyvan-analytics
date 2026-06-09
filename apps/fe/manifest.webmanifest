@@ -2,7 +2,7 @@
   "name": "ShopHuyVan OMS",
   "short_name": "ShopHuyVan",
   "description": "Dashboard OMS, chat CSKH, đơn hàng và doanh thu ShopHuyVan.",
-  "start_url": "/pages/chat-marketplace.html",
+  "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#f1f5f9",

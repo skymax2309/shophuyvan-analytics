@@ -1,8 +1,24 @@
 import { fmt } from '../utils/helpers.js';
 
 export const toMoneyNumber = value => {
-  const n = Number(value || 0)
+  const raw = value && typeof value === 'object' && 'value' in value ? value.value : value
+  const n = Number(raw ?? 0)
   return Number.isFinite(n) ? n : 0
+}
+
+const toNullableMoneyNumber = value => {
+  const raw = value && typeof value === 'object' && 'value' in value ? value.value : value
+  if (raw === null || raw === undefined || raw === '') return null
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+const firstNullableMoney = (...values) => {
+  for (const value of values) {
+    const n = toNullableMoneyNumber(value)
+    if (n !== null) return n
+  }
+  return null
 }
 
 const fmtFeeRate = (amount, revenueBase) => {
@@ -170,6 +186,91 @@ const escapeFeeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({
   "'": '&#039;'
 })[ch])
 
+const getOmsFeePopupState = () => {
+  if (typeof window === 'undefined') return { open: false, orderId: '' }
+  if (!window.__SHV_OMS_FEE_POPUP_STATE) {
+    window.__SHV_OMS_FEE_POPUP_STATE = { open: false, orderId: '' }
+  }
+  return window.__SHV_OMS_FEE_POPUP_STATE
+}
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
+
+const escapeCssValue = value => {
+  if (typeof CSS !== 'undefined' && CSS.escape) return CSS.escape(value)
+  return String(value || '').replace(/["\\]/g, '\\$&')
+}
+
+export const isOmsFeePopupOpen = orderId => {
+  const state = getOmsFeePopupState()
+  return Boolean(state.open && state.orderId === String(orderId || ''))
+}
+
+export const closeOmsFeePopup = () => {
+  if (typeof document === 'undefined') return
+  const state = getOmsFeePopupState()
+  document.querySelectorAll('[data-oms-fee-panel]').forEach(panel => {
+    panel.style.display = 'none'
+  })
+  document.querySelectorAll('[data-oms-fee-order]').forEach(trigger => {
+    trigger.classList.remove('is-open')
+  })
+  state.open = false
+  state.orderId = ''
+}
+
+export const syncOmsFeePopupAfterRender = () => {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return
+  const state = getOmsFeePopupState()
+  if (!state.open || !state.orderId) return
+  // Khi bảng đang re-render, DOM tạm thời chưa có order nên không đóng popup vội.
+  if (window.__SHV_OMS_FEE_RENDERING) return
+  const trigger = document.querySelector(`[data-oms-fee-order="${escapeCssValue(state.orderId)}"]`)
+  const panel = document.querySelector(`[data-oms-fee-panel="${escapeCssValue(state.orderId)}"]`)
+  if (!trigger || !panel) {
+    closeOmsFeePopup()
+    return
+  }
+
+  document.querySelectorAll('[data-oms-fee-panel]').forEach(item => {
+    if (item !== panel) item.style.display = 'none'
+  })
+  document.querySelectorAll('[data-oms-fee-order]').forEach(item => {
+    item.classList.toggle('is-open', item === trigger)
+  })
+
+  panel.style.display = 'block'
+  const triggerRect = trigger.getBoundingClientRect()
+  const panelWidth = Math.min(Math.max(panel.offsetWidth || 320, 280), Math.max(280, window.innerWidth - 16))
+  const panelHeight = Math.min(panel.offsetHeight || 360, Math.max(240, window.innerHeight - 16))
+  const left = clamp(triggerRect.right - panelWidth, 8, Math.max(8, window.innerWidth - panelWidth - 8))
+  const belowTop = triggerRect.bottom + 8
+  const aboveTop = triggerRect.top - panelHeight - 8
+  const top = belowTop + panelHeight <= window.innerHeight - 8
+    ? belowTop
+    : clamp(aboveTop, 8, Math.max(8, window.innerHeight - panelHeight - 8))
+
+  panel.style.position = 'fixed'
+  panel.style.left = `${Math.round(left)}px`
+  panel.style.top = `${Math.round(top)}px`
+  panel.style.right = 'auto'
+  panel.style.maxWidth = 'calc(100vw - 16px)'
+  panel.style.maxHeight = 'calc(100vh - 16px)'
+}
+
+export const toggleOmsFeePopup = (orderId, event) => {
+  event?.stopPropagation?.()
+  const state = getOmsFeePopupState()
+  const id = String(orderId || '')
+  if (state.open && state.orderId === id) {
+    closeOmsFeePopup()
+    return
+  }
+  state.open = true
+  state.orderId = id
+  requestAnimationFrame(syncOmsFeePopupAfterRender)
+}
+
 const feeGroupByKey = (order, key) => {
   const groups = Array.isArray(order?.fee_breakdown?.groups) ? order.fee_breakdown.groups : []
   return groups.find(group => String(group?.key || '') === key) || { rows: [], total: 0 }
@@ -189,6 +290,12 @@ const feePanelRow = (label, value, options = {}) => {
   const hasValue = value !== null && value !== undefined && value !== ''
   const amount = hasValue ? toMoneyNumber(value) : null
   const signed = options.sign === 'negative' && amount !== null ? -Math.abs(amount) : amount
+  const showPercent = Boolean(options.basis || options.showPercent)
+  const percentText = amount === null
+    ? '—'
+    : options.basis
+      ? fmtFeeRate(amount, options.basis)
+      : (options.percentText || '—')
   const cls = ['oms-finance-row']
   if (options.indent) cls.push('is-child')
   if (options.total) cls.push('is-total')
@@ -196,6 +303,7 @@ const feePanelRow = (label, value, options = {}) => {
   return `
     <div class="${cls.join(' ')}">
       <span>${escapeFeeHtml(label)}${options.source ? `<small>${escapeFeeHtml(options.source)}</small>` : ''}</span>
+      ${showPercent ? `<em>${percentText}</em>` : '<em></em>'}
       <b>${amount === null ? 'Chưa có dữ liệu' : fmt(signed)}</b>
     </div>
   `
@@ -204,9 +312,22 @@ const feePanelRow = (label, value, options = {}) => {
 const feePanelTextRow = (label, value, options = {}) => `
   <div class="oms-finance-row ${options.total ? 'is-total' : ''}">
     <span>${escapeFeeHtml(label)}</span>
+    <em></em>
     <b>${escapeFeeHtml(value || 'Chưa có dữ liệu')}</b>
   </div>
 `
+
+const isExplicitFalse = value => value === false || value === 0 || value === '0' || String(value).toLowerCase() === 'false'
+
+const estimatedIncomeSourceLabel = source => {
+  const value = String(source || '').toLowerCase()
+  if (value.includes('tiktok_seller_center_finance_transaction')) return 'Nguồn: TikTok Seller Center giao dịch quyết toán'
+  if (value.includes('tiktok_estimated_fee')) return 'Nguồn: TikTok Seller Center đã quét, chờ settlement xác nhận'
+  if (value.includes('cost_setting')) return 'Nguồn: cost setting / estimate'
+  if (value.includes('lazada_finance_api')) return 'Nguồn: thiếu Lazada Finance API'
+  if (value.includes('orders_v2')) return 'Nguồn: orders_v2 estimate'
+  return 'Nguồn: estimate'
+}
 
 const renderRowsFromGroup = (group, options = {}) => {
   const rows = Array.isArray(group?.rows) ? group.rows : []
@@ -215,25 +336,27 @@ const renderRowsFromGroup = (group, options = {}) => {
     sign: options.sign || 'negative',
     source: row.source ? String(row.source).toUpperCase() : '',
     indent: true,
-    tone: options.tone
+    tone: options.tone,
+    basis: options.basis,
+    showPercent: true
   })).join('')
 }
 
-const renderGroupSummaryRows = order => {
+const renderGroupSummaryRows = (order, basis) => {
   const totals = order?.fee_breakdown?.totals || {}
   return [
-    ['Giảm giá/voucher đã trừ', totals.discounts],
+    ['Điều chỉnh doanh thu không thuộc Phí sàn', totals.discounts],
     ['Phí sàn từ API', totals.api_fee],
     ['Thuế/khấu trừ từ API', totals.api_tax],
     ['Chi phí nội bộ', totals.internal],
     ['Ước tính còn thiếu', totals.estimate]
   ]
     .filter(([, amount]) => toMoneyNumber(amount) > 0)
-    .map(([label, amount]) => feePanelRow(label, amount, { sign: 'negative' }))
+    .map(([label, amount]) => feePanelRow(label, amount, { sign: 'negative', basis, showPercent: true }))
     .join('') || '<div class="oms-finance-empty">Chưa có dữ liệu tổng hợp.</div>'
 }
 
-const renderComparisonRows = order => {
+const renderComparisonRows = (order, basis) => {
   const rows = Array.isArray(order?.fee_breakdown?.comparisons) ? order.fee_breakdown.comparisons : []
   if (!rows.length) return '<div class="oms-finance-empty">Chưa có dòng đối soát API.</div>'
   return rows.map(row => `
@@ -242,6 +365,7 @@ const renderComparisonRows = order => {
         <b>${escapeFeeHtml(row.label || 'Đối soát')}</b>
         ${row.note ? `<span>${escapeFeeHtml(row.note)}</span>` : ''}
       </div>
+      <em>${row.amount === null || row.amount === undefined ? '—' : fmtFeeRate(row.amount, basis)}</em>
       <strong>${row.amount === null || row.amount === undefined ? 'Chưa có' : fmt(row.amount)}</strong>
       <small>${escapeFeeHtml(String(row.source || '').toUpperCase() || 'N/A')}</small>
     </div>
@@ -261,25 +385,80 @@ if (typeof window !== 'undefined' && !window.switchOmsFinanceTab) {
   }
 }
 
+if (typeof window !== 'undefined' && !window.__SHV_OMS_FEE_POPUP_EVENTS) {
+  window.__SHV_OMS_FEE_POPUP_EVENTS = true
+  window.toggleOmsFeePopup = toggleOmsFeePopup
+  window.closeOmsFeePopup = closeOmsFeePopup
+  window.syncOmsFeePopupAfterRender = syncOmsFeePopupAfterRender
+  document.addEventListener('click', event => {
+    const target = event.target
+    if (target?.closest?.('[data-oms-fee-order]') || target?.closest?.('[data-oms-fee-panel]')) return
+    closeOmsFeePopup()
+  })
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeOmsFeePopup()
+  })
+  window.addEventListener('resize', syncOmsFeePopupAfterRender)
+  window.addEventListener('scroll', syncOmsFeePopupAfterRender, true)
+}
+
 export const buildOrderFinanceTabsHtml = (order, revenueBase, options = {}) => {
   const breakdown = order?.fee_breakdown || {}
   const totals = breakdown.totals || {}
+  const taxonomy = breakdown.taxonomy || {}
+  const taxonomyFields = taxonomy.fields || {}
+  const fieldAmount = key => firstNullableMoney(
+    taxonomyFields[key],
+    taxonomyFields[key]?.value,
+    order?.[key],
+    totals?.[key],
+    taxonomy?.[key]
+  )
+  const technicalFinanceSource = String(order.fee_source || order.source_detail || taxonomy.finance_source || order.finance_source || '').trim()
+  const isTiktokSellerCenterFinance = /tiktok_seller_center/i.test(technicalFinanceSource)
   const discountGroup = feeGroupByKey(order, 'discounts')
+  const settlementGroup = feeGroupByKey(order, 'settlement_deduction')
   const apiFeeGroup = feeGroupByKey(order, 'api_fee')
   const apiTaxGroup = feeGroupByKey(order, 'api_tax')
   const internalGroup = feeGroupByKey(order, 'internal')
-  const estimateGroup = feeGroupByKey(order, 'estimate')
+  const estimateGroupRaw = feeGroupByKey(order, 'estimate')
+  const estimateGroup = isTiktokSellerCenterFinance ? { ...estimateGroupRaw, rows: [] } : estimateGroupRaw
   const shopDiscount = feeComparisonAmount(order, 'discount_shop', toMoneyNumber(order.discount_shop) + toMoneyNumber(order.discount_combo))
-  const platformDiscount = feeComparisonAmount(order, 'discount_platform', order.discount_shopee)
-  const productOriginal = Math.max(toMoneyNumber(order.raw_revenue), toMoneyNumber(revenueBase) + shopDiscount)
+  const platformDiscount = toMoneyNumber(order.platform_voucher_total ?? totals.platform_voucher_total ?? order.discount_shopee)
+  const platformFundedVoucher = toMoneyNumber(order.platform_funded_voucher_amount ?? totals.platform_funded_voucher_amount)
+  const sellerCofundedVoucher = toMoneyNumber(order.seller_cofunded_voucher_amount ?? totals.seller_cofunded_voucher_amount)
+  const buyerShippingPaid = fieldAmount('buyer_shipping_paid')
+  const productAfterShopDiscount = fieldAmount('product_revenue_after_shop_discount') ?? toMoneyNumber(revenueBase)
+  const buyerTotalPaid = toMoneyNumber(order.buyer_total_paid ?? totals.buyer_total_paid ?? revenueBase - platformDiscount)
+  const productOriginal = fieldAmount('product_original_amount')
   const feeDisplayTotal = toMoneyNumber(options.feeDisplayTotal ?? order.fee_display_total ?? order.fee)
-  const netReceived = order.fee_detail_settlement !== null && order.fee_detail_settlement !== undefined && order.fee_detail_settlement !== ''
-    ? toMoneyNumber(order.fee_detail_settlement)
-    : toMoneyNumber(revenueBase) - feeDisplayTotal
+  const actualIncomeFlag = order.actual_income_available ?? totals.actual_income_available ?? breakdown.taxonomy?.actual_income_available
+  const actualIncomeAvailable = !isExplicitFalse(actualIncomeFlag)
+  const settlementAmount = firstNullableMoney(order.actual_income_settlement, totals.actual_income_settlement, order.fee_detail_settlement)
+  const estimatedIncome = firstNullableMoney(order.estimated_income, totals.estimated_income, taxonomy.estimated_income)
+  const estimatedSource = order.estimated_income_source ?? totals.estimated_income_source ?? breakdown.taxonomy?.estimated_income_source
+  const estimatedSourceText = estimatedIncomeSourceLabel(estimatedSource)
+  const netReceived = actualIncomeAvailable
+    ? (settlementAmount ?? firstNullableMoney(order.actual_income, totals.actual_income) ?? (toMoneyNumber(revenueBase) - feeDisplayTotal))
+    : 0
+  const profitBasis = toMoneyNumber(order.profit_basis ?? totals.profit_basis ?? breakdown.taxonomy?.profit_basis ?? (actualIncomeAvailable ? netReceived : productAfterShopDiscount))
+  const estimatedIncomeDisplay = estimatedIncome ?? profitBasis
+  const profitLabel = actualIncomeAvailable ? 'Lãi thực' : 'Lãi tạm tính'
   const profitReal = toMoneyNumber(order.profit_real)
   const feeInfo = options.feeInfo || feeSourceInfoV2(order)
   const feeDelta = toMoneyNumber(options.feeDelta)
   const totalTax = toMoneyNumber(totals.api_tax) || toMoneyNumber(order.tax_flat) + toMoneyNumber(order.tax_income)
+  const adsFee = toMoneyNumber(order.ads_fee_total ?? totals.ads_fee_total ?? order.fee_ads)
+  const pishipFee = toMoneyNumber(order.piship_fee ?? totals.piship_fee ?? order.fee_piship)
+  const sfrServiceFee = toMoneyNumber(order.sfr_service_fee ?? totals.sfr_service_fee ?? breakdown.taxonomy?.sfr_service_fee)
+  const platformDeductionTotal = toMoneyNumber(order.platform_deduction_total ?? totals.platform_deduction_total ?? breakdown.taxonomy?.platform_deduction_total ?? feeDisplayTotal)
+  const pishipLabel = isTiktokSellerCenterFinance
+    ? 'PiShip'
+    : (order.piship_fee_source_type === 'api' || totals.piship_fee_source_type === 'api'
+      ? 'PiShip từ API Shopee'
+      : 'PiShip / Cost setting')
+  const opsOther = isTiktokSellerCenterFinance ? 0 : Math.max(0, toMoneyNumber(order.ops_cost_setting_total ?? totals.ops_cost_setting_total) - pishipFee)
+  const percentBasisLabel = totals.percent_basis_label || 'Người mua thanh toán'
 
   return `
     <div class="oms-fee-panel-head">
@@ -291,6 +470,8 @@ export const buildOrderFinanceTabsHtml = (order, revenueBase, options = {}) => {
     </div>
     ${feeInfo.note ? `<div class="oms-fee-note" style="background:${feeInfo.palette.bg};border-color:${feeInfo.palette.border};color:${feeInfo.palette.color};">${escapeFeeHtml(feeInfo.note)}</div>` : ''}
     ${Math.abs(feeDelta) >= 1 ? `<div class="oms-fee-note muted">Chênh lệch so với dữ liệu cũ trong orders_v2: <b>${feeDelta >= 0 ? '+' : ''}${fmt(feeDelta)}</b>.</div>` : ''}
+    <div class="oms-fee-note muted">% tính trên ${escapeFeeHtml(percentBasisLabel)}. Giảm giá shop tự cài chỉ dùng để giải thích giá, không nằm trong Tổng khấu trừ.</div>
+    ${isTiktokSellerCenterFinance ? `<div class="oms-fee-note muted">Nguồn doanh thu TikTok: <b>TikTok Seller Center</b>. ${actualIncomeAvailable ? 'Thực nhận ví: <b>Đã có dữ liệu confirmed</b>.' : `Thực nhận dự kiến: <b>${fmt(estimatedIncomeDisplay)}</b>. ${escapeFeeHtml(estimatedSourceText)}. Sẽ cập nhật lại khi quét được settlement thật từ TikTok.`}</div>` : ''}
     <div class="oms-finance-tabs" role="tablist" aria-label="Nhóm số liệu đơn hàng">
       <button type="button" class="active" data-oms-finance-tab="customer" onclick="event.stopPropagation();switchOmsFinanceTab(this,'customer')">Khách thanh toán</button>
       <button type="button" data-oms-finance-tab="platform" onclick="event.stopPropagation();switchOmsFinanceTab(this,'platform')">Sàn thanh toán</button>
@@ -300,31 +481,49 @@ export const buildOrderFinanceTabsHtml = (order, revenueBase, options = {}) => {
     <div class="oms-finance-panels">
       <section class="oms-finance-panel active" data-oms-finance-panel="customer">
         ${feePanelTextRow('Phương thức thanh toán', order.payment_method || order.payment_channel || 'Chưa có dữ liệu')}
-        ${feePanelRow('Tổng tiền sản phẩm', revenueBase, { tone: 'positive' })}
-        ${feePanelRow('Giá sản phẩm ban đầu', productOriginal, { indent: true })}
-        ${feePanelRow('Shop giảm giá/voucher', shopDiscount, { sign: 'negative', indent: true })}
-        ${feePanelRow('Voucher từ sàn/Shopee', platformDiscount, { sign: 'negative' })}
-        ${feePanelRow('Người mua thanh toán', revenueBase, { total: true, tone: 'positive' })}
+        ${feePanelRow('Tiền sản phẩm sau KM shop', productAfterShopDiscount, { tone: 'positive', basis: revenueBase, showPercent: true })}
+        ${feePanelRow('Giá sản phẩm ban đầu', productOriginal, { indent: true, basis: revenueBase, showPercent: true })}
+        ${feePanelRow('Giảm giá shop tự cài', shopDiscount, { sign: 'negative', indent: true, basis: revenueBase, showPercent: true })}
+        ${feePanelRow('Phí vận chuyển người mua trả', buyerShippingPaid, { tone: 'positive', basis: revenueBase, showPercent: true })}
+        ${feePanelRow('Tổng doanh thu báo cáo', revenueBase, { total: true, tone: 'positive', basis: revenueBase, showPercent: true })}
+        ${feePanelRow('Shopee Voucher / voucher sàn', platformDiscount, { sign: 'negative', basis: revenueBase, showPercent: true })}
+        ${feePanelRow('Người mua thanh toán', buyerTotalPaid, { total: true, tone: 'positive', basis: revenueBase, showPercent: true })}
       </section>
       <section class="oms-finance-panel" data-oms-finance-panel="platform">
-        ${renderRowsFromGroup(discountGroup, { sign: 'negative' })}
-        ${apiFeeGroup.rows?.length ? `<div class="oms-finance-section-title">Phí sàn từ API</div>${renderRowsFromGroup(apiFeeGroup, { sign: 'negative' })}` : ''}
-        ${apiTaxGroup.rows?.length ? `<div class="oms-finance-section-title">Thuế/khấu trừ</div>${renderRowsFromGroup(apiTaxGroup, { sign: 'negative' })}` : ''}
-        ${internalGroup.rows?.length ? `<div class="oms-finance-section-title">Chi phí nội bộ</div>${renderRowsFromGroup(internalGroup, { sign: 'negative' })}` : ''}
-        ${estimateGroup.rows?.length ? `<div class="oms-finance-section-title">Ước tính còn thiếu</div>${renderRowsFromGroup(estimateGroup, { sign: 'negative', tone: 'warning' })}` : ''}
-        ${feePanelRow('Thực nhận về ví', netReceived, { total: true, tone: netReceived >= 0 ? 'positive' : 'negative' })}
+        ${feePanelRow(isTiktokSellerCenterFinance && !actualIncomeAvailable ? 'Doanh thu ước tính' : 'Tổng doanh thu báo cáo', revenueBase, { tone: 'positive', basis: revenueBase, showPercent: true })}
+        ${sellerCofundedVoucher > 0 ? feePanelRow('Voucher đồng tài trợ người bán chịu', sellerCofundedVoucher, { sign: 'negative', basis: revenueBase, showPercent: true }) : ''}
+        ${platformFundedVoucher > 0 ? feePanelRow('Voucher phần sàn tài trợ', platformFundedVoucher, { basis: revenueBase, showPercent: true, source: 'Không trừ shop' }) : ''}
+        ${settlementGroup.rows?.length ? `<div class="oms-finance-section-title">Khấu trừ settlement</div>${renderRowsFromGroup(settlementGroup, { sign: 'negative', basis: revenueBase })}` : ''}
+        ${apiFeeGroup.rows?.length ? `<div class="oms-finance-section-title">${escapeFeeHtml(apiFeeGroup.label || (isTiktokSellerCenterFinance ? 'Phí sàn từ TikTok Seller Center' : 'Phí sàn từ API'))}</div>${renderRowsFromGroup(apiFeeGroup, { sign: 'negative', basis: revenueBase })}` : ''}
+        ${apiTaxGroup.rows?.length ? `<div class="oms-finance-section-title">${escapeFeeHtml(apiTaxGroup.label || (isTiktokSellerCenterFinance ? 'Thuế/khấu trừ từ TikTok Seller Center' : 'Thuế/khấu trừ'))}</div>${renderRowsFromGroup(apiTaxGroup, { sign: 'negative', basis: revenueBase })}` : ''}
+        ${estimateGroup.rows?.length ? `<div class="oms-finance-section-title">Ước tính còn thiếu</div>${renderRowsFromGroup(estimateGroup, { sign: 'negative', tone: 'warning', basis: revenueBase })}` : ''}
+        ${isTiktokSellerCenterFinance && !actualIncomeAvailable && platformDeductionTotal > 0 ? feePanelRow('Tổng phí ước tính', platformDeductionTotal, { sign: 'negative', tone: 'warning', basis: revenueBase, showPercent: true }) : ''}
+        ${sfrServiceFee > 0 ? feePanelRow('Phí SFR', sfrServiceFee, { sign: 'negative', basis: revenueBase, showPercent: true }) : ''}
+        ${actualIncomeAvailable
+          ? feePanelRow('Thực nhận về ví', netReceived, { total: true, tone: netReceived >= 0 ? 'positive' : 'negative', basis: revenueBase, showPercent: true })
+          : `${feePanelRow(isTiktokSellerCenterFinance ? 'Tổng số tiền quyết toán / thực nhận dự kiến' : 'Thực nhận tạm tính', estimatedIncomeDisplay, { total: true, tone: estimatedIncomeDisplay >= 0 ? 'positive' : 'warning', basis: revenueBase, showPercent: true })}${feePanelTextRow('Nguồn ước tính', estimatedSourceText)}`}
       </section>
       <section class="oms-finance-panel" data-oms-finance-panel="profit">
-        ${feePanelRow('Doanh thu', revenueBase, { tone: 'positive' })}
-        ${feePanelRow('Giá vốn', order.cost_real || 0, { sign: 'negative' })}
-        ${feePanelRow('Tổng phí/voucher đã trừ', feeDisplayTotal, { sign: 'negative' })}
-        ${feePanelRow('Thuế', totalTax, { sign: 'negative' })}
-        ${feePanelRow('Lãi thực', profitReal, { total: true, tone: profitReal >= 0 ? 'positive' : 'negative' })}
+        ${actualIncomeAvailable
+          ? feePanelRow('Thực nhận ví', netReceived, { tone: 'positive', basis: revenueBase, showPercent: true })
+          : `${feePanelRow(isTiktokSellerCenterFinance ? 'Thực nhận dự kiến' : 'Thực nhận tạm tính', estimatedIncomeDisplay, { tone: 'positive', basis: revenueBase, showPercent: true })}${feePanelTextRow('Nguồn', estimatedSourceText)}`}
+        ${feePanelRow('Giá vốn', order.cost_real || 0, { sign: 'negative', basis: profitBasis || revenueBase, showPercent: true })}
+        ${feePanelRow('ADS ngoài ví', adsFee, { sign: 'negative', basis: profitBasis || revenueBase, showPercent: true })}
+        ${feePanelRow(pishipLabel, pishipFee, { sign: 'negative', basis: profitBasis || revenueBase, showPercent: true })}
+        ${opsOther > 0 ? feePanelRow('Phí vận hành khác', opsOther, { sign: 'negative', basis: profitBasis || revenueBase, showPercent: true }) : ''}
+        ${feePanelRow(profitLabel, profitReal, { total: true, tone: profitReal >= 0 ? 'positive' : 'negative', basis: profitBasis || revenueBase, showPercent: true })}
       </section>
       <section class="oms-finance-panel" data-oms-finance-panel="source">
-        ${renderGroupSummaryRows(order)}
+        ${isTiktokSellerCenterFinance ? `
+          ${feePanelTextRow('Nguồn dữ liệu', 'TikTok Seller Center detail')}
+          ${feePanelTextRow('Trạng thái settlement', actualIncomeAvailable ? 'Đã có Thực nhận ví' : 'Pending settlement / chưa có Thực nhận ví')}
+          ${actualIncomeAvailable
+            ? feePanelTextRow('Thực nhận ví', 'Confirmed từ settlement')
+            : `${feePanelRow('Tổng số tiền quyết toán / thực nhận dự kiến', estimatedIncomeDisplay, { total: true, tone: 'warning', basis: revenueBase, showPercent: true })}${feePanelTextRow('Nguồn ước tính', estimatedSourceText)}${feePanelTextRow('Ghi chú', 'Sẽ cập nhật lại khi quét được settlement thật từ TikTok')}`}
+        ` : ''}
+        ${renderGroupSummaryRows(order, revenueBase)}
         <div class="oms-finance-section-title">Đối soát API</div>
-        ${renderComparisonRows(order)}
+        ${renderComparisonRows(order, revenueBase)}
       </section>
     </div>
   `

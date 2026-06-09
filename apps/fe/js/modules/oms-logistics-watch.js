@@ -1,5 +1,4 @@
 import { API } from '../oms-dashboard/oms-api.js'
-import { wakeRadarLocal } from './oms-radar-helper.js'
 import { createReturnScanner } from './oms-logistics-return-scanner.js'
 
 const state = {
@@ -43,38 +42,71 @@ function platformLabel(platform) {
 }
 
 function statusText(order = {}) {
-  const raw = String(order.shipping_status || order.oms_status || '').toUpperCase()
-  const map = {
-    LOGISTICS_PENDING_ARRANGE: 'Chưa xử lý',
-    READY_TO_SHIP: 'Chờ lấy hàng',
-    LOGISTICS_REQUEST_CREATED: 'Đã xử lý',
-    LOGISTICS_PACKAGED: 'Đã đóng gói',
-    FAILED_DELIVERY: 'Giao thất bại',
-    FAILED_DELIVERY_ATTEMPT: 'Giao lỗi',
-    LOGISTICS_IN_RETURN: 'Đang hoàn về shop',
-    LOGISTICS_RETURNED_BY_SHIPPER: 'Chờ quét nhận hoàn',
-    LOGISTICS_RETURN_PACKAGE_RECEIVED: 'Đã nhận hoàn',
-    RETURN_REFUND: 'Hoàn/trả',
-    RETURN: 'Hoàn/trả',
-    COMPLETED: 'Đã giao',
-    CANCELLED: 'Đã hủy'
-  }
-  return map[raw] || order.shipping_status || order.oms_status || 'Chưa rõ trạng thái'
+  return window.SHV_ORDER_STATUS_CORE?.label?.(order, '') ||
+    order.display_status_vi ||
+    'Lỗi / cần kiểm tra'
 }
 
 function isReturnOrder(row = {}) {
-  const text = `${row.order_type || ''} ${row.oms_status || ''} ${row.shipping_status || ''}`.toUpperCase()
-  return text.includes('RETURN') || text.includes('REFUND') || text.includes('FAILED_DELIVERY') || text.includes('TO_RETURN')
+  const core = String(row.order_status_core || '').toUpperCase()
+  const fulfillment = String(row.fulfillment_status_core || '').toUpperCase()
+  return row.order_type === 'return' || core === 'RETURN' || core === 'FAILED_DELIVERY' || fulfillment.includes('RETURN') || fulfillment.includes('FAILED_DELIVERY')
+}
+
+function detailTrackingNumber(order = {}) {
+  return String(
+    order.tracking_number
+    || state.detailResult?.tracking_number
+    || state.detailResult?.data?.tracking_number
+    || state.detailResult?.data?.order?.tracking_number
+    || ''
+  ).trim()
+}
+
+function detailProvider(order = {}) {
+  return String(
+    order.shipping_carrier
+    || state.detailResult?.logistics_provider
+    || state.detailResult?.data?.logistics_provider
+    || state.detailResult?.data?.order?.shipping_carrier
+    || ''
+  ).trim()
+}
+
+function detailPaymentMethod(order = {}) {
+  return String(
+    state.detailResult?.payment_method
+    || state.detailResult?.data?.payment_method
+    || order.payment_method
+    || ''
+  ).trim()
+}
+
+function detailCustomerNote(order = {}) {
+  return String(
+    state.detailResult?.customer_note
+    || state.detailResult?.data?.customer_note
+    || order.customer_note
+    || ''
+  ).trim()
+}
+
+function trackingSourceLabel(source = '') {
+  const text = String(source || '').toLowerCase()
+  if (text.includes('shopee_open_platform')) return 'Shopee Open Platform'
+  if (text.includes('lazada_open_platform')) return 'Lazada Open Platform'
+  if (text.includes('tracking_core_cached')) return 'Tracking Core đã lưu'
+  return source ? 'Nguồn dữ liệu vận chuyển' : ''
 }
 
 function buildOrderTimeline(order = {}) {
-  const shipping = String(order.shipping_status || '').toUpperCase()
-  const oms = String(order.oms_status || '').toUpperCase()
-  const shipped = ['SHIPPING', 'SHIPPED', 'COMPLETED', 'TO_CONFIRM_RECEIVE'].includes(oms)
+  const tracking = detailTrackingNumber(order)
+  const fulfillment = String(order.fulfillment_status_core || '').toUpperCase()
+  const hasPackingEvidence = order.label_valid === true && ['LOGISTICS_PACKAGED', 'ADVANCE_FULFILMENT'].includes(fulfillment)
   const steps = [
     { label: 'Tạo đơn', done: true, note: order.order_date || order.created_at || '' },
-    { label: 'Có mã vận đơn', done: !!String(order.tracking_number || '').trim(), note: order.tracking_number || 'Chưa có mã vận đơn' },
-    { label: 'Đã đóng gói', done: shipping === 'LOGISTICS_PACKAGED' || shipped, note: order.shipping_carrier || 'Chưa rõ đơn vị vận chuyển' },
+    { label: 'Có mã vận đơn', done: !!tracking, note: tracking || 'Chưa có mã vận đơn' },
+    { label: 'Đã đóng gói', done: hasPackingEvidence, note: hasPackingEvidence ? (order.shipping_carrier || 'Có tem hợp lệ') : 'Chưa có nguồn đóng gói thật' },
     { label: statusText(order), done: true, note: order.oms_updated_at || order.updated_at || '' }
   ]
   if (isReturnOrder(order)) {
@@ -90,8 +122,75 @@ function buildOrderTimeline(order = {}) {
   return steps
 }
 
+const TRACKING_STATUS_LABELS = {
+  ORDER_CREATED: 'Đơn đã tạo',
+  CREATED: 'Đơn đã tạo',
+  PICKED_UP: 'Đơn vị vận chuyển đã lấy hàng',
+  IN_TRANSIT: 'Đơn hàng đang trung chuyển',
+  DELIVERING: 'Đơn hàng đang giao',
+  DELIVERED: 'Giao hàng thành công',
+  RETURN_INITIATED: 'Đang hoàn hàng',
+  RETURNED: 'Trả hàng thành công',
+  FAILED_DELIVERY: 'Giao hàng không thành công',
+  CANCELLED: 'Đơn đã hủy'
+}
+
+function isRawTrackingStatus(value) {
+  const text = String(value || '').trim()
+  return /^[A-Z][A-Z0-9_]{2,}$/.test(text)
+}
+
+function trackingStatusLabel(status) {
+  const key = String(status || '').trim().toUpperCase()
+  return TRACKING_STATUS_LABELS[key] || ''
+}
+
+function trackingEventTitle(event = {}) {
+  const candidates = [
+    event.event_text,
+    event.status_text,
+    event.status_label_vi,
+    event.description,
+    event.message,
+    event.title
+  ]
+  for (const value of candidates) {
+    const text = String(value || '').trim()
+    if (text && !isRawTrackingStatus(text)) return text
+  }
+  return trackingStatusLabel(event.status) || 'Cập nhật vận chuyển'
+}
+
 function renderOrderTimeline(order = {}) {
+  const apiEvents = Array.isArray(state.detailResult?.tracking_events)
+    ? state.detailResult.tracking_events
+    : (Array.isArray(state.detailResult?.events) ? state.detailResult.events : [])
+  const visibleEvents = normalizeTrackingTimelineEvents(apiEvents)
+  if (visibleEvents.length) {
+    return `
+      <div class="logistics-detail-timeline">
+        ${visibleEvents.map(event => {
+          const status = String(event.status || event.description || 'Cập nhật vận chuyển').trim()
+          const description = String(event.description || '').trim()
+          const displayStatus = trackingEventTitle(event)
+          const time = String(event.event_time || event.time || '').trim()
+          const location = String(event.location || '').trim()
+          const detailParts = [time]
+          if (description && description !== displayStatus && !isRawTrackingStatus(description)) detailParts.push(description)
+          if (location) detailParts.push(location)
+          return `
+            <div class="logistics-detail-step done">
+              <i></i>
+              <div>
+                <b>${escapeHtml(displayStatus)}</b>
+                ${detailParts.length ? `<span>${escapeHtml(detailParts.join(' · '))}</span>` : ''}
+              </div>
+            </div>`
+        }).join('')}
+      </div>`
+  }
   return `
+    <div class="logistics-detail-source-note">Timeline vận hành nội bộ</div>
     <div class="logistics-detail-timeline">
       ${buildOrderTimeline(order).map(step => `
         <div class="logistics-detail-step ${step.done ? 'done' : ''}">
@@ -102,6 +201,62 @@ function renderOrderTimeline(order = {}) {
           </div>
         </div>`).join('')}
     </div>`
+}
+
+function normalizeTrackingTimelineEvents(events = []) {
+  const rows = Array.isArray(events) ? events : []
+  const hasCarrierEvent = rows.some(event => {
+    const status = String(event?.status || '').trim().toUpperCase()
+    return status && !['ORDER_CREATED', 'CREATED'].includes(status)
+  })
+  const seen = new Set()
+  return rows.filter(event => {
+    const status = String(event?.status || '').trim().toUpperCase()
+    const description = String(event?.description || '').trim().toLowerCase()
+    const time = String(event?.event_time || event?.time || '').trim()
+    const location = String(event?.location || '').trim().toLowerCase()
+    const isCreatedNoise = ['ORDER_CREATED', 'CREATED'].includes(status)
+      && (hasCarrierEvent || description.includes('đang lấy hàng') || description.includes('chuẩn bị hàng'))
+    if (isCreatedNoise) return false
+    const key = [status, description, time, location].join('|')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+async function loadTrackingTimeline(orderId) {
+  const code = String(orderId || '').trim()
+  if (!code) return
+  setDetailResult({ tone: 'info', title: 'Đang đọc timeline vận chuyển...', rows: ['OMS đang đọc nguồn tracking read-only nếu shop có API.'] })
+  try {
+    const response = await fetch(`${API}/api/logistics-watch/detail?order_id=${encodeURIComponent(code)}`, { cache: 'no-store' })
+    const data = await response.json().catch(() => ({}))
+    const events = Array.isArray(data.tracking_events) ? data.tracking_events : (Array.isArray(data.events) ? data.events : [])
+    const tone = events.length ? 'success' : 'warning'
+    const title = events.length ? 'Đã có timeline vận chuyển' : (data.message || 'Chưa có lịch trình vận chuyển')
+    setDetailResult({
+      tone,
+      title,
+      rows: [
+        trackingSourceLabel(data.source) ? `Nguồn: ${trackingSourceLabel(data.source)}` : '',
+        data.tracking_number ? `Tracking: ${data.tracking_number}` : '',
+        data.logistics_provider ? `ĐVVC: ${data.logistics_provider}` : '',
+        data.payment_method ? `Thanh toán: ${data.payment_method}` : '',
+        data.customer_note ? `Ghi chú khách: ${data.customer_note}` : '',
+        !events.length && data.reason ? `Lý do: ${data.reason}` : ''
+      ].filter(Boolean),
+      tracking_events: events,
+      events,
+      tracking_number: data.tracking_number || '',
+      logistics_provider: data.logistics_provider || '',
+      payment_method: data.payment_method || '',
+      customer_note: data.customer_note || '',
+      data
+    })
+  } catch (error) {
+    setDetailResult({ tone: 'warning', title: 'Chưa đọc được timeline vận chuyển', rows: [error.message] })
+  }
 }
 
 function renderDetailLinks(result = {}) {
@@ -147,6 +302,10 @@ function renderOrderDrawer() {
   }
   const code = escapeHtml(order.order_id || '')
   const returnOrder = isReturnOrder(order)
+  const trackingNumber = detailTrackingNumber(order)
+  const provider = detailProvider(order)
+  const paymentMethod = detailPaymentMethod(order)
+  const customerNote = detailCustomerNote(order)
   root.innerHTML = `
     <div class="logistics-detail-backdrop" data-logistics-close="1"></div>
     <aside class="logistics-detail-panel" role="dialog" aria-modal="true" aria-label="Hành trình đơn hàng">
@@ -159,14 +318,16 @@ function renderOrderDrawer() {
       </div>
       <div class="logistics-detail-summary">
         <div><small>Sàn / shop</small><b>${platformLabel(order.platform)} · ${escapeHtml(order.shop || 'Chưa rõ shop')}</b></div>
-        <div><small>ĐVVC</small><b>${escapeHtml(order.shipping_carrier || 'Chưa rõ ĐVVC')}</b></div>
-        <div><small>Mã vận đơn</small><b>${escapeHtml(order.tracking_number || 'Chưa có tracking')}</b></div>
+        <div><small>ĐVVC</small><b>${escapeHtml(provider || 'Chưa rõ ĐVVC')}</b></div>
+        <div><small>Mã vận đơn</small><b>${escapeHtml(trackingNumber || 'Chưa có tracking')}</b></div>
         <div><small>Trạng thái</small><b>${escapeHtml(statusText(order))}</b></div>
+        <div><small>Thanh toán</small><b>${escapeHtml(paymentMethod || 'Chưa có dữ liệu')}</b></div>
+        <div><small>Ghi chú khách</small><b>${escapeHtml(customerNote || 'Không có ghi chú')}</b></div>
       </div>
       ${renderOrderTimeline(order)}
       <div class="logistics-detail-actions">
         <button type="button" data-label-check="${code}">Kiểm tra tem</button>
-        ${String(order.shipping_status || '').toUpperCase() !== 'LOGISTICS_PACKAGED' ? `<button type="button" data-mark-packed-detail="${code}">Đánh dấu đã đóng gói</button>` : ''}
+        ${String(order.fulfillment_status_core || '').toUpperCase() !== 'LOGISTICS_PACKAGED' ? `<button type="button" data-mark-packed-detail="${code}">Đánh dấu đã đóng gói</button>` : ''}
         <button type="button" data-packing-video="${code}">Tìm video đóng gói</button>
         <button type="button" data-complaint-evidence="${code}">Bằng chứng khiếu nại</button>
         ${returnOrder && !order.return_received_at ? `<button type="button" class="danger" data-return-camera-scan="${code}">Quét mã nhận hoàn</button>` : ''}
@@ -181,11 +342,17 @@ function renderOrderDrawer() {
 }
 
 function rememberOrderFromResult(data = {}) {
-  const order = data.order || data.data?.order
+  const topLevelOrder = data.order || data.data?.order
+  const order = topLevelOrder
   if (!order?.order_id) return
   const key = String(order.order_id)
   const current = state.orderMap.get(key) || state.activeOrder || {}
-  const merged = { ...current, ...order }
+  const merged = {
+    ...current,
+    ...order,
+    tracking_number: order.tracking_number || data.tracking_number || data.data?.tracking_number || current.tracking_number,
+    shipping_carrier: order.shipping_carrier || data.logistics_provider || data.data?.logistics_provider || current.shipping_carrier
+  }
   state.orderMap.set(key, merged)
   if (merged.tracking_number) state.orderMap.set(String(merged.tracking_number), merged)
   if (state.activeOrder && String(state.activeOrder.order_id || '') === key) {
@@ -201,8 +368,10 @@ function setDetailResult(result) {
 
 function labelProblemText(label = {}) {
   const error = String(label.error || '').trim()
-  if (!error || error === 'not_found') return 'Chưa có tem đã lưu trong kho. Bấm Tải lại tem rồi thử lại.'
-  if (error === 'missing_api_token') return 'Shop chưa có API tem, cần Chrome helper tải lại tem từ Seller Center.'
+  const reason = String(label.label_download_reason || '').trim()
+  if (reason) return reason
+  if (!error || error === 'not_found') return 'Chưa có tem đã lưu trong kho. Chỉ tải lại được khi shop có capability read-only.'
+  if (error === 'missing_api_token') return 'Shop chưa có API tem, cần tải thủ công từ Seller Center.'
   return `Lý do: ${error}`
 }
 
@@ -213,64 +382,37 @@ async function loadLabelStatus(orderId) {
   return data
 }
 
-async function createLabelRefreshJob(row = {}) {
-  const platform = String(row.platform || '').trim().toLowerCase()
-  const shop = String(row.shop || '').trim()
-  const orderId = String(row.order_id || '').trim()
-  if (!platform || !shop || !orderId) throw new Error('Thiếu shop/sàn để tạo lệnh tải lại tem.')
-  const now = new Date()
-  const response = await fetch(`${API}/api/jobs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      task_type: 'refresh_label',
-      shop_name: shop,
-      platform,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
-      payload: JSON.stringify({
-        order_ids: [orderId],
-        download_only: true,
-        source: 'order_drawer_refresh'
-      })
-    })
-  })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok || data.error) throw new Error(data.error || 'Không tạo được job tải lại tem.')
-  return data
+function canDownloadLabel(status = {}) {
+  return status.label_status === 'eligible'
+    && status.label_download_supported === true
+    && status.label_download_read_only === true
+    && status.label_download_requires_manual !== true
 }
 
 async function refreshLabelFromDrawer(orderId) {
   try {
     const status = await loadLabelStatus(orderId)
-    const platform = String(status.platform || state.activeOrder?.platform || '').trim().toLowerCase()
-    if ((status.api_connected || status.refresh_mode === 'api') && ['shopee', 'lazada'].includes(platform)) {
-      const response = await fetch(`${API}/api/label/${encodeURIComponent(orderId)}/refresh`, { method: 'POST' })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok || data.error) throw new Error(data.error || 'Không tải lại được tem bằng API.')
+    if (!canDownloadLabel(status)) {
       setDetailResult({
-        tone: 'success',
-        title: `Đã tải lại tem cho đơn ${orderId}`,
-        rows: ['Tem đã lưu vào kho R2. Có thể bấm Đã đóng gói lại.'],
-        link: { href: `${API}/api/label/${encodeURIComponent(orderId)}.pdf`, label: 'Mở tem' }
+        tone: 'warning',
+        title: `Chưa đủ điều kiện tải tem cho đơn ${orderId}`,
+        rows: [
+          `${status.platform || state.activeOrder?.platform || 'Sàn'} · ${status.shop || state.activeOrder?.shop || 'shop chưa rõ'}`,
+          labelProblemText(status),
+          'OMS chưa tạo job helper hoặc tải tem hàng loạt trong lượt này.'
+        ]
       })
       return
     }
 
-    const job = await createLabelRefreshJob({
-      ...status,
-      platform: status.platform || state.activeOrder?.platform,
-      shop: status.shop || state.activeOrder?.shop,
-      order_id: orderId
-    })
-    if (job?.id) await wakeRadarLocal('refresh_label', job.id)
+    const response = await fetch(`${API}/api/label/${encodeURIComponent(orderId)}/refresh`, { method: 'POST' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || data.error) throw new Error(data.message || data.error || 'Không tải lại được tem read-only.')
     setDetailResult({
-      tone: 'warning',
-      title: `Đã gửi lệnh tải lại tem cho đơn ${orderId}`,
-      rows: [
-        `${status.platform || state.activeOrder?.platform || 'Sàn'} · ${status.shop || state.activeOrder?.shop || 'shop chưa rõ'}`,
-        'Chrome helper sẽ tải lại tem và lưu vào kho. Khi job xong, bấm Kiểm tra tem hoặc Đã đóng gói lại.'
-      ]
+      tone: 'success',
+      title: `Đã tải lại tem read-only cho đơn ${orderId}`,
+      rows: ['Tem đã lưu vào kho R2. Không có thao tác xác nhận đơn hoặc sắp xếp vận chuyển.'],
+      link: { href: `${API}/api/label/${encodeURIComponent(orderId)}.pdf`, label: 'Mở tem' }
     })
   } catch (error) {
     setDetailResult({ tone: 'danger', title: 'Không gửi được lệnh tải lại tem.', rows: [error.message] })
@@ -317,9 +459,8 @@ async function markPackedFromDrawer(orderId) {
           rows: [
             `${status.shop || order.shop || 'Shop TikTok'} · đơn ${orderId}`,
             labelProblemText(status),
-            'Sau khi helper tải xong tem, bấm Đã đóng gói lại.'
-          ],
-          buttons: [{ label: 'Tải lại tem', attr: `data-label-refresh-detail="${escapeHtml(orderId)}"` }]
+            'TikTok chưa bật tải tem tự động; xử lý tem thủ công rồi kiểm lại.'
+          ]
         })
         return
       }
@@ -392,7 +533,7 @@ async function findComplaintEvidence(code) {
       tone: evidence.complete_evidence ? 'success' : evidence.video_ready ? 'warning' : 'danger',
       title: evidence.video_ready ? `Đã có video khiếu nại cho ${orderId}` : `Thiếu video khiếu nại cho ${orderId}`,
       rows: [
-        data.found ? `${data.order.platform || ''} · ${data.order.shop || ''} · ${data.order.shipping_status || data.order.oms_status || ''}` : 'OMS chưa tìm thấy đơn theo mã này.',
+        data.found ? `${data.order.platform || ''} · ${data.order.shop || ''} · ${statusText(data.order)}` : 'OMS chưa tìm thấy đơn theo mã này.',
         video?.created_at ? `Video đóng gói gần nhất: ${video.created_at}` : 'Video đóng gói: chưa có.',
         data.label?.valid ? 'Tem tải về: hợp lệ.' : `Tem tải về: chưa hợp lệ${data.label?.error ? ` (${data.label.error})` : ''}.`,
         evidence.complete_evidence ? 'Bằng chứng đủ để tải video + tem đối chiếu khi khiếu nại.' : '',
@@ -460,6 +601,7 @@ function openOrderLogistics(orderId) {
   state.activeOrder = order || { order_id: key, shipping_status: '', shipping_carrier: '', tracking_number: '' }
   state.detailResult = null
   renderOrderDrawer()
+  loadTrackingTimeline(key)
 }
 
 function closeOrderLogistics() {

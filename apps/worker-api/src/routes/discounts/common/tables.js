@@ -51,6 +51,17 @@ export function installDiscountsCommonTables(core) {
         promotion_price REAL DEFAULT 0,
         discount_percent REAL DEFAULT 0,
         purchase_limit INTEGER DEFAULT 0,
+        write_status TEXT DEFAULT '',
+        promotion_sync_status TEXT DEFAULT '',
+        last_write_at TEXT DEFAULT '',
+        last_readback_at TEXT DEFAULT '',
+        write_source TEXT DEFAULT '',
+        readback_source TEXT DEFAULT '',
+        raw_write_payload TEXT DEFAULT '{}',
+        raw_readback_payload TEXT DEFAULT '{}',
+        error_code TEXT DEFAULT '',
+        error_message TEXT DEFAULT '',
+        raw_error_payload TEXT DEFAULT '{}',
         raw_data TEXT DEFAULT '{}',
         synced_at TEXT DEFAULT (datetime('now', '+7 hours')),
         updated_at TEXT DEFAULT (datetime('now', '+7 hours'))
@@ -64,6 +75,17 @@ export function installDiscountsCommonTables(core) {
       CREATE INDEX IF NOT EXISTS idx_marketplace_discount_items_lookup
       ON marketplace_discount_items(platform, shop, item_id, status)
     `).run()
+    await addColumnIfMissing(env, 'marketplace_discount_items', "write_status TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "promotion_sync_status TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "last_write_at TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "last_readback_at TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "write_source TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "readback_source TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "raw_write_payload TEXT DEFAULT '{}'")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "raw_readback_payload TEXT DEFAULT '{}'")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "error_code TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "error_message TEXT DEFAULT ''")
+    await addColumnIfMissing(env, 'marketplace_discount_items', "raw_error_payload TEXT DEFAULT '{}'")
 
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS marketplace_discount_actions (

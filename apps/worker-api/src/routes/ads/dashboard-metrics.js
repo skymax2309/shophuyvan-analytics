@@ -243,6 +243,150 @@ export function dedupeAdsShops(rows) {
 }
 
 export async function ensureRealAdsTables(env) {
+  // ADS Core giữ bảng chuẩn để UI chỉ đọc kết quả đã gom, không tự tính nghiệp vụ.
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS ads_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform TEXT NOT NULL,
+      shop_key TEXT NOT NULL,
+      campaign_id TEXT NOT NULL,
+      campaign_name TEXT DEFAULT '',
+      campaign_type TEXT DEFAULT '',
+      status TEXT DEFAULT '',
+      budget REAL DEFAULT 0,
+      daily_budget REAL DEFAULT 0,
+      roas_target REAL,
+      start_time TEXT DEFAULT '',
+      end_time TEXT DEFAULT '',
+      source TEXT DEFAULT '',
+      last_synced_at TEXT DEFAULT '',
+      raw_payload TEXT DEFAULT '{}',
+      UNIQUE(platform, shop_key, campaign_id)
+    )
+  `).run()
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS ads_adgroups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform TEXT NOT NULL,
+      shop_key TEXT NOT NULL,
+      campaign_id TEXT NOT NULL,
+      adgroup_id TEXT NOT NULL,
+      adgroup_name TEXT DEFAULT '',
+      status TEXT DEFAULT '',
+      budget REAL DEFAULT 0,
+      bid_price REAL DEFAULT 0,
+      roas_target REAL,
+      source TEXT DEFAULT '',
+      last_synced_at TEXT DEFAULT '',
+      raw_payload TEXT DEFAULT '{}',
+      UNIQUE(platform, shop_key, campaign_id, adgroup_id)
+    )
+  `).run()
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS ads_product_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform TEXT NOT NULL,
+      shop_key TEXT NOT NULL,
+      campaign_id TEXT DEFAULT '',
+      adgroup_id TEXT DEFAULT '',
+      item_id TEXT DEFAULT '',
+      model_id TEXT DEFAULT '',
+      sku_id TEXT DEFAULT '',
+      seller_sku TEXT DEFAULT '',
+      internal_sku TEXT DEFAULT '',
+      product_name TEXT DEFAULT '',
+      source TEXT DEFAULT '',
+      match_status TEXT DEFAULT '',
+      UNIQUE(platform, shop_key, campaign_id, adgroup_id, item_id, model_id, seller_sku)
+    )
+  `).run()
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS ads_daily_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      shop_key TEXT NOT NULL,
+      campaign_id TEXT DEFAULT '',
+      adgroup_id TEXT DEFAULT '',
+      sku_id TEXT DEFAULT '',
+      spend REAL DEFAULT 0,
+      impressions INTEGER DEFAULT 0,
+      clicks INTEGER DEFAULT 0,
+      orders INTEGER DEFAULT 0,
+      ads_revenue REAL DEFAULT 0,
+      ctr REAL DEFAULT 0,
+      cpc REAL DEFAULT 0,
+      roas REAL DEFAULT 0,
+      acos REAL DEFAULT 0,
+      source TEXT DEFAULT '',
+      last_synced_at TEXT DEFAULT '',
+      UNIQUE(date, platform, shop_key, campaign_id, adgroup_id, sku_id)
+    )
+  `).run()
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS ads_decision_read_model (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sku_id TEXT NOT NULL,
+      platform TEXT DEFAULT '',
+      shop_key TEXT DEFAULT '',
+      product_name TEXT DEFAULT '',
+      image_url TEXT DEFAULT '',
+      current_stock REAL,
+      current_cost REAL,
+      spend REAL DEFAULT 0,
+      ads_revenue REAL DEFAULT 0,
+      profit_after_ads REAL,
+      roas REAL DEFAULT 0,
+      acos REAL DEFAULT 0,
+      recommendation TEXT DEFAULT '',
+      recommendation_reason TEXT DEFAULT '',
+      data_status TEXT DEFAULT '',
+      action_status TEXT DEFAULT '',
+      last_synced_at TEXT DEFAULT (datetime('now', '+7 hours')),
+      UNIQUE(sku_id, platform, shop_key)
+    )
+  `).run()
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS ads_write_capabilities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform TEXT NOT NULL,
+      shop_key TEXT NOT NULL,
+      action TEXT NOT NULL,
+      endpoint TEXT DEFAULT '',
+      allowed INTEGER DEFAULT 0,
+      requires_admin_confirm INTEGER DEFAULT 1,
+      requires_preview INTEGER DEFAULT 1,
+      requires_readback INTEGER DEFAULT 1,
+      capability_status TEXT DEFAULT '',
+      last_verified_at TEXT DEFAULT '',
+      UNIQUE(platform, shop_key, action)
+    )
+  `).run()
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS ads_action_logs (
+      action_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform TEXT NOT NULL,
+      shop_key TEXT NOT NULL,
+      action_type TEXT DEFAULT '',
+      target_type TEXT DEFAULT '',
+      campaign_id TEXT DEFAULT '',
+      adgroup_id TEXT DEFAULT '',
+      sku_id TEXT DEFAULT '',
+      before_payload TEXT DEFAULT '{}',
+      proposed_payload TEXT DEFAULT '{}',
+      write_payload TEXT DEFAULT '{}',
+      response_payload TEXT DEFAULT '{}',
+      readback_payload TEXT DEFAULT '{}',
+      user_facing_result TEXT DEFAULT '',
+      status TEXT DEFAULT '',
+      error_code TEXT DEFAULT '',
+      error_message TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now', '+7 hours')),
+      applied_at TEXT DEFAULT '',
+      readback_at TEXT DEFAULT ''
+    )
+  `).run()
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS marketplace_ads_campaign_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -418,7 +562,11 @@ export function campaignProductRows(campaigns, limit) {
         platform,
         shop,
         sku,
+        campaign_id: cleanText(row.campaign_id),
+        campaign_name: cleanText(row.campaign_name),
+        product_sku: cleanText(row.product_sku),
         product_name: productName,
+        raw_data: cleanText(row.raw_data),
         qty: 0,
         orders: 0,
         ads_orders: 0,

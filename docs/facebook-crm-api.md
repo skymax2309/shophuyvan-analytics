@@ -74,6 +74,8 @@ Lỗi:
 | `GET /api/external/products/:id` | Lấy chi tiết sản phẩm và biến thể |
 | `GET /api/external/products/sku/:sku` | Lấy sản phẩm theo SKU |
 | `GET /api/external/products/sku/:sku/price` | Lấy giá mới nhất theo SKU |
+| `GET /api/external/shopee/products/full` | Lấy nội dung + ảnh + video + model trực tiếp từ Shopee Open Platform |
+| `GET /api/external/shopee/products/full/:itemId` | Lấy chi tiết đầy đủ một item Shopee theo `item_id` |
 | `POST /api/external/inventory/check` | Kiểm tra tồn kho realtime |
 | `POST /api/external/inventory/reserve` | Giữ hàng tạm thời |
 | `POST /api/external/inventory/reservations/:reservationId/cancel` | Hủy giữ hàng |
@@ -125,6 +127,12 @@ Response trả đủ giá:
 }
 ```
 
+Note 2026-06-04:
+
+- `GET /api/external/products` now returns Product Core content fields: `description`, `imageUrl`, `images[]`, `promptAssets.allImageUrls`, `promptAssets.promptText`.
+- `GET /api/external/products/:id` returns Product Core detail with the same content fields and `variants[]`.
+- `GET /api/external/products/sku/:sku` returns Product Core product data with `description`, `imageUrl`, `images[]`, and `promptAssets`.
+
 ### GET `/api/external/products/sku/:sku/price`
 
 Facebook Ads CRM nên gọi API này trước khi tư vấn khách hoặc tạo đơn.
@@ -147,6 +155,51 @@ Facebook Ads CRM nên gọi API này trước khi tư vấn khách hoặc tạo 
     "priceUpdatedAt": "2026-05-15T00:00:00.000Z"
   }
 }
+```
+
+### GET `/api/external/shopee/products/full`
+
+API này dùng trực tiếp Shopee Open Platform cho các shop Shopee đã kết nối API trong hệ thống.
+
+Query:
+
+- `shop` bắt buộc: `chihuy1984`, `chihuy2309`, `phambich2312`
+- `limit` tùy chọn: `1..100`, mặc định `20`
+- `offset` tùy chọn: phân trang Shopee, mặc định `0`
+- `item_status` tùy chọn: mặc định `NORMAL`
+- `include_metrics` tùy chọn: mặc định `true`
+
+Response trả sẵn:
+
+- `item_name`
+- `description`
+- `images`
+- `promotion_images`
+- `videos`
+- `models`
+- `attributes`
+- `brand`
+- `price_info`
+- `metrics`
+- `prompt_assets.all_image_urls`
+- `prompt_assets.prompt_text`
+
+Ví dụ:
+
+```bash
+curl -H "Authorization: Bearer <API_KEY_FOR_FACEBOOK_CRM>" \
+  "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/external/shopee/products/full?shop=chihuy1984&limit=20&item_status=NORMAL"
+```
+
+### GET `/api/external/shopee/products/full/:itemId`
+
+Lấy chi tiết đầy đủ 1 item Shopee theo `item_id`.
+
+Ví dụ:
+
+```bash
+curl -H "Authorization: Bearer <API_KEY_FOR_FACEBOOK_CRM>" \
+  "https://huyvan-worker-api.nghiemchihuy.workers.dev/api/external/shopee/products/full/24066761868?shop=chihuy1984"
 ```
 
 ## 6. Inventory API
@@ -367,4 +420,3 @@ INTERNAL_ERROR
 - `orders_v2` và `order_items` là nguồn đơn hàng chính.
 - API tạo đơn dùng giá hiện tại trong Product Master, không để CRM tự quyết định giá cuối.
 - Không test `commit` hoặc `orders/from-facebook` trên production bằng SKU thật nếu chưa chốt quy trình hoàn kho/test data.
-

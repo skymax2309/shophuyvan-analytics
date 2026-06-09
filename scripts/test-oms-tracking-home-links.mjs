@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+const repoFile = path => fileURLToPath(new URL(`../${path}`, import.meta.url))
+const read = path => readFileSync(repoFile(path), 'utf8')
+
+const home = read('apps/fe/js/dashboard-home.js')
+const scanPage = read('apps/fe/pages/scan-qr.html')
+const authGuard = read('apps/fe/js/auth/auth-guard.js')
+const omsHtml = read('apps/fe/pages/oms-dashboard.html')
+const logisticsRoute = read('apps/worker-api/src/routes/logistics/index.js')
+const primaryRoutes = read('apps/worker-api/src/worker-router/primary-routes.js')
+const logisticsUi = read('apps/fe/js/modules/oms-logistics-watch.js')
+
+assert.ok(home.includes("title: 'Quét mã'"), 'Trang chủ phải có ô Quét mã')
+assert.ok(home.includes("href: 'pages/scan-qr.html'"), 'Quét mã phải mở trang scan QR')
+assert.ok(home.includes("title: 'Ghi hình'"), 'Trang chủ phải có ô Ghi hình')
+assert.ok(home.includes("href: 'pages/cctv_packing.html'"), 'Ghi hình phải mở CCTV/quay video đóng gói')
+assert.ok(scanPage.includes('Quét đơn đã đóng gói'), 'Scan QR phải có tab đơn đã đóng gói')
+assert.ok(scanPage.includes('Quét đơn hủy'), 'Scan QR phải có tab đơn hủy')
+assert.ok(scanPage.includes('Quét đơn hoàn'), 'Scan QR phải có tab đơn hoàn')
+assert.ok(scanPage.includes('Đang kết nối máy quét/QR'), 'Scan QR phải có trạng thái kết nối máy quét')
+assert.ok(authGuard.includes("'scan-qr.html'"), 'Auth guard phải cho phép trang scan QR')
+assert.ok(omsHtml.includes('href="scan-qr.html"'), 'OMS nav Trạm Quét Mã phải mở scan QR')
+assert.ok(omsHtml.includes('href="cctv_packing.html"'), 'OMS nav Ghi hình phải mở CCTV')
+
+assert.ok(primaryRoutes.includes('/api/logistics-watch/detail'), 'Route tracking detail phải được đăng ký')
+assert.ok(logisticsRoute.includes('/api/v2/logistics/get_tracking_info'), 'Shopee tracking phải dùng endpoint get_tracking_info')
+assert.ok(logisticsRoute.includes('/logistic/order/trace'), 'Lazada tracking phải dùng endpoint logistic/order/trace')
+assert.ok(logisticsRoute.includes('cachedTrackingResponse'), 'Tracking route phải ưu tiên timeline đã lưu khi API/fallback lỗi')
+assert.ok(logisticsRoute.includes('Đã đọc timeline vận chuyển từ Tracking Core.'), 'Cached tracking events không được hiện như chưa có lịch trình')
+assert.ok(logisticsRoute.includes('tracking_events: events'), 'Cached tracking response phải trả tracking_events thật')
+assert.ok(logisticsRoute.includes('resolveOrderDataSource'), 'Tracking route phải dùng source resolver')
+assert.ok(logisticsRoute.includes('seller_center_detail_required'), 'Shop fallback phải trả lý do Seller Center, không gọi API sai nguồn')
+assert.ok(!logisticsRoute.includes('ship_order'), 'Tracking route không được gọi ship_order')
+assert.ok(!logisticsRoute.includes('arrange'), 'Tracking route không được gọi arrange')
+assert.ok(!logisticsRoute.includes('cancel_order'), 'Tracking route không được gọi cancel_order')
+assert.ok(logisticsUi.includes('/api/logistics-watch/detail'), 'OMS Theo dõi phải gọi route timeline')
+assert.ok(logisticsUi.includes('tracking_events'), 'OMS Theo dõi phải render tracking events')
+assert.ok(logisticsUi.includes('Timeline vận hành nội bộ'), 'Synthetic OMS timeline must be labelled as internal, not API tracking')
+assert.ok(logisticsUi.includes('detailTrackingNumber'), 'Drawer header must use tracking_number from Tracking Core response when Order Core is stale')
+assert.ok(logisticsUi.includes('Đã có timeline vận chuyển'), 'API events must show positive tracking timeline state')
+
+console.log('oms tracking and home links guard passed')

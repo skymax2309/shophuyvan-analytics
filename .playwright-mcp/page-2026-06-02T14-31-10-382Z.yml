@@ -1,0 +1,131 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]: SHV
+      - generic [ref=e5]:
+        - strong [ref=e6]: Cài đặt Chat/AI
+        - text: Shop Huy Vân
+    - generic [ref=e7]:
+      - link "Về Chat" [ref=e8] [cursor=pointer]:
+        - /url: /pages/chat-cskh.html
+      - button "Làm mới" [ref=e9] [cursor=pointer]
+      - button "Sync ngay" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - navigation [ref=e12]:
+      - button "Tổng quan" [ref=e13] [cursor=pointer]
+      - button "AI" [ref=e14] [cursor=pointer]
+      - button "Kênh chat" [ref=e15] [cursor=pointer]
+      - button "Từ khóa sàn" [ref=e16] [cursor=pointer]
+      - button "Thông báo" [ref=e17] [cursor=pointer]
+      - button "Nâng cao" [ref=e18] [cursor=pointer]
+    - main [ref=e19]:
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - heading "Kết nối Gemini" [level=2] [ref=e35]
+          - generic [ref=e36]:
+            - generic [ref=e37]: Nhà cung cấp
+            - combobox [ref=e38]:
+              - option "Gemini" [selected]
+              - option "Tắt AI"
+          - generic [ref=e39]:
+            - generic [ref=e40]: Model Gemini
+            - textbox [ref=e41]: gemini-2.5-flash
+          - generic [ref=e42]:
+            - generic [ref=e43]: Thêm API Gemini xoay vòng
+            - textbox "Mỗi dòng một API key mới. Key cũ vẫn được giữ. Tối đa 5 key." [ref=e44]
+          - paragraph [ref=e45]:
+            - generic [ref=e132]: Đã lưu 2/5 key Gemini
+          - generic [ref=e47]:
+            - button "Hiện/Ẩn key" [ref=e48] [cursor=pointer]
+            - button "Kiểm tra kết nối" [ref=e49] [cursor=pointer]
+            - button "Thêm/Lưu API Gemini" [ref=e50] [cursor=pointer]
+          - paragraph
+        - generic [ref=e51]:
+          - heading "Mô hình và luật tự động" [level=2] [ref=e52]
+          - generic [ref=e53]:
+            - generic [ref=e54]: Chế độ
+            - combobox [ref=e55]:
+              - option "Chỉ gợi ý"
+              - option "Tự động gửi có kiểm tra" [selected]
+          - text: Cho phép tự gửi khi đủ an toàn
+          - generic [ref=e59]:
+            - generic [ref=e60]: Gợi ý khi chưa trả lời sau (phút)
+            - spinbutton [ref=e61]: "5"
+          - button "Lưu cài đặt AI" [ref=e62] [cursor=pointer]
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - generic [ref=e65]:
+              - heading "Huấn luyện AI CSKH" [level=2] [ref=e66]
+              - paragraph [ref=e67]: Cài cách AI soạn câu trả lời, nguồn dữ liệu được dùng và lúc nào phải chuyển nhân viên duyệt.
+            - generic [ref=e133]: Đã cấu hình
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - generic [ref=e72]: Chế độ trả lời
+              - combobox [ref=e73]:
+                - option "Chỉ soạn gợi ý để nhân viên gửi" [selected]
+                - option "Sẵn sàng kiểm duyệt trước khi tự gửi"
+            - generic [ref=e74]:
+              - generic [ref=e75]: Cách xưng hô và vai trò
+              - 'textbox "Ví dụ: nhân viên Shop Huy Vân, gọi khách là anh/chị, xưng em." [ref=e76]': Nhân viên Shop Huy Vân, gọi khách là anh/chị, xưng em, trả lời ngắn gọn và không dùng emoji.
+            - generic [ref=e77]:
+              - generic [ref=e78]: Độ chắc chắn tối thiểu
+              - combobox [ref=e79]:
+                - option "Cao - thiếu dữ liệu thì hỏi thêm" [selected]
+                - option "Rất cao - chỉ trả lời khi đủ căn cứ"
+            - generic [ref=e80]:
+              - generic [ref=e81]: Khi không đủ dữ liệu
+              - textbox "Quy tắc chuyển nhân viên duyệt khi thiếu dữ liệu, khiếu nại, đổi trả, bảo hành..." [ref=e82]: Khi thiếu dữ liệu sản phẩm, đơn hàng, đổi trả, bảo hành hoặc khách phàn nàn thì chỉ soạn gợi ý và chuyển nhân viên duyệt.
+          - generic "Nguồn dữ liệu AI được phép dùng" [ref=e83]:
+            - generic [ref=e84]:
+              - checkbox "Dữ liệu sản phẩm đã kiểm" [checked] [ref=e85]
+              - text: Dữ liệu sản phẩm đã kiểm
+            - generic [ref=e86]:
+              - checkbox "Dữ liệu đơn hàng đã kiểm" [checked] [ref=e87]
+              - text: Dữ liệu đơn hàng đã kiểm
+            - generic [ref=e88]:
+              - checkbox "Chính sách shop" [checked] [ref=e89]
+              - text: Chính sách shop
+            - generic [ref=e90]:
+              - checkbox "Câu trả lời đã duyệt" [checked] [ref=e91]
+              - text: Câu trả lời đã duyệt
+            - generic [ref=e92]:
+              - checkbox "Ghi chú riêng cho Zalo/Facebook" [checked] [ref=e93]
+              - text: Ghi chú riêng cho Zalo/Facebook
+          - generic [ref=e94]:
+            - generic [ref=e95]:
+              - checkbox "Bắt buộc hiện căn cứ trước khi dùng gợi ý" [checked] [ref=e96]
+              - text: Bắt buộc hiện căn cứ trước khi dùng gợi ý
+            - generic [ref=e97]: Nếu sau này bật tự gửi thì chờ
+            - spinbutton [ref=e98]: "15"
+            - generic [ref=e99]: giây để nhân viên kịp hủy.
+          - generic [ref=e100]: AI không tự học từ hội thoại thô. Chỉ học khi nhân viên thêm câu trả lời tốt vào bộ nhớ.
+          - paragraph [ref=e101]: Đã lưu cấu hình huấn luyện lúc 21:31:08 02-06. Zalo vẫn ở chế độ nhân viên duyệt.
+          - button "Lưu cấu hình huấn luyện AI" [ref=e102] [cursor=pointer]
+        - generic [ref=e103]:
+          - heading "Bộ nhớ học AI" [level=2] [ref=e104]
+          - paragraph [ref=e105]: Đã học 0 câu trả lời tốt. Tự trả lời sau 5 phút khi đủ an toàn.
+          - generic [ref=e106]:
+            - generic [ref=e107]: Kiến thức shop để AI học
+            - textbox "Chính sách, cách xưng hô, quy trình xử lý..." [ref=e108]: "## AI CSKH - luật vận hành - Chế độ: chỉ soạn gợi ý để nhân viên duyệt. - Cách xưng hô: Nhân viên Shop Huy Vân, gọi khách là anh/chị, xưng em, trả lời ngắn gọn và không dùng emoji. - Độ chắc chắn tối thiểu: cao. - Bắt buộc nêu nguồn trước khi dùng gợi ý: có. - Dữ liệu sản phẩm đã kiểm: được dùng. - Dữ liệu đơn hàng đã kiểm: được dùng. - Chính sách shop: được dùng. - Câu trả lời đã duyệt: được dùng. - Ghi chú riêng cho Zalo: được dùng. - Khi không đủ dữ liệu: Khi thiếu dữ liệu sản phẩm, đơn hàng, đổi trả, bảo hành hoặc khách phàn nàn thì chỉ soạn gợi ý và chuyển nhân viên duyệt. - Không tự học từ hội thoại thô khi nhân viên chưa duyệt. ## Zalo - cách trả lời riêng - Chế độ: chỉ soạn gợi ý. - Giọng trả lời: Lịch sự, xưng em, gọi khách là anh/chị, trả lời ngắn và bám đúng hội thoại Zalo. - Câu chào bạn mới: Chào {name}, Shop Huy Vân có thể hỗ trợ thông tin gì cho anh/chị ạ? - Câu khi khách nhắn trước: Dạ em đã nhận tin nhắn. Anh/chị cần shop hỗ trợ sản phẩm hay đơn hàng ạ? - Nội dung train: Zalo chỉ trả lời đúng hội thoại đang mở, không tự chen sản phẩm khác. Nếu thiếu dữ liệu thì hỏi thêm mã đơn hoặc tên sản phẩm. Khi có khiếu nại, đổi trả hoặc bảo hành thì chỉ soạn gợi ý cho nhân viên duyệt."
+          - button "Lưu bộ nhớ AI" [ref=e109] [cursor=pointer]
+        - generic [ref=e110]:
+          - heading "Bộ nhớ trả lời" [level=2] [ref=e111]
+          - generic [ref=e112]:
+            - generic [ref=e114]:
+              - generic [ref=e115]: Câu hỏi
+              - textbox [ref=e116]
+            - generic [ref=e118]:
+              - generic [ref=e119]: Câu trả lời tốt
+              - textbox [ref=e120]
+          - button "Thêm vào bộ nhớ" [ref=e121] [cursor=pointer]
+          - table [ref=e122]:
+            - rowgroup [ref=e123]:
+              - row "Câu hỏi Câu trả lời Dùng" [ref=e124]:
+                - columnheader "Câu hỏi" [ref=e125]
+                - columnheader "Câu trả lời" [ref=e126]
+                - columnheader "Dùng" [ref=e127]
+                - columnheader [ref=e128]
+            - rowgroup [ref=e129]:
+              - row "Chưa có dữ liệu học." [ref=e134]:
+                - cell "Chưa có dữ liệu học." [ref=e135]
+  - generic [ref=e136]: Đã lưu cấu hình huấn luyện AI. Zalo vẫn ở chế độ nhân viên duyệt.

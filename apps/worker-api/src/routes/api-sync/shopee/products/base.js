@@ -50,7 +50,7 @@ export function installApiSyncShopeeProductsBase(core) {
     }
 
     const saved_fee_details = await saveOrderFeeDetails(env, feeDetails)
-    const payload = buildShopeeImportPayload(shop, details)
+    const payload = buildShopeeImportPayload(shop, details, options)
     const imported = await importPayload(env, cors, payload)
     return {
       shop: shop.shop_name,

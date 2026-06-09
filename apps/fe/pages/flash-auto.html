@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#06111f">
+  <title>ShopHuyVan - Flash Sale tự động</title>
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="icon" href="../icons/shophuyvan-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/shophuyvan-icon.svg">
+  <link rel="stylesheet" href="../css/dashboard/dashboard.css?v=flash-auto-20260528">
+  <link rel="stylesheet" href="../css/theme/shophuyvan-design-tokens.css?v=flash-auto-20260528">
+  <link rel="stylesheet" href="../css/flash-auto.css?v=flash-auto-20260528">
+  <script src="../js/auth/auth-guard.js?v=flash-auto-20260528"></script>
+</head>
+<body data-active-tab="flash-auto">
+  <div class="flash-auto-shell">
+    <header class="flash-auto-header">
+      <div>
+        <p>Khuyến mãi sàn</p>
+        <h1>Flash Sale tự động</h1>
+        <span id="flashAutoStatusText">Đang tải cài đặt</span>
+      </div>
+      <div class="flash-auto-actions">
+        <a class="flash-auto-link" href="promotions-list.html">Danh sách chương trình</a>
+        <button class="flash-auto-btn secondary" type="button" id="flashAutoReloadBtn">Làm mới</button>
+        <button class="flash-auto-btn primary" type="button" data-flash-command="run-now">Chạy ngay</button>
+      </div>
+    </header>
+
+    <nav class="flash-auto-tabs" aria-label="Flash Sale tự động">
+      <button class="active" type="button" data-flash-tab="settings">Cài đặt</button>
+      <button type="button" data-flash-tab="schedule">Lịch chạy</button>
+      <button type="button" data-flash-tab="history">Lịch sử</button>
+    </nav>
+
+    <main class="flash-auto-main">
+      <section class="flash-auto-panel" id="flashAutoSettingsTab"></section>
+      <section class="flash-auto-panel" id="flashAutoScheduleTab" hidden></section>
+      <section class="flash-auto-panel" id="flashAutoHistoryTab" hidden></section>
+    </main>
+  </div>
+
+  <div class="flash-auto-toast-host" id="flashAutoToastHost" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="../js/utils/api.js"></script>
+  <script src="../js/dashboard/flash-auto.js?v=flash-auto-20260528"></script>
+</body>
+</html>

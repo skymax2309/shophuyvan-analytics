@@ -1,101 +1,326 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản Lý Nhập Hàng Chính Ngạch | Huy Vân Analytics</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-<link rel="stylesheet" href="../css/admin/admin-purchase.css">
-<script src="../js/auth/auth-guard.js?v=account-widget-20260504"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#071012">
+  <title>Quản lý nhập hàng chính ngạch | Huy Vân Analytics</title>
+  <link rel="stylesheet" href="../css/admin/admin-purchase.css?v=purchase-core-20260524b">
+  <script src="../js/vendor/xlsx.full.min.js?v=0.18.5"></script>
+  <script src="../js/vendor/jspdf.umd.min.js?v=2.5.1"></script>
+  <script src="../js/vendor/jspdf.plugin.autotable.min.js?v=3.5.25"></script>
+  <script src="../js/vendor/lucide.min.js?v=local-20260524"></script>
+  <script src="../js/auth/auth-guard.js?v=account-widget-20260504"></script>
 </head>
-<body class="p-3 sm:p-6 overflow-x-hidden">
+<body>
+  <main class="purchase-shell" id="purchaseApp">
+    <header class="purchase-header">
+      <div class="purchase-title-block">
+        <h1>Quản lý nhập hàng chính ngạch</h1>
+        <p>Kết nối Product Core — kho chung, giá vốn theo lô nhập</p>
+      </div>
+      <div class="purchase-header-actions">
+        <button class="btn btn-blue" type="button" data-action="import-excel"><i data-lucide="upload"></i><span>Import Excel</span></button>
+        <button class="btn btn-green" type="button" data-action="open-manual"><i data-lucide="plus"></i><span>Thêm lô nhập</span></button>
+        <button class="btn btn-cyan" type="button" data-action="sync-product-core"><i data-lucide="cloud"></i><span>Đồng bộ từ Product Core</span></button>
+        <button class="btn btn-ghost compact-action" type="button" data-action="export-excel"><i data-lucide="file-spreadsheet"></i><span>Xuất Excel</span></button>
+        <button class="btn btn-ghost compact-action" type="button" data-action="export-pdf"><i data-lucide="file-text"></i><span>Xuất PDF</span></button>
+        <button class="btn btn-ghost compact-action" type="button" data-action="open-settings"><i data-lucide="settings"></i><span>Cài đặt tỉ giá & vận chuyển</span></button>
+      </div>
+    </header>
 
-<div class="purchase-page w-full max-w-full px-0 sm:px-4 mx-auto">
-    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-[#00CED1] flex items-center gap-2">
-                📦 QUẢN LÝ NHẬP HÀNG CHÍNH NGẠCH
-            </h1>
-            <p class="text-gray-500 italic mt-1">Tự động tối ưu chi phí vận chuyển & xuất hồ sơ hải quan</p>
-        </div>
-        
-        <div class="purchase-actions flex flex-col sm:flex-row sm:flex-wrap gap-3 w-full md:w-auto">
-    <input type="text" id="searchInput" placeholder="Tìm tên SP, SKU hoặc Mã vận đơn..."
-           class="bg-[#1a1a1a] border border-[#333] rounded-lg px-4 py-2 w-full sm:w-80 focus:border-[#00CED1] outline-none">
-    <button onclick="document.getElementById('excelInput').click()" class="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg font-bold text-white w-full sm:w-auto">📥 IMPORT EXCEL</button>
-    <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="importExcel(this)">
-    <button onclick="addNewRow()" class="btn-cyan px-5 py-2 rounded-lg font-bold w-full sm:w-auto">✚ THÊM MỚI</button>
-</div>
-    </div>
+    <section class="summary-strip" id="summaryCards" aria-live="polite"></section>
 
-    <div class="glass-card purchase-toolbar p-4 mb-4 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
-        <div class="flex items-center gap-4 text-sm">
-            <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="selectAll" onclick="toggleSelectAll(event)"> Chọn tất cả
-            </label>
-            <span id="selectedCount" class="text-[#00CED1] font-bold">0</span> sản phẩm đã chọn
-        </div>
-        <div class="purchase-toolbar-actions flex flex-col sm:flex-row sm:flex-wrap gap-3">
-            <button onclick="exportData('excel')" class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                📥 XUẤT EXCEL
-            </button>
-            <button onclick="exportData('pdf')" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                📄 XUẤT PDF
-            </button>
-<button id="btnDeleteAll" onclick="deleteSelected()" class="hidden bg-orange-700 hover:bg-orange-600 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">🗑️ XÓA ĐÃ CHỌN</button>
-            <button onclick="openSettings()" class="bg-[#333] hover:bg-[#444] px-4 py-2 rounded-lg text-sm font-bold">
-                ⚙️ TỈ GIÁ & PHÍ SHIP
-            </button>
-        </div>
-    </div>
+    <section class="filter-panel" aria-label="Bộ lọc nhập hàng">
+      <label class="field search-field">
+        <span>Tìm kiếm sản phẩm</span>
+        <input id="filterSearch" type="search" placeholder="Nhập tên SP, SKU, mã vận đơn...">
+      </label>
+      <label class="field">
+        <span>Danh mục</span>
+        <select id="filterCategory"><option value="">Tất cả danh mục</option></select>
+      </label>
+      <label class="field">
+        <span>Nhà cung cấp</span>
+        <input id="filterSupplier" type="text" placeholder="Tất cả NCC">
+      </label>
+      <label class="field">
+        <span>Từ ngày nhập</span>
+        <input id="filterFrom" type="date">
+      </label>
+      <label class="field">
+        <span>Đến ngày nhập</span>
+        <input id="filterTo" type="date">
+      </label>
+      <label class="field">
+        <span>Trạng thái tồn kho</span>
+        <select id="filterStockStatus">
+          <option value="">Tất cả</option>
+          <option value="has_stock">Còn tồn</option>
+          <option value="out_of_stock">Hết tồn</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Trạng thái giá vốn</span>
+        <select id="filterCostStatus">
+          <option value="">Tất cả</option>
+          <option value="cost_ready">Dữ liệu chuẩn</option>
+          <option value="cost_missing">Thiếu giá vốn</option>
+          <option value="missing">Chưa có dữ liệu</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Trạng thái thông số kiện</span>
+        <select id="filterLogisticsStatus">
+          <option value="">Tất cả</option>
+          <option value="ready">Đã có mặc định</option>
+          <option value="missing">Thiếu thông số</option>
+        </select>
+      </label>
+      <div class="filter-actions">
+        <button class="btn btn-ghost" type="button" data-action="reset-filter">Reset</button>
+        <button class="btn btn-green" type="button" data-action="apply-filter"><i data-lucide="search"></i><span>Lọc</span></button>
+      </div>
+    </section>
 
-    <div class="glass-card purchase-table-wrap max-h-[700px]">
-    <table id="purchaseTable">
+    <nav class="purchase-page-tabs" aria-label="Khu vực nhập hàng">
+      <button type="button" class="active" data-section-tab="products">Danh sách sản phẩm</button>
+      <button type="button" data-section-tab="batches">Đợt nhập hàng</button>
+      <button type="button" data-section-tab="documents">Tờ khai / hồ sơ vận chuyển</button>
+    </nav>
+
+    <section class="purchase-content" data-section-panel="products">
+      <div class="product-panel">
+        <div class="table-toolbar">
+          <div>
+            <strong id="resultCount">0 sản phẩm</strong>
+            <span id="stateText">Đang tải Product Core...</span>
+          </div>
+          <button class="btn btn-ghost" type="button" data-action="copy-log"><i data-lucide="clipboard"></i><span>Copy log</span></button>
+        </div>
+        <div class="table-wrap">
+          <table class="purchase-table" aria-label="Bảng sản phẩm nhập hàng">
             <thead>
-                <tr class="text-[11px] uppercase text-gray-400 bg-[#1f1f1f] sticky top-0 z-20 shadow-md">
-                   <th class="p-4 text-center w-10"><input type="checkbox" class="select-all-table" onclick="toggleSelectAll(event)"></th>
-                    <th class="p-4 text-left min-w-[300px]">Sản Phẩm & Phân Loại</th>
-                    <th class="p-4 text-center w-32">Số Lượng</th>
-                    <th class="p-4 text-center min-w-[150px]">Kích Thước & Cân Nặng</th>
-                    <th class="p-4 text-right w-48">Chi Phí TQ & Thuế</th>
-                    <th class="p-4 text-right w-40">Tổng Phí & Giá Vốn</th>
-                    <th class="p-4 text-center w-16">Xóa</th>
-                </tr>
+              <tr>
+                <th><input id="selectAllRows" type="checkbox" aria-label="Chọn tất cả"></th>
+                <th>Sản phẩm</th>
+                <th>Mã kho / SKU bán sàn</th>
+                <th>Lần nhập gần nhất</th>
+                <th>Giá vốn lô</th>
+                <th>Giá vốn hiện tại</th>
+                <th>Tồn kho chung</th>
+                <th>Thông số kiện</th>
+                <th>Trạng thái</th>
+                <th></th>
+              </tr>
             </thead>
-            <tbody id="purchaseBody">
-                </tbody>
+            <tbody id="purchaseTableBody"></tbody>
+          </table>
+          <div class="mobile-card-list" id="purchaseCardList"></div>
+          <div class="empty-state" id="emptyState" hidden>Chưa có sản phẩm phù hợp bộ lọc.</div>
+        </div>
+      </div>
+
+      <aside class="detail-drawer" id="detailDrawer" aria-label="Chi tiết sản phẩm">
+        <div class="drawer-empty">Chọn một SKU để xem lịch sử nhập hàng và lớp tồn kho.</div>
+      </aside>
+    </section>
+
+    <section class="batch-panel" data-section-panel="batches" hidden>
+      <div class="table-toolbar">
+        <div>
+          <strong id="batchCount">0 đợt nhập</strong>
+          <span>Dữ liệu từ Warehouse/Purchase Core</span>
+        </div>
+        <button class="btn btn-ghost" type="button" data-action="reload-batches"><i data-lucide="refresh-cw"></i><span>Tải lại</span></button>
+      </div>
+      <div class="table-wrap">
+        <table class="purchase-table batch-table" aria-label="Danh sách đợt nhập hàng">
+          <thead>
+            <tr>
+              <th>Mã đợt nhập</th>
+              <th>Ngày nhập</th>
+              <th>Nhà cung cấp</th>
+              <th>Đơn vị vận chuyển</th>
+              <th>Mã vận đơn</th>
+              <th>Số kiện</th>
+              <th>Tổng SL</th>
+              <th>Tổng kg</th>
+              <th>Tổng khối</th>
+              <th>Tổng giá vốn</th>
+              <th>Trạng thái</th>
+              <th>Hành động</th>
+            </tr>
+          </thead>
+          <tbody id="batchTableBody"></tbody>
         </table>
-    </div>
-</div>
+        <div class="mobile-card-list" id="batchCardList"></div>
+      </div>
+    </section>
 
-<div id="settingsModal" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center z-50">
-    <div class="glass-card p-6 w-[calc(100vw-24px)] max-w-96">
-        <h2 class="text-[#00CED1] text-xl font-bold mb-4">CÀI ĐẶT THÔNG SỐ</h2>
-        <div class="space-y-4">
-            <div>
-                <label class="text-xs text-gray-400">TỈ GIÁ NHÂN TỆ (VNĐ)</label>
-                <input type="number" id="set_tigia" class="w-full bg-[#0d0d0d] border border-[#333] p-2 rounded mt-1">
-            </div>
-            <div>
-                <label class="text-xs text-gray-400">PHÍ VẬN CHUYỂN / KG (VNĐ)</label>
-                <input type="number" id="set_phikg" class="w-full bg-[#0d0d0d] border border-[#333] p-2 rounded mt-1">
-            </div>
-            <div>
-                <label class="text-xs text-gray-400">PHÍ VẬN CHUYỂN / KHỐI (VNĐ)</label>
-                <input type="number" id="set_phikhoi" class="w-full bg-[#0d0d0d] border border-[#333] p-2 rounded mt-1">
-            </div>
-        </div>
-        <div class="flex justify-end gap-3 mt-6">
-            <button onclick="closeSettings()" class="text-gray-500 hover:text-white">Đóng</button>
-            <button onclick="saveSettings()" class="btn-cyan px-4 py-2 rounded font-bold">LƯU CÀI ĐẶT</button>
-        </div>
-    </div>
-</div>
+    <section class="batch-panel" data-section-panel="documents" hidden>
+      <div class="documents-empty">
+        <h2>Tờ khai / hồ sơ vận chuyển</h2>
+        <p>Chọn một đợt nhập ở tab Đợt nhập hàng để xuất Packing List, file tờ khai và tổng hợp chi phí từ Purchase Core.</p>
+      </div>
+    </section>
+  </main>
 
-<script src="../js/admin/purchase-manager.js"></script>
+  <input id="excelInput" type="file" accept=".xlsx,.xls,.csv" hidden>
+
+  <div class="modal-backdrop" id="importModal" hidden>
+    <section class="modal-sheet wide" role="dialog" aria-modal="true" aria-label="Preview import Excel">
+      <header class="modal-header">
+        <div>
+          <h2>Preview import Excel</h2>
+          <p>Backend kiểm SKU với Product Core và tính thử giá vốn lô. Row lỗi không được ghi DB.</p>
+        </div>
+        <button class="icon-btn" type="button" data-action="close-import"><i data-lucide="x"></i></button>
+      </header>
+      <div class="preview-summary" id="previewSummary"></div>
+      <div class="preview-table-wrap">
+        <table class="preview-table">
+          <thead>
+            <tr>
+              <th>Dòng</th>
+              <th>SKU</th>
+              <th>Sản phẩm</th>
+              <th>Ngày nhập</th>
+              <th>SL</th>
+              <th>Giá vốn lô</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+      <footer class="modal-actions">
+        <button class="btn btn-ghost" type="button" data-action="close-import">Đóng</button>
+        <button class="btn btn-green" type="button" data-action="confirm-import">Confirm import row hợp lệ</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="manualModal" hidden>
+    <section class="modal-sheet" role="dialog" aria-modal="true" aria-label="Thêm lô nhập thủ công">
+      <header class="modal-header">
+        <div>
+          <h2>Thêm lô nhập</h2>
+          <p>Preview trước, confirm mới ghi Purchase Core và Inventory Cost Layer.</p>
+        </div>
+        <button class="icon-btn" type="button" data-action="close-manual"><i data-lucide="x"></i></button>
+      </header>
+      <form class="manual-form" id="manualForm">
+        <label class="field"><span>Chọn SKU từ Product Core</span><input name="ma_hang" required list="skuOptions" placeholder="Nhập SKU nội bộ hoặc seller SKU"></label>
+        <datalist id="skuOptions"></datalist>
+        <label class="field"><span>Ngày nhập hàng</span><input name="ngay_nhap_hang" required type="date"></label>
+        <label class="field"><span>Số lượng nhập</span><input name="sl_nhap" required type="number" min="1" step="1"></label>
+        <label class="field"><span>Số kiện</span><input name="so_kien" required type="number" min="1" step="0.01"></label>
+        <label class="field"><span>Số sản phẩm / kiện</span><input name="sl_sp_tren_kien" required type="number" min="1" step="1"></label>
+        <label class="field"><span>Dài kiện (cm)</span><input name="package_length_cm" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Rộng kiện (cm)</span><input name="package_width_cm" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Cao kiện (cm)</span><input name="package_height_cm" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Kg / kiện</span><input name="package_weight_kg" type="number" min="0" step="0.001"></label>
+        <label class="field"><span>Khối / kiện</span><input name="package_volume_m3" readonly type="number" min="0" step="0.000001"></label>
+        <label class="field"><span>Cách tính vận chuyển</span>
+          <select name="shipping_calculation_method">
+            <option value="by_weight">Theo kg</option>
+            <option value="by_volume">Theo khối</option>
+            <option value="greater_of_weight_or_volume">Lấy lớn hơn kg/khối quy đổi</option>
+            <option value="fixed_per_package">Cố định theo kiện</option>
+            <option value="manual">Nhập tay</option>
+          </select>
+        </label>
+        <label class="field"><span>Giá nhập</span><input name="gia_nhap_te" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Tiền tệ</span><select name="currency"><option value="CNY">CNY</option><option value="VND">VND</option><option value="USD">USD</option></select></label>
+        <label class="field"><span>Tỉ giá</span><input name="exchange_rate" type="number" min="0" step="1"></label>
+        <label class="field"><span>Phí ship nội địa</span><input name="ship_noi_dia_te" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Phí ship quốc tế</span><input name="phi_vanchuyen_thuc" type="number" min="0" step="1"></label>
+        <label class="field"><span>Thuế VAT %</span><input name="thue_vat_percent" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Phí khác</span><input name="other_fee" type="number" min="0" step="1"></label>
+        <label class="field"><span>Nhà cung cấp</span><input name="supplier_name"></label>
+        <label class="field"><span>Đơn vị vận chuyển</span><input name="forwarder_name"></label>
+        <label class="field"><span>Mã vận đơn</span><input name="ma_van_don"></label>
+        <label class="field full checkbox-field"><input name="update_logistics_profile" type="checkbox" value="1"><span>Cập nhật thông số kiện này làm mặc định mới cho SKU</span></label>
+        <label class="field full"><span>Ghi chú</span><textarea name="note" rows="3"></textarea></label>
+      </form>
+      <div class="manual-preview" id="manualPreview"></div>
+      <footer class="modal-actions">
+        <button class="btn btn-ghost" type="button" data-action="close-manual">Đóng</button>
+        <button class="btn btn-blue" type="button" data-action="preview-manual">Preview</button>
+        <button class="btn btn-green" type="button" data-action="confirm-manual" disabled>Confirm ghi Core</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="settingsModal" hidden>
+    <section class="modal-sheet compact" role="dialog" aria-modal="true" aria-label="Tỉ giá và phí ship">
+      <header class="modal-header">
+        <div>
+          <h2>Tỉ giá & phí ship</h2>
+          <p>Dùng làm tham số tính preview, không ghi đè lịch sử lô đã xác nhận.</p>
+        </div>
+        <button class="icon-btn" type="button" data-action="close-settings"><i data-lucide="x"></i></button>
+      </header>
+      <form class="settings-form" id="settingsForm">
+        <label class="field"><span>Tỉ giá Nhân dân tệ</span><input name="ti_gia_te" type="number" min="0" step="1"></label>
+        <label class="field"><span>Phí vận chuyển / kg</span><input name="phi_vanchuyen_kg" type="number" min="0" step="1"></label>
+        <label class="field"><span>Phí vận chuyển / khối</span><input name="phi_vanchuyen_khoi" type="number" min="0" step="1"></label>
+        <label class="field"><span>Hệ số quy đổi khối sang kg</span><input name="volumetric_factor" type="number" min="0" step="1"></label>
+        <label class="field"><span>Phí cố định / kiện</span><input name="fixed_shipping_fee_per_package" type="number" min="0" step="1"></label>
+      </form>
+      <footer class="modal-actions">
+        <button class="btn btn-ghost" type="button" data-action="close-settings">Đóng</button>
+        <button class="btn btn-green" type="button" data-action="save-settings">Lưu cài đặt</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="editModal" hidden>
+    <section class="modal-sheet" role="dialog" aria-modal="true" aria-label="Chỉnh sửa dòng nhập hàng">
+      <header class="modal-header">
+        <div>
+          <h2>Chỉnh sửa dữ liệu nhập sai</h2>
+          <p>Mỗi lần lưu tạo revision history, không sửa âm thầm.</p>
+        </div>
+        <button class="icon-btn" type="button" data-action="close-edit"><i data-lucide="x"></i></button>
+      </header>
+      <form class="manual-form" id="editForm">
+        <input name="purchase_batch_item_id" type="hidden">
+        <label class="field"><span>Ngày nhập hàng</span><input name="import_date" type="date"></label>
+        <label class="field"><span>Số lượng nhập</span><input name="quantity_imported" type="number" min="1" step="1"></label>
+        <label class="field"><span>Số kiện</span><input name="package_count" type="number" min="1" step="0.01"></label>
+        <label class="field"><span>Số sản phẩm / kiện</span><input name="quantity_per_package" type="number" min="1" step="1"></label>
+        <label class="field"><span>Dài kiện (cm)</span><input name="package_length_cm" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Rộng kiện (cm)</span><input name="package_width_cm" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Cao kiện (cm)</span><input name="package_height_cm" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Kg / kiện</span><input name="package_weight_kg" type="number" min="0" step="0.001"></label>
+        <label class="field"><span>Cách tính vận chuyển</span>
+          <select name="shipping_calculation_method">
+            <option value="by_weight">Theo kg</option>
+            <option value="by_volume">Theo khối</option>
+            <option value="greater_of_weight_or_volume">Lấy lớn hơn kg/khối quy đổi</option>
+            <option value="fixed_per_package">Cố định theo kiện</option>
+            <option value="manual">Nhập tay</option>
+          </select>
+        </label>
+        <label class="field"><span>Giá nhập ngoại tệ</span><input name="unit_purchase_price_foreign" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Giá nhập VND</span><input name="unit_purchase_price_vnd" type="number" min="0" step="1"></label>
+        <label class="field"><span>Giá khai thuế</span><input name="declared_tax_price" type="number" min="0" step="1"></label>
+        <label class="field"><span>Phí ship quốc tế</span><input name="international_shipping_cost" type="number" min="0" step="1"></label>
+        <label class="field"><span>Thuế VAT %</span><input name="vat_percent" type="number" min="0" step="0.01"></label>
+        <label class="field"><span>Nhà cung cấp</span><input name="supplier_name"></label>
+        <label class="field"><span>Mã vận đơn</span><input name="purchase_tracking_number"></label>
+        <label class="field full"><span>Lý do sửa</span><textarea name="edit_reason" required rows="3"></textarea></label>
+      </form>
+      <footer class="modal-actions">
+        <button class="btn btn-ghost" type="button" data-action="close-edit">Đóng</button>
+        <button class="btn btn-green" type="button" data-action="save-edit">Lưu và tạo revision</button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+  <script src="../js/admin/purchase-manager.js?v=purchase-core-20260524e"></script>
 </body>
 </html>

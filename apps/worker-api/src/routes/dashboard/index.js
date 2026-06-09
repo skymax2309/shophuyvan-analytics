@@ -5,7 +5,10 @@
 import { getFilters, buildWhere } from '../../utils/filters.js'
 import { ensureReturnReverseLedgerTable } from '../../core/returns/reverse-core.js'
 import { moneyNumber, dashboardStatusAggregate } from '../../core/dashboard/summary-core.js'
+import { applyDashboardFinanceFeeCoreToRow } from '../../core/dashboard/finance-fee-core.js'
+import { loadOrderFinanceCore } from '../../core/orders/finance-core.js'
 import { ensureOrderFeeDetailsReadTable, feeRawNumberSql } from '../orders/cost-resolution.js'
+import { rebuildOrderAnalytics } from '../order-analytics/order-analytics-rebuild-core.js'
 
 function buildAdsSnapshotWhere(filters) {
   const conds = [`COALESCE(spend, 0) > 0`]
@@ -45,10 +48,177 @@ function buildAllOrderWhere(filters, prefix = '') {
   return { where: allOrderWhere, params }
 }
 
+function financeOptionsFromFilters(filters = {}) {
+  return {
+    from: filters.from,
+    to: filters.to,
+    platform: filters.platform,
+    shop: filters.shop,
+    shops: filters.shops || []
+  }
+}
+
+async function loadFreshOrderFinanceCore(env, filters = {}) {
+  const options = financeOptionsFromFilters(filters)
+  let financeCore = await loadOrderFinanceCore(env, options)
+  const staleReasons = financeCore?.snapshot_health?.stale_reasons || []
+  if (financeCore?.status === 'stale' && staleReasons.includes('missing_order_analytics_rows')) {
+    // Khi import/API đã có đơn mới nhưng Finance Core thiếu row, rebuild ngay để dashboard không mất shop.
+    const rebuild = await rebuildOrderAnalytics(env, { ...options, rebuild: true, sync_payment: false })
+    financeCore = await loadOrderFinanceCore(env, options)
+    financeCore.auto_rebuild = {
+      status: rebuild?.status || '',
+      saved: rebuild?.saved || 0,
+      deleted_stale: rebuild?.deleted_stale || 0,
+      warnings: rebuild?.warnings || []
+    }
+  }
+  return financeCore
+}
+
+function mapFinanceCoreDay(row = {}) {
+  const actualIncome = moneyNumber(row.actual_income)
+  const platformFees = moneyNumber(row.platform_fees)
+  const adsCost = moneyNumber(row.ads_cost_allocated)
+  const refundDeduction = moneyNumber(row.refund_deduction)
+  const financeFee = moneyNumber(platformFees + adsCost + refundDeduction)
+  const netProfit = moneyNumber(row.net_profit)
+  return {
+    d: row.bucket,
+    platform: row.platform || '',
+    shop: row.shop || '',
+    orders: moneyNumber(row.orders),
+    revenue: moneyNumber(row.gross_revenue),
+    actual_income: actualIncome,
+    cost_invoice: moneyNumber(row.cost_of_goods),
+    cost_real: moneyNumber(row.cost_of_goods),
+    fee: financeFee,
+    finance_core_fee: financeFee,
+    platform_fees: platformFees,
+    ads_cost_allocated: adsCost,
+    return_refund: refundDeduction,
+    tax_flat: 0,
+    tax_income: 0,
+    profit_invoice: netProfit,
+    profit_real: netProfit,
+    margin_pct: actualIncome ? moneyNumber(netProfit * 100 / actualIncome) : 0,
+    finance_core_source: 'order_finance_core',
+    source: 'order_analytics'
+  }
+}
+
+function applyOrderFinanceCoreSummary(row = {}, orderFinanceCore = null) {
+  const summary = orderFinanceCore?.summary || {}
+  if (orderFinanceCore?.status !== 'ok' || !Object.prototype.hasOwnProperty.call(summary, 'orders')) {
+    const isStale = orderFinanceCore?.status === 'stale'
+    return {
+      ...row,
+      dashboard_finance_source: isStale ? 'finance_core_stale_orders_v2_fallback' : 'orders_v2_legacy_fallback',
+      dashboard_finance_confidence: isStale ? 'stale_fallback' : 'fallback',
+      dashboard_finance_warning: orderFinanceCore?.warning || orderFinanceCore?.error || ''
+    }
+  }
+  const platformFees = moneyNumber(summary.platform_fees)
+  const adsCost = moneyNumber(summary.ads_cost_allocated)
+  const refundDeduction = moneyNumber(summary.refund_deduction)
+  // Dashboard giữ hoàn/trả thành dòng riêng để frontend không trừ hai lần khi render phí.
+  return {
+    ...row,
+    total_revenue: moneyNumber(summary.gross_revenue),
+    total_cost_invoice: moneyNumber(summary.cost_of_goods),
+    total_cost_real: moneyNumber(summary.cost_of_goods),
+    total_fee: moneyNumber(platformFees + adsCost),
+    total_fee_from_orders: moneyNumber(platformFees + adsCost),
+    total_return_refund: refundDeduction,
+    total_profit_invoice: moneyNumber(summary.net_profit),
+    total_profit_real: moneyNumber(summary.net_profit),
+    total_profit_invoice_before_returns: moneyNumber(summary.net_profit + refundDeduction),
+    total_profit_real_before_returns: moneyNumber(summary.net_profit + refundDeduction),
+    total_platform_fee: platformFees,
+    total_ads_fee: Math.max(moneyNumber(row.total_ads_fee), adsCost),
+    dashboard_finance_source: 'order_finance_core',
+    dashboard_finance_confidence: moneyNumber(summary.estimated_orders) ? 'mixed' : 'confirmed'
+  }
+}
+
+function shopBreakdownKey(row = {}) {
+  return `${String(row.platform || '').toLowerCase()}::${String(row.shop || '')}`
+}
+
+function mergeShopBreakdownWithFinanceCore(statusRows = [], orderFinanceCore = null) {
+  const rowsByShop = new Map()
+  ;(Array.isArray(statusRows) ? statusRows : []).forEach(row => {
+    const key = shopBreakdownKey(row)
+    if (!key.endsWith('::')) {
+      rowsByShop.set(key, {
+        ...row,
+        shop_import_revenue: moneyNumber(row.shop_revenue),
+        shop_revenue_source: 'orders_v2_status_core',
+        shop_finance_confidence: 'fallback'
+      })
+    }
+  })
+
+  if (orderFinanceCore?.status !== 'ok') {
+    return Array.from(rowsByShop.values())
+      .sort((a, b) =>
+        Number(b.shop_total_orders || 0) - Number(a.shop_total_orders || 0) ||
+        Number(b.shop_revenue || 0) - Number(a.shop_revenue || 0)
+      )
+  }
+
+  ;(Array.isArray(orderFinanceCore?.by_shop) ? orderFinanceCore.by_shop : []).forEach(row => {
+    const key = shopBreakdownKey(row)
+    if (key.endsWith('::')) return
+    const base = rowsByShop.get(key) || {
+      platform: row.platform,
+      shop: row.shop,
+      shop_orders: moneyNumber(row.orders),
+      shop_success_orders: moneyNumber(row.orders),
+      shop_completed_orders: 0,
+      shop_shipping_orders: 0,
+      shop_cancel_orders: 0,
+      shop_return_orders: 0,
+      shop_total_orders: moneyNumber(row.orders),
+      shop_import_revenue: 0
+    }
+    // Chi tiết doanh thu trong thẻ KPI phải dùng cùng Finance Core với tổng, tránh lệch do đọc orders_v2 legacy.
+    rowsByShop.set(key, {
+      ...base,
+      platform: row.platform || base.platform,
+      shop: row.shop || base.shop,
+      shop_orders: moneyNumber(base.shop_orders || row.orders),
+      shop_success_orders: moneyNumber(base.shop_success_orders || row.orders),
+      shop_total_orders: moneyNumber(base.shop_total_orders || row.orders),
+      shop_revenue: moneyNumber(row.gross_revenue),
+      shop_actual_income: moneyNumber(row.actual_income),
+      shop_platform_fees: moneyNumber(row.platform_fees),
+      shop_estimated_orders: moneyNumber(row.estimated_orders),
+      shop_escrow_orders: moneyNumber(row.escrow_orders),
+      shop_payment_api_orders: moneyNumber(row.payment_api_orders),
+      shop_revenue_source: 'order_finance_core',
+      shop_finance_confidence: moneyNumber(row.estimated_orders) ? 'mixed' : 'confirmed'
+    })
+  })
+
+  return Array.from(rowsByShop.values())
+    .sort((a, b) =>
+      Number(b.shop_total_orders || 0) - Number(a.shop_total_orders || 0) ||
+      Number(b.shop_revenue || 0) - Number(a.shop_revenue || 0)
+    )
+}
+
 async function dashboard(request, env, cors) {
   await ensureReturnReverseLedgerTable(env)
   await ensureOrderFeeDetailsReadTable(env)
   const filters = getFilters(new URL(request.url))
+  let orderFinanceCore = null
+  try {
+    orderFinanceCore = await loadFreshOrderFinanceCore(env, filters)
+  } catch (err) {
+    // Dashboard không được tự tính lại thay Finance Core khi core lỗi; trả metadata lỗi để UI/debug nhìn rõ.
+    orderFinanceCore = { status: 'error', error: err?.message || String(err), summary: {} }
+  }
   const { where: whereAlias, params: aliasParams } = buildWhere(filters, 'o.')
   const { where: whereAllOrders, params: allOrderParams } = buildAllOrderWhere(filters)
   const { where: whereAliasAllOrders, params: aliasAllOrderParams } = buildAllOrderWhere(filters, 'o.')
@@ -100,6 +270,8 @@ async function dashboard(request, env, cors) {
         SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_affiliate, 0) ELSE COALESCE(o.fee_affiliate, 0) END) AS total_affiliate_fee,
         SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_ads, 0) ELSE COALESCE(o.fee_ads, 0) END) AS total_ads_fee,
         SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_piship, 0) ELSE COALESCE(o.fee_piship, 0) END) AS total_piship_fee,
+        SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_piship, 0) ELSE 0 END) AS total_piship_fee_api,
+        SUM(CASE WHEN f.order_id IS NULL THEN COALESCE(o.fee_piship, 0) ELSE 0 END) AS total_piship_fee_cost_setting,
         SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_handling, 0) ELSE 0 END) AS total_handling_fee,
         SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.fee_shipping, 0) ELSE 0 END) AS total_shipping_fee,
         SUM(CASE WHEN f.order_id IS NOT NULL THEN COALESCE(f.tax_vat, 0) ELSE 0 END) AS total_fee_tax_vat,
@@ -162,6 +334,8 @@ async function dashboard(request, env, cors) {
     'total_affiliate_fee',
     'total_ads_fee',
     'total_piship_fee',
+    'total_piship_fee_api',
+    'total_piship_fee_cost_setting',
     'total_handling_fee',
     'total_shipping_fee',
     'total_fee_tax_vat',
@@ -213,10 +387,14 @@ const cancelRow = await env.DB.prepare(`
     ${whereAllOrders}
   `).bind(...allOrderParams).first()
 
-  const apiShopDiscountSql = `(COALESCE(f.voucher_from_seller, 0) + COALESCE(f.seller_discount, 0))`
-  const apiPlatformDiscountSql = `(COALESCE(f.voucher_from_shopee, 0) + COALESCE(f.shopee_discount, 0) + COALESCE(f.coins, 0))`
+  const apiShopDiscountSql = `COALESCE(f.seller_discount, 0)`
+  const apiSellerCofundSql = `COALESCE(f.voucher_from_seller, 0)`
+  const apiPlatformFundedSql = `(COALESCE(f.voucher_from_shopee, 0) + COALESCE(f.shopee_discount, 0) + COALESCE(f.coins, 0))`
+  const apiPlatformVoucherTotalSql = `(${apiSellerCofundSql} + ${apiPlatformFundedSql})`
   const shopDiscountSql = `(CASE WHEN f.voucher_from_seller IS NOT NULL OR f.seller_discount IS NOT NULL THEN ${apiShopDiscountSql} ELSE COALESCE(o.discount_shop, 0) END)`
-  const platformDiscountSql = `(CASE WHEN f.voucher_from_shopee IS NOT NULL OR f.shopee_discount IS NOT NULL OR f.coins IS NOT NULL THEN ${apiPlatformDiscountSql} ELSE COALESCE(o.discount_shopee, 0) END)`
+  const sellerCofundSql = `(CASE WHEN f.voucher_from_seller IS NOT NULL THEN ${apiSellerCofundSql} ELSE 0 END)`
+  const platformFundedSql = `(CASE WHEN f.voucher_from_shopee IS NOT NULL OR f.shopee_discount IS NOT NULL OR f.coins IS NOT NULL THEN ${apiPlatformFundedSql} ELSE COALESCE(o.discount_shopee, 0) END)`
+  const platformDiscountSql = `(CASE WHEN f.voucher_from_seller IS NOT NULL OR f.voucher_from_shopee IS NOT NULL OR f.shopee_discount IS NOT NULL OR f.coins IS NOT NULL THEN ${apiPlatformVoucherTotalSql} ELSE COALESCE(o.discount_shopee, 0) END)`
 
   const breakdownRow = await env.DB.prepare(`
     SELECT
@@ -230,6 +408,8 @@ const cancelRow = await env.DB.prepare(`
       -- Chỉ số giảm giá mới
       SUM(${shopDiscountSql})                                           AS total_discount_shop,
       SUM(${platformDiscountSql})                                       AS total_discount_shopee,
+      SUM(${sellerCofundSql})                                           AS total_seller_cofunded_voucher,
+      SUM(${platformFundedSql})                                         AS total_platform_funded_voucher,
       SUM(COALESCE(o.discount_combo, 0))                                AS total_discount_combo,
       SUM(COALESCE(o.shipping_return_fee, 0))                           AS total_shipping_return_fee,
       COUNT(DISTINCT CASE WHEN ${shopDiscountSql} > 0 THEN o.order_id END) AS orders_with_discount_shop,
@@ -290,8 +470,49 @@ const cancelRow = await env.DB.prepare(`
   // Dashboard hủy/hoàn dùng core trạng thái chung thay vì chỉ nhìn order_type thô.
   // Nhờ vậy đơn API đã cập nhật CANCELLED/RETURN/FAILED_DELIVERY vẫn hiện đúng dù file import cũ chưa set order_type.
   const statusSummary = dashboardStatusAggregate(statusRows.results || [])
+  const shopBreakdown = mergeShopBreakdownWithFinanceCore(statusSummary.shop_breakdown || [], orderFinanceCore)
+  const dashboardFinanceRow = applyOrderFinanceCoreSummary(dashboardRow, orderFinanceCore)
+  const financeDashboardRow = applyDashboardFinanceFeeCoreToRow(
+    {
+      ...dashboardFinanceRow,
+      total_discount_shop: moneyNumber(breakdownRow?.total_discount_shop),
+      total_discount_shopee: moneyNumber(breakdownRow?.total_discount_shopee),
+      total_seller_cofunded_voucher: moneyNumber(breakdownRow?.total_seller_cofunded_voucher),
+      total_platform_funded_voucher: moneyNumber(breakdownRow?.total_platform_funded_voucher),
+      total_discount_combo: moneyNumber(breakdownRow?.total_discount_combo)
+    },
+    { feeBucketRow, breakdownRow, adsSnapshotRow }
+  )
+  const responseRow = {
+    ...financeDashboardRow,
+    ...cancelRow,
+    ...breakdownRow,
+    ...statusSummary,
+    // Các field giảm giá phải ưu tiên raw_data đã chuẩn hóa, không để statusSummary từ orders_v2 ghi đè lại.
+    total_discount_shop: moneyNumber(breakdownRow?.total_discount_shop),
+    total_discount_shopee: moneyNumber(breakdownRow?.total_discount_shopee),
+    total_seller_cofunded_voucher: moneyNumber(breakdownRow?.total_seller_cofunded_voucher),
+    total_platform_funded_voucher: moneyNumber(breakdownRow?.total_platform_funded_voucher),
+    total_discount_combo: moneyNumber(breakdownRow?.total_discount_combo),
+    orders_with_discount_shop: moneyNumber(breakdownRow?.orders_with_discount_shop),
+    orders_with_discount_shopee: moneyNumber(breakdownRow?.orders_with_discount_shopee),
+    orders_with_discount_combo: moneyNumber(breakdownRow?.orders_with_discount_combo),
+    total_import_revenue: moneyNumber(breakdownRow?.revenue_normal),
+    total_finance_core_revenue: moneyNumber(orderFinanceCore?.summary?.gross_revenue),
+    total_actual_income: moneyNumber(orderFinanceCore?.summary?.actual_income),
+    shop_breakdown: shopBreakdown,
+    finance_fee_core: financeDashboardRow.finance_fee_core,
+    order_finance_core: orderFinanceCore ? {
+      status: orderFinanceCore.status,
+      mode: orderFinanceCore.mode,
+      source: orderFinanceCore.source,
+      summary: orderFinanceCore.summary || {},
+      warning: orderFinanceCore.warning || '',
+      error: orderFinanceCore.error || ''
+    } : null
+  }
 
-  return Response.json({ ...dashboardRow, ...cancelRow, ...breakdownRow, ...statusSummary }, { headers: cors })
+  return Response.json(responseRow, { headers: cors })
 }
 
 
@@ -300,58 +521,32 @@ const cancelRow = await env.DB.prepare(`
 // ════════════════════════════════════════════════════════════════════
 async function revenueByDay(request, env, cors) {
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters)
+  const financeCore = await loadFreshOrderFinanceCore(env, filters)
+  const rows = (financeCore.by_day || []).map(row => ({
+    d: row.bucket,
+    platform: row.platform || '',
+    shop: row.shop || '',
+    revenue: moneyNumber(row.gross_revenue),
+    actual_income: moneyNumber(row.actual_income),
+    orders: moneyNumber(row.orders),
+    finance_core_source: 'order_finance_core',
+    source: 'order_analytics'
+  })).sort((a, b) => String(a.d).localeCompare(String(b.d)))
 
-  const rows = await env.DB.prepare(`
-    SELECT
-      date(order_date) AS d,
-      SUM(revenue)     AS revenue,
-      COUNT(DISTINCT order_id) AS orders
-    FROM orders_v2
-    ${where}
-    GROUP BY d
-    ORDER BY d
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
+  return Response.json(rows, { headers: cors })
 }
 
 
 // ════════════════════════════════════════════════════════════════════
 // PROFIT BY DAY
 async function profitByDay(request, env, cors) {
-  await ensureReturnReverseLedgerTable(env)
   const filters = getFilters(new URL(request.url))
-  const { where, params } = buildWhere(filters, 'o.')
+  const financeCore = await loadFreshOrderFinanceCore(env, filters)
+  const rows = (financeCore.by_day || [])
+    .map(mapFinanceCoreDay)
+    .sort((a, b) => String(a.d).localeCompare(String(b.d)))
 
-  const rows = await env.DB.prepare(`
-    SELECT
-      date(o.order_date)     AS d,
-      COUNT(DISTINCT o.order_id) AS orders,
-      SUM(o.revenue)         AS revenue,
-      SUM(o.cost_invoice)    AS cost_invoice,
-      SUM(o.cost_real)       AS cost_real,
-      SUM(o.fee)             AS fee,
-      SUM(o.profit_invoice - COALESCE(r.refund_amount, 0)) AS profit_invoice,
-      SUM(o.profit_real - COALESCE(r.refund_amount, 0))    AS profit_real,
-      SUM(COALESCE(r.refund_amount, 0)) AS return_refund,
-      SUM(o.tax_flat)        AS tax_flat,
-      SUM(o.tax_income)      AS tax_income
-    FROM orders_v2 o
-    LEFT JOIN (
-      SELECT LOWER(COALESCE(platform, '')) AS platform,
-             order_id,
-             SUM(COALESCE(effective_refund_amount, 0)) AS refund_amount
-      FROM marketplace_return_reverse_ledger
-      WHERE is_finance_closed = 1
-      GROUP BY LOWER(COALESCE(platform, '')), order_id
-    ) r ON r.platform = LOWER(COALESCE(o.platform, '')) AND r.order_id = o.order_id
-    ${where}
-    GROUP BY d
-    ORDER BY d
-  `).bind(...params).all()
-
-  return Response.json(rows.results, { headers: cors })
+  return Response.json(rows, { headers: cors })
 }
 
-export { dashboard, revenueByDay, profitByDay }
+export { dashboard, revenueByDay, profitByDay, mergeShopBreakdownWithFinanceCore }

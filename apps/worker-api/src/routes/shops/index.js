@@ -4,7 +4,9 @@ import {
   SHOPEE_SHOP_READ_ENDPOINTS,
   SHOPEE_SHOP_WRITE_ENDPOINTS,
   normalizeShopeeShopSnapshot,
-  summarizeShopeeShopEndpoint
+  normalizeShopProfile,
+  summarizeShopeeShopEndpoint,
+  upsertShopCoreProfile
 } from '../../core/shops/shopee-profile-core.js'
 import {
   DEFAULT_SHOPEE_VIDEO_CALLBACK,
@@ -49,8 +51,20 @@ async function loadShopeeShop(env, { shopId, shopName }) {
     return env.DB.prepare(`
       SELECT ${selectColumns}
       FROM shops
-      WHERE id = ?
-    `).bind(shopId).first()
+      WHERE platform = 'shopee'
+        AND (
+          id = ?
+          OR api_shop_id = ?
+          OR shop_name = ?
+          OR user_name = ?
+        )
+      ORDER BY
+        CASE WHEN api_shop_id = ? THEN 0 ELSE 1 END,
+        CASE WHEN id = ? THEN 1 ELSE 2 END,
+        CASE WHEN shop_name LIKE 'Shopee %' THEN 1 ELSE 0 END,
+        id ASC
+      LIMIT 1
+    `).bind(shopId, shopId, shopId, shopId, shopId, shopId).first()
   }
 
   const name = cleanText(shopName)
@@ -162,9 +176,71 @@ async function readShopeeShopSnapshot(env, { shopName, shopId }) {
     }
   }
 
+  const snapshot = normalizeShopeeShopSnapshot({ shop, rows, warnings })
+  const profile = await upsertShopCoreProfile(env, normalizeShopProfile({
+    platform: 'shopee',
+    shop,
+    rows,
+    updatedAt: snapshot.fetched_at
+  }))
+
   // Snapshot chỉ đọc gom các endpoint trong hình vào một response để UI vận hành kiểm tra nhanh,
   // còn endpoint ghi thật được trả về dưới dạng guard để không vô tình đổi hồ sơ hoặc chế độ nghỉ.
-  return normalizeShopeeShopSnapshot({ shop, rows, warnings })
+  return {
+    ...snapshot,
+    shop_profile: profile
+  }
+}
+
+async function syncShopeeShopProfile(env, { shopName, shopId }) {
+  const shop = await loadShopeeShop(env, { shopId, shopName })
+  if (!shop) throw new Error('Không tìm thấy shop Shopee để đồng bộ tên.')
+  if (!cleanText(shop.api_shop_id) || !cleanText(shop.access_token)) {
+    throw new Error('Shop Shopee chưa có Shop ID hoặc access token API.')
+  }
+
+  const rows = []
+  const warnings = []
+  const profileEndpoints = SHOPEE_SHOP_READ_ENDPOINTS.filter(endpoint => ['shop_info', 'profile'].includes(endpoint.id))
+  for (const endpoint of profileEndpoints) {
+    try {
+      const data = await fetchShopeeShopRead(env, shop, endpoint)
+      rows.push({
+        id: endpoint.id,
+        label: endpoint.label,
+        source: endpoint.source,
+        endpoint: endpoint.path,
+        status: 'ok',
+        summary: summarizeShopeeShopEndpoint(endpoint, data),
+        response: data.response || data.data || data.result || data
+      })
+    } catch (error) {
+      rows.push({
+        id: endpoint.id,
+        label: endpoint.label,
+        source: endpoint.source,
+        endpoint: endpoint.path,
+        status: 'error',
+        summary: error?.message || String(error)
+      })
+      warnings.push({ endpoint: endpoint.source, message: error?.message || String(error) })
+    }
+  }
+
+  const profile = await upsertShopCoreProfile(env, normalizeShopProfile({
+    platform: 'shopee',
+    shop,
+    rows
+  }))
+
+  return {
+    status: profile.shop_display_name ? 'ok' : 'missing_shop_name',
+    platform: 'shopee',
+    shop_id: cleanText(shop.api_shop_id),
+    shop_profile: profile,
+    endpoints: rows,
+    warnings
+  }
 }
 
 export async function refreshShopeeTokenForShop(env, shop) {
@@ -350,6 +426,18 @@ export async function handleShopsWarehouse(request, env, cors) {
   if (request.method === 'GET' && url.pathname.endsWith('/shopee-snapshot')) {
     try {
       const snapshot = await readShopeeShopSnapshot(env, {
+        shopName: cleanText(url.searchParams.get('shop') || url.searchParams.get('shop_name')),
+        shopId: cleanText(url.searchParams.get('shop_id') || url.searchParams.get('id'))
+      })
+      return json(snapshot, cors)
+    } catch (error) {
+      return json({ error: error.message || String(error) }, cors, 400)
+    }
+  }
+
+  if (request.method === 'GET' && url.pathname.endsWith('/shopee-profile-sync')) {
+    try {
+      const snapshot = await syncShopeeShopProfile(env, {
         shopName: cleanText(url.searchParams.get('shop') || url.searchParams.get('shop_name')),
         shopId: cleanText(url.searchParams.get('shop_id') || url.searchParams.get('id'))
       })
@@ -619,39 +707,11 @@ await env.DB.prepare(`
   }
 
   if (request.method === 'POST' && url.pathname.endsWith('/disconnect-chat-api')) {
-    try {
-      const body = await request.json()
-      const shopId = body.shop_id || body.id || null
-      const shopName = String(body.shop_name || body.shop || '').trim()
-
-      if (!shopId && !shopName) {
-        return json({ error: 'Thiếu shop cần ngắt kết nối chat API' }, cors, 400)
-      }
-
-      /**
-       * App chat Lazada đang tách riêng khỏi app đơn hàng/sản phẩm.
-       * Vì vậy chỉ được xóa bộ token chat để người vận hành kết nối lại IM Chat,
-       * không đụng vào access_token chính của Lazada API.
-       */
-      const sql = `
-        UPDATE shops
-        SET chat_access_token = NULL,
-            chat_refresh_token = NULL,
-            chat_token_expire_at = NULL,
-            chat_api_connected_at = NULL,
-            chat_api_refresh_expire_at = NULL,
-            chat_last_api_refresh_at = NULL,
-            chat_api_redirect_url = NULL
-        WHERE ${shopId ? 'id = ?' : "platform = 'lazada' AND (shop_name = ? OR user_name = ?)"}
-      `
-      const stmt = env.DB.prepare(sql)
-      if (shopId) await stmt.bind(shopId).run()
-      else await stmt.bind(shopName, shopName).run()
-
-      return json({ status: 'ok', message: 'Đã ngắt riêng Lazada Chat API' }, cors)
-    } catch (e) {
-      return json({ error: e.message }, cors, 500)
-    }
+    return json({
+      status: 'gone',
+      error: 'legacy_chat_disconnect_disabled',
+      message: 'Route ngắt Chat API legacy đã tắt; không mutate token chat từ Worker chính.'
+    }, cors, 410)
   }
 
   if (request.method === 'POST' && url.pathname.endsWith('/force-refresh-token')) {

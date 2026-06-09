@@ -73,13 +73,6 @@ export function bindLabelModalEvents(modal, ctx) {
       renderLabelVaultPanel();
       return;
     }
-    if (target.matches('[data-label-refresh-errors-page]')) {
-      const ids = rowsForStatus(currentWarehouseStatus())
-        .filter(row => row.error)
-        .map(row => row.order_id);
-      refreshSelectedLabels(ids);
-      return;
-    }
     if (target.matches('[data-label-open]')) {
       printLabelsWithOverlay([target.dataset.labelOpen]);
       return;

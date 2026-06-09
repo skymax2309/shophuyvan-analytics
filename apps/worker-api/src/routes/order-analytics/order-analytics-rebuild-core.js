@@ -3,7 +3,9 @@ import { buildReturnInfo, chooseActualIncome, computeOrderRevenueBasis, extractS
 import { buildZeroRevenueReturnFinance } from '../../core/orders/return-inference-core.js'
 import { loadReturnReverseOrderMap } from '../../core/returns/reverse-core.js'
 import { rebuildOrderFinanceDailySnapshots } from '../../core/orders/finance-core.js'
-import { buildOrderWhere, cleanText, ensureOrderAnalyticsTable, ensureSourceTables, ESTIMATE_SOURCE, ESCROW_SOURCE, INFERRED_RETURN_SOURCE, LAZADA_FINANCE_SOURCE, PAYMENT_SOURCE, mapKey, normalizeSku, num, round2, tableExists } from '../../core/orders/analytics-shared-core.js'
+import { buildAnalyticsWhere, buildOrderWhere, cleanText, ensureOrderAnalyticsTable, ensureSourceTables, ESTIMATE_SOURCE, ESCROW_SOURCE, FINANCE_CORE_CALC_VERSION, FINANCE_CORE_SOURCE_MARKER, INFERRED_RETURN_SOURCE, LAZADA_FINANCE_SOURCE, PAYMENT_SOURCE, mapKey, normalizeSku, num, round2, tableExists } from '../../core/orders/analytics-shared-core.js'
+import { buildOrderFeePhase1Snapshot } from '../../core/orders/fee-phase1-core.js'
+import { getCostSettings } from '../../utils/db.js'
 
 async function loadShopeeOrdersForEscrowSync(env, options = {}) {
   const filter = buildOrderWhere({ ...options, platform: 'shopee' }, 'o')
@@ -113,7 +115,12 @@ export async function syncOrderAnalyticsIncome(env, options = {}) {
             round2(row.amount),
             PAYMENT_SOURCE,
             cleanText(row.income_status),
-            JSON.stringify({ payment_detail: row }).slice(0, 12000)
+            JSON.stringify({
+              source_marker: 'order_analytics.payment_sync_partial',
+              calc_version: null,
+              stale_requires_rebuild: true,
+              payment_detail: row
+            }).slice(0, 12000)
           )))
           saved += chunk.length
         }
@@ -144,7 +151,7 @@ export async function syncOrderAnalyticsIncome(env, options = {}) {
     mode: 'sync_marketplace_finance_to_order_analytics',
     endpoint: {
       shopee: shouldSyncShopee ? '/api/v2/payment/get_income_detail' : '',
-      lazada: shouldSyncLazada ? '/finance/transaction/detail/get' : ''
+      lazada: shouldSyncLazada ? '/finance/transaction/details/get' : ''
     },
     saved,
     total_rows: shopeeResults.reduce((sum, item) => sum + Number(item.total_rows || 0), 0) + Number(lazadaResult?.fetched_transactions || 0),
@@ -238,15 +245,26 @@ async function loadOrdersForAnalytics(env, options) {
       COALESCE(o.fee_platform, 0) AS fee_platform,
       COALESCE(o.fee_payment, 0) AS fee_payment,
       COALESCE(o.fee_affiliate, 0) AS fee_affiliate,
+      COALESCE(o.fee_ads, 0) AS fee_ads,
       COALESCE(o.fee_piship, 0) AS fee_piship,
       COALESCE(o.fee_service, 0) AS fee_service,
       COALESCE(o.fee_packaging, 0) AS fee_packaging,
       COALESCE(o.fee_operation, 0) AS fee_operation,
       COALESCE(o.fee_labor, 0) AS fee_labor,
       COALESCE(f.total_fees, 0) AS real_total_fees,
-      COALESCE(f.settlement, 0) AS settlement,
+      f.settlement AS settlement,
       COALESCE(f.source, '') AS fee_source,
       COALESCE(f.raw_data, '') AS fee_raw_data,
+      f.fee_commission AS fee_detail_commission,
+      f.fee_payment AS fee_detail_payment,
+      f.fee_service AS fee_detail_service,
+      f.fee_affiliate AS fee_detail_affiliate,
+      f.fee_piship AS fee_detail_piship,
+      f.fee_handling AS fee_detail_handling,
+      f.fee_ads AS fee_detail_ads,
+      f.fee_shipping AS fee_detail_shipping,
+      f.tax_vat AS fee_detail_tax_vat,
+      f.tax_pit AS fee_detail_tax_pit,
       CASE WHEN f.order_id IS NOT NULL THEN 1 ELSE 0 END AS has_fee_detail,
       COALESCE(a.actual_income, 0) AS existing_actual_income,
       COALESCE(a.actual_income_source, '') AS existing_actual_income_source,
@@ -260,6 +278,22 @@ async function loadOrdersForAnalytics(env, options) {
     LIMIT 3000
   `).bind(...filter.params).all()
   return orders.results || []
+}
+
+async function pruneStaleOrderAnalyticsRows(env, options) {
+  const filter = buildAnalyticsWhere(options, 'a')
+  // Rebuild theo kỳ phải dọn row cũ không còn là đơn hợp lệ, nếu không snapshot cũ vẫn lẫn vào Finance Core.
+  const result = await env.DB.prepare(`
+    DELETE FROM order_analytics
+    WHERE order_sn IN (
+      SELECT a.order_sn
+      FROM order_analytics a
+      LEFT JOIN orders_v2 o ON o.order_id = a.order_sn
+      ${filter.where}
+        AND (o.order_id IS NULL OR COALESCE(o.order_type, '') != 'normal')
+    )
+  `).bind(...filter.params).run()
+  return Number(result?.meta?.changes ?? result?.changes ?? 0) || 0
 }
 
 async function loadOrderItems(env, options) {
@@ -421,7 +455,34 @@ export async function rebuildOrderAnalytics(env, options = {}) {
     warnings.push(...(paymentSync.warnings || []))
   }
 
-  const orders = await loadOrdersForAnalytics(env, options)
+  const costSettings = await getCostSettings(env).catch(() => ({}))
+  const orders = (await loadOrdersForAnalytics(env, options)).map(order => {
+    const phase1 = buildOrderFeePhase1Snapshot(order, costSettings)
+    return {
+      ...order,
+      gross_revenue: phase1.gross_revenue,
+      product_revenue_after_shop_discount: phase1.product_revenue_after_shop_discount,
+      buyer_shipping_paid: phase1.buyer_shipping_paid,
+      buyer_total_paid: phase1.buyer_total_paid,
+      platform_voucher_total: phase1.platform_voucher_total,
+      seller_cofunded_voucher_amount: phase1.seller_cofunded_voucher_amount,
+      platform_funded_voucher_amount: phase1.platform_funded_voucher_amount,
+      actual_income: phase1.actual_income,
+      actual_income_settlement: phase1.actual_income_settlement,
+      actual_income_available: phase1.actual_income_available,
+      profit_basis: phase1.profit_basis,
+      profit_status: phase1.profit_status,
+      settlement_status: phase1.settlement_status,
+      marketplace_fee_total: phase1.marketplace_fee_total,
+      tax_total: phase1.tax_total,
+      ads_fee_total: phase1.ads_fee_total,
+      piship_fee: phase1.piship_fee,
+      piship_fee_source: phase1.piship_fee_source,
+      piship_fee_source_type: phase1.piship_fee_source_type,
+      piship_fee_confidence: phase1.piship_fee_confidence,
+      ops_cost_setting_total: phase1.ops_cost_setting_total
+    }
+  })
   const items = await loadOrderItems(env, options)
   const returnsMap = await loadReturns(env)
   const itemSkuMap = await loadItemSkuMap(env)
@@ -472,17 +533,33 @@ export async function rebuildOrderAnalytics(env, options = {}) {
     const financeInfo = financeInfoMap.get(orderId) || {}
     const revenueBasis = round2(num(financeInfo.revenueBasis) || computeOrderRevenueBasis(order, orderItems, financeInfo))
     const actual = chooseActualIncome(order, revenueBasis, orderItems)
+    const taxonomy = actual.taxonomy || financeInfo.taxonomy || {}
+    const actualIncomeAmount = actual.amount === null || actual.amount === undefined ? null : round2(actual.amount)
+    const estimatedIncomeAmount = actual.estimatedAmount === null || actual.estimatedAmount === undefined
+      ? round2(taxonomy.estimated_income ?? taxonomy.profit_basis ?? taxonomy.actual_income ?? 0)
+      : round2(actual.estimatedAmount)
+    const profitIncomeAmount = actualIncomeAmount === null ? estimatedIncomeAmount : actualIncomeAmount
+    const outputTaxonomy = {
+      ...taxonomy,
+      actual_income: actualIncomeAmount,
+      actual_income_available: actualIncomeAmount !== null,
+      estimated_income: actualIncomeAmount === null ? estimatedIncomeAmount : null
+    }
     const returnInfo = returnInfoMap.get(orderId) || buildReturnInfo(order)
     // NEO: Đơn hoàn/trả toàn phần không còn doanh thu giữ lại nên không phân bổ thêm CPO ADS vào lãi ròng.
     const adsCost = returnInfo.isFullReturnRefund
       ? { amount: 0, method: 'return_refund_no_ads_allocation', basis: 'full_return_refund', denominator: 0, totalSpend: 0, components: [] }
-      : allocateAdsForOrder(order, orderItems, maps)
+      : (num(taxonomy.ads_fee_total) > 0
+        ? { amount: round2(taxonomy.ads_fee_total), method: 'orders_v2_fee_ads_cost_setting', basis: 'cost_setting_per_order', denominator: 1, totalSpend: round2(taxonomy.ads_fee_total), components: [] }
+        : allocateAdsForOrder(order, orderItems, maps))
     const rawCostOfGoods = round2(num(order.cost_real) || orderItems.reduce((sum, item) => sum + num(item.cost_real), 0))
     const costOfGoods = returnInfo.isFullReturnRefund ? 0 : rawCostOfGoods
     const refund = round2(returnInfo.refundAmount)
     const refundInNet = returnInfo.financeAlreadyNetOfRefund ? 0 : refund
-    const netProfit = round2(actual.amount - costOfGoods - adsCost.amount - refundInNet)
-    const marginPct = actual.amount > 0 ? round2(netProfit / actual.amount * 100) : 0
+    const pishipCost = returnInfo.isFullReturnRefund ? 0 : round2(taxonomy.piship_fee || 0)
+    const opsCostSettingOther = returnInfo.isFullReturnRefund ? 0 : round2(taxonomy.ops_cost_setting_other || 0)
+    const netProfit = round2(profitIncomeAmount - costOfGoods - adsCost.amount - pishipCost - opsCostSettingOther - refundInNet)
+    const marginPct = profitIncomeAmount > 0 ? round2(netProfit / profitIncomeAmount * 100) : 0
     const warningParts = []
     if (netProfit < 0) warningParts.push('loss')
     if (actual.source === ESTIMATE_SOURCE) warningParts.push('payment_api_missing')
@@ -500,7 +577,7 @@ export async function rebuildOrderAnalytics(env, options = {}) {
       oms_status: cleanText(order.oms_status),
       shipping_status: cleanText(order.shipping_status),
       revenue: revenueBasis,
-      actual_income: round2(actual.amount),
+      actual_income: actualIncomeAmount,
       actual_income_source: actual.source,
       income_status: cleanText(order.income_status),
       income_synced_at: cleanText(order.income_synced_at),
@@ -521,7 +598,21 @@ export async function rebuildOrderAnalytics(env, options = {}) {
       qty_total: round2(orderItems.reduce((sum, item) => sum + num(item.qty), 0)),
       warning: warningParts.join(','),
       source_json: JSON.stringify({
+        source_marker: FINANCE_CORE_SOURCE_MARKER,
+        calc_version: FINANCE_CORE_CALC_VERSION,
+        revenue_formula: 'max(orders_v2.revenue,sum(order_items.revenue_line),marketplace_finance_revenue_basis)',
+        profit_basis_formula: actual.source === ESTIMATE_SOURCE && taxonomy.profit_basis_source === 'tiktok_seller_center_detail.product_revenue_after_shop_discount'
+          ? 'tiktok_product_after_shop_discount - marketplace_fees - tax - cost - ads - piship - ops_cost_setting'
+          : actual.source === ESTIMATE_SOURCE
+            ? 'gross_revenue - seller_cofunded_voucher - marketplace_fees - tax - cost - ads - piship - ops_cost_setting'
+            : 'actual_income - cost - ads - piship - ops_cost_setting - refund_not_already_in_settlement',
+        shop_discount_double_count_guard: 'shop_discount/seller_discount không thuộc platform_deductions khi gross_revenue đã là giá sau KM shop',
+        taxonomy: outputTaxonomy,
         actual_income_source: actual.source,
+        actual_income_available: actualIncomeAmount !== null,
+        actual_income_value: actualIncomeAmount,
+        estimated_income: estimatedIncomeAmount,
+        profit_income_amount: profitIncomeAmount,
         revenue_basis: revenueBasis,
         finance_refund_amount: round2(returnInfo.refundFromFinance || 0),
         refund_in_net: refundInNet,
@@ -610,6 +701,8 @@ export async function rebuildOrderAnalytics(env, options = {}) {
     saved += chunk.length
   }
 
+  const deletedStale = await pruneStaleOrderAnalyticsRows(env, options)
+
   let financeSnapshot = null
   try {
     financeSnapshot = await rebuildOrderFinanceDailySnapshots(env, options)
@@ -624,6 +717,7 @@ export async function rebuildOrderAnalytics(env, options = {}) {
     to: options.to,
     orders: rows.length,
     saved,
+    deleted_stale: deletedStale,
     payment_sync: paymentSync ? {
       saved: paymentSync.saved,
       total_rows: paymentSync.total_rows,

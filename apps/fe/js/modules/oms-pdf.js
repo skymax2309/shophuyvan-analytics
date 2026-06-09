@@ -1,7 +1,6 @@
 import { API } from '../oms-dashboard/oms-api.js';
 import { showToast } from '../utils/helpers.js';
-import { getLabelSettings, hasLabelOverlay, labelSizePoints, resolveLabelMark } from './oms-label-settings.js?v=label-real-preview2-20260509';
-import { wakeRadarLocal } from './oms-radar-helper.js';
+import { getLabelSettings, hasLabelOverlay, labelSizePoints, resolveLabelMark } from './oms-label-settings.js?v=label-capability-20260519c';
 
 function getOrderMeta(orderMap, id) {
   if (!orderMap) return null;
@@ -15,22 +14,11 @@ function isPdfBytes(bytes, contentType) {
   return header === '%PDF-';
 }
 
-async function refreshLabelFromApi(id) {
-  const res = await fetch(`${API}/api/label/${encodeURIComponent(id)}/refresh`, { method: 'POST' });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok || payload.error) throw new Error(payload.error || `Khong tai lai duoc tem ${id}`);
-  return payload;
-}
-
 async function fetchLabelWithAutoRefresh(id) {
   let res = await fetch(`${API}/api/label/${encodeURIComponent(id)}.pdf`, { cache: 'no-store' });
   if (res.ok) return res;
-
-  const refreshed = await refreshLabelFromApi(id);
-  const key = String(refreshed.storage_key || '').toLowerCase();
-  const ext = key.endsWith('.html') || String(refreshed.content_type || '').toLowerCase().includes('html') ? 'html' : 'pdf';
-  res = await fetch(`${API}/api/label/${encodeURIComponent(id)}.${ext}`, { cache: 'no-store' });
-  return res.ok ? res : fetch(`${API}/api/label/${encodeURIComponent(id)}.pdf`, { cache: 'no-store' });
+  res = await fetch(`${API}/api/label/${encodeURIComponent(id)}.html`, { cache: 'no-store' });
+  return res;
 }
 
 function openHtmlLabels(ids) {
@@ -58,23 +46,8 @@ function groupMissingLabels(ids, orderMap) {
 }
 
 async function queueMissingLabelJobs(ids, orderMap) {
-  const groups = groupMissingLabels(ids, orderMap);
-  if (!groups.length) return 0;
-  const now = new Date();
-  const jobs = await Promise.all(groups.map(group => fetch(API + '/api/jobs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      task_type: 'print_label',
-      payload: JSON.stringify({ order_ids: group.order_ids }),
-      shop_name: group.shop,
-      platform: group.platform,
-      month: now.getMonth() + 1,
-      year: now.getFullYear()
-    })
-  }).then(r => r.json().catch(() => ({})))));
-  if (jobs[0]?.id) await wakeRadarLocal('print_label', jobs[0].id);
-  return groups.length;
+  // Chưa bật tự tạo job tải/in tem hàng loạt khi người dùng chỉ bấm in lại từ kho.
+  return groupMissingLabels(ids, orderMap).length ? 0 : 0;
 }
 
 function hexToRgb(hex) {

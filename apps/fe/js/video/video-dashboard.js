@@ -3,18 +3,18 @@ import { createMultiShopProductPicker } from './multi-shop/product-picker.js'
 window.createMultiShopProductPicker = createMultiShopProductPicker
 
 const VIDEO_DASHBOARD_CHUNKS = [
-  './video/dashboard/foundation-utils.js',
-  './video/dashboard/multi-shop-state.js',
-  './video/dashboard/shop-lazada-panel.js',
-  './video/dashboard/overview-library-render.js',
-  './video/dashboard/detail-upload-helpers.js',
-  './video/dashboard/upload-form.js',
-  './video/dashboard/multi-shop-render.js',
-  './video/dashboard/catalog-actions.js',
-  './video/dashboard/queue-browser-actions.js',
-  './video/dashboard/packing-events-init.js'
+  './dashboard/foundation-utils.js',
+  './dashboard/multi-shop-state.js',
+  './dashboard/shop-lazada-panel.js',
+  './dashboard/overview-library-render.js',
+  './dashboard/detail-upload-helpers.js',
+  './dashboard/upload-form.js',
+  './dashboard/multi-shop-render.js',
+  './dashboard/catalog-actions.js',
+  './dashboard/queue-browser-actions.js',
+  './dashboard/packing-events-init.js'
 ]
-const VIDEO_DASHBOARD_CHUNK_VERSION = 'video-tab-init-20260513a'
+const VIDEO_DASHBOARD_CHUNK_VERSION = 'video-tab-init-20260531b'
 
 function loadClassicChunk(src) {
   return new Promise((resolve, reject) => {

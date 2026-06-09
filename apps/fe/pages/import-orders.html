@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import đơn hàng - ShopHuyVan</title>
+  <link rel="stylesheet" href="../css/orders/import-orders.css?v=import-page-20260518">
+  <script src="../js/config.js?v=import-page-20260518"></script>
+  <script src="../js/auth/auth-guard.js?v=import-page-20260518"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <main class="import-shell">
+    <section class="import-panel">
+      <header class="import-header">
+        <h1>Upload file bán hàng</h1>
+        <nav class="import-links" aria-label="Điều hướng nhanh">
+          <a href="../index.html">Trung tâm</a>
+          <a href="profit-dashboard.html">Dashboard</a>
+          <a href="cost-settings.html">Cài đặt chi phí</a>
+          <a href="admin-products.html">Sản phẩm</a>
+        </nav>
+      </header>
+
+      <label class="file-box" for="file">
+        <span>Chọn file Excel đơn hàng</span>
+        <input type="file" id="file" accept=".xlsx">
+      </label>
+
+      <button id="btnImport" class="primary-button" type="button">Import Excel</button>
+      <div id="log" class="import-log" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <script type="module" src="../js/orders/import-orders.js?v=import-page-20260518"></script>
+</body>
+</html>

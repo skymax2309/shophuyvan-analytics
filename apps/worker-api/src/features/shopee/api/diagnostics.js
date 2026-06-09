@@ -168,14 +168,14 @@ function buildProbes(options = {}) {
     { name: 'Discount list', client_type: 'marketplace_client', endpoint: SHOPEE_DISCOUNT_ENDPOINTS.list, params: { discount_status: 'ongoing', page_no: 1, page_size: 10 } },
     { name: 'Voucher list', client_type: 'marketplace_client', endpoint: SHOPEE_VOUCHER_ENDPOINTS.list, params: { status: 'ongoing', page_no: 1, page_size: 10 } },
     { name: 'Bundle list', client_type: 'marketplace_client', endpoint: SHOPEE_BUNDLE_DEAL_ENDPOINTS.list, params: { page_no: 1, page_size: 10, time_status: 1 } },
-    { name: 'Add-On list', client_type: 'marketplace_client', endpoint: SHOPEE_ADD_ON_DEAL_ENDPOINTS.list, params: { page_no: 1, page_size: 10, promotion_status: 1 } },
+    { name: 'Add-On list', client_type: 'marketplace_client', endpoint: SHOPEE_ADD_ON_DEAL_ENDPOINTS.list, params: { page_no: 1, page_size: 10, promotion_status: 'ongoing' } },
     { name: 'Flash Sale list', client_type: 'marketplace_client', endpoint: SHOPEE_FLASH_SALE_ENDPOINTS.list, params: { offset: 0, limit: 10, type: 1 } },
     { name: 'Ads balance', client_type: 'ads_client', endpoint: SHOPEE_ADS_ENDPOINTS.totalBalance },
     { name: 'Ads shop toggle', client_type: 'ads_client', endpoint: SHOPEE_ADS_ENDPOINTS.shopToggleInfo },
     { name: 'Ads hourly performance', client_type: 'ads_client', endpoint: SHOPEE_ADS_ENDPOINTS.allCpcHourlyPerformance, params: { performance_date: today } },
     { name: 'Chat conversation list', client_type: 'chat_client', endpoint: SHOPEE_CHAT_ENDPOINTS.conversationList, params: { direction: 'latest', type: 'all', page_size: 1 } },
     { name: 'Chat unread count', client_type: 'chat_client', endpoint: SHOPEE_CHAT_ENDPOINTS.unreadConversationCount },
-    { name: 'Chat send dry-run guard', client_type: 'chat_client', endpoint: SHOPEE_CHAT_ENDPOINTS.sendMessage, method: 'POST', body: { __skip_message: 'Diagnostics không gửi tin thật. Dùng /api/chat/shopee-permission-probe nếu cần probe payload sai tham số an toàn.' } }
+    { name: 'Chat send dry-run guard', client_type: 'chat_client', endpoint: SHOPEE_CHAT_ENDPOINTS.sendMessage, method: 'POST', body: { __skip_message: 'Diagnostics không gửi tin thật. Route probe Chat legacy trên Worker chính đã tắt; kiểm Chat mới qua shophuyvan-chat-api.' } }
   ]
   return probes
 }

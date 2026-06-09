@@ -184,7 +184,7 @@ function renderMonthlyKpis(kpiGrid, summary, meta) {
     <div class="monthly-kpi-grid">
       ${monthlyCard('Doanh thu chốt năm', monthlyMoney(summary.totalRevenue), `${meta.yearLabel} · ${selectedShopText}`, 'blue')}
       ${monthlyCard('Tiền sàn thanh toán', monthlyMoney(summary.totalPayout), 'Tổng total_payout từ file đối soát', 'green')}
-      ${monthlyCard('Phí sàn', monthlyMoney(summary.totalFee), `Không gồm ADS · ${monthlyPercent(summary.totalFee, summary.totalRevenue)}`, 'orange')}
+      ${monthlyCard('Khấu trừ sàn', monthlyMoney(summary.totalFee), `Không gồm ADS · ${monthlyPercent(summary.totalFee, summary.totalRevenue)}`, 'orange')}
       ${monthlyCard('Chi phí ADS', monthlyMoney(summary.totalAds), `Trong income + file phí đấu thầu`, 'red')}
       ${monthlyCard('Hoàn / refund', monthlyMoney(summary.totalRefund), 'Số tiền hoàn trong file sàn', 'amber')}
       ${monthlyCard('Vốn + vận hành + thuế', monthlyMoney(summary.costReal + summary.opTotal + summary.taxFlat), `Vốn ${monthlyShort(summary.costReal)} · VH ${monthlyShort(summary.opTotal)} · Thuế ${monthlyShort(summary.taxFlat)}`, 'slate')}
@@ -236,7 +236,7 @@ function renderMonthlyCharts(rows) {
   if (typeof makeChart !== 'function') return
   makeChart('chartMonthlyRevenue', 'bar', months, [
     { label: 'Doanh thu chốt', data: months.map(month => monthMap.get(month).revenue), backgroundColor: '#2563eb' },
-    { label: 'Phí sàn + ADS', data: months.map(month => monthMap.get(month).fee + monthMap.get(month).ads), backgroundColor: '#ef4444' }
+    { label: 'Khấu trừ + ADS', data: months.map(month => monthMap.get(month).fee + monthMap.get(month).ads), backgroundColor: '#ef4444' }
   ], { legend: true })
   makeChart('chartMonthlyProfit', 'line', months, [
     { label: 'Lãi bỏ túi', data: months.map(month => monthMap.get(month).netProfit), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.12)', fill: true, tension: 0.3 },

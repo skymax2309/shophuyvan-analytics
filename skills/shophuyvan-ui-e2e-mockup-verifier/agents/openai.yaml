@@ -1,0 +1,4 @@
+interface:
+  display_name: "ShopHuyVan UI E2E Mockup Verifier"
+  short_description: "CDP-based Promotions parity check with responsive screenshots and selector probes."
+  default_prompt: "Run Promotions UI parity verification over CDP and report screenshots plus JSON summary."

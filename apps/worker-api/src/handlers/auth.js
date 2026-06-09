@@ -50,10 +50,16 @@ const LAZADA_MAIN = {
   REDIRECT: 'https://huyvan-worker-api.nghiemchihuy.workers.dev/channels/lazada/callback'
 }
 
-const LAZADA_CHAT_DEFAULT_REDIRECT = 'https://huyvan-worker-api.nghiemchihuy.workers.dev/channels/lazada/chat/callback'
 const OMS_SUCCESS_URL = 'https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/oms-dashboard.html?api_status=success'
-const CHAT_SUCCESS_URL = 'https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/chat-marketplace.html?api_status=success&lazada_chat=success'
 const VIDEO_SUCCESS_URL = 'https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/oms-dashboard.html'
+
+function legacyChatAuthDisabledResponse() {
+  return Response.json({
+    status: 'gone',
+    error: 'legacy_chat_auth_disabled',
+    message: 'Luồng xác thực Chat legacy trên Worker chính đã tắt. Chat/CSKH mới chạy qua Worker shophuyvan-chat-api.'
+  }, { status: 410 })
+}
 
 function isShopeeCallbackPath(pathname) {
   return [
@@ -100,17 +106,6 @@ function lazadaMainConfig(env) {
     secret: cleanText(env.LAZADA_SECRET || LAZADA_MAIN.SECRET),
     redirect: cleanText(env.LAZADA_REDIRECT || LAZADA_MAIN.REDIRECT) || LAZADA_MAIN.REDIRECT,
     successUrl: OMS_SUCCESS_URL
-  }
-}
-
-function lazadaChatConfig(env) {
-  return {
-    label: 'Lazada IM Chat',
-    mode: 'chat',
-    appKey: cleanText(env.LAZADA_CHAT_APP_KEY),
-    secret: cleanText(env.LAZADA_CHAT_SECRET),
-    redirect: cleanText(env.LAZADA_CHAT_REDIRECT || LAZADA_CHAT_DEFAULT_REDIRECT) || LAZADA_CHAT_DEFAULT_REDIRECT,
-    successUrl: CHAT_SUCCESS_URL
   }
 }
 
@@ -571,10 +566,7 @@ export async function handleAuth(request, env, url) {
   }
 
   if (url.pathname === '/api/auth/lazada/chat/url') {
-    const config = lazadaChatConfig(env)
-    if (lazadaConfigMissingFields(config).length) return missingLazadaConfigResponse(config)
-    const redirectUrl = `https://auth.lazada.com/oauth/authorize?response_type=code&force_auth=true&redirect_uri=${encodeURIComponent(config.redirect)}&client_id=${encodeURIComponent(config.appKey)}`
-    return Response.redirect(redirectUrl, 302)
+    return legacyChatAuthDisabledResponse()
   }
 
   if (url.pathname === '/channels/shopee/video/callback') {
@@ -701,7 +693,7 @@ export async function handleAuth(request, env, url) {
   }
 
   if (url.pathname === '/channels/lazada/chat/callback') {
-    return handleLazadaCallback(env, url, lazadaChatConfig(env))
+    return legacyChatAuthDisabledResponse()
   }
 
   return new Response('Auth Route Not Found', { status: 404 })

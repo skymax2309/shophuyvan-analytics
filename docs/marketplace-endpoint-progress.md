@@ -1,4 +1,1048 @@
-# Nhật Ký Tiến Độ Checklist Endpoint Marketplace
+## 2026-05-31 - Progress update: Flash Sale đã có sản phẩm + dọn sạch record lỗi 0 item
+
+- Shop: `chihuy1984` (Shopee API).
+- Deploy Worker: `e99fe8bb-d975-4a8e-92f5-e1404ff846fa`.
+- Live-write verify:
+  - `POST /api/discounts/flash-auto/run` với `force_submit=true` trả `live_write_sent=true`.
+  - Run gần nhất submit thành công `items_submitted=2` và `items_submitted=3`; không còn lỗi `exceed the max number of item limit per promotion`.
+- Readback verify:
+  - 5 chương trình upcoming hiện có item thật (readback theo slot: `2`, `2`, `6`, `7`, `8`).
+- Cleanup lỗi 0 item:
+  - Từ local read-model có `28` upcoming `item_count=0`.
+  - Xóa thật trên sàn được `2`; còn lại `26` trả `shop_flash_sale_not_exist` (đã không còn trên sàn).
+  - Đã xóa cache stale bằng `POST /api/discounts/promotion-cache/delete` (`confirm=DELETE_CACHE_ONLY`) cho toàn bộ stale IDs.
+  - Sau cleanup local: upcoming `5`, zero-item `0`.
+- Sync chéo Shopee API:
+  - `POST /api/discounts/shopee/promotions/sync` trả `status=ok`.
+  - Snapshot live từ Shopee: upcoming `5`, zero-item `0`.
+- Endpoint matrix:
+  - Shopee Flash Sale family: `available` + đang dùng live-write/readback.
+  - Lazada Flash Sale family: `endpoint_not_available` (không đổi).
+- Quyền/token:
+  - Không phát sinh `api_permission_missing` hoặc `token_scope_missing` trong lượt này.
+## 2026-05-31 - Progress update: deleted faulty flash sales (0 items)
+
+- Shop: `chihuy1984` (Shopee API).
+- Action: remove faulty flash sale programs with `enabled_item_count=0` on type=1 list.
+- Result: `24` targets, `24` deleted, `0` failed.
+- Remaining type=1 list: 1 program with `enabled_item_count=1`.
+## 2026-05-31 - Progress update: prevent false-success when 0 item accepted
+
+- Added runtime guard `no_items_added` for Shopee Flash Sale add-items response.
+- `items_submitted` now tracks accepted units from Shopee, not raw attempted units.
+- Deploy version: `9bf6f3a5-9705-405a-96ea-20e1e6b2f8e5`.
+## 2026-05-31 - Flash Sale progress: fixed timeslot call + flash_sale_id contract
+
+- Status: `in_progress_verified_api`.
+- Done in this phase:
+  - Fixed `flash-deal-endpoints.js` to resolve `timeslot_id -> flash_sale_id` before read/update/delete item routes.
+  - Added admin guard for `POST /api/discounts/flash-deal/items/add`.
+  - Added `empty_item_payload` guard before Shopee mutation calls.
+  - Fixed `/api/discounts/flash-deal/timeslots` default params (`start_time/end_time`) to satisfy Shopee validation.
+- Production evidence:
+  - Before fix: `/api/discounts/flash-deal/timeslots?shop=chihuy1984` -> `400 shop_flash_sale_param_error`.
+  - After fix/deploy: same endpoint -> `200` with `timeslots[]`.
+  - `/api/discounts/flash-auto/logs?shop=chihuy1984&limit=3` still shows live-write records (`live_write_sent=1`).
+- Endpoint matrix:
+  - Shopee Flash Sale family: `available` and used.
+  - Lazada Flash Sale family: `endpoint_not_available` (public docs không có họ endpoint tương ứng).
+- Deploy version:
+  - Worker: `e10ec7c9-1b21-4f04-8510-7473f1ec5af4`.
+- Remaining:
+  - Production UI verify mobile/tablet/desktop cho nút `Chạy ngay` chưa hoàn tất do môi trường hiện tại thiếu Playwright Chrome Extension.
+  - Cần chạy verify trực tiếp bằng profile `E:\codex-chrome-profiles\shophuyvan-test` khi browser control khả dụng.
+## 2026-05-30 - Flash Sale auto endpoint progress update
+
+- Task: fix lỗi FlashSale run-now gọi sàn thất bại (`error_not_found`).
+- Checked endpoint: Shopee Open Platform `shop_flash_sale/*`.
+- Code status: `deployed_partial_verified` (adapter đã đổi sang `shop_flash_sale` và đã deploy).
+- API shops impacted: `chihuy1984`, `chihuy2309`, `phambich2312`.
+- Non-API shop handling: `kinhdoanhonlinegiasoc` vẫn giữ trạng thái không chạy Flash Sale API.
+- Permission status: `partial_verified` (không thấy `api_permission_missing/token_scope_missing` trong lần chạy sample, nhưng cần verify thêm UI thực tế).
+- Fallback status: chưa fallback Seller Center.
+- Production readback: `POST /api/discounts/flash-auto/run/batch` shop `chihuy1984` trả `prepared`, `timeslot_id=274064455839744`, `items_submitted=40`; logs mới ghi nhận không còn `error_not_found`.
+- Deploy versions: Worker `b70fe800-7b2d-420b-a96e-b5e52a1ea5e3`; static `61a5c7c1-00b8-4575-9fe8-b09a58701e95`.
+- Next step: verify UI production 3 viewport + thao tác run-now trên trang thật bằng profile `shophuyvan-test`, sau đó chốt trạng thái `done`.
+### 2026-05-28 - Zalo/Facebook social policy và Zalo local bridge
+
+- `Phạm vi`: Chat/CSKH social channels; không thêm endpoint marketplace chính thức mới.
+- `Đã dùng`: Zalo local browser helper `http://127.0.0.1:8794/api/shophuyvan-chat/send` và Chat Worker `/api/chat/browser-helper/push`; policy check `/api/chat/policy/check` có `channel=zalo/facebook` để skip restricted keywords của sàn.
+- `Shop có API`: Shopee/Lazada/TikTok vẫn giữ policy marketplace và capability gửi hiện có; không đổi endpoint official.
+- `Shop không API/social`: Zalo dùng browser-helper bridge local, không gắn nhãn official API. Facebook hiện đánh dấu `social riêng`, chưa có live-send bridge trong lượt này.
+- `Thiếu quyền/không có endpoint`: không phát sinh `api_permission_missing`, `token_scope_missing`, `endpoint_not_available`; Zalo official chat endpoint chưa dùng, fallback là local browser helper đã được operator đăng nhập.
+- `Deploy/verify`: Chat Worker `e2d8803c-b534-4581-bdd9-7fe7378365b4`, static `46b0e809-2c05-4c54-a615-03612feafce9`; production policy readback Zalo allowed, Shopee blocked đúng.
+
+### 2026-05-28 - Chat AI phase 2/3/4 auto-simple và duyệt học
+
+- `Xong`: phase 2 gắn context Chat + Order/Product Core vào Gemini prompt và lưu bằng chứng trong `prompt_context`.
+- `Xong`: phase 3 bật `CHAT_AI_MODE=auto_simple`; auto-send chỉ xảy ra với intent `order_status_simple/product_info_simple`, context đủ, không warning/risk và capability là `official_api/bridge`.
+- `Xong`: phase 4 thêm UI evidence `AI đã soạn từ dữ liệu đã kiểm`, nút `Duyệt học` lưu knowledge và `Hủy học` gọi `/api/chat/ai/reject`.
+- `Endpoint`: không thêm endpoint marketplace mới; endpoint dùng là Chat Worker AI/internal + Worker Core read-only đã có.
+- `Readback`: `/api/chat/ai/status` active `gemini_key_count=2`; dry-run 3 hội thoại thật mode `auto_simple` nhưng `auto_send=false` vì không đủ điều kiện simple hoặc còn warning/risk; `/api/chat/ai/reject` trả `final_state=rejected`.
+- `Deploy/verify`: Chat Worker `62809e20-a2d0-4f1f-a407-2c4212eb6ca9`; static `59c78837-7637-4bda-8130-afa431ea3d59`; UI `/pages/chat-cskh.html` pass desktop/tablet/mobile, `overflowX=false`, không lộ raw/debug/mojibake.
+- `Đã xử lý tiếp`: Product Core search theo tên dài K75 đã hết warning đọc dữ liệu sau Worker chính `204213c9-6b18-4b49-8c73-50712e17ec4c`; auto-simple vẫn chỉ tự gửi khi intent đủ rõ.
+
+### 2026-05-28 - Chat AI Context Builder đọc Core cho Gemini
+
+- `Xong`: thêm `buildAiReplyContext()` để Gemini nhận context sạch từ Chat Core + Order/Product Core, không tự đọc raw DB và không tự bịa giá/tồn/trạng thái.
+- `Xong`: bắt mã đơn/SKU/tên sản phẩm từ hội thoại; gọi `GET /api/core/orders/:orderId`, `GET /api/core/orders/by-conversation/:conversationId`, `GET /api/core/products/by-sku/:sku`, `GET /api/core/products/search`.
+- `Xong`: prompt_context lưu bằng chứng AI đã dùng dữ liệu nào: `order_context_count`, `product_context_count`, `order_codes`, `product_queries`, `core_context_warnings`, `context_risk_flags`.
+- `Xong`: khóa phase này bằng `CHAT_AI_MODE=suggest_only`; production trả `auto_send=false`, `policy_status=needs_review` dù conversation Lazada có `send_capability=bridge`.
+- `Endpoint`: không thêm endpoint marketplace mới; chỉ dùng endpoint Core read-only đã có. Shopee/Lazada API shop đọc Core/snapshot; no-API shop đọc dữ liệu đã nhập Warehouse/Core.
+- `Readback`: `/api/chat/ai/status` active, `gemini_key_count=2`; dry-run hội thoại Lazada `lazada_200166591213_200001352163_1_200166591213_2_103` trả `order_count=1`, `product_count=3`, `order_codes=["529065767452163"]`, `auto_send=false`.
+- `Deploy/verify`: Chat Worker `6021d457-6ab8-431a-9497-a057192f6fcc`; test pass `npm run check`, `node scripts/test-chat-ai-context.mjs`, `node scripts/test-chat-ai-policy.mjs`.
+- `Đã xử lý tiếp`: Product Core search theo tên dài K75 trả `matched_product_core`; SKU lookup vẫn có dữ liệu và Chat prompt không còn warning search tên dài.
+
+### 2026-05-28 - Chat/AI Gemini key append fix
+
+- `Xong`: sửa Chat Worker để thêm Gemini key mới không xóa danh sách key đã lưu; `gemini_api_keys_input` append + dedupe + giới hạn 5 key.
+- `Xong`: Settings UI đổi label/placeholder/toast thành thao tác thêm key mới, hiển thị rõ `Key cũ vẫn được giữ`.
+- `Endpoint`: không thêm endpoint marketplace mới; dùng Chat Worker `GET /api/chat/ai/status` và `POST /api/chat/settings`.
+- `Readback`: production `/api/chat/ai/status` active, `gemini_key_count=2`; không thêm key giả vào production.
+- `Shop có API`: Shopee/Lazada bridge/capability giữ nguyên; AI chỉ dùng key pool Gemini đã lưu. `Shop không API`: không gắn nhãn gửi API.
+- `Deploy/verify`: Chat Worker `fde42ef4-81ce-4c38-afdc-696a6563d956`, static `399e0247-08e2-4cf6-89e0-ad2b9e9bbdfa`; production Settings desktop/tablet/mobile `overflowX=false`, không mojibake/undefined.
+
+### 2026-05-28 - Chat/AI key count, học AI và auto-reply
+
+- `Xong`: Settings tab AI hiển thị số key Gemini đã lưu ngay trong card Gemini; production đang đọc `Đã lưu 1/5 key Gemini`.
+- `Xong`: lưu API Gemini với textarea trống không còn xóa key cũ; test Gemini dùng key đã lưu nếu không nhập key mới.
+- `Xong`: khi nhân viên gửi thành công câu trả lời dựa trên gợi ý AI, Chat UI gọi `/api/chat/ai/approve` để lưu vào `ai_knowledge_base`.
+- `Xong`: cron Chat Worker thêm auto-reply guard, chỉ gửi khi quá `auto_reply_minutes`, policy approved, không có từ khóa/pattern cấm, và capability live-send là `official_api` hoặc `bridge`.
+- `Endpoint`: không thêm endpoint marketplace mới; endpoint dùng là Chat Worker settings/AI/knowledge/approve nội bộ. Shopee/Lazada/TikTok bridge giữ nguyên.
+- `Readback`: `/api/chat/ai/status` active, key count `1`; `/api/chat/settings` `allow_auto_send=true`, `auto_reply_minutes=5`; D1 read-only có 47 candidate tại thời điểm kiểm.
+- `Deploy/verify`: Chat Worker `c99b6b56-2f04-442a-8c51-61cf2cb2c8f8`, static `0c59ad14-b97f-4998-9cf2-28ceb2ac2784`; production Settings desktop/tablet/mobile `overflowX=false`, không mojibake, không `[object Object]`.
+
+### 2026-05-28 - Chat policy chặn SĐT/website
+
+- `Xong`: Chat Worker có pattern hệ thống chặn định dạng số điện thoại Việt Nam và định dạng website/domain, không phụ thuộc chỉ vào keyword `sdt`, `web`, `website`.
+- `Xong`: Settings preview và Chat composer đều gọi `/api/chat/policy/check`; khi nhập `0909128999 shophuyvan.vn`, UI báo bị chặn và không append/gửi tin.
+- `Endpoint`: không thêm endpoint marketplace mới; route mới là internal Chat Worker policy check. Shopee/Lazada/TikTok capability và bridge giữ nguyên.
+- `Shop có API`: policy chạy trước khi gọi official API/bridge. `Shop không API`: policy chạy trước draft/helper/manual flow.
+- `Deploy/verify`: Chat Worker `d5d674e4-7d2b-46e4-9cd8-b0beab88a969`, static `95b003c3-efc4-4acb-adbf-cce91f8c6696`; API readback pass; production `/settings` và `/pages/chat-cskh` pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`, `overflowX=false`.
+
+### 2026-05-28 - Trang chủ thêm lối tắt Cài đặt Chat
+
+- `Phạm vi`: static UI trang chủ `/`; không thêm endpoint marketplace mới và không đổi backend Chat Worker.
+- `Xong`: lưới `Truy cập nhanh` có card `Cài đặt Chat` trỏ tới `/settings` để chỉnh AI/Gemini, thông báo, từ khóa và cấu hình Chat nhanh hơn.
+- `Endpoint`: không phát sinh Shopee/Lazada/TikTok endpoint mới; vẫn dùng Chat Worker settings hiện có khi người dùng vào trang `/settings`.
+- `Shop có API`: Shopee/Lazada giữ capability/bridge hiện tại; không dùng Seller Center fallback.
+- `Shop không API`: TikTok/manual/browser-helper giữ fallback hiện tại; không gắn nhãn API mới.
+- `Deploy/verify`: static `shophuyvan-analytics` version `355b02f9-ee19-470e-a7cc-7e78af8a5e61`; production `/` desktop/tablet/mobile pass `overflowX=false`, bấm card mở `/settings`.
+
+### 2026-05-28 - Khuyến mãi sàn tab con cho Flash Sale tự động
+
+- `Xong`: `pages/promotions.html` quay lại đúng vai trò trang cha `Khuyến mãi sàn`; Flash Sale tự động là tab con trong cùng trang, không còn thay toàn bộ menu bằng một màn hình Flash riêng.
+- `Xong`: tab con gồm `Flash Sale tự động`, `Tổng quan`, `Shopee giảm giá`, `Voucher`, `Combo`, `Mua kèm`, `Lazada`; bấm module khuyến mãi mở lại danh sách chương trình, bấm Flash Auto quay về panel cài đặt tự động.
+- `Endpoint`: không thêm endpoint marketplace mới trong lượt UI này; vẫn dùng các route Flash Auto đã nối trước đó `/api/discounts/flash-auto/*` và Shopee Flashdeal `/api/v2/flashdeal/*`.
+- `Shop có API`: Shopee `chihuy1984`, `chihuy2309`, `phambich2312` tiếp tục đi Worker API/Shopee Flashdeal; Lazada `kinhdoanhonlinegiasoc` vẫn disabled cho Flash Auto, không gắn nhãn API Flash Sale giả.
+- `Deploy/verify`: static `shophuyvan-analytics` version `1103b251-13c0-4179-ada6-f98b54dacd3d`; production desktop `1440x900`, tablet `820x1180`, mobile `390x844` pass `overflowX=false`, có tab con, không còn layout `.flash-auto-shell`, bấm `Chạy ngay` hiện toast `Lần thử 1/6 - đang gọi sàn...`.
+- `Còn mở`: Shopee Flashdeal timeslot/live-write vẫn đang bị `error_not_found` từ production endpoint nên chưa có `verified=true`.
+
+### 2026-05-28 - ADS automation ROAS toàn chiến dịch và bật lại campaign
+
+- `Xong`: tab `Cài đặt` không còn panel thao tác thủ công; ROAS mục tiêu là setting tự động áp dụng toàn bộ chiến dịch (`roas_target`) và readback production giữ đúng giá trị cũ `20`.
+- `Xong`: bật lại campaign đã tạm dừng được điều khiển bởi `auto_resume_enabled`, `resume_roas_multiplier`, `resume_stock_multiplier`, `max_resume_per_day`; Evaluation Engine đã chặn resume khi toggle tắt hoặc quá giới hạn bật lại.
+- `Endpoint`: không thêm endpoint marketplace mới; dùng Worker route hiện có `/api/ads/automation/settings` và cron/evaluation engine. Không live-write ADS trong lượt này.
+- `Shop có API`: Shopee/Lazada giữ luồng Open Platform/Worker/Core hiện có. `Shop không API`: fallback giữ nguyên, không gắn nhãn API mới.
+- `Deploy/verify`: Worker `661da300-3a63-4ff0-91c8-ea7ae1055c4c`, static `9ddf1c73-03b7-44f1-8a72-de13bd7ec7c8`; production desktop/tablet/mobile pass, không còn panel thủ công, có ROAS target và auto resume toggle.
+- `Còn mở`: nợ file lớn ADS cần tách module riêng; test tổng `scripts/test-ads-operations-ui.mjs` còn fail ở Promotion UI ngoài scope.
+
+### 2026-05-28 - ADS redesign Cài đặt/Cần xử lý/Lịch sử
+
+- `Xong`: tab ADS đổi tên theo UI vận hành, tab Cài đặt chia 4 bước, tab Cần xử lý gộp trạng thái/hành động dễ scan, tooltip ROAS/ACOS bật trên desktop/tablet/mobile.
+- `Xong`: chart `Xu hướng 7 ngày` dùng riêng dữ liệu 7 ngày gần nhất từ `/api/ads/dashboard`; production hiển thị đủ 05-22 -> 05-28, không còn làm mờ do chỉ lấy filter hôm nay.
+- `Endpoint`: không thêm endpoint marketplace mới; không live-write; không đổi quyền/token. Route đã dùng là route Worker API hiện có `/api/ads/dashboard`, `/api/ads/campaign-guard/overview`, `/api/ads/automation/*`.
+- `Shop có API`: Shopee/Lazada giữ luồng Open Platform/Worker/Core hiện có. `Shop không API`: fallback giữ nguyên, không gắn nhãn API mới.
+- `Deploy/verify`: static `shophuyvan-analytics` version `ba350301-eb6e-4003-bc95-d328c1668942`; production desktop `1440x900`, tablet `820x1180`, mobile `390x844` pass `overflowX=false`, chart đủ 7 ngày, Top SKU không overlap, Cài đặt có 8 step/status, tooltip mở được.
+- `Còn mở`: nợ tách file lớn ADS (`ads-end-user-ui.js`, `ads-page.css`) cần lượt refactor riêng sau khi chốt UI.
+
+### 2026-05-28 - Chat/CSKH AI settings UI save button
+
+- `Phạm vi`: chỉ sửa static UI panel `Cài đặt AI`; không thêm endpoint marketplace mới và không đổi adapter gửi/sync sàn.
+- `Đã dùng`: Chat Worker `/api/chat/settings` để lưu Gemini/API settings, từ khóa và bộ nhớ AI. Desktop production bấm `Lưu API Gemini` trả `POST=204`, sau đó `GET=200`.
+- `Shop có API`: Shopee/Lazada giữ capability/bridge hiện tại; AI settings chỉ cấu hình gợi ý/tự gửi theo guard, không bypass capability.
+- `Shop không API`: TikTok/manual/browser-helper giữ draft/helper, không gắn nhãn API và không tự gửi.
+- `Deploy/verify`: static `shophuyvan-analytics` version `05177fc1-9210-4536-b8bf-8a49b4b8ce72`; Chat/CSKH production desktop/tablet/mobile pass layout, không mojibake, có nút `Lưu API Gemini`.
+
+### 2026-05-27 - ADS rule settings UI cleanup
+
+- `Xong`: giao diện cài đặt `Luật tự động ADS` đã gọn lại, label/input/đơn vị căn theo grid, input nền tối đồng bộ design system, mobile đặt nhãn phía trên và input + đơn vị cùng hàng.
+- `Deploy`: static `shophuyvan-analytics` version `75e2e11a-4b10-4372-9262-2ca4d1c37ff2`; Worker API không deploy trong lượt này.
+- `Verify production`: mở `/pages/ads` bằng Chrome visible profile `E:\codex-chrome-profiles\shophuyvan-test`, vào `Luật tự động ADS`, kiểm `Điều kiện đánh giá` và `Giới hạn an toàn` trên desktop `1366x900`, tablet `820x1180`, mobile `390x844`; tất cả pass, `overflowX=0`, CSS `ads-rules-layout-20260527b`, không console issue.
+- `Endpoint`: không có endpoint marketplace mới; ADS endpoint/permission/fallback giữ nguyên. Không có `api_permission_missing`, `token_scope_missing` hoặc `endpoint_not_available` mới.
+- `Artifact`: `tmp-verification/ads-rules-ui-20260527-final/result.json` và ảnh PNG từng viewport.
+- `Còn mở`: `apps/fe/js/dashboard/ads/ads-end-user-ui.js` vượt 30KB từ trước; cần tách module trong lượt riêng nếu chỉnh logic ADS.
+
+### 2026-05-27 - Shopee Chat read-state ổn định sau Sync
+
+- `Xong`: Chat Core không còn cộng lại `unread_count` khi Shopee `/api/v2/sellerchat/get_message` trả lại message khách đã lưu; chỉ tin khách mới thật sự tạo badge `Chưa đọc`.
+- `Xong`: UI `Sync ngay` chờ bridge trả kết quả trước khi tải lại danh sách; Core không cho tin lịch sử cũ ghi đè tin cuối mới hơn.
+- `Dữ liệu bẩn đã xử lý`: D1 Chat cập nhật `13` hội thoại có message cuối là shop nhưng còn unread về `0`; sau Sync lặp lại, `answered_unread_after_repeated_sync=0`.
+- `Endpoint đã dùng`: Shopee SellerChat `/api/v2/sellerchat/get_conversation_list`, `/api/v2/sellerchat/get_one_conversation`, `/api/v2/sellerchat/get_message`; read-state nội bộ ghi tại Chat Core. `/api/v2/sellerchat/read_conversation` đã nối nhưng production trước đây trả `param_error`, không giả báo platform read pass.
+- `Deploy/verify`: Chat Worker `565616af-7f81-4235-a97f-b11b101c97b4`, Static `da275551-9137-4f5f-9dd3-691e58ef0df2`; production browser mở `tien2612`, Sync và reload nhiều lượt vẫn `Đã đọc` trên desktop/tablet/mobile.
+
+### 2026-05-27 - TikTok Chat sender / OMS order confirmation draft
+
+- `Xong`: TikTok no-API `0909128999` ghi Chat Core qua browser helper; Core phân loại lại tin shop/hệ thống, D1 production repair `9` rows sai `sender_type`, UI hiển thị rõ `Khách/Shop/Hệ thống`.
+- `Xong`: Tab Sản phẩm TikTok production nhập `k243`, bấm `Gửi` với SKU `20BOTACKE5X30MMK243` chèn sản phẩm vào bản nháp để gửi tay; không phát sinh gửi tin/card thật.
+- `Xong`: OMS đơn Shopee API `260527G4WW0496` bấm `Nhắn khách` mở đúng khách `dungnguyen_12111989`, panel đọc đúng sản phẩm/tracking/timeline và giữ bản nháp xác nhận sau reload.
+- `Đang khóa an toàn`: setting xác nhận đơn đang `draft_only`; chưa tự gửi tin cho khách cho tới khi có chốt go-live và kiểm readback gửi thật.
+- `Deploy/verify`: Main Worker `fa5432dd-dbf3-43f1-85ed-b66d5b5299e4`, Chat Worker `6674fe30-c103-491c-b25e-4db4cb4b5048`, Static `13385bb2-98cb-4d91-bbcc-80036d722130`; Chat UI desktop/tablet/mobile và OMS click/timeline production pass.
+
+### 2026-05-27 - Chat no-API scheduled sync + context readback
+
+- `Xong`: Worker bot settings/local scheduler có `auto_chat_enabled`; Radar chạy `sync_chat` theo lịch cho TikTok `0909128999` và Shopee no-API `khogiadungcona`.
+- `Xong`: Chrome helper Chat dùng profile automation cố định, CDP port theo profile, không kill Chrome chung; Chat Worker token đọc từ local config/secret, không dùng env stale.
+- `Xong`: Chat Core bù tên khách cũ từ message customer và search server-side theo mã đơn/nội dung/attachment. UI search gọi lại API thay vì chỉ lọc 200 row local.
+- `Production readback`: scheduler heartbeat `2026-05-27T10:27:57+07:00`, last chat `ok`, TikTok accepted `20`, Shopee `no_messages`, errors `0`.
+- `Production UI`: tìm `584128214410102531` thấy `nguyn.xun.ha.63574`, order `Đã giao · 33.000đ`, product `Kẹp Cố Định...`, tracking `BEST Express / TTVN1088367610`; desktop/tablet/mobile overflow ngang `0`.
+- `Deploy`: Chat Worker `3e97ebc5-82e2-461b-afc7-ef15908c047f`; static `shophuyvan-analytics` `0cbec3a7-f90e-4891-8dce-242288ff74bc`; Worker chính giữ version `a65c18f8-a191-45bb-b8ae-fac1824f0877`.
+
+### 2026-05-27 - TikTok Finance Lock ADS ngoài ví/PiShip
+
+- `Đã dùng`: TikTok Seller Center finance/detail đã quét trong Finance Core cho doanh thu, phí sàn, thuế, SFR và settlement pending/confirmed; không phát sinh endpoint marketplace mới trong lượt này.
+- `Cost Setting`: `tiktok_ads` và `tiktok_sfr` chỉ dùng cho `ADS ngoài ví`/`PiShip` ở tab `Lợi nhuận`, không cộng vào `Tổng khấu trừ`, `marketplace_fee_total` hoặc `tax_total`.
+- `Shop có API`: Shopee/Lazada API không đổi; vẫn đi Open Platform/Finance API trước, không dùng Cost Setting làm phí confirmed nếu API có dữ liệu.
+- `Shop không API`: TikTok `0909128999` vẫn là Seller Center/local helper + Warehouse/Core; Cost Setting là fallback ngoài ví cho lợi nhuận, không phải nguồn settlement.
+- `Verify production`: Worker chính `huyvan-worker-api` version `25ae3ebb-f598-4637-8b22-d692aa6b5b39`; static UI không đổi vì chỉ sửa Core/read-model. Readback đơn `584211305752462759` trả `ads_fee_total=5500`, `piship_fee=2008`, `internal=7508`, `total_deductions=0`, `profit_real=11467`.
+- `UI production`: OMS popup `Lợi nhuận` đúng đơn hiển thị `ADS ngoài ví -5.500đ`, `PiShip -2.008đ`, `Lãi tạm tính 11.467đ`; desktop `1366x900`, tablet `820x1180`, mobile `390x844` pass, không tràn ngang.
+
+### 2026-05-27 - Chat/CSKH order detail dùng lại Order/Tracking Core
+
+- `Đã dùng`: Chat/CSKH tab `Đơn` đọc `/api/core/orders/by-conversation/*`; nút `Chi tiết` đọc `/api/logistics-watch/detail?order_id=...` để mở timeline vận chuyển. UI không gọi Open Platform trực tiếp.
+- `Shopee đã dùng`: `/api/v2/order/get_order_detail.payment_method`, `/api/v2/order/get_order_detail.pay_time`, `/api/v2/order/get_order_detail.message_to_seller`; `/api/v2/logistics/get_tracking_info` cho timeline.
+- `Lazada đã dùng`: `/orders/get.payment_method`, `/orders/get.buyer_note/remarks`, các field thời gian thanh toán nếu Open Platform trả; `/logistic/order/trace` cho timeline.
+- `Shop có API`: Shopee `chihuy1984`, `chihuy2309`, `phambich2312` và Lazada `kinhdoanhonlinegiasoc@gmail.com` tiếp tục đi API/Core trước. Không dùng Seller Center/browser fallback cho các shop API.
+- `Shop không API`: giữ manual/import/browser helper riêng; nếu thiếu dữ liệu thì UI hiển thị thiếu từ Core, không gắn nhãn API và không tự bịa thanh toán/timeline.
+- `Verify production`: Worker chính `9885bf85-0104-4ee3-a22e-57dd05fb88bd`, static `847f09bd-2b41-4ed4-81d0-c1643657e1ba`. Đơn `260525BY4BCTM7` readback có `Cash on Delivery`, `Giao Hàng Nhanh`, `GYTHYDFX`, timeline `3` event. Chat/CSKH desktop/tablet/mobile bấm `Chi tiết` mở timeline, overflow ngang `0`.
+- `Giới hạn dữ liệu`: Shopee không trả `pay_time` cho sample COD `260525BY4BCTM7`; Core giữ `payment_time` rỗng và UI hiển thị `Chưa có`, không tự suy luận từ thời gian tạo/hoàn thành.
+
+### 2026-05-27 - Lazada Chat sync không bỏ tin gần đây
+
+- `Xong`: Worker bridge Lazada tách `lazada-bridge-paging.js`, dùng mốc kéo lùi hiện tại cho `/im/session/list` và `/im/message/list`, thêm target backfill và retry `ApiCallLimit`.
+- `Xong`: Chat Worker Lazada adapter forward `target_conversation_id`, `platform_conversation_id`, `page_count/session_page_count`, `message_page_count`, `force_history` xuống bridge.
+- `Production`: Worker chính `6c2ddd52-bf39-4080-bebe-4e598bff4c7d`; Chat Worker `814232b6-5150-405f-a94a-86e235a2ab11`.
+- `Verify`: API readback thấy Lazada shop `200166591213` có các hội thoại mới ngày `26/05`, `25/05`, `24/05`, `22/05`; UI production desktop/tablet/mobile có Lazada `S***y`, composer, không raw JSON và không tràn ngang.
+- `Còn mở`: cleanup row legacy `conv_*` không có `platform_conversation_id` ở lượt dữ liệu bẩn riêng.
+
+### 2026-05-27 - OMS shipping timeline + payment method + customer note
+
+- Đã nối nhánh code Core-first: Shopee/Lazada API sync ghi phương thức thanh toán, ghi chú khách và timeline vận chuyển vào Core/read-model; OMS drawer đọc lại qua `/api/logistics-watch/detail`.
+- Endpoint Shopee đã kiểm/dùng: `/api/v2/order/get_order_detail` cho `payment_method/message_to_seller`, `/api/v2/logistics/get_tracking_info` cho timeline, `/api/v2/logistics/get_tracking_number` cho mã vận đơn thiếu; `/api/v2/payment/get_payment_method_list` và `/api/v2/payment/get_escrow_detail` đã phân loại là reference/payment-finance, không dùng thay per-order payment method.
+- Endpoint Lazada đã kiểm/dùng: `/orders/get` cho `payment_method/buyer_note/remarks`, `/order/items/get` cho package/tracking evidence, `/logistic/order/trace` với `ofcPackageIdList` cho timeline; `/finance/transaction/details/get` giữ cho Finance Core.
+- Skill/reference đã cập nhật: `shophuyvan-ui-ux-master-skill` bản chuẩn đã đặt trong repo/local skill store; `shopee-open-platform-docs` có note mới `references/order-logistics-payment-endpoints.md`.
+- Đã kiểm production: Worker chính `443ee7b7-cc4b-450b-abec-7af12bdc973c`, static UI `392fb66d-7022-489d-995a-b3517b3bf62d`; Shopee `260526E7Q5NGSJ` sync/readback timeline `GYTXXH7K` + payment `Cash on Delivery`; Lazada `528922543424254` readback trace `6` event + payment `MIXEDCARD`.
+- OMS production UI bằng profile `E:\codex-chrome-profiles\shophuyvan-test`: desktop `1366x900`, tablet `820x1180`, mobile `390x844` pass; drawer hiện `Thanh toán`, `Ghi chú khách`, nguồn `Shopee Open Platform`, không tràn ngang, không lộ raw endpoint.
+
+### 2026-05-27 - Lazada Chat IM + Product/Order card production
+
+- Đã sửa Lazada Chat theo endpoint chính thức, không còn lưu raw JSON trong message: `txt.vi/en`, `imgUrl`, `itemId`, `orderId` được chuẩn hóa ở bridge rồi ghi Chat Core.
+- Đã thêm `/im/session/get` vào sync để bổ sung tên khách; production target `200006334685` từ `Khách chưa rõ` thành `S***y`.
+- Đã backfill item message Lazada vào Product Knowledge Core; `/api/core/products/search?platform=lazada&q=3071608306` trả 1 sản phẩm, ảnh `vn-live.slatic.net`, SKU `14763096976`, giá `219.000đ`.
+- Đã nối route gửi card: `POST /api/chat/product-cards/send` cho Lazada dry-run trả `template_id=10006,item_id=3071608306`; `POST /api/chat/order-cards/send` dry-run trả `template_id=10007,order_id=527394116390561`.
+- Deploy: Worker chính `70330a62-5b90-495a-b61d-643ca28853c2`; Chat Worker `6705efbb-9021-4dc7-a65f-1cd76fda59cb`; Static `d29155bb-59b7-4d00-bc39-cee47dfa6fe4`.
+- Production UI: tìm `S***y` trên Chat/CSKH, không còn `{"txt":...}`, ảnh hiện thật, tab Sản phẩm có card Lazada và nút `Gửi`; desktop/tablet/mobile overflow `0`.
+
+### 2026-05-26 - Chat Core Duoke-style order/product/read UI follow-up
+
+- Đã sửa tiếp giao diện Chat/CSKH theo bằng chứng Duoke: bỏ tab `Khách`, AI suggestion chèn thẳng vào composer, panel chi tiết có close/back trên mobile, Đơn/Sản phẩm hiển thị ảnh và thông tin vận hành từ Core, không còn `[object Object]` trong list/panel sau deploy.
+- Đã thêm read/unread UI + Core writeback: mở hội thoại gọi `POST /api/chat/conversations/:id/read`, set `unread_count=0`, list phân biệt `Chưa đọc N` và `Đã đọc`.
+- Đã nối Shopee read endpoint: Chat Worker adapter -> Worker bridge -> `/api/v2/sellerchat/read_conversation`. Đã tra wrapper endpoint thấy request cần `conversation_id` và `last_read_message_id`; production vẫn trả `param_error`, nên trạng thái là `endpoint_reachable_param_error`, chưa pass platform read.
+- Deploy: Worker chính `8c12d518-333c-472a-b1f7-42155e72a73e`; Chat Worker `65f00fed-af16-47fe-b493-817d2132a6f7`; FE static `e970471c-91a8-41d7-a873-7b1c3bf73d3b`.
+- Production verify Chrome/CDP: desktop `1440x900`, tablet `820x1180`, mobile `390x844`; order card/image pass, product card/image pass, AI composer length `107`, mobile detail close pass, no horizontal overflow, no `[object Object]`. Test pass: `node --check`, `node scripts/test-ui-design-system-guard.mjs`, `node scripts/check-oms-core-regression-lock.mjs`.
+
+### 2026-05-26 - Chat Core Shopee order/image/composer production truth
+
+- Đã kiểm trực tiếp Shopee Open Platform: FAQ Customer Service App Type xác nhận SellerChat `get_conversation_list`, `get_message`, `get_one_conversation`, `send_message`, `read_conversation`, `upload_image`, `webchat_push`; Push doc xác nhận message có `image`, `item`, `source_content/order_sn`. FAQ cũng xác nhận có Product API và Order API chính thức để đồng bộ dữ liệu nguồn.
+- Đã nối Chat UI theo Core-first: Shopee SellerChat message -> Chat Core lưu `order_id/order_sn/product_ids/attachments` -> UI gọi `/api/core/orders/by-conversation` và `/api/core/products/search` để hiển thị đơn/sản phẩm/ảnh, không tự dựng nghiệp vụ ở frontend.
+- Đã sửa production bug user báo: message `[Đơn hàng] 260526EBHR5T4A` trước đó chỉ là text, sau sync đã có `order_id`; UI hiển thị card `260526EBHR5T4A / Đã giao · 47.500đ`; message `[Hình ảnh]` render thành ảnh thật; hội thoại dài vẫn thấy ô chat.
+- Readback production: `POST /api/chat/sync` shop `170044686` trả `pulled_conversations=45`, `pulled_messages=138`; Core order readback có tracking `VN2696441018001` và item data. Product message riêng chưa xuất hiện trong thread `kalot4991`, nhưng product endpoint đã được nối cho message item/product.
+- Deploy production: Worker chính `huyvan-worker-api` `624584d2-ae6e-470b-9cc7-b781b94f98f7`; static `shophuyvan-analytics` `85104fd5-2abf-45d2-9c74-b76ef6a33cd2`.
+- Verification production bằng Chrome/CDP: mobile `390x844`, tablet `820x1180`, desktop `1366x900` pass; không HTTP error, không console error, không tràn ngang, `chatInput` nằm trong viewport.
+- Còn mở: order cũ `250404CP6PP12C` không có readback trong Order Core nên hiển thị `Chưa tìm thấy đơn`; đây là thiếu dữ liệu Core, không được fake thông tin đơn ở UI.
+
+### 2026-05-26 - Chat Core Shopee current-list production truth
+
+- Đã kiểm trực tiếp Shopee Open Platform website/API doc endpoint. Public FAQ Customer Service App Type liệt kê nhóm SellerChat/Webchat endpoint; chi tiết `/doc/api` cho sellerchat đang khóa bởi đăng nhập/quyền nên trạng thái là `endpoint_used_but_doc_detail_auth_locked`, không phải thiếu endpoint.
+- Đã thêm diagnostic đọc-only `probe_list_variants` vào Worker bridge và gọi production qua Chat Worker. Kết quả: `page_size_only` lỗi `param_error`; `direction=latest&type=all` trả list cũ năm 2024; `direction=older&type=all` trả đúng list mới trong Seller Center và match `kalot4991`, `tdminh82`, `phamdathao273`, `anhvunhi1995`, `tiendatfarm`, `quochuy190195`, `tien193200`, `shop24_7`, `thuthai984`, `ri.decor`.
+- Đã đổi sync Shopee API shop sang `direction=older&type=all`, vẫn qua Chat Core: Open Platform/Worker bridge -> Chat Worker adapter -> Chat Core D1 -> UI render read-model. Không dùng automation/browser fallback cho shop API.
+- Đã sửa ghi Core: shop-level sync state không ghi đè `pulled_messages/saved_messages` của từng hội thoại; tin nhắn khách thiếu `sender_name` được điền từ `conversation.customer_name`; browser-helper/no-API cũng lưu `customer_name` nếu có.
+- Production readback sau deploy: `POST /api/chat/sync` shop `170044686` trả `pulled_conversations=45`, `pulled_messages=138`, `sync_health=ok`. API search thấy đầy đủ tên khách mới và message counts: `kalot4991=11`, `phamdathao273=9`, `anhvunhi1995=8`, `tiendatfarm=3`, `ri.decor=18`.
+- Production UI verification bằng Chrome/CDP: `chat-cskh.html?verify=shopee-current-chat-20260526`, mobile/tablet/desktop pass, không tràn ngang, không HTTP/console error; danh sách hiển thị `kalot4991 | GIA DỤNG HUY VÂN`, `tdminh82`, `phamdathao273`, `anhvunhi1995`; thread `kalot4991` hiển thị tin ngày `26/05/2026`.
+- Deploy: Worker chính `huyvan-worker-api` version `77fa391a-2613-4130-b918-730382eb4fc7`; Chat Worker `shophuyvan-chat-api` version `0caf8953-945d-4f56-bc23-7e55fb64d8b8`.
+
+### 2026-05-26 - Chat Core Shopee lost-push/paging production truth
+
+- Đã nối và deploy read-only `/api/v2/push/get_lost_push_message` cho Shopee Chat diagnostic/history sync; endpoint trả HTTP 200 nhưng `webchat_rows=0`, `target_webchat_rows=0` với conversation `296431470344582725`.
+- Đã thêm paging/dedupe cho `/api/v2/sellerchat/get_message`; Shopee trả lại page trùng nên bridge dừng sau khi dedupe, target vẫn chỉ có 8 tin unique.
+- Đã sửa webhook events route production: `/api/webhooks/events` không còn lỗi `ensureColumn is not defined`; `/api/webhooks/events?core=1&subscriptions=1&probe=1` cho thấy `webchat_push` từng nhận 141 event, lần gần nhất `2026-05-06 14:05:21`.
+- Readback đúng khách/shop: `tdminh82`, `GIA DỤNG HUY VÂN`, `sync_health=ok`, không HTTP 501/503 trên UI production.
+- Trạng thái còn mở: tin `2026-05-22..2026-05-25` chưa xuất hiện trong Open Platform `get_message`, lost-push hoặc webhook log. Không được báo đã đồng bộ đủ lịch sử gần đây cho đến khi đối chiếu được Seller Center/Duoke hoặc một endpoint Shopee khác trả các tin đó.
+
+### 2026-05-26 - Chat Core Shopee tên khách thật + kiểm message 22-26/05
+
+- Đã nối thêm `/api/v2/sellerchat/get_one_conversation` cho sync target Shopee và mở diagnostic an toàn qua Chat Worker để xem key/field response production, không log token/cookie.
+- Production diagnostic của conversation `296431470344582725`: `conversation_row_keys` có `to_id`, `to_name`, `buyer_id`, `buyer_name`, `latest_message_content`; `target_one_conversation_status=200`; tên khách thật `tdminh82`.
+- Chat Core readback sau sync: `customer_name=tdminh82`, `shop_display_name=GIA DỤNG HUY VÂN`, `last_message_text=DẠ`, `sync_health=ok`, `last_error_code=""`.
+- Message readback của đúng conversation này: 8 tin, ngày `2026-05-16`, `2026-05-18`, `2026-05-26`; không có tin `2026-05-22..2026-05-25` trong response SellerChat `get_message` hiện tại.
+- Production UI verification: tìm `69018330` hiện `tdminh82`; bấm topbar `Sync ngay` trả toast `Đã quét 4 shop, 181 hội thoại, đọc 398 tin, lưu 0 tin mới`; desktop/tablet/mobile không tràn ngang, không HTTP/console error.
+- Deploy: Worker chính `huyvan-worker-api` version `9f3997fc-48a0-4d96-b98e-df0dcfee59a0`; Chat Worker `shophuyvan-chat-api` version `95ce6a84-dca8-4a61-8fc9-219dddc085e3`; static UI không đổi.
+
+### 2026-05-26 - Chat Core Shopee sync target + multi-shop production fix
+
+- Đã sửa bridge Shopee để `POST /api/chat/sync` có `platform_conversation_id` sẽ bắt buộc kéo đúng hội thoại đó bằng `/api/v2/sellerchat/get_message`, kể cả khi hội thoại không nằm trong batch `get_conversation_list` mới nhất.
+- Đã sửa guard ID: chỉ dùng `platform_conversation_id` hoặc Shopee conversation id dạng số dài làm target; không dùng local `conversation.id` dạng `conv_*` để tránh tạo conversation rỗng.
+- Đã sửa UI topbar `Sync ngay`: quét từng shop API của kênh đang mở thay vì chỉ sync active conversation. Toast hiển thị `shop / hội thoại / tin đọc / tin mới lưu`.
+- Đã dọn dữ liệu bẩn do bản vá trung gian tạo ra: xoá 2 row Shopee rỗng có `platform_conversation_id LIKE 'conv_%'`; readback sau cleanup không còn row lỗi.
+- Endpoint chính thức đã dùng: Shopee `/api/v2/sellerchat/get_conversation_list`, `/api/v2/sellerchat/get_message`; không mở Seller Center fallback cho shop API.
+- Deploy production: Worker `huyvan-worker-api` version `00f9cb9d-3275-4590-b13b-32395ab2a63a`; Chat Worker `shophuyvan-chat-api` version `397b332d-83c8-492f-8aed-d12ffc10ab06`; Static `shophuyvan-analytics` version `63bb113c-aa79-4508-8c4d-94aa439f243f`.
+- Production readback: conversation `69018330 / 296431470344582725` sync target `200`, target pulled `8` messages, saved `4`, error cleared. SellerChat/Core hiện chỉ có dates `2026-05-16`, `2026-05-18`, `2026-05-26` cho conversation này; chưa thấy `2026-05-22` đến `2026-05-25` trong response `get_message`.
+- Production UI Chrome/CDP port `9333`: bấm topbar `Sync ngay` thật, không còn `HTTP 501`/`HTTP 503`; desktop `1366x900`, tablet `820x1180`, mobile `390x844` không tràn ngang.
+- Còn mở: cần kiểm sâu schema/cursor hoặc webhook `webchat_push` cho các conversation Shopee có timestamp mới nhưng `last_message_text=""`/`get_message` trả 0 message.
+
+### 2026-05-26 - Chat Core Shopee sync/realtime UI hotfix
+
+- Follow-up production: fixed stale per-conversation error clearing. Conversation `172077` giữ `Shopee bridge sync HTTP 503` dù shop sync trả `200`; Chat Core now clears shop-level bridge errors across conversations of the same `channel + shop_id` after successful polling sync.
+- Deploy follow-up: Chat Worker `shophuyvan-chat-api` version `1ef3e6a2-b94e-4cc3-b583-8f21659e7e14`.
+- Verified production row `172077`: before `sync_health=critical`, `last_error_code=shopee_bridge_sync_error`; after sync shop `170044686`, `sync_health=ok`, `last_error_code=""`, `last_error_message=""`.
+- Verified production UI: active thread `69018330 / 296431470344582725` no longer shows `Shopee bridge sync HTTP 503`; header shows `Đồng bộ ổn`.
+
+- Đã sửa `POST /api/chat/sync` để trạng thái vận hành hợp lệ không còn trả `HTTP 501`; Shopee no-API `khogiadungcona` trả `200/manual_required`, còn shop API tiếp tục đi SellerChat bridge.
+- Đã thêm lưu/read `customer_name` và `shop_display_name` trong Chat Core; UI Chat render tên shop từ read-model. Production hiện thấy `Shopee · GIA DỤNG HUY VÂN`, `shophuyvan.vn`, `phambich2312`; tên khách thật sẽ hiển thị khi SellerChat/bridge trả field này, hiện fallback đúng là `customer_id`.
+- Nút sync thủ công dùng `force_history=true`, `page_size=50`, timeout 90 giây; cron nền vẫn dùng `known_conversation_timestamps` để skip unchanged khi đã có lịch sử message.
+- Deploy production: Chat Worker `shophuyvan-chat-api` version `5443eb15-ed1e-4876-a07e-00326b7c65be`; static `shophuyvan-analytics` version `1dc584e3-12e0-4861-8a1f-01c09b725095`; không deploy Worker chính.
+- Production API pass: `166563639` force sync `200`, 50 hội thoại, 147 tin đọc, 4 tin mới lưu ở lần kiểm; `khogiadungcona` `200/manual_required`.
+- Production UI pass: Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`, click `Shopee -> Sync` có `POST /api/chat/sync` `200` trong khoảng 14 giây, toast `Đã đồng bộ 50 hội thoại, lưu 0 tin mới`, không console error, không CORS, không abort, không 501. Desktop/tablet/mobile không tràn ngang.
+
+### 2026-05-26 - Khuyến mãi sàn UI mới theo Promotion Core
+
+- Đã xoá runtime UI cũ `promotions.js` khỏi `promotions.html`; trang production hiện chỉ load 6 file mới `promotions-core/api/render/flash/cleanup/actions` với cache `promotions-20260526c`.
+- Đã kiểm production đúng profile `E:\codex-chrome-profiles\shophuyvan-test`: 8 module đều mở được, không còn label cũ `Shopee Bundle`, `Shopee Add-On`, `Bundle Deal`, `Add-On`, không render raw `payload/endpoint/request_id/JSON`.
+- Shopee Flash Sale: thêm khung giờ, mở product picker dưới khung giờ, lấy 120 SKU ứng viên từ Promotion Core, chọn SKU, nhập giá/số lượng inline, lưu luật, reload readback đúng, sau đó restore settings ban đầu. `run-now` không báo success sàn khi automation đang tắt/chưa verified.
+- Dọn chương trình cũ: click thật mở panel, filter `Đã kết thúc`, 498 dòng production, live-write button chỉ theo capability, có `Ẩn khỏi danh sách hoạt động`, không xoá local giả và không xoá lịch sử Core.
+- Endpoint dùng trong lượt này: read-model/settings/run-now/cleanup/detail route hiện có của `/api/discounts/*`; không thêm endpoint Shopee/Lazada mới, không mở live-write destructive mới.
+- Deploy: static `shophuyvan-analytics` version `30de78d2-d9cc-4949-8dd0-11f453465446`; Worker không đổi trong lượt UI này.
+- Test pass: `node scripts/test-promotions-ui.mjs`, `node scripts/test-ui-design-system-guard.mjs`, `npm --prefix apps/fe run lint --if-present`, `npm --prefix apps/fe run build --if-present`, `git diff --check`; responsive pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`.
+
+### 2026-05-26 - Chỉnh Flash Sale/Cleanup theo phản hồi vận hành
+
+- Khuyến mãi sàn không còn chip/tab riêng `Shopee Flash Sale tự động`; luật tự động được gộp vào đúng module `Shopee Flash Sale` hiện có để tránh trùng luồng và tránh code/caller thừa.
+- Switch ADS/Flash Sale đổi sang công tắc 96x40 có chữ Bật/Tắt rõ, trạng thái bật màu xanh, tắt màu xám, disabled nhìn rõ.
+- Dọn chương trình cũ đã nối route `POST /api/discounts/cleanup/action`: Shopee Discount/Voucher/Bundle/Add-On/Shop Flash Sale dùng endpoint delete/end chính thức qua Core action hiện có; Lazada Voucher/Freeshipping/Flexicombo dùng endpoint deactivate chính thức. Backend luôn trả `local_delete=false` và chỉ coi thành công khi readback từ sàn khớp.
+- Endpoint đã đối chiếu từ Open Platform/local raw docs: Shopee `delete_shop_flash_sale`, `delete_shop_flash_sale_items`, `delete_bundle_deal`, `delete_bundle_deal_item`, `delete_add_on_deal`, `delete_add_on_deal_main_item`, `delete_add_on_deal_sub_item`, `delete_voucher`, `end_voucher`, Discount delete/end; Lazada `/promotion/voucher/deactivate`, `/promotion/voucher/product/sku/remove`, `/promotion/freeshipping/deactivate`, `/promotion/freeshipping/product/sku/remove`, `/promotion/flexicombo/deactivate`, `/promotion/flexicombo/products/delete`.
+- Test local đã pass: `node --check` cho Promotions UI/Discount route/Promotion Core, `node scripts/test-ads-operations-ui.mjs`, `node scripts/test-ui-design-system-guard.mjs`, `npm --prefix apps/fe run lint --if-present`, `npm --prefix apps/fe run build --if-present`, `npm --prefix apps/worker-api test --if-present`, `git diff --check` chỉ còn cảnh báo CRLF sẵn.
+- Đã deploy production: Worker `huyvan-worker-api` version `0e5d80af-67b7-4142-bb8c-b456cc03a9f5`; Static `shophuyvan-analytics` version `d428d217-7656-4842-b012-881d2f0e73cf`; Cloudflare account `efe50fab1dd644088d681fb14a4838ae`.
+- Kiểm production bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: ADS chỉ còn 4 tab, không còn `Đồng bộ dữ liệu`/`Cài đặt`; mở `Luật tự động ADS`, thêm khung giờ, switch mới hiển thị Bật/Tắt rõ; Khuyến mãi chỉ còn 1 chip `Shopee Flash Sale`, trong module có `Luật tự động Flash Sale`, không còn chip `Shopee Flash Sale tự động`; Dọn chương trình cũ hiện nút `Kết thúc trên sàn`/`Xóa trên sàn` theo endpoint, route dry-run trả endpoint `/api/v2/shop_flash_sale/delete_shop_flash_sale`, `local_delete=false`. Live-write sample với Flash Sale đã kết thúc `144639596756993` trả Shopee `shop_flash_sale_param_error`; đối chiếu raw doc `delete_shop_flash_sale` thấy rule chính thức `cannot delete ongoing and expired shop flash sale`, nên backend/UI đã chặn bằng `endpoint_not_supported_for_expired_flash_sale` và chỉ cho ẩn khỏi danh sách đang hoạt động, không xoá local giả.
+- Responsive production đã kiểm desktop `1366x900`, tablet `820x1180`, mobile `390x844`, không tràn ngang. Evidence: `tmp-verification/ads-promo-final-check.json`, `tmp-verification/ads-promo-final-focused-check.json`, screenshots `ads-final-*.png`, `promo-final-*.png`.
+
+## 2026-05-26 - ADS automation cron/evaluation/executor
+
+- Đã thêm cron Worker `*/15 * * * *` để tự chạy ADS automation theo `ads_automation_settings` và khung giờ UTC+7.
+- Đã thêm Evaluation Engine phân loại hiệu quả/kém/trung bình/thiếu dữ liệu từ settings, metrics, read-model, Warehouse stock/cost và profit_after_ads; không hard-code threshold.
+- Đã thêm Executor Shopee-first: `pause/resume/change_budget` đi qua `edit_manual_product_ads` hoặc `edit_auto_product_ads`, sau đó readback `get_product_level_campaign_setting_info`; không báo success nếu sàn chưa xác nhận.
+- Đã thêm route vận hành: pending confirms, confirm/reject, last-run-summary, automation logs; response UI đã strip raw payload/endpoint/JSON.
+- Đã cập nhật UI ADS người dùng cuối theo 4 tab hiện có: dashboard KPI/phân loại, bảng sản phẩm có `Tự động đề xuất`, luật tự động có switch rõ/chế độ thử nghiệm/khung giờ theo ngày/ngưỡng an toàn, nhật ký có duyệt/từ chối.
+- Test local pass: `node scripts/test-ads-automation-engine.mjs`, `node scripts/test-ads-operations-ui.mjs`, `node scripts/test-ui-design-system-guard.mjs`, `node scripts/check-oms-core-regression-lock.mjs`, `npm --prefix apps/worker-api test --if-present`.
+- Deploy production: Worker `huyvan-worker-api` version `4f83f996-9f03-4946-81cc-787469fa7e94`; Static `shophuyvan-analytics` version `507de5c3-7bab-4b71-abc0-b5716bc41e5e`; Cloudflare account `efe50fab1dd644088d681fb14a4838ae`.
+- Production dry-run pass: `POST /api/ads/automation/run-now` với `dry_run_mode=1` đánh giá 200 campaign, `live_write_sent=false`, log summary `created_by=automation_cron`, không trả raw evaluations/action_results ra API public.
+- Production live-write sample pass: Shopee `chihuy1984 / campaign_id=164107991` automation `pause` qua `/api/v2/ads/edit_manual_product_ads`, readback `get_product_level_campaign_setting_info` success; revert bằng `resume` cũng readback success về `ongoing`.
+- Production responsive pass: Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`, desktop `1366x900`, tablet `820x1180`, mobile `390x844`, không tràn ngang, không Console exception, không `Failed to fetch`.
+
+﻿# Nhật Ký Tiến Độ Checklist Endpoint Marketplace
+
+# 2026-05-25 - ADS bỏ icon chú thích đại trà và rà endpoint dọn ADS/khuyến mãi
+
+- ADS UI main list đang được sửa theo rule mới: không còn icon `?` rải khắp màn, `Việc cần làm hôm nay` không dùng scrollbar nội bộ, Top SKU và Sản phẩm cần xử lý tách cột `Vấn đề` và `Hành động`.
+- Nhãn quyết định ADS đổi từ hành động mơ hồ như `Giảm 30%` sang vấn đề rõ: `Không hiệu quả`, `ROAS thấp`, `Lãi âm`, `Thiếu giá vốn`, `Thiếu doanh thu ADS`, `Sắp hết hàng`, `Đang tốt`; action là nút riêng `Tạm dừng`, `Giảm ngân sách`, `Giữ ADS`, `Bật lại`, `Kiểm giá vốn`.
+- Đã rà reference Open Platform local cho endpoint xoá/dọn: Shopee ADS ghi qua `/api/v2/ads/edit_manual_product_ads` và các edit product ads/keyword; Lazada ADS có `deleteCampaign`, `deleteAdgroupBatch`; Shopee Discount/Voucher/Bundle/Add-On có delete/end; Shopee Shop Flash Sale có delete program/item; Lazada Voucher/Freeshipping/Flexicombo có activate/deactivate/update và product remove/delete tuỳ module.
+- Chưa mở live destructive delete/archive trong UI nếu chưa có sample an toàn, admin confirm, action log và readback production. Không xoá local để giả vờ xoá trên sàn; chương trình/campaign kết thúc phải chuyển tab/filter `Đã kết thúc` hoặc ẩn local bằng filter.
+- Deploy static production `shophuyvan-analytics` version `e5f81812-6888-44f0-a687-3b1c379d8be0`; Worker không đổi trong lượt UI này.
+- Production check bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: desktop `1366x900`, tablet `820x1180`, mobile `390x844`, tab Tổng quan, Sản phẩm cần xử lý và Điều chỉnh ADS đều không tràn ngang, không icon `?`, không `Giảm 30%`, không network fail. Điều chỉnh ADS đã đổi nhãn campaign cũ sang `Đang tốt`, `Không hiệu quả`, `Tồn nhiều`, `Sắp hết hàng`, `Thiếu giá vốn`.
+
+# 2026-05-25 - ADS/Khuyến mãi sàn bổ sung chú thích người dùng
+
+- Mục này là lịch sử lượt trước. Rule UI mới không còn cho ADS main list giữ icon chú thích đại trà nếu làm rối bảng/card.
+- Đã bổ sung hệ thống icon `?` cho ADS và Khuyến mãi sàn. Khi bấm icon, desktop/tablet mở popover cạnh dòng; mobile mở bottom sheet; click ngoài hoặc ESC đóng được; có nút `Tôi hiểu`.
+- ADS có chú thích cho KPI tổng quan, nhóm cần xử lý, bảng sản phẩm, badge đề xuất và tab `Điều chỉnh ADS`: ROAS, ACOS, chi ADS, doanh thu ADS, lãi sau ADS, giá vốn, tồn kho, thiếu giá vốn, sắp hết hàng, cần dừng/giảm/tăng ADS, ngân sách ngày, trạng thái chiến dịch, tạm dừng, bật lại, tắt ADS, đổi ngân sách, đổi ROAS, xem trước, áp dụng.
+- Khuyến mãi sàn có chú thích cho giá gốc, giá khuyến mãi, phần trăm giảm, tồn kho, doanh thu từ khuyến mãi, sắp hết hàng, chỉnh giá, tạm dừng chương trình, đồng bộ khuyến mãi và trạng thái.
+- Nội dung chú thích dùng tiếng Việt vận hành: giải thích số liệu là gì, khi nào tốt/cần chú ý/xấu và việc nên làm tiếp theo. Popover không render `endpoint`, `payload`, `request_id`, `Core`, `cache`, `guard`, `JSON`.
+- Không phát sinh endpoint Shopee/Lazada mới; đây là thay đổi UI trên dữ liệu/read-model hiện có.
+- Deploy production static `shophuyvan-analytics` version `4296015e-1102-4bc1-b39e-87e94ab44053`; Worker không đổi.
+- Production check bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: ADS bấm ROAS, ACOS, Thiếu giá vốn, Đề xuất, Ngân sách ngày, Tạm dừng chiến dịch pass; Khuyến mãi sàn bấm Đồng bộ khuyến mãi, Giá khuyến mãi, Tồn kho pass; desktop `1366x900`, tablet `820x1180`, mobile `390x844` không tràn ngang, không request failed, không Console error.
+- Test pass: `node --check apps/fe/js/dashboard/ads.js`, `node --check apps/fe/js/dashboard/ads/ads-end-user-ui.js`, `node --check apps/fe/js/dashboard/promotions.js`, `node scripts/test-ads-operations-ui.mjs`, `npm --prefix apps/fe run lint --if-present`, `npm --prefix apps/fe run build --if-present`.
+
+# 2026-05-25 - ADS Điều chỉnh ADS hiển thị đủ tên sản phẩm và số liệu
+
+- Đã sửa tab `Điều chỉnh ADS`, bước `Chọn chiến dịch`: card campaign không còn chỉ hiện `0đ/ROAS` hoặc thiếu tên sản phẩm trong khung hẹp.
+- Frontend `apps/fe/js/dashboard/ads/ads-end-user-ui.js` merge dữ liệu `/api/ads/campaign-guard/campaigns` với ADS dashboard Product Core read-model để giữ đủ `product_name`, `product_sku`, chi ADS, doanh thu, ROAS, giá vốn, tồn kho.
+- CSS `apps/fe/css/ads/ads-page.css` đổi campaign card sang layout có ảnh, tên sản phẩm 3 dòng, dòng SKU/shop/Mã ADS và các ô số liệu riêng; phục vụ vận hành nhận diện sản phẩm trước khi chỉnh ADS.
+- Không phát sinh endpoint Shopee/Lazada mới; route kiểm production vẫn là `/api/ads/dashboard`, `/api/ads/campaign-guard/campaigns`, `/api/ads/campaign-guard/overview`.
+- Deploy production static `shophuyvan-analytics` version `26b2fae5-1e33-4438-aaa5-b1bfd9fb18e1`; Worker giữ version `7d33375e-705b-4d0b-a12d-fe968ea95cdf`.
+- Production Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: desktop `1366x900`, tablet `820x1180`, mobile `390x844` tải 247 campaign, card đầu hiển thị SKU `K54HOAANHDAO24CM`, chi ADS `30.383đ`, doanh thu `265.252đ`, ROAS `8,73`, giá vốn `14.145đ`, tồn `131`; không request failed, không Console fetch error, không tràn ngang.
+- Test pass: `node --check apps/fe/js/dashboard/ads/ads-end-user-ui.js`, `node scripts/test-ads-operations-ui.mjs`.
+
+# 2026-05-25 - ADS Product Core giá vốn và bảng dark UI
+
+- Đã sửa lỗi production tab `Sản phẩm cần xử lý` bị row nền trắng khi hover: CSS global `tr:hover td` từ layout khác đè dark theme; `apps/fe/css/ads/ads-page.css` khóa hover riêng cho `.ads-user-table`.
+- Đã sửa nguyên nhân ADS báo thiếu giá vốn: snapshot ADS production không có `product_sku`, chỉ có `campaign_id` và `raw_data.setting_summary.item_id_list`; route trước đó dùng campaign id như SKU nên không map được Product Core.
+- Backend `apps/worker-api/src/routes/ads/dashboard.js` đã đọc nhẹ Product/Warehouse Core qua `item_id_list -> product_variations.platform_item_id -> products.cost_real/cost_invoice` và `sku_current_cost_read_model.current_cost` nếu có. UI không tự tính giá vốn.
+- Production API readback: `/api/ads/dashboard?from=2026-05-25&to=2026-05-25` trả `missing_cost=0`, `need_reduce=15`, `keep_ads=7`, `low_stock=3`. Sample `K54HOAANHDAO24CM` có `current_cost=14145.04`, `stock=131`; `HV999K241300S` có `current_cost=24000`; `1_DUI_DEN_428A_K64` có source `warehouse_purchase_core`.
+- Deploy production: Worker `huyvan-worker-api` version `7d33375e-705b-4d0b-a12d-fe968ea95cdf`; Static `shophuyvan-analytics` version `4ccb0121-e711-4fe7-93e6-6b3492741019`.
+- Production browser verification bằng Chrome profile thật: dòng đầu trong tab sản phẩm hiển thị SKU `K54HOAANHDAO24CM`, tồn `131`, giá vốn `14.145đ`, vấn đề `Đang hiệu quả`, đề xuất `Giữ ADS`; hover row nền `rgb(16,39,70)`, chữ sáng, không row trắng.
+- Responsive production: desktop `1366x900`, tablet `820x1180`, mobile `390x844` không tràn ngang, không `Failed to fetch`, giá vốn hiển thị trên cả table và mobile card.
+- Test pass: `node --check apps/worker-api/src/routes/ads/dashboard.js`, `node --check apps/fe/js/dashboard/ads/ads-end-user-ui.js`, `node scripts/test-ads-operations-ui.mjs`, `node scripts/check-oms-core-regression-lock.mjs`, `npm --prefix apps/worker-api test --if-present`.
+
+# 2026-05-25 - ADS production Failed to fetch / Worker 1102 hotfix
+
+- Đã tái hiện lỗi thật trên production bằng Chrome visible profile `E:\codex-chrome-profiles\shophuyvan-test`: `GET /api/ads/dashboard?from=2026-05-25&to=2026-05-25` bị `net::ERR_FAILED`, status extra info `503`, CORS `MissingAllowOriginHeader`.
+- Direct fetch cùng URL đọc được Cloudflare HTML `Worker exceeded resource limits`, error code `1102`; auth `/api/admin/auth/me` trả `200`, static assets OK, không phải 404 hoặc mixed deploy.
+- Backend `apps/worker-api/src/routes/ads/dashboard.js` chuyển route mở màn hình sang tải nhẹ: không gọi live account status Shopee và không chạy enrichment Product/Warehouse/Finance Core nặng mặc định; field thiếu giữ `null/missing`, không vá dữ liệu ở UI.
+- Frontend `apps/fe/js/dashboard/ads/ads-end-user-ui.js` đổi lỗi network thành câu người dùng hiểu được, không hiển thị raw `Failed to fetch`.
+- Không phát sinh endpoint Shopee/Lazada mới: lỗi nằm ở resource limit route tổng hợp ADS, không phải thiếu Open Platform endpoint. Các route kiểm production: `GET /api/ads/dashboard`, `GET /api/ads/campaign-guard/overview`, `GET /api/ads/campaign-guard/campaigns`, `POST /api/ads/sync-campaigns`.
+- Deploy production: Worker `huyvan-worker-api` version `d35931bf-b87d-4d72-813d-8fc1042b1005`; Static `shophuyvan-analytics` version `3ea2c63d-c14f-4141-b40f-d80ddecdc832`; Cloudflare account `efe50fab1dd644088d681fb14a4838ae`.
+- API probe sau deploy: `/api/ads/dashboard` gọi 10 lần liên tiếp đều `200 application/json`, có CORS đúng, không còn 503/1102.
+- Production UI sau khi đăng nhập lại profile thật: reload ADS, mở `Tổng quan`, `Sản phẩm cần xử lý`, `Điều chỉnh ADS`, `Nhật ký thao tác`, `Cài đặt`, bấm `Kéo ADS`, reload lại đều không còn `Failed to fetch`; `POST /api/ads/sync-campaigns` trả `200`, UI hiện `Đã quét 432`, `Đã cập nhật 432`, `Không đổi 0`, `Lỗi 0`, và dashboard reload sau sync trả `200`.
+- Responsive production: desktop `1366x900`, tablet `820x1180`, mobile `390x844` đều không login wall, không tràn ngang, không lỗi ADS load.
+- Test pass: `node --check apps/worker-api/src/routes/ads/dashboard.js`, `node --check apps/fe/js/dashboard/ads/ads-end-user-ui.js`, `node scripts/test-ads-operations-ui.mjs`, `node scripts/check-oms-core-regression-lock.mjs`, `npm --prefix apps/worker-api test --if-present`.
+
+# 2026-05-25 - ADS current-day UI/Core readback hotfix
+
+- Đã đọc lại guard/docs bắt buộc trước khi sửa: `AGENTS.md`, Core/Warehouse/Automation/Label/Finance/Order/Product/ADS/UI guard, `PROJECT-CURRENT-STATE`, `warehouse-core-map`, `core-data-map`, `marketplace-endpoint-master-checklist`, `marketplace-endpoint-progress`, `python-automation`.
+- Đã sửa ADS/Khuyến mãi sàn thiếu nút back: `ads.html` và `promotions.html` có link về trang chính `/`.
+- ADS mặc định đọc ngày hiện tại 2026-05-25; Worker cron kéo ADS Shopee/Lazada ngày hiện tại mỗi 5 phút để dữ liệu mới tự về nền, không chỉ bắt đầu kéo khi người dùng click.
+- Dashboard ADS đã enrich ảnh/tên/SKU/tồn/giá vốn từ Product/Warehouse Core. `current_cost` ưu tiên Warehouse `sku_current_cost_read_model`, fallback Product Core `cost_real/cost_invoice` có source rõ; còn 4 dòng thiếu giá vốn là thiếu dữ liệu/mapping Core thật.
+- Tab `Điều chỉnh ADS` đã đổi chọn campaign sang card có ảnh và ưu tiên campaign đang chạy/có chi tiêu trong ngày; nhãn ngân sách là `Ngân sách ngày`; cài đặt bật/tắt dùng switch.
+- Đã sửa lỗi CORS/cache production gây `Failed to fetch`: Worker trả no-store/Vary Origin, frontend bỏ auth header cho GET public ADS/Discount, ADS request thêm cache-bust, dashboard không trả raw payload lớn.
+- Deploy production: Worker `huyvan-worker-api` version `41acdcea-d938-43b9-bcc6-87b140e626a6`; Static `shophuyvan-analytics` version `9e85ba51-f13b-4c8a-9e40-f9063e7d5f22`; Cloudflare account `efe50fab1dd644088d681fb14a4838ae`.
+- Production API readback: `POST /api/ads/sync-campaigns` ngày 2026-05-25 pass `job_id=ads_sync_1779678069398`, `scanned_count=432`, `updated_count=432`, `empty_count=1`, `failed_count=0`, `core_readback_ok=true`; `empty_count=1` là Lazada Ads API trả 0 campaign hợp lệ. Dashboard current-day có ảnh/giá vốn cho các SKU top và trả `sku_action_count=20`.
+- Production UI kiểm bằng Chrome visible profile `E:\codex-chrome-profiles\shophuyvan-test`: ADS không còn `Failed to fetch`; date input là 2026-05-25; overview và sản phẩm cần xử lý có ảnh; `Điều chỉnh ADS` có 16 campaign card/16 ảnh và switch; tab `Đồng bộ dữ liệu` bấm `Kéo ADS` pass với `Đã quét 432`, `Đã cập nhật 432`, `Lỗi 0`; desktop/tablet/mobile không tràn ngang. Khuyến mãi sàn mobile có back và không tràn ngang.
+- Test pass: `node --check` file ADS/auth/worker, `node scripts/test-ads-operations-ui.mjs`, `node scripts/check-oms-core-regression-lock.mjs`, `npm test --if-present` trong `apps/worker-api`, `npm run lint --if-present` và `npm run build --if-present` trong `apps/fe`.
+- Còn mở ngoài phạm vi hotfix UI: 4 dòng ADS còn `missing_cost` do thiếu mapping/giá Core thật; cần bổ sung Product/Warehouse mapping hoặc lô nhập, không vá số ở frontend.
+
+# 2026-05-25 - Khuyến mãi sàn sửa load fail/action fail, Shopee Flash Sale live-write pass
+
+- Đã đọc lại guard/docs bắt buộc trước khi sửa: `AGENTS.md`, Core/Warehouse/Automation/Label/Finance/Order/Product/ADS/UI guard, `PROJECT-CURRENT-STATE`, `warehouse-core-map`, `core-data-map`, `marketplace-endpoint-master-checklist`, `marketplace-endpoint-progress`, `python-automation`.
+- Production tái hiện lỗi bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: 8 module read-model đều HTTP 200 nhưng 7 module ngoài Shopee Discount chỉ hiện toast `chờ kiểm quyền/chỉ xem dữ liệu`, chip row có scrollbar trắng và action bị coi là fail vận hành.
+- UI Khuyến mãi sàn đã sửa: module chips wrap mobile-first, không còn scrollbar trắng; toast giới hạn tối đa 2 dòng; danh sách chương trình tách tên/shop/trạng thái rõ; Shopee Voucher/Bundle/Add-On/Flash Sale có nút `Xem trước sửa` và `Kiểm tra ghi thật` gọi route backend thật.
+- Backend Shopee promotion action nhận `use_cached_payload=true`, tự lấy payload hiện trạng từ `marketplace_vouchers` hoặc `marketplace_promotion_programs` để thực hiện live-write no-change an toàn; Worker bật `SHOPEE_LIVE_WRITE_ENABLED=true`.
+- Nhật ký thao tác khuyến mãi đã đọc từ `marketplace_discount_actions` qua `/api/discounts/core` và render trong tab `Nhật ký thao tác khuyến mãi`; UI chỉ hiện kết quả người dùng, không render raw payload/endpoint/request id.
+- Live-write sample production: Shopee Flash Sale pass với shop `chihuy1984`, `flash_sale_id=144307500154880`, action `update_shop_flash_sale`, readback `/api/v2/shop_flash_sale/get_shop_flash_sale` verified `true`; no-change nên không cần revert.
+- Blocker production đã có bằng chứng: Shopee Voucher trả `no edit permission for the voucher, shopee backend created voucher`; Shopee Bundle/Add-On sample đều `expired` nên Shopee không cho sửa; Lazada Voucher/Freeship/Flexicombo vẫn read-only vì chưa có adapter payload ghi chương trình Lazada an toàn.
+- Deploy production: Worker `huyvan-worker-api` version `0c01104b-ca57-4b15-ac28-933464d9fdd7`; Static `shophuyvan-analytics` version `54422a1e-b3f3-48b6-a763-cf47623c35ba`; Cloudflare account `efe50fab1dd644088d681fb14a4838ae`.
+- Production UI kiểm bằng Chrome visible profile: tổng quan đủ 12 chip; 8 module mở được, không tràn ngang; desktop/tablet/mobile `1366x900`, `820x1180`, `390x844` không render `payload/endpoint/route/request_id/Core/cache/guard/JSON`.
+- Test pass: `node --check` các file sửa, `node scripts/test-ads-operations-ui.mjs`, `node scripts/check-oms-core-regression-lock.mjs`, `npm run lint --if-present` ở `apps/fe`, `npm test --if-present` ở `apps/worker-api`, `git diff --check` trong phạm vi file sửa.
+
+# 2026-05-24 - Tách ADS và Khuyến mãi sàn production pass
+
+- ADS đã bỏ tab quản lý khuyến mãi `Khuyến mãi & ADS`; chỉ còn `Tổng quan`, `Sản phẩm cần xử lý`, `Điều chỉnh ADS`, `Đồng bộ dữ liệu`, `Nhật ký thao tác`, `Cài đặt`. ADS chỉ đọc ảnh hưởng khuyến mãi để ra quyết định quảng cáo, không quản lý chương trình khuyến mãi.
+- Khuyến mãi sàn có page riêng `apps/fe/pages/promotions.html`, đủ 8 module: Shopee Discount, Shopee Voucher, Shopee Bundle, Shopee Add-On, Shopee Flash Sale, Lazada Voucher, Lazada Freeship, Lazada Flexicombo; mỗi module có summary, list chương trình, list SKU/sản phẩm, trạng thái và empty state riêng.
+- Promotion module read-model mới: `GET /api/discounts/promotion-module-read-model` đọc Promotion Core hiện có (`marketplace_discounts`, `marketplace_discount_items`, `marketplace_vouchers`, `marketplace_promotion_programs`, `marketplace_promotion_items`) và chỉ trả dữ liệu người dùng.
+- UI production không render `endpoint`, `payload`, `request_id`, `Core`, `cache`, `guard`, `JSON`, `route`; tab `Điều chỉnh ADS` đã bỏ native select dài cho campaign, thay bằng search + card/list.
+- Deploy production: Worker `huyvan-worker-api` version `a637c316-4d53-4198-b20d-ae4f97fc9bf1`; static `shophuyvan-analytics` version cuối `8d8cd111-f332-41f8-ba3e-2753f16963e5`; Cloudflare account `efe50fab1dd644088d681fb14a4838ae`.
+- Production Chrome profile `E:\codex-chrome-profiles\shophuyvan-test` pass: ADS từng tab, Khuyến mãi sàn tổng quan, 8 module, đồng bộ/log/cài đặt; desktop/tablet/mobile `1366x900`, `820x1180`, `390x844` không tràn ngang và không vùng trắng lớn.
+- Live-write chưa mở rộng kết luận cho 8 module trong lượt này: Shopee Discount giữ baseline live-write đã pass trước đó; Shopee Voucher/Bundle/Add-On/Flash Sale và Lazada Voucher/Freeship/Flexicombo cần kiểm quyền app, sample an toàn, API write, readback và revert trước khi ghi pass.
+
+# 2026-05-24 - ADS Core/UI cleanup và readback live-write
+
+- Đã tạo skill guard mới `shophuyvan-ads-core-guard` và `shophuyvan-ui-end-user-guard`; `AGENTS.md` bắt buộc dùng khi sửa ADS/quảng cáo hoặc UI người vận hành.
+- Trang `ADS quảng cáo` đã chuyển sang UI end-user 7 tab, không còn page con kỹ thuật Guard/TopPicks/Discount/Promotion trong runtime. Loader chỉ nạp `ads-end-user-ui.js`; các module frontend ADS cũ đã xoá khỏi `apps/fe/js/dashboard/ads`.
+- ADS Core schema đã thêm/chuẩn hóa: `ads_campaigns`, `ads_adgroups`, `ads_product_links`, `ads_daily_metrics`, `ads_decision_read_model`, `ads_write_capabilities`, `ads_action_logs`.
+- Capability ADS được ghi vào `ads_write_capabilities`; thao tác preview/apply ghi vào `ads_action_logs` với kết quả người dùng, lỗi dễ hiểu và readback payload backend.
+- Shopee Open Platform ADS endpoints đã đối chiếu từ reference chính thức local: read `get_total_balance`, `get_shop_toggle_info`, performance daily/hourly, campaign id/settings; write `create_manual_product_ads`, `edit_manual_product_ads`, `edit_manual_product_ad_keywords`, `create_auto_product_ads`, `edit_auto_product_ads`.
+- Lazada Ads API endpoints đã đối chiếu từ reference chính thức local: `searchCampaignList`, `getCampaign`, `updateCampaign`, `searchAdgroupList`, `addAdgroupBatch`, `updateAdgroupBatch`, wallet/report/keyword/product endpoints.
+- Lazada `updateCampaign` và `updateAdgroupBatch` nay bắt buộc readback sau ghi; nếu API ok nhưng campaign/adgroup không khớp ngân sách/trạng thái thì UI nhận trạng thái sàn chưa xác nhận, không báo thành công.
+- Production đã deploy Worker `huyvan-worker-api` version `61f2a180-5415-4ff1-8506-6ddc1a2f90c0` và Static `shophuyvan-analytics` version `39011766-de16-4607-820e-c2255b2d6ca4`.
+- Production Chrome profile `E:\codex-chrome-profiles\shophuyvan-test` đã kiểm từng tab ADS và bấm `Kéo ADS`; sync log mới nhất quét/cập nhật `10.368` dòng, lỗi `0`, Core readback ok.
+- Live-write Shopee sample pass: shop `chihuy1984`, campaign `164859807`, action `pause` gửi thật qua `/api/v2/ads/edit_manual_product_ads`, readback `/api/v2/ads/get_product_level_campaign_setting_info` xác nhận đổi; revert `resume` gửi thật và readback xác nhận chạy lại.
+- Readback sau revert xác nhận campaign `164859807` đang `ongoing`, `campaign_budget=0`, `roas_target=15`; UI bản `ads-end-user-core-20260524g` đã khóa không gửi `budget/roas` thừa cho action trạng thái.
+- Còn mở: tablet/mobile production profile thật chưa được nghiệm thu trong lượt này do công cụ resize profile Chrome không thao tác được và Chrome viewport tách profile bị login wall; desktop không tràn ngang.
+
+# 2026-05-24 - ADS UI vận hành theo decision read-model
+
+- Đã nối màn “ADS quảng cáo” sang decision read-model từ ADS Core, Product Core, Warehouse Core, Finance Core và Promotion Core; UI chỉ render `profit_after_ads`, `roas`, `acos`, `current_cost`, `available_stock`, `promotion_status` từ Core, không tự tính nghiệp vụ.
+- Worker ADS dashboard bổ sung `decision_cards`, `decision_summary`, `sku_action_count` và badge thiếu dữ liệu như `Thiếu giá vốn`, `Thiếu tồn kho`, `Thiếu doanh thu ADS`, `Chưa kéo ADS`, `Dữ liệu lỗi`.
+- `POST /api/ads/sync-campaigns` trả log vận hành `job_id`, `scanned_count`, `created_count`, `updated_count`, `unchanged_count`, `empty_count`, `failed_count`, `last_error`, `core_readback_ok` để nút Kéo ADS hiển thị tiến trình thật; empty campaign range không bị tính là lỗi API.
+- Không thêm live-write giảm/tắt ADS trong lượt này; các nút hành động chỉ mở Guard/chi tiết cho tới khi có Core allowlist và admin confirm.
+- Đã sửa lỗi production `normalizeShopeeProductCampaignDailySnapshots is not defined` trong Shopee ADS sync probe; contract test khóa binding normalizer.
+- Deploy production cuối: Worker `huyvan-worker-api` version `cc96a278-de20-4f91-9079-231de1f07191`; static `shophuyvan-analytics` version `ce43a2ba-1b1a-4a98-8c9c-3251d45c81f0`.
+- Production Chrome profile `E:\codex-chrome-profiles\shophuyvan-test` pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`: không tràn ngang, mobile dùng SKU card list, drawer mobile fullscreen.
+- Kéo ADS production pass: `job_id=ads_sync_1779611291216`, quét `3024`, cập nhật `3024`, không đổi `0`, `empty_count=1`, lỗi `0`, `core_readback_ok=true`. Lọc `Cần dừng ADS` và mở drawer SKU pass.
+
+# 2026-05-24 - Purchase/Warehouse Core giá vốn theo lô
+
+- Đã deploy Worker `huyvan-worker-api` version `4dc21f7f-e738-4fd4-b003-0ae1f39c120a` và static `shophuyvan-analytics` version `fd5f6bd6-6cbd-4e10-aa21-3578641ceb45` cho trang “Quản lý nhập hàng chính ngạch”.
+- Không thêm endpoint Shopee/Lazada trong lượt này; dữ liệu đi Product Core -> Purchase/Warehouse Core -> Inventory Cost Layer -> `sku_current_cost_read_model`. Rule Open Platform-first vẫn giữ nguyên nếu thiếu dữ liệu marketplace trong lượt sau.
+- Production API readback pass: `/api/purchase/read-model?limit=20` trả `warehouse_purchase_core`, sample `400348_100_DAY_DAI_200MM` có `no_purchase_history` và `current_cost_status=missing`.
+- Preview import production pass: row hợp lệ `ready`, row thiếu ngày `missing_import_date`, SKU không match Product Core `sku_not_found_in_product_core`. Manual preview pass và export Excel/PDF pass.
+- Chưa chạy confirm ghi thật vì chưa có lô nhập/số giá vốn thật được duyệt; không tự bịa giá vốn production.
+
+# 2026-05-24 - TikTok upload giá KM Seller Center đã pass
+
+- TikTok no-API `0909128999` đã có luồng upload giá KM e2e qua Product Master/Promotion Core và local runner visible. Link chương trình lấy từ Product Catalog settings `tiktok_promotion_urls`, UI Product Master có ô `Link chương trình TikTok` để đổi link mới khi TikTok đổi campaign.
+- Runner `oms_python/platforms/tiktok/promotion/upload.py` thao tác thật trên Seller Center discount edit: `Chọn sản phẩm` -> `Tải lên hàng loạt` -> tải mẫu/ID sản phẩm -> điền `Product Discount.xlsx` -> upload lại -> `Nhập` -> `Đồng ý và đăng`.
+- Job full-shop `2827` pass production: `ready_rows=131`, `uploaded=73`, `skipped=58` do `Sku_id bị trùng lặp`, `failed=0`; Chrome profile `E:\shophuyvan-python-automation\profiles\browser\shophuyvan-runner-tiktok`, `headless=false`.
+- Core readback `/api/sync-variations?platform=tiktok&shop=0909128999&include_out_of_stock=1`: `uploaded=73`, `skipped=58`, chưa có trạng thái `103`. UI Product Master render badge cạnh từng dòng.
+- Sample `40TACKE6X32MMK243` đã kiểm ID: Product Core row dùng `product_id=1730655569230465831`; file ID TikTok resolve `sku_id=1733420946916607783`; Core/UI sau job `2827` hiển thị `Bỏ qua` vì TikTok báo `Sku_id bị trùng lặp`, giá upload `50.000đ`.
+- Guard ID mới: seller SKU xuất hiện ở nhiều `product_id/sku_id` bị skip `ambiguous_tiktok_sku_id`, không fallback đoán ID. Job chọn một phần từ UI không xóa trạng thái các SKU khác; chỉ full-shop mới reset trạng thái cũ.
+- Deploy: Worker `a39d79f7-9980-4d78-b3fb-d0d702a97870`, static UI `24e6c980-8ac2-4c6f-a795-5a1cc9d09b34`. Production UI kiểm desktop/tablet/mobile không tràn ngang.
+
+# 2026-05-23 - Promotion Core, R2 upload và TikTok giá khuyến mại
+
+- Shopee API rule đã kiểm theo Open Platform trước khi kết luận: phambich2312 sync read-only `POST /api/discounts/shopee/sync`, dùng `/api/v2/discount/get_discount_list` và `/api/v2/discount/get_discount`, kết quả `total_discounts=1`, `saved_items=138`.
+- Product Master preview Shopee API nay trả Promotion Core fields: `discount_id`, `item_id`, `model_id`, `endpoint`, `current_promotion_price`, `target_promotion_price`, `readback_required`; live-write vẫn bị khóa nếu thiếu Discount mapping hoặc nếu SKU đang thuộc module khác như `bundle_deal`.
+- R2 upload cho local bot đã kiểm thật: Worker secret `SHV_LOCAL_RUNNER_TOKEN` đã được đặt; Python fallback `/api/upload-url` upload thành công file test `debug/codex_r2_promo_upload_test_20260523.xlsx`.
+- TikTok chưa có API write-live, nên dùng local visible browser profile `E:\shophuyvan-python-automation\profiles\browser\shophuyvan-runner-tiktok` để đọc cột `Giá ưu đãi` trên Seller Center. Script mới `oms_python/platforms/tiktok/promotion/tiktok_promo_scrape.py` ghi giá vào Product/Warehouse Core qua `/api/products/update-promo-prices`.
+- Kiểm thật TikTok URL discount `7614469433056216853`: scrape 158 dòng, ghi 4 lô, `updated=106`, `readback_count=106`; Product Master production đọc lại `0909128999` thấy 148 SKU còn tồn, 129 SKU có `discount_price`.
+- Product Master UI kiểm thật bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: chọn tất cả 148 SKU TikTok, áp dụng +5% tạo draft cho 141 SKU có base hợp lệ; không bấm lưu live trong bước kiểm UI.
+- Worker production: `33b19741-e098-4e6c-9b11-39160249cc8c`; static UI production: `ff0fd41c-b7c1-40d9-b40f-ef9a57e7d517`.
+- Còn mở: mapping Product Core của một số SKU phambich2312 chưa khớp item/model trong Shopee Discount cache, nên preview sẽ chặn live-write thay vì tự đoán endpoint.
+
+# 2026-05-21 - Audit profile Chrome automation và profile map chung
+
+- Đã tạo profile Lazada đúng thư mục chuẩn: `E:\shophuyvan-python-automation\profiles\browser\HuyVan_Bot_Data_lazada_kinhdoanhonlinegiasoc`; profile này đang ở Lazada Seller Center Sign Up/Login và chỉ dùng manual verification. Lazada production vẫn dùng Open Platform/Worker API.
+- Đã cập nhật `E:\shophuyvan-python-automation\oms_python\core\automation_profiles.py` để mỗi row có `source` và chặn API shop bằng `api_shop_chrome_blocked`.
+- Profile audit evidence: `E:\shophuyvan-runtime\debug-payloads\profile-audit-20260521T053551\profile-audit.json`.
+- Kết quả audit: TikTok `0909128999` và Shopee no-API `khogiadungcona` đang login/session hợp lệ; `HuyVan_Bot_Data_Shop1` thấy `phambich2312`, `HuyVan_Bot_Data_Shop2` thấy `chihuy2309`, `HuyVan_Bot_Data_Shop3` probable `chihuy1984` nhưng đang cần login. Chưa rename vì các profile đang có Chrome process mở.
+- Test guard đã chạy: `python -m py_compile` các file action/profile, `node scripts/test-tiktok-runner-control.mjs`, `node scripts/test-oms-resync-panel.mjs`.
+- Local helper đã restart theo đúng PID helper; `/health` hiện trả TikTok `profile_dir=E:\shophuyvan-python-automation\profiles\browser\shophuyvan-runner-tiktok`, không còn stale profile trong `E:\codex-chrome-profiles`.
+- API production đã chạy an toàn: Shopee API `chihuy1984`, `chihuy2309`, `phambich2312` gọi order/status sync `limit=1`, `fetch_fees=0`, `suppress_push=1`, đều HTTP 200; Lazada `kinhdoanhonlinegiasoc@gmail.com` order sync HTTP 200 và status/trace `checked=1`, `updated=1`.
+- OMS readback production xác nhận API shops không hiển thị Seller Center source trong mẫu 20 dòng/shop; Lazada thiếu Finance API vẫn là `Lãi tạm tính`/`missing:lazada_finance_api`, không fake actual income.
+- Shopee no-API Chrome check: `sync_detail` job `658` pass với `parsed=3`, `updated=3`, readback `status/tracking/items`; `pull_orders` job `1168` pass với `parsed=3`, `updated=3`, readback Core đầy đủ. Đã sửa `oms_importer.py` để retry readback khi Worker trả 503 tạm thời.
+- TikTok Chrome check: job `1171` phát hiện `orders_scanned=0`; debug evidence `E:\shophuyvan-runtime\debug-payloads\tiktok-zero-orders-20260521T060600` chứng minh body có mã đơn nhưng TikTok đổi sang table layout. Đã sửa `platforms/tiktok/orders/danhsach_donhang.py` thêm fallback table layout; job `1172` pass với `parsed=28`, `updated=28`, readback Core đủ.
+- Chặn production chưa pass: `/api/orders/manual-sync/backfill` live vẫn là bản cũ, còn trả runner profile trong `E:\codex-chrome-profiles` và chưa nhận `sync_detail`, `sync_finance`, `retry_label`. Chưa deploy bản local vì worktree bẩn rộng ngoài phạm vi.
+- Safety: không gửi live, không sync Payment live, không gọi ship/arrange/confirm/cancel, không taskkill Chrome toàn cục.
+
+# 2026-05-20 - Auto kéo đơn/trạng thái có proof scheduler
+
+- Shop API tự chạy nền bằng Worker/Cron/Webhook: Shopee `chihuy1984`, `chihuy2309`, `phambich2312` và Lazada `kinhdoanhonlinegiasoc@gmail.com`. Radar local log/diagnostic phải bỏ qua các shop này và hiển thị last/next sync từ `/api/shops/api-configs`.
+- Shop no-API/local fallback: Shopee `khogiadungcona` dùng Radar scheduler theo `auto_order_enabled`, `auto_status_enabled`, interval và active window; TikTok `0909128999` cũng được Radar queue batch nhỏ khi user bật auto và runner không paused.
+- Modal `Tự động kéo đơn` đã chuyển từ trạng thái process-only sang proof scheduler: Radar process/PID/heartbeat, scheduler running, `last_order_run_at`, `next_order_run_at`, `last_order_result`, `last_status_run_at`, `next_status_run_at`, `last_status_result`, `last_error`, `skipped_reason`.
+- Local helper thêm `/scheduler/status`, `/scheduler/config` và wake file `E:\shophuyvan-runtime\auto-order-scheduler\wake.json`; `/wake` trả `woke`, `scheduler_running`, `immediate_check_result` thay vì chỉ ping health.
+- Safety: không dùng profile user cho automation nền, không taskkill Chrome, không gọi fulfillment/cancel/confirm/arrange, không gửi live và không sync Payment live trong lượt auto order/status.
+
+# 2026-05-20 - Cụm OMS Đồng bộ & tải lại
+
+## Phạm vi
+
+- Thêm màn vận hành OMS để retry tem lỗi và chủ động backfill detail cho TikTok/Shopee no-API theo ngày/shop/sàn. Không gửi tin live, không sync Payment live, không gọi hành động đổi trạng thái đơn trên sàn.
+
+## Sửa code
+
+- Worker label thêm alias `POST /api/label/retry-failed`, parse `from/to`, `shop_id`, `label_status`, `dry_run`, `force`, `limit`, retry được các trạng thái lỗi cũ bằng cách đánh giá lại eligibility từ Core.
+- Worker order thêm `POST /api/orders/manual-sync/backfill`, queue job `tiktok_seller_detail_finance` hoặc `shopee_seller_detail` theo date range/scope, chặn API shop khỏi Seller Center fallback.
+- Eligibility TikTok/Shopee Seller Center hỗ trợ filter `from/to`, `shop`, `missing_only`, `retry_failed`, `pending_settlement_only`, `missing_detail_url_only`.
+- OMS thêm panel `Đồng bộ & tải lại` với tab `Tải lại tem lỗi`, `Đồng bộ lại đơn`, `Trạng thái runner`; lỗi kỹ thuật dài chỉ nằm trong tooltip/diagnostic, dòng chính là message ngắn.
+- Local TikTok runner phải đọc pause/runtime hiện tại; reason cũ `codex_hotfix_final_pause` không còn được dùng để hard-skip. Sau batch, runner vẫn phải có lock/heartbeat/retry/backoff và trạng thái rõ.
+
+## Kiểm soát an toàn
+
+- TikTok runner dùng profile `E:\shophuyvan-python-automation\profiles\browser\shophuyvan-runner-tiktok`, batch nhỏ qua local helper, không dùng profile `shophuyvan-test`; nếu thiếu login/session thì trả `runner_requires_login` hoặc lỗi thật.
+- Shopee no-API `khogiadungcona` mới được Seller Center fallback; Shopee API shops dùng API-first.
+- Không thêm endpoint marketplace mutation, không xoá dữ liệu thật và không quét toàn bộ đơn nếu thiếu ngày/mã đơn.
+
+# 2026-05-20 - Hotfix OMS source/label API theo Open Platform
+
+## Phạm vi
+
+- Chỉ sửa nguồn OMS, Shopee/Lazada label và hiển thị lỗi ngắn; không gửi tin live, không sync Payment live, không gọi Hủy/Xác nhận/Giao hàng/Sắp xếp vận chuyển/Thao tác khác.
+
+## Tài liệu Open Platform đã đọc
+
+- Shopee `v2.logistics.get_shipping_document_parameter`, `v2.logistics.create_shipping_document`, `v2.logistics.get_shipping_document_result`, `v2.logistics.download_shipping_document`, `v2.logistics.ship_order`, `v2.logistics.batch_ship_order`.
+- Lazada `PrintAWB` `/order/package/document/get`.
+
+## Kết luận endpoint
+
+- Shopee `create_shipping_document` là bước tạo task chứng từ in/waybill trước khi tải PDF; không phải action giao hàng. Worker chỉ gọi endpoint này trong label flow với `allowDocumentGenerate=true` và `allowFulfillmentAction=false`.
+- Shopee `ship_order`/batch ship/arrange/confirm/cancel vẫn bị cấm vì là fulfillment action hoặc làm đổi trạng thái đơn.
+- Lazada PrintAWB/package document là endpoint đọc/in AWB; lỗi Cloudflare `Too many subrequests` phải xử lý bằng batch/cursor/retry, không đổ lỗi thiếu endpoint.
+
+## Sửa code
+
+- Thêm `order-data-source-resolver.js` để khóa API-first cho `chihuy1984`, `chihuy2309`, `phambich2312`, `kinhdoanhonlinegiasoc@gmail.com`; Seller Center fallback chỉ cho `khogiadungcona`; TikTok `0909128999` là manual/local helper.
+- Chặn route Shopee Seller Center detail ghi/queue `seller_center_detail_url_not_found` cho API shop; API shop trả `source_mismatch_api_shop_not_seller_center`.
+- Shopee label chạy flow `create_shipping_document -> get_shipping_document_result -> download_shipping_document`, nếu PDF chưa sẵn thì lưu `pending_document_generation/shopee_pdf_not_ready` và đặt retry.
+- Lazada label backfill default `limit=8`, max `20`, `max_subrequests_per_run=32`; vượt budget thì lưu `lazada_batch_requeued/pending_retry`, `next_retry_at`, không hard fail cả batch.
+- OMS row rút gọn lỗi: `Chưa có file tem, sẽ thử lại` và `Batch quá lớn, sẽ tự chia nhỏ`; raw technical chỉ trong title/diagnostic.
+
+# 2026-05-20 - Cleanup khóa vận hành sau realtime status/detail/auto label
+
+## Phạm vi
+
+- Chỉ cleanup/guard/diagnostic sau khi status realtime, Shopee Seller Center detail và auto label đã chạy.
+- Không thêm tính năng marketplace mới, không gửi tin live, không sync Payment live, không đổi trạng thái đơn trên sàn.
+
+## Sửa code
+
+- Cắt helper frontend Shopee không còn caller `apps/fe/js/modules/handler-shopee.js` để không còn đường tự dựng Seller Center URL từ `id/order_sn`.
+- Worker label route `apps/worker-api/src/routes/labels/index.js` chỉ còn download document có sẵn qua `download_shipping_document`; không còn endpoint `create_shipping_document`, `get_shipping_document_result` hoặc cờ `allowCreate`.
+- Local Shopee helper `shopee_process.py` bị khóa nhánh nguy hiểm trong workflow này: không tạo shipping document, không poll document tạo mới, không `ship_order`, selector Chuẩn bị/Sắp xếp/Xác nhận bị rỗng.
+- Radar/Sync tab local từ chối job `refresh_label` legacy bằng `legacy_refresh_label_disabled`; route public cũ `/api/labels/refresh/*` tiếp tục 410.
+- OMS hiển thị thêm `Kết quả`, `Detail verified/not found`, `Retry`, thời điểm/lỗi label runner. Admin shop status hiển thị `Detail parser`, `Tem vận chuyển`, `manual_required`, lỗi runner và retry.
+- Thêm guard `scripts/test-legacy-flow-locks.mjs` và đưa vào `apps/worker-api/package.json`.
+- Deploy cleanup: Worker chính `huyvan-worker-api` version `0a39c64b-1dcc-424f-a22d-e6748670493f`; static UI `shophuyvan-analytics` version `fcda023f-42df-4ed1-a0be-072f2e62033e`.
+
+## Kiểm soát an toàn
+
+- Guard chặn frontend gọi `/api/labels/refresh/*`.
+- Guard chặn `create_shipping_document`, `get_shipping_document_result`, `ship_order`, `allowCreate` quay lại Worker/Python label/status flow.
+- Guard giữ rule Seller Center detail: chỉ resolve URL từ Warehouse/search, không dựng `/portal/sale/order/<order_sn>`.
+
+# 2026-05-19 - Realtime order status, Seller Center fallback và auto label runner
+
+## Phạm vi
+
+- Gộp 3 luồng tự động: status sync gần realtime, Shopee Seller Center detail cho shop no-API/manual, và auto tải tem cho đơn đủ điều kiện.
+- Không gửi tin live, không sync Payment live, không gọi marketplace write/action nguy hiểm, không xác nhận/hủy/sắp xếp vận chuyển/giao hàng và không xóa dữ liệu thật.
+
+## Sửa code
+
+- Thêm Order status automation columns/metadata vào `orders_v2` qua `status-automation-core.js`: `last_status_sync_at`, `last_status_sync_status`, `last_status_sync_error`, `status_source`, `status_changed_at`, `status_touched_24h`, `status_changed_count`, `next_retry_at`, `seller_center_detail_id`, `seller_center_detail_url`, `detail_url_source`, `detail_url_verified_at`.
+- Thêm route tổng `POST /api/orders/status/sync` để chạy Shopee/Lazada API status sync, queue Shopee Seller Center detail, queue TikTok Seller Center fallback và chạy label backfill.
+- Cron `scheduled()` gọi status sync API theo shop có API, queue Shopee no-API detail cho `khogiadungcona`, queue TikTok pending settlement và chạy auto label batch nhỏ sau status sync.
+- `importOrdersV2()` sau khi kéo/import đơn mới tự queue Shopee Seller Center detail cho shop no-API/manual và gọi `backfillEligibleLabels()` cho đơn vừa import.
+- Thêm `shopee-seller-center-detail-core.js` và route `/api/orders/shopee-seller-detail/eligible|queue|backfill|diagnostic`; source luôn là `shopee_seller_center_detail`, không phải Shopee API.
+- Thêm local helper Shopee `seller_detail_parser.py` và `seller_detail_backfill.py`; parser mở Chrome profile thật, chỉ đọc DOM/text, resolve URL bằng Warehouse/search, không tự dựng `/portal/sale/order/<order_sn>`.
+- Thêm `backfillEligibleLabels()` và route `POST /api/label/backfill-eligible`; runner dùng lại `POST /api/label/:orderId/refresh` với capability read-only. Legacy `/api/labels/refresh/*` vẫn 410.
+- OMS read model/UI hiện lần sync cuối, nguồn status, lỗi gần nhất, stale warning, Seller Center detail link và trạng thái tem `Đang chờ tải tem / Đã tải tem / Lỗi / Cần thủ công / Chưa hỗ trợ`.
+
+## Trạng thái shop/sàn
+
+- Shopee API shops `chihuy1984`, `chihuy2309`, `phambich2312`: status sync bằng Shopee Open Platform; label dùng `logistics.download_shipping_document` read-only với `allowCreate=false`.
+- Lazada `kinhdoanhonlinegiasoc@gmail.com`: status sync bằng Lazada API; label dùng AWB/document read-only.
+- Shopee no-API `khogiadungcona`: status/detail qua Seller Center detail fallback; label hiện `manual_required` nếu chưa có đường tải tem read-only xác nhận.
+- TikTok `0909128999`: status/finance fallback qua Seller Center/local helper khi chưa có API order/token; label `manual_required`.
+
+## Test
+
+- `npm test` Worker chính pass, gồm finance snapshot, order core, duplicate items, shop display, finance taxonomy, label capability, Shopee Seller detail core, TikTok Seller Center finance và runner diagnostic.
+- Python pass: `test_tiktok_seller_detail_parser.py`, `test_shopee_seller_detail_parser.py`, `py_compile` các helper Shopee.
+
+## Deploy và kiểm production
+
+- Worker chính `huyvan-worker-api` deploy version `7a30c29b-acff-4299-90f0-5c474e849859`; static UI `shophuyvan-analytics` deploy version `2d08050e-f8c8-409e-a5fc-89f459d41119`.
+- `POST /api/orders/status/sync` chạy thật: Shopee API `chihuy1984` checked `2`, Lazada `kinhdoanhonlinegiasoc@gmail.com` checked `1`, Shopee no-API `khogiadungcona` queue detail job `647`, TikTok queue detail job `648`.
+- Auto label runner chạy thật: Lazada order `528702304756616` chuyển từ eligible sang downloaded, lưu `labels/528702304756616.pdf`; Shopee API batch kiểm thấy các đơn mẫu đã downloaded nên không tải lại.
+- Seller Center URL `https://banhang.shopee.vn/portal/sale/order/232855966247234` được đọc bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`; trang hiển thị mã thật `260519RW5S0TA2`, tracking `SPXVN067508201855`, ĐVVC `SPX Express`, 2 item, payment có `actual_income=94.785`. Parser chặn mismatch với mã `260519RWS50TA2` vì không khớp trang.
+- Backfill thật cho `260519RW5S0TA2` ghi `status=ok`, `status_source=shopee_seller_center_detail`, `seller_center_detail_id=232855966247234`, `seller_center_detail_url` đã verify, `oms_status=SHIPPING`, `shipping_status=SHIPPED`, finance source `shopee_seller_center_detail`.
+- Local runner batch 1 chạy thật cho đơn kế tiếp `260518QQ5KH2CM`; Seller Center search không ra URL nên ghi diagnostic `last_status_sync_status=error`, `last_status_sync_error=seller_center_detail_url_not_found`, `detail_url_source=seller_center_detail_url_not_found`, `next_retry_at=2026-05-19 23:29:30`.
+- OMS production bằng profile ShopHuyVan pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`: order mẫu hiện `Nguồn: Seller Center`, `Cập nhật`, `Detail`, tracking, `Đang giao`, `Đã tải tem`, không tràn ngang.
+- D1 remote read-only guard: duplicate `orders_v2=0`, duplicate exact `order_items=0`. Không gọi create/ship/arrange/cancel/confirm, không gửi tin live, không sync Payment live.
+
+# 2026-05-19 - Chuẩn hóa capability tải tem vận chuyển
+
+## Phạm vi
+
+- Chỉ audit và chuẩn hóa capability tải tem theo Shopee API, Shopee no-API/manual, TikTok và Lazada.
+- Không gửi tin live, không sync Payment live, không gọi marketplace write/action nguy hiểm, không xác nhận/hủy/sắp xếp vận chuyển và không quét toàn bộ đơn mỗi cron.
+
+## Sửa code
+
+- `marketplace_shop_capability_core` trả thêm `label_download_mode`, `label_download_supported`, `label_download_source`, `label_download_reason`, `label_download_read_only`, `label_download_requires_manual`.
+- `read-core.js` và `GET /api/labels/status` đưa các field capability vào read model label để OMS/Chat/API không tự đoán theo platform.
+- `POST /api/label/:orderId/refresh` có guard capability, trạng thái đơn và `dry_run`; route chỉ cho một đơn Shopee/Lazada khi `label_status=eligible`, `supported=true`, `read_only=true`, `requires_manual=false`.
+- Shopee chỉ dùng `download_shipping_document` cho document đã sẵn sàng; nhánh `create_shipping_document` bị chặn mặc định bằng `allowCreate:false`.
+- Lazada giữ đường read-only PrintAWB/package document; TikTok và Shopee no-API/manual trả `manual_required`, không tạo job helper.
+- Webhook marketplace, OMS Kho tem in, drawer Logistics và luồng đánh dấu đóng gói gọi auto label qua `backfillEligibleLabels()`/`POST /api/label/backfill-eligible` theo eligibility/batch nhỏ; không tạo job legacy `refresh_label`. Legacy `/api/labels/refresh/*` vẫn 410.
+
+## Trạng thái capability
+
+- Shopee API shop: `api_read_only_existing_document`, nguồn `shopee_open_platform:logistics.download_shipping_document`, supported/read-only khi token live + shop id đủ.
+- Shopee no-API/manual: `manual_required`, cần xử lý thủ công/helper có guard riêng sau này.
+- Lazada API shop: `api_print_awb_read_only`, nguồn `lazada_fulfillment:order.package.document.get`.
+- TikTok: `manual_required`, chưa bật API/helper tải tem trong Core.
+
+## Deploy và kiểm production
+
+- Worker chính deploy `e0d7328f-cd5a-4708-b0cf-39a00503aee8`; static UI deploy `5a3232bc-bd8d-456b-839a-22061d173ef4`.
+- Production API pass: `/api/core/shops` trả đúng capability cho Shopee API/manual, Lazada API và TikTok manual; legacy `/api/labels/refresh/*` trả 410.
+- Dry-run route chuẩn pass: Shopee API eligible `260517KPTQB410` trả 200 `ok`; Shopee manual `260518QQ5KH2CM`, TikTok `584104642942568017`, Shopee failed-delivery `260513B8AY3JU4` và TikTok cancel `584092999521895880` đều trả 409 `blocked` đúng reason.
+- Browser production bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: OMS/Kho tem in pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`; không tràn ngang, không còn nút bulk legacy `Tải lại từ sàn`/`Tải lại tem lỗi trang này`, chỉ còn `Tải 1 tem read-only`.
+- Không gọi live download thật trong lượt kiểm này; chỉ gọi dry-run và GET read-only.
+
+# 2026-05-19 - Xóa/cắt hẳn Chat legacy khỏi frontend/backend
+
+## Phạm vi
+
+- Chỉ cắt Chat legacy; không thêm tính năng, không gửi tin live, không gọi marketplace action nguy hiểm, không sync Payment live và không xóa dữ liệu thật.
+- Áp dụng Warehouse/Core guard: Chat mới đọc Shop/Product/Order/Finance từ Core API, không để route cũ tự map vòng ngoài Core.
+
+## Sửa code
+
+- Xóa frontend legacy: `apps/fe/pages/chat-marketplace.html`, `apps/fe/js/dashboard/chat-marketplace-page.js`, `apps/fe/js/dashboard/fe-chat-marketplace-loader.js`, toàn bộ `apps/fe/js/dashboard/fe-chat-marketplace/*`.
+- Chuyển các link còn sống sang `chat-cskh.html`; bỏ caller OMS `openOrderChatResolver()`/`data-chat-order-open`; service worker không còn gọi `/api/chat/notifications/latest`.
+- Xóa backend legacy: `apps/worker-api/src/routes/worker-chat-marketplace/*`, `apps/worker-api/src/core/chat/*`.
+- Worker chính `/api/chat/*` trả `410 legacy_chat_route_disabled`; Lazada Chat auth/disconnect cũ trả 410 riêng.
+- Bridge giữ lại cho Chat mới: `apps/worker-api/src/routes/marketplace-chat/shopee-bridge.js` với `POST /api/internal/chat-bridge/shopee/sync` và `/messages/send`; `GET /api/internal/chat-bridge/shopee/conversations*` trả `410 legacy_bridge_read_disabled`.
+- Product knowledge sync chuyển sang `apps/worker-api/src/core/products/product-knowledge-core.js`, không import Chat legacy.
+
+## Kiểm production
+
+- Worker chính `huyvan-worker-api` deploy `04e42159-a24d-49e9-9e6e-eaea13b7c59b`; static UI `shophuyvan-analytics` deploy `8c3807de-197a-4daa-81e1-3eb1ac697990`.
+- Chat Worker không deploy trong lượt này; `npm test` Chat Worker pass.
+- API legacy: `/api/chat/context` và `/api/chat/conversations` trên Worker chính trả `410 legacy_chat_route_disabled`; bridge read cũ trả `410 legacy_bridge_read_disabled`.
+- Chat mới production mở bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: desktop `1366x900`, tablet `820x1180`, mobile `390x844` đều load `46/46` hội thoại, click hội thoại và tab `Đơn` thành công, không tràn ngang.
+- Network production không còn request tới `fe-chat-marketplace`, `chat-marketplace` hoặc Worker chính `/api/chat/*`; chỉ còn Chat Worker `/api/chat/*` và Core `/api/core/orders/by-conversation/*`.
+- Core guard: `/api/core/shops` pass cho Shopee API/manual, Lazada API và TikTok manual/reference; Finance Core `2026-05-18` `status=ok`, `orders=68`, `gross_revenue=7.624.224đ`; duplicate exact `order_items=0`.
+- Runner diagnostic 2026-05-19: `/api/shops/api-configs` phải trả `order_runner_type/name/schedule/running_source/status_label`; admin UI ghép local helper `/health?ensure_report_worker=1` để biết `radar_running` và `report_worker_running`. TikTok/manual nếu helper/report_worker không chạy phải hiện `Chưa có runner tự động`, không gắn API giả.
+- Deploy runner diagnostic: Worker chính `d7ef7c28-59c6-4d0c-92ee-8d687c0fe272`, static UI `77ef91bf-c66a-4733-87a9-191d80bf9f83`. Local helper health job đã bật `report_worker` PID `20920`; Chrome production hiện timeout khi fetch `127.0.0.1:8765`, nên UI ghi `chưa xác minh runner local` thay vì báo nhầm chưa có runner.
+
+# 2026-05-18 - Shopee Shop Profile Core cho tên shop Chat/CSKH
+
+## Endpoint Shopee xác minh
+
+- Mở Open Platform bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`.
+- Endpoint chính thức: `GET /api/v2/shop/get_shop_info`, module `Shop`, API name `v2.shop.get_shop_info`, dùng field `shop_name` làm tên shop; field phụ: `region`, `status`.
+- Endpoint bổ sung: `GET /api/v2/shop/get_profile`, module `Shop`, API name `v2.shop.get_profile`, dùng field `response.shop_name`, `response.shop_logo`, `response.description`.
+
+## Sửa code
+
+- `apps/worker-api/src/routes/shops/index.js`: `shop_id` query giờ match `shops.api_shop_id` ngoài `shops.id`; thêm route đọc an toàn `GET /api/shops/shopee-profile-sync`.
+- `apps/worker-api/src/core/shops/shopee-profile-core.js`: thêm `normalizeShopProfile()`, `shop_core_profiles`, upsert snapshot API chính thức; chặn tên dạng raw numeric hoặc `Shopee <id>` làm `shop_display_name`.
+- `apps/worker-api/src/core/shared-data/core-data-core.js`: `/api/core/shops` và `/api/core/shops/:shopId/summary` trả `shop_display_name`, `shop_name_source`, `shop_profile_source`, `shop_name_missing`; nếu snapshot còn raw thì chuyển về alias hợp lệ hoặc `Shop chưa đồng bộ tên`.
+- `apps/chat-worker-api/src/core/shop-display-core.js`: Chat Worker enrich conversation từ Shop Core, không tự đoán tên shop và không nhận raw numeric làm display name.
+- `apps/fe/js/dashboard/chat/sync.js`: trạng thái đồng bộ UI dùng `shopDisplayLabel()`, `shop_id` chỉ còn dùng trong payload kỹ thuật.
+- `apps/fe/js/dashboard/chat/render.js`, `order-link.js`: render `shop_display_name`; thiếu tên thì hiện `Shop chưa đồng bộ tên` và badge `Thiếu tên shop`.
+
+## Trạng thái
+
+- Shop có API Shopee sẽ sync tên bằng Shop API chính thức rồi cache vào `shop_core_profiles`.
+- Shop chưa API không gọi Shopee API; dùng alias/manual/fallback và không gắn nhãn API chính thức.
+- Không đụng Lazada/TikTok/Facebook/Zalo/AI; không gửi tin live.
+
+## Kiểm production
+
+- Deploy:
+  - Worker chính `huyvan-worker-api` version `d8e7ae88-a31e-4e2c-8b71-3a95bb4872b3`.
+  - Chat Worker `shophuyvan-chat-api` version `ff2d5b00-9bdb-4f6e-be0f-9825a95875af`.
+  - Static UI `shophuyvan-analytics` version `16ebeba1-47cb-4b11-bd4a-47ede90e02f2`.
+- Probe Shop API official:
+  - `shop=chihuy1984` và `shop_id=170044686`: `get_shop_info.shop_name=GIA DỤNG HUY VÂN`, `region=VN`, `status=NORMAL`; `get_profile.response.shop_name=GIA DỤNG HUY VÂN`, có `shop_logo`.
+  - `shop_id=166563639`: `get_shop_info.shop_name=shophuyvan.vn`, `region=VN`, `status=NORMAL`; `get_profile.response.shop_name=shophuyvan.vn`, có `shop_logo`.
+- `/api/core/shops` và `/api/core/shops/:shopId/summary` đã trả `shop_display_name`, `shop_name_source=shopee_shop_api`, `shop_profile_source=api`, `shop_name_missing=false` cho `170044686` và `166563639`.
+- Chat Worker `/api/chat/conversations?channel=shopee` đã trả display name từ Shop Core; không còn conversation có `shop_display_name` là raw numeric `170044686` hoặc `166563639`.
+- Kiểm duplicate read-only: `POST /api/chat/sync` shop `170044686` pass `pulled_conversations=20`, `pulled_messages=0`, `saved_messages=0`, `skipped_duplicates=0`; D1 `platform_message_id=2414019124426817905` vẫn đúng `1` row, status `sent`.
+- Kiểm attachment read-only trên UI: nút `Tệp` vẫn báo `attachment_bridge_not_ready`, không fake success và không gửi tin live.
+- Kiểm UI production bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: desktop `1366x900`, tablet `820x1180`, mobile `390x844` đều pass; không tràn ngang, không hiện raw numeric shop id làm tên chính, không gửi tin live.
+
+# 2026-05-18 - Shop/Order/Product Core đọc chung cho Chat/OMS
+
+## Phạm vi
+
+- Ưu tiên Shopee.
+- Không đụng Lazada/TikTok/Facebook/Zalo/AI trong lượt core này.
+- Không tạo bảng đơn/sản phẩm riêng cho Chat; Worker chính giữ nguồn `orders_v2`, `order_items`, `order_fee_details`, `products`, `product_variations`.
+
+## Sửa code
+
+- Thêm `apps/worker-api/src/core/shared-data/core-data-core.js`.
+- Thêm route `apps/worker-api/src/routes/core-data/index.js`.
+- Mở các endpoint đọc an toàn:
+  - `GET /api/core/shops`
+  - `GET /api/core/shops/:shopId/summary`
+  - `GET /api/core/orders/:orderId`
+  - `GET /api/core/orders/by-conversation/:conversationId`
+  - `GET /api/core/products/by-sku/:sku`
+- Chat UI `chat-cskh.html` nối thêm Worker chính qua `SHOPHUYVAN_CORE_API_BASE`; tab `Đơn` đọc Order/Product Core và hiển thị badge `API`, `Snapshot`, `Fallback`, `Estimated`, `Missing`.
+
+## Trạng thái
+
+- Shop có API: đọc capability từ `shops` và snapshot D1; sync thật vẫn dùng route hiện có `/api/orders/sync-api-orders` và `/api/products/sync-api-products`.
+- Shop chưa API: không gọi API, hiển thị fallback/manual/import/cost setting.
+- Worker chính đã deploy version `c6fc36ec-52e1-4714-8474-f4167598020a`, static UI đã deploy version `6fb0babd-e581-47dd-a6d4-2009c9a45fe3`.
+- Sync Shopee hẹp shop API `chihuy1984`: `/api/orders/sync-api-orders` pass `fetched=2`, `imported_orders=2`, `imported_items=2`, `saved_fee_details=2`; `/api/products/sync-api-products` pass `fetched_products=1`, `synced_products=1`, `saved_product_catalog_snapshots=1`, `synced_variations=4`.
+- Order Core verify: OMS và `/api/core/orders/260518QJM5HP6U` cùng trạng thái raw `LOGISTICS_PENDING_ARRANGE`, label `chờ lấy hàng`, badge `API`.
+- Product Master verify: SKU `HV999K241300S` có tên và tồn `34` khớp giữa `/api/products?search=HV999K241300S` và `/api/core/products/by-sku/HV999K241300S`, badge tồn `Snapshot`.
+- Chat UI production bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test` pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`: tab `Đơn` đọc `/api/core/*`, không còn dòng `Chưa nối Order/Product Core`, không tràn ngang.
+
+# 2026-05-18 - UI Chat/CSKH theo Duoke cho Shopee backend đã pass
+
+## Phạm vi
+
+- Chỉ sửa UI Chat/CSKH Shopee mới: `apps/fe/pages/chat-cskh.html`, `apps/fe/css/dashboard/chat.css`, `apps/fe/js/dashboard/chat/*`.
+- Không sửa backend Lazada/TikTok/Facebook/Zalo/AI; không gửi thêm tin live để tránh spam khách.
+- Duoke đã mở bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`; ghi nhận layout rail kênh, inbox, thread, composer và panel khách/đơn/trạng thái.
+
+## UI đã deploy
+
+- Static UI deploy từ `apps/fe` lên `shophuyvan-analytics`, version mới nhất `7c25b8d8-8c92-4ed3-885e-824631500c8f`.
+- Worker chính `huyvan-worker-api`: không deploy trong lượt UI này.
+- Chat Worker `shophuyvan-chat-api`: không deploy trong lượt UI này.
+- UI production: `https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/chat-cskh.html`.
+
+## Kiểm production
+
+- Desktop `1366x768`: pass, list/thread/panel phải rõ, không tràn ngang.
+- Tablet `768x1024`: pass, list + thread 2 cột, panel khách/trạng thái dưới thread, không tràn ngang.
+- Mobile `390x844`: pass, mặc định vào list, bấm hội thoại vào thread, có `Quay lại`, composer dễ bấm, không tràn ngang.
+- Sync Shopee shop API `chihuy1984` sau sửa UI: pass `pulled_conversations=20`, `pulled_messages=0`, `saved_messages=0`, `skipped_duplicates=0`.
+- D1 Chat Worker: `platform_message_id=2414019124426817905` có `1` row, status `sent`; refresh UI thread chỉ có `1` bubble cho message này.
+- Shop chưa API `khogiadungcona`: UI hiển thị `Chưa có API`, `Gửi tay`, `Manual import`; composer bị khóa, không gọi SellerChat API cho shop manual.
+- Attachment: UI hiển thị `Attachment chưa bật`; nút `Tệp` trả `attachment_bridge_not_ready`, không fake success.
+- Legacy cleanup: chưa xóa destructive; `chat-marketplace.html`, `fe-chat-marketplace/*`, bridge/readback Shopee legacy vẫn giữ.
+
+## Ghi chú nối tiếp
+
+- UI mới đã đủ luồng vận hành inbox/thread/capability cơ bản, nhưng chưa thay toàn bộ legacy đơn hàng/sản phẩm/media/notification.
+- Lượt sau có thể cleanup sau khi map parity từng tab legacy và bổ sung kiểm regression OMS mở chat.
+
+# 2026-05-18 - Shopee SellerChat full inbox polling cho Chat Worker
+
+## Endpoint Shopee dùng chính thức
+
+- Conversation list: `GET /api/v2/sellerchat/get_conversation_list`.
+  - Params runtime: signed query có `shop_id`, `direction=latest`, `type=all`, `page_size`.
+  - Field runtime: `conversation_id`, `to_id`, `to_name`, `latest_message_id`, `latest_message_type`, `latest_message_content.text`, `latest_message_from_id`, `last_message_timestamp`.
+  - Timestamp: `last_message_timestamp` là Unix nanoseconds.
+- Message history/readback: `GET /api/v2/sellerchat/get_message`.
+  - Params runtime: signed query có `shop_id`, `conversation_id`, `page_size`, `offset`.
+  - Field runtime: `message_id`, `from_id`, `to_id`, `from_shop_id`, `to_shop_id`, `message_type`, `content.text`, `conversation_id`, `created_timestamp`, `region`, `status`, `source`.
+  - Timestamp: `created_timestamp` là Unix seconds.
+- Conversation detail tham chiếu: `GET /api/v2/sellerchat/get_one_conversation`.
+
+## Sửa code
+
+- Thêm bridge sync nội bộ: `POST /api/internal/chat-bridge/shopee/sync`.
+- Chat Worker `POST /api/chat/sync` gọi bridge Shopee, lấy inbox theo luồng `get_conversation_list` -> `get_message`.
+- Worker chính dùng `last_message_timestamp` để bỏ qua conversation không đổi, tránh kéo sâu toàn bộ lịch sử trong một request.
+- Chat Worker merge theo `platform_message_id`, outbound đã `sent` không bị tạo row mới và không bị hạ status.
+- Thêm sync state trong Chat Worker D1: `last_synced_at`, `last_success_at`, `last_error_code`, `last_error_message`, `pulled_conversations`, `pulled_messages`, `saved_messages`, `skipped_duplicates`, `sync_cursor`, `last_message_timestamp`.
+- Shop Shopee chưa có API không gọi SellerChat API và trả capability đúng: `manual`, `browser_helper` hoặc `disabled`.
+- Attachment bridge vẫn chưa bật live; request có attachment trả `attachment_bridge_not_ready`.
+
+## Kiểm production
+
+- Worker chính `huyvan-worker-api`: deploy version `233760a9-2469-4792-8b0d-284457d8f81c`, account `efe50fab1dd644088d681fb14a4838ae`.
+- Chat Worker `shophuyvan-chat-api`: deploy version `15b7d0bb-5d48-4897-9dea-ec35a69a556b`, account `39cf0fe9b3eda88bda53e369770cabeb`.
+- `GET /api/chat/health`: pass `ok=true`, mode `d1`.
+- Sync full inbox shop API `chihuy1984`:
+  - Lượt 1: `pulled_conversations=20`, `pulled_messages=53`, `saved_messages=53`, `skipped_duplicates=0`.
+  - Lượt lặp: `pulled_conversations=20`, `pulled_messages=0`, `saved_messages=0`, `skipped_duplicates=0`.
+  - D1 Chat Worker vẫn đúng `1` row theo `platform_message_id=2414019124426817905`, status `sent`.
+- Shop chưa API `khogiadungcona`: không gọi SellerChat API; response `status=manual_required`, `error_code=shop_api_not_configured`, capability `shop_chat_mode=manual`, `send_capability=manual_only`, `sync_capability=manual_import`.
+- UI/refresh API kiểm thread cũ `conv_33eb86de-a954-42ae-b993-737b7dcab632`: vẫn đúng `1` message theo `platform_message_id=2414019124426817905`, status `sent`.
+- Chrome profile đã mở để kiểm production UI: `E:\codex-chrome-profiles\shophuyvan-test`.
+- Attachment bridge vẫn chưa bật live; request có attachment trả `attachment_bridge_not_ready`.
+
+# 2026-05-18 - Sửa readback Shopee SellerChat không trùng message
+
+## Endpoint Shopee xác nhận
+
+- Conversation list: `GET /api/v2/sellerchat/get_conversation_list`.
+  - Params runtime đã dùng: signed query có `shop_id`, `direction=latest|older`, `type=all`, `page_size`.
+  - Field trả về đã thấy: `conversation_id`, `to_id`, `to_name`, `latest_message_id`, `latest_message_type`, `latest_message_content.text`, `latest_message_from_id`, `last_message_timestamp`.
+  - Timestamp conversation: `last_message_timestamp` là Unix nanoseconds.
+- Message history/readback: `GET /api/v2/sellerchat/get_message`.
+  - Params runtime đã dùng: signed query có `shop_id`, `conversation_id`, `page_size`.
+  - Field trả về đã thấy: `message_id`, `from_id`, `to_id`, `from_shop_id`, `to_shop_id`, `message_type`, `content.text`, `conversation_id`, `created_timestamp`, `region`, `status`, `source`.
+  - Timestamp message: `created_timestamp` là Unix seconds.
+- Single conversation endpoint đã được permission probe trước đó xác nhận reachable: `GET /api/v2/sellerchat/get_one_conversation`.
+- Nhóm quyền cần app SellerChat/Customer Service App đã bật để gọi các endpoint `v2.sellerchat.*`; detail schema trong Open Platform vẫn có phần bị khóa `error_auth`, nên runtime field ở trên được xác nhận bằng API production thật.
+
+## Sửa code
+
+- Lỗi gốc nằm ở `apps/worker-api/src/routes/worker-chat-marketplace/worker-chat-message-automation-normalize.js`: `normalizeApiChatTimestamp()` gọi `new Date(number).toISOString()` với timestamp Shopee dạng nanoseconds nên có thể throw `Invalid time value`.
+- Thêm `apps/worker-api/src/routes/worker-chat-marketplace/worker-chat-shopee-timestamp.js` với `normalizeShopeeTimestamp()`:
+  - nhận `null`, `undefined`, chuỗi rỗng, number, numeric string, ISO string;
+  - tự phân biệt Unix seconds, milliseconds, microseconds, nanoseconds;
+  - parse fail thì trả chuỗi rỗng để caller fallback có kiểm soát, không throw.
+- Mapping readback Shopee hiện dùng `normalizeShopeeTimestamp()` cho `sent_at/created_at` và `last_message_at`.
+- `/api/chat/api-sync` nhận thêm `buyer_id/customer_id` để khi conversation id cũ bị Shopee từ chối, sync tìm canonical conversation qua `get_conversation_list` rồi đọc message bằng `get_message`.
+- Chat Worker dedupe readback theo `platform_message_id` xuyên qua alias shop name/api shop id; message outbound đã `sent` không bị hạ xuống `synced`.
+
+## Deploy và kiểm production
+
+- Worker chính `huyvan-worker-api`: deploy version `0ecd4873-a5da-484b-bbce-412d9af06dd1`, account `efe50fab1dd644088d681fb14a4838ae`.
+- Chat Worker `shophuyvan-chat-api`: deploy version `1458e82e-f7d9-4a44-ac4e-2a77036cd135`, account `39cf0fe9b3eda88bda53e369770cabeb`.
+- Sync production cho shop `chihuy1984`, buyer `60516476`:
+  - `POST /api/chat/api-sync` không còn `Invalid time value`.
+  - `working_message_path=/api/v2/sellerchat/get_message`.
+  - Canonical conversation đọc message: `259916285459215941`.
+  - Lượt kiểm lặp lại: `pulled_messages=11`, `saved_messages=0`, D1 Worker chính vẫn chỉ có `1` row theo `message_id=2414019124426817905`.
+- Chat Worker `/api/chat/sync` sau cleanup duplicate test:
+  - `platform_message_id=2414019124426817905` còn đúng `1` row trong D1 Chat Worker.
+  - Status vẫn là `sent`.
+  - `/api/chat/messages?conversation_id=conv_33eb86de-a954-42ae-b993-737b7dcab632` trả đúng `1` message theo platform id này.
+- Live send Shopee text vẫn là trạng thái pass từ lượt bridge: message đã gửi có `platform_message_id=2414019124426817905`, không gửi thêm tin live mới trong lượt readback để tránh spam khách.
+- Attachment bridge vẫn chưa bật live; có attachment thì trả `attachment_bridge_not_ready`, không fake success.
+- Không đụng Lazada/TikTok/Facebook/Zalo/AI trong lượt sửa readback này.
+
+# 2026-05-18 - Nối Shopee live bridge cho Chat Worker mới
+
+## Việc đã làm
+
+- Audit helper cũ:
+  - `apps/worker-api/src/routes/worker-chat-marketplace/worker-chat-shopee-send-official.js` có `sendShopeeChatOfficial(env, conversation, options)`.
+  - Helper gọi Shopee `POST /api/v2/sellerchat/send_message`, cần shop token/API shop id và `buyer_id/to_id` chính thức.
+  - `apps/worker-api/src/features/shopee/api/chatClient.js` có client `chat_client` và `sendShopeeChatText`, cùng endpoint `sellerchat/send_message`.
+  - Route legacy `/api/chat/send` vẫn dùng `sendShopeeChatOfficial` qua `worker-chat-send-reply-dispatch.js`.
+- Thêm bridge nội bộ trong Worker chính:
+  - `POST /api/internal/chat-bridge/shopee/messages/send`.
+  - `GET /api/internal/chat-bridge/shopee/conversations`.
+  - `GET /api/internal/chat-bridge/shopee/conversations/:id/messages`.
+  - Auth bằng header `X-Chat-Bridge-Secret`, secret Worker chính là `CHAT_BRIDGE_INTERNAL_SECRET`.
+- Nối Chat Worker mới:
+  - `SHOPEE_CHAT_BRIDGE_URL` trỏ tới `https://huyvan-worker-api.nghiemchihuy.workers.dev/api/internal/chat-bridge/shopee`.
+  - `SHOPEE_CHAT_BRIDGE_SECRET` set bằng `wrangler secret put`, không ghi secret vào repo.
+  - Adapter Shopee chỉ bật bridge khi có cả URL và secret; dry-run không được ghi `sent`.
+  - Attachment chưa bật live, trả `attachment_bridge_not_ready`.
+
+## Deploy và kiểm live
+
+- Worker chính `huyvan-worker-api`: deploy version `9fa6006b-6281-43d5-962f-6e28312548cd` bằng account `efe50fab1dd644088d681fb14a4838ae`.
+- Chat Worker `shophuyvan-chat-api`: deploy version `8c89a438-2875-4f68-97ed-cbf3404a0165` bằng account `39cf0fe9b3eda88bda53e369770cabeb`.
+- `GET /api/chat/health` Chat Worker: pass `ok=true`, `mode=d1`.
+- Bridge không có secret: trả HTTP `401`, không public mở.
+- Live send qua full path Chat Worker -> bridge -> Shopee SellerChat:
+  - Shop test: `chihuy1984`, buyer test `tester`.
+  - Message chuyển `sending` -> `sent`.
+  - Shopee trả `platform_message_id=2414019124426817905`.
+- Lỗi phát hiện và đã sửa trong lượt này: adapter ban đầu ghép URL bridge sai thành `/messages/send`, gây `Shopee bridge HTTP 404`; đã sửa helper ghép URL và deploy lại Chat Worker.
+- Đã dọn bản ghi failed do lỗi URL khỏi D1 Chat Worker.
+- Readback hẹp qua `/api/chat/api-sync` legacy đang fail `Invalid time value`, `pulled_messages=0`. Đây là blocker verify/sync đọc lại, không phải lỗi gửi live.
+
+## Trạng thái
+
+- Shopee text: live qua bridge.
+- Shopee attachment: chưa live, không fake success.
+- Lazada/TikTok/Facebook/Zalo: không đụng trong lượt này.
+- AI: không đụng trong lượt này, vẫn theo cấu hình Chat Worker hiện tại.
+
+# 2026-05-18 - Deploy production Chat/CSKH capability và kiểm thật 3 mode
+
+## Việc đã làm
+
+- Deploy lại Chat Worker riêng `shophuyvan-chat-api`, không deploy Worker chính `apps/worker-api`.
+- Deploy lại static UI từ `apps/fe`; chỉ upload `chat-cskh.html`, `js/dashboard/chat/render.js`, `css/dashboard/chat.css`.
+- Bump cache version UI lên `chat-core-20260518c`.
+- Kiểm production endpoints: `/api/chat/health`, `/api/chat/settings`, `/api/chat/conversations`, `/api/chat/conversations/:id/messages`, `/api/chat/messages/send`, `/api/chat/sync`.
+- Seed dữ liệu test prefix `codex_cap_` để kiểm đủ badge và trạng thái, sau kiểm đã xóa sạch khỏi D1 production.
+- Rà Shopee bridge: helper SellerChat cũ có `sendShopeeChatOfficial`, `chatClient.js` và route legacy `/api/chat/send`, nhưng chưa có bridge endpoint riêng đúng shape Chat Worker mới, nên chưa set `SHOPEE_CHAT_BRIDGE_URL`.
+
+## Deploy
+
+- Chat Worker version: `48b6741d-70b3-48ae-9332-9561ee0ab39d`.
+- Static UI version: `1d776058-82ed-4d25-ab55-17ddc9fe8d41`.
+- UI production: `https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/chat-cskh.html`.
+- Chat Worker production: `https://shophuyvan-chat-api.zacha030596.workers.dev`.
+
+## Kiểm production
+
+- API/bridge chưa config:
+  - `send_capability=official_api`: `failed`, `adapter_not_configured`.
+  - `send_capability=bridge`: `failed`, `adapter_not_configured`.
+- `manual`: `manual_pending`, `manual_send_required`.
+- `browser_helper`: `queued_for_browser_helper`, `browser_helper_required`.
+- `disabled`: `failed`, `adapter_not_configured`.
+- `/api/chat/sync` Shopee bridge thiếu cấu hình trả HTTP `501`, `adapter_not_configured`, không tạo duplicate.
+- UI mobile `390x844`, tablet `820x1180`, desktop `1366x900`: pass, đủ badge `API chính thức`, `Bridge`, `Browser helper`, `Gửi tay`, `Chưa cấu hình`, không tràn ngang.
+- Gửi từ UI production: message shop hiện `Đang gửi` ngay, sau đó `Gửi lỗi`, có nút `Gửi lại`, không cần refresh.
+- Test data cleanup: D1 còn `0` conversation và `0` message theo prefix `codex_cap_`.
+
+## Trạng thái kênh
+
+- Shopee: `adapter_not_configured`, chưa nối live bridge vì chưa có endpoint bridge riêng an toàn đúng shape cho Chat Worker mới.
+- Lazada/TikTok/Facebook/Zalo: skeleton `adapter_not_implemented`.
+- AI: `suggest_only`, không auto-send.
+
+# 2026-05-18 - Chuẩn hóa capability Chat/CSKH theo shop có API và không API
+
+## Việc đã làm
+
+- Bổ sung quy tắc vào `AGENTS.md`: Chat/CSKH dùng một Chat Core chung, nhưng capability tách theo `channel + shop_id`.
+- Cập nhật schema/docs cho 3 field bắt buộc: `shop_chat_mode`, `send_capability`, `sync_capability`.
+- Thêm `apps/chat-worker-api/src/core/capability-core.js` để normalize capability và quyết định trạng thái khi chưa gửi/sync được lên sàn.
+- Cập nhật `conversation-core` để lưu capability vào `chat_conversations` và tự migrate thêm cột D1 nếu bảng cũ chưa có.
+- Cập nhật `send-core`: frontend vẫn append `sending`; backend lưu outbound trước; nếu không có official API/bridge thì chuyển `failed`, `manual_pending` hoặc `queued_for_browser_helper`, không fake `sent`.
+- Cập nhật `sync-core`: chỉ sync qua adapter khi có `webhook` hoặc `polling_api`; browser/manual không trả success giả.
+- Cập nhật UI Chat/CSKH để hiện badge `API chính thức`, `Bridge`, `Browser helper`, `Gửi tay`, `Chưa cấu hình`.
+- AI vẫn `suggest_only`; policy trả thêm capability và chỉ cho phép xét auto-send khi `send_capability` là `official_api` hoặc `bridge`.
+
+## Trạng thái vận hành
+
+- Shop có API: dùng Chat Core chung, ưu tiên official API hoặc bridge an toàn; chỉ ghi `sent` sau khi adapter trả success thật.
+- Shop không API: dùng `browser_helper`, `manual` hoặc `disabled`; UI không gắn nhãn API và backend không báo đã gửi lên sàn nếu chỉ lưu nội bộ.
+- Shopee hiện vẫn `adapter_not_configured` nếu thiếu `SHOPEE_CHAT_BRIDGE_URL`.
+- Lazada/TikTok/Facebook/Zalo trong Chat Worker mới vẫn là skeleton `adapter_not_implemented` cho tới khi có adapter/capability riêng được chốt.
+
+# 2026-05-18 - Expose production UI Chat/CSKH mới
+
+## Việc đã làm
+
+- Chỉnh `apps/fe/pages/chat-cskh.html` để production mặc định gọi `https://shophuyvan-chat-api.zacha030596.workers.dev` qua `window.SHOPHUYVAN_CHAT_API_BASE`.
+- Localhost vẫn override về cùng origin để phục vụ kiểm local.
+- Deploy static frontend từ `apps/fe` bằng profile `DuAn_shophuyvan-analytics`; không chạy deploy trong `apps/worker-api`.
+- Static frontend version: `ca359d12-690f-46df-a5af-dba2758b3100`.
+- Production UI: `https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/chat-cskh.html`.
+- Rà Shopee bridge: repo có helper SellerChat cũ trong Worker chính (`worker-chat-shopee-send-official.js`, `features/shopee/api/chatClient.js`), nhưng chưa có bridge endpoint riêng an toàn đúng shape `SHOPEE_CHAT_BRIDGE_URL`, nên không nối live và giữ `adapter_not_configured`.
+
+## Kiểm tra
+
+- `node --check` pass cho 32 JS trong `apps/chat-worker-api/src` và `apps/fe/js/dashboard/chat`.
+- `npm test` trong `apps/chat-worker-api`: pass.
+- `git diff --check`: pass, chỉ có cảnh báo CRLF sẵn.
+- Token-prefix scan theo yêu cầu trong `AGENTS.md`, `docs`, `apps`: no match.
+- Mojibake scan theo AGENTS có false-positive ở chính dòng regex và chữ Việt hợp lệ như `đã`, `sẵn`; không phát hiện hit token.
+- HTTP GET `chat-cskh.html`: `200`, có Chat Worker API base và cache version `chat-core-20260518b`.
+- Chat Worker `/api/chat/health`: pass `mode=d1`.
+- Chat Worker `/api/chat/conversations`: pass.
+- Chat Worker `/api/chat/messages/send`: safe Shopee trả `failed`, `error_code=adapter_not_configured`, `saved_status=sending`, không gửi ra sàn.
+- Chrome profile `E:\codex-chrome-profiles\shophuyvan-test` không lock trước khi mở; kiểm production qua CDP port `9333`.
+- Mobile `390x844`: pass, API base đúng, danh sách hội thoại load được bằng test data tạm, mở thread được, gửi safe message hiện `sending` ngay, sau đó `failed`, có nút `Gửi lại`, sync không tăng số message, không tràn ngang.
+- Tablet `820x1180`: pass cùng tiêu chí trên, không tràn ngang.
+- Desktop `1366x900`: pass cùng tiêu chí trên, không tràn ngang.
+- Sau kiểm đã dọn test data `codex_safe_shop` khỏi D1: còn `0` conversation và `0` message test.
+
+## Trạng thái kênh
+
+- Shopee: `adapter_not_configured`, chưa live vì chưa có bridge endpoint riêng an toàn và chưa xác minh quyền gửi trong Chat Worker mới.
+- Lazada/TikTok/Facebook/Zalo: skeleton `adapter_not_implemented`.
+- AI: `suggest_only`, không auto-send.
+
+# 2026-05-18 - Tạo Chat/CSKH Core riêng phase 1-5 và chốt deploy Worker riêng
+
+## Việc đã làm
+
+- Audit file chat cũ và lập bản đồ ở `docs/chat-refactor-map.md`.
+- Tạo schema chuẩn ở `docs/chat-core-schema.md`: message có `platform_message_id` và `client_temp_id`, conversation có `platform_conversation_id`, attachment chỉ lưu metadata/R2 key.
+- Tạo kế hoạch dọn legacy có điều kiện ở `docs/chat-legacy-cleanup.md`.
+- Tạo service riêng `apps/chat-worker-api` cho Worker `shophuyvan-chat-api`, D1 `shophuyvan-chat-db`, R2 `shophuyvan-chat-files`.
+- Tạo core mới: normalize, merge chống trùng, conversation store, send, sync, AI suggest-only, attachment metadata, identity/customer skeleton.
+- Tạo route tối thiểu mới:
+  - `GET /api/chat/conversations`
+  - `GET /api/chat/conversations/:id/messages`
+  - `POST /api/chat/messages/send`
+  - `POST /api/chat/sync`
+  - `POST /api/chat/ai/suggest`
+  - `GET/POST /api/chat/settings`
+- Tạo UI mới `apps/fe/pages/chat-cskh.html` và module `apps/fe/js/dashboard/chat/*`, có optimistic append khi bấm gửi, merge response theo `client_temp_id`, trạng thái `sending/sent/failed`, nút gửi lại và tab AI/Đơn-SP/Lịch sử.
+- Cập nhật `AGENTS.md`, `apps/chat-worker-api/README.md`, `docs/chat-cskh-deploy-strategy.md`, `docs/chat-refactor-map.md`, `docs/chat-legacy-cleanup.md` để chốt hướng hiện tại: mono-repo `shophuyvan-analytics`, Cloudflare Worker/D1/R2 riêng cho Chat, repo riêng chat là hướng tương lai chưa dùng làm blocker.
+- Deploy production Worker riêng `shophuyvan-chat-api`, không deploy Worker chính OMS/Dashboard/Finance/Product.
+
+## Trạng thái vận hành
+
+- Shopee: adapter mới chỉ gửi live khi có endpoint cầu nối chính thức `SHOPEE_CHAT_BRIDGE_URL`; nếu thiếu cấu hình thì lưu message và trả `failed` với `adapter_not_configured`, không fake success.
+- Lazada/TikTok/Facebook/Zalo: đã có skeleton adapter trả `adapter_not_implemented`.
+- Internal: dùng cho kiểm local và ghi chú nội bộ, không đại diện gửi ra sàn.
+- AI: chỉ `suggest_only`, chưa tự gửi lên sàn.
+- Legacy `chat-marketplace.html`, `fe-chat-marketplace/*`, `worker-chat-marketplace/*` vẫn giữ nguyên để không làm mất OMS/dashboard hiện tại.
+
+## Kiểm tra
+
+- `node --check` pass cho 32 JS mới trong `apps/chat-worker-api/src` và `apps/fe/js/dashboard/chat`.
+- `npm run check` và `npm test` trong `apps/chat-worker-api`: pass.
+- `node scripts/check-chat-core-local.mjs`: pass, xác nhận internal gửi `sent`, Shopee thiếu adapter chuyển `failed`, message sync có `platform_message_id` merge vào `client_temp_id` cũ không tạo duplicate.
+- Local server `scripts/serve-chat-core-local.mjs` đã chạy ở `http://127.0.0.1:8789/pages/chat-cskh.html`.
+- In-app browser kiểm mobile `390x844`, tablet `820x1180`, desktop `1366x900`: tin shop hiện ngay trạng thái `Đang gửi`, sau adapter lỗi chuyển `Gửi lỗi` và có nút `Gửi lại`, không tràn ngang.
+- Lệnh quét token prefix trong `AGENTS.md`, `docs`, `apps`: không có match.
+- Lệnh quét mojibake theo mẫu AGENTS có false-positive ở chính dòng hướng dẫn regex và chữ Việt hợp lệ như `đã`, `sẵn`; không phát hiện token thật trong phạm vi quét.
+- `wrangler whoami` dùng profile `shophuyvan-chat-api`: pass, account `39cf0fe9b3eda88bda53e369770cabeb`.
+- `npx wrangler deploy --dry-run` trong `apps/chat-worker-api`: pass, binding chỉ gồm D1 `shophuyvan-chat-db`, R2 `shophuyvan-chat-files`, biến môi trường Chat.
+- `npx wrangler deploy` trong `apps/chat-worker-api`: pass, Worker `shophuyvan-chat-api`, URL `https://shophuyvan-chat-api.zacha030596.workers.dev`, version `7b3b1302-9d54-413a-a890-5b72f66dbb89`.
+- Production API: `/api/chat/health` pass mode `d1`, `/api/chat/conversations` pass.
+- Production safe send Shopee: message lưu trạng thái đầu `sending`, kết quả cuối `failed`, `error_code=adapter_not_configured` vì chưa có `SHOPEE_CHAT_BRIDGE_URL`.
+- Production sync Shopee khi chưa có bridge: HTTP `501`, `adapter_not_configured`, số message test không tăng sau sync nên không tạo duplicate.
+- UI production `https://shophuyvan-analytics.nghiemchihuy.workers.dev/pages/chat-cskh.html` trả `404`; chưa kiểm mobile/tablet/PC trên production vì chưa deploy/route frontend trong lần này để tránh deploy nhầm Worker chính.
 
 # 2026-05-15 - Audit Shopee real action, tách Ads/Marketplace client và khóa ghi giả
 
@@ -558,7 +1602,7 @@
 
 - `node --check apps/fe/js/dashboard/chat.js` pass.
 - `node --check apps/worker-api/src/routes/chat.js` pass.
-- Quét mojibake trong `chat.js` và `dashboard.css` không thấy `Ã`, `Â`, `áº`, `á»`, `ðŸ`, `â€¦`.
+- Quét mojibake trong `chat.js` và `dashboard.css` không thấy mẫu lỗi tiếng Việt bị mã hóa sai.
 - Frontend Pages đã deploy bản `ade7404b-6b97-4b54-b26e-28f5e30823f4`; Worker API đã deploy bản `ab4da959-9d18-4408-8686-ea5b9923d97b`.
 - Production `chat-marketplace.html?verify=chat-logistics-realtime-20260509` đã mở hội thoại `vinhto498`, thấy nút `Theo dõi vận chuyển`, gọi được Shopee logistics API và hiển thị timeline `PICKED_UP / ORDER_CREATED`.
 - Đã chèn nháp hành trình vào ô trả lời, guard không còn chặn nhầm `SPXVN...` hoặc chữ `vận chuyển`. API `/api/chat/guard` trả `allowed: true` cho nội dung có mã vận đơn.
@@ -582,7 +1626,7 @@
 ## Kiểm tra
 
 - `node --check` pass cho `monthly.js`, `kpi.js`, `cancel.js`, `ShopTreePicker.js`, `dashboard.js`.
-- Quét mojibake các file vừa sửa không thấy `Ã`, `Â`, `áº`, `á»`, `ðŸ`, `â€¦`.
+- Quét mojibake các file vừa sửa không thấy mẫu lỗi tiếng Việt bị mã hóa sai.
 - `git diff --check` cho cụm file vừa sửa không có lỗi whitespace thật.
 - Worker API production: `a3be1a48-7616-43da-b52e-01b8e988eff7`.
 - Frontend production: `2e716fdc-8317-4658-babe-30a93b762679`.
@@ -723,7 +1767,7 @@
 - `node --check apps/worker-api/src/routes/api-features.js` pass.
 - `node --check apps/worker-api/src/routes/api-modules.js` pass.
 - Kiểm tra whitespace bằng `git diff --check` không báo lỗi trong workspace hiện tại.
-- Quét mojibake cho cụm file vừa sửa không thấy `Ã`, `Â`, `áº`, `á»`, `ðŸ`, `â€¦`.
+- Quét mojibake cho cụm file vừa sửa không thấy mẫu lỗi tiếng Việt bị mã hóa sai.
 - Worker API production: `a9a3a38a-7528-4f94-87f6-1fd520a4ea3d`.
 - Frontend production: `ba77cb00-a577-4e64-8f37-3bba55f8760f`.
 - API production `GET /api/video/shopee/media-endpoints?shop=chihuy1984` trả `status=ok`, `media_video_ready=1`, `media_space_ready=1`, `media=connected`, `media_space=connected_with_guard`.
@@ -768,7 +1812,7 @@
 
 - `node --check apps/fe/js/video/video-dashboard.js` pass.
 - `node --check apps/worker-api/src/routes/video.js` pass.
-- Quét nhanh mojibake cho các file vừa sửa không thấy `Ã`, `Â`, `áº`, `á»`, `ðŸ`, `â€¦`.
+- Quét nhanh mojibake cho các file vừa sửa không thấy mẫu lỗi tiếng Việt bị mã hóa sai.
 - Worker API production: `19099274-e37e-4d58-9ec2-0b6f0747d325`.
 - Frontend production cuối: `7a569fed-a750-417e-95a9-7a2a5e5603a5`.
 - API production:
@@ -907,7 +1951,7 @@
 - Frontend production: `831522e1-2bbd-4c56-ad95-7417fd91697c`.
 - Frontend production bổ sung thao tác mẫu tem: `8b79a8b5-787a-46c7-b98a-721f1dcaa357`.
 - Worker API production: `f77c3efe-eee4-4e2e-8afc-fb3ef2e4080e`.
-- Production OMS mở `oms-dashboard.html?v=label-vault-shipxanh6-verify-20260509`: các nhãn tiếng Việt trong main và modal `Kho tem in` hiển thị đúng dấu, không còn kiểu `In phiáº¿u sÃ n`.
+- Production OMS mở `oms-dashboard.html?v=label-vault-shipxanh6-verify-20260509`: các nhãn tiếng Việt trong main và modal `Kho tem in` hiển thị đúng dấu, không còn kiểu nhãn in phiếu bị mã hóa sai.
 - Modal production có đủ nút chọn hàng loạt, tải lại tem, tab `LỊCH SỬ IN`/`TÙY CHỈNH PHIẾU GIAO HÀNG`, và badge nguồn tải `Tải bằng API sàn`/`Tải bằng Chrome helper`.
 - Lọc chính xác đơn `260401MH05JSEW` trong modal chỉ còn 1 dòng, hiển thị shop `phambich2312`, `refresh_mode=browser`, trạng thái `Tem lỗi`, đúng luồng shop không API.
 - Tạo job kiểm thử no-API `refresh_label` cho `260401MH05JSEW`: Radar nhận job, mở Chrome profile shop, job kết thúc `failed` với lý do `Chưa lấy được tem PDF cho đơn: 260401MH05JSEW`; không còn kẹt `processing`.
@@ -1918,7 +2962,7 @@
 - `Đang làm dở`: push subscription đầy đủ; Lazada stock advanced cần payload thật có multiWarehouse/channel/FBL để xác nhận.
 - `Chưa làm`: đăng ký push event đầy đủ trên Open Platform; dashboard UI riêng cho stock advanced nếu cần vận hành sâu; đối soát payout/statement theo kỳ.
 - `Bị khóa an toàn`: chưa mở lệnh update stock/update price thật lên sàn; chỉ sync đọc dữ liệu và ghi D1.
-- `Bị chặn bởi quyền/app`: Lazada `/finance/transaction/detail/get` đã xác nhận bị chặn quyền app; chưa xác nhận subscription event push đầy đủ.
+- `Bị chặn bởi quyền/app`: Lazada `/finance/transaction/details/get` đã xác nhận bị chặn quyền app; chưa xác nhận subscription event push đầy đủ.
 
 ### Shop có API
 
@@ -1935,7 +2979,7 @@
 
 ### Vấn đề để mai tiếp tục
 
-- Cấp/kiểm quyền Lazada Finance cho `/finance/transaction/detail/get`; adapter đã nối vào `order_finance_core` nhưng production app đang bị chặn quyền.
+- Cấp/kiểm quyền Lazada Finance cho `/finance/transaction/details/get`; adapter đã nối vào `order_finance_core` nhưng production app đang bị chặn quyền.
 - Đăng ký/đối chiếu subscription event push còn thiếu cho Shopee và Lazada.
 - Kiểm payload Lazada sản phẩm có shop nào trả `multiWarehouseInventories`, `channelInventories`, FBL stock; nếu không có thì ghi rõ bị chặn bởi quyền/app.
 - Làm dashboard nhỏ cho stock advanced khi đã có payload thật, tránh chỉ xem qua API JSON.
@@ -1946,13 +2990,13 @@
 ### Việc đã làm
 
 - Thêm adapter Lazada Finance trong `apps/worker-api/src/routes/api-sync.js` cho:
-  - `/finance/transaction/detail/get`
+  - `/finance/transaction/details/get`
   - `/finance/payout/status/get`
 - Thêm route vận hành:
   - `GET/POST /api/income/lazada/transactions`
   - `POST /api/income/lazada/transactions/sync`
   - `GET/POST /api/income/lazada/payout-status`
-- `transaction detail` khi app có quyền sẽ gom theo `order_no`, lưu vào `order_fee_details` với nguồn `lazada.finance.transaction.detail.get`, rồi `rebuild_order_analytics` đọc lại vào `order_finance_core`.
+- `transaction detail` khi app có quyền sẽ gom theo `order_no`, lưu vào `order_fee_details` với nguồn `lazada.finance.transaction.details.get`, rồi `rebuild_order_analytics` đọc lại vào `order_finance_core`.
 - Cập nhật `order_finance_core` để đếm riêng `lazada_finance_orders`, đồng thời vẫn giữ `payment_api_orders` là tổng nguồn tiền thật từ Shopee Payment + Lazada Finance.
 - Cập nhật tab Lãi ròng để ghi rõ nguồn Payment đang gồm Shopee Payment và Lazada Finance.
 
@@ -1964,7 +3008,7 @@
 - Production `GET /api/income/lazada/payout-status?date_from=2026-05-07&date_to=2026-05-07&shop_limit=5` trả HTTP 200, `ok_count=1`, `total_rows=0`, không warning.
 - Production `POST /api/income/lazada/transactions/sync` trả HTTP 200 nhưng `ok_count=0`, warning shop `kinhdoanhonlinegiasoc@gmail.com`: `App does not have permission to access this api`.
 - Production `POST /api/order-analytics/rebuild` với `platform=lazada`, `sync_payment=true` trả HTTP 200 và ghi warning quyền Lazada Finance thay vì tạo số fallback.
-- UI production bằng profile admin `ProductionAdminTest`: tab Lãi ròng dùng script cache `lazada-finance-core-20260507`, bấm `Đồng bộ Payment + tính lại` trả HTTP 200, hiển thị nguồn `Shopee /api/v2/payment/get_income_detail và Lazada /finance/transaction/detail/get`.
+- UI production bằng profile admin `ProductionAdminTest`: tab Lãi ròng dùng script cache `lazada-finance-core-20260507`, bấm `Đồng bộ Payment + tính lại` trả HTTP 200, hiển thị nguồn `Shopee /api/v2/payment/get_income_detail và Lazada /finance/transaction/details/get`.
 
 ### Trạng thái phase
 
@@ -1972,7 +3016,7 @@
 - `Đang làm dở`: chưa có dòng transaction detail Lazada thật vì app chưa được cấp quyền endpoint finance transaction.
 - `Chưa làm`: đối soát payout/statement theo kỳ và báo cáo thuế chính thức.
 - `Bị khóa an toàn`: không ghi lệnh tài chính lên sàn; chỉ đọc Finance API và lưu snapshot nội bộ.
-- `Bị chặn bởi quyền/app`: `/finance/transaction/detail/get` đang bị chặn bởi quyền app; cần cấp quyền Lazada Finance/LazPay cho app đang dùng.
+- `Bị chặn bởi quyền/app`: `/finance/transaction/details/get` đang bị chặn bởi quyền app; cần cấp quyền Lazada Finance/LazPay cho app đang dùng.
 
 ### Shop có API
 
@@ -1986,7 +3030,7 @@
 
 ### Bước tiếp theo
 
-- Cấp/kiểm quyền Lazada Finance cho endpoint `/finance/transaction/detail/get`, sau đó chạy lại `POST /api/income/lazada/transactions/sync` theo ngày có đơn thật.
+- Cấp/kiểm quyền Lazada Finance cho endpoint `/finance/transaction/details/get`, sau đó chạy lại `POST /api/income/lazada/transactions/sync` theo ngày có đơn thật.
 - Chuyển sang phase kế tiếp trong ưu tiên 1: `marketplace_push_core` đăng ký/đối chiếu subscription event đầy đủ cho Shopee và Lazada.
 
 ## 2026-05-07 - marketplace_push_core subscription/callback probe
@@ -3799,7 +4843,7 @@
 - `Đã xong`: OMS phase 1 `API-first` đã chạy thật trên production, popup phí đọc từ core breakdown thay vì nhánh cũ.
 - `Đã xong`: dữ liệu bẩn `orders_v2` lệch giữa nhánh cũ và phase 1 đã được cleanup thật cho `1404` đơn.
 - `Đang làm dở`: phase 2 thay `calcProfit()` legacy và các route cũ để các màn khác không tái sinh pha trộn `API + cost setting`.
-- `Bị khóa an toàn`: Lazada Finance transaction detail vẫn chưa có dữ liệu production thật vì app production còn thiếu quyền `/finance/transaction/detail/get`.
+- `Bị khóa an toàn`: Lazada Finance transaction detail vẫn chưa có dữ liệu production thật vì app production còn thiếu quyền `/finance/transaction/details/get`.
 
 ### Shop có API
 
@@ -5748,6 +6792,37 @@
 
 - Shopee order sync dùng `fetchShopeeShopJson()` cho `get_order_list`, `get_order_detail`, tracking và escrow detail để refresh token tự động theo shop.
 - Lazada order/status sync dùng `callLazadaWithShop()` cho `/orders/get`, `/order/items/get`, `/seller/get`, `/logistic/order/trace`.
+
+## 2026-05-20 - OMS/Core endpoint-first follow-up
+
+### Việc đã làm
+
+- Thêm guard cố định vào `AGENTS.md`, Skill `shophuyvan-warehouse-core-guard` local/repo và `docs/PROJECT-CURRENT-STATE.md`.
+- TikTok pending settlement: Core giữ `actual_income=null`, thêm `actual_income_confidence=none`, `estimated_income_source=tiktok_estimated_fee`, OMS popup hiển thị `Thực nhận tạm tính` và `Lãi tạm tính`.
+- Tracking: Shopee dùng `/api/v2/logistics/get_tracking_info`, Lazada dùng `/logistic/order/trace`; khi API lỗi/thiếu quyền nhưng Tracking Core có events thì drawer vẫn hiển thị timeline đã lưu.
+- Chat từ đơn: Shopee giữ bridge SellerChat; Lazada thêm Chat Worker adapter/bridge cho `/im/session/list`, `/im/message/list`, `/im/message/send`; TikTok tiếp tục manual/local helper rõ, không fake success.
+- Lazada Finance source chuẩn hóa sang `/finance/transaction/details/get` và `lazada.finance.transaction.details.get`.
+
+### Test trong lượt
+
+- `npm test` tại `apps/worker-api`: pass.
+- `npm run check` tại `apps/chat-worker-api`: pass.
+- `git diff --check`: pass, chỉ có cảnh báo CRLF của worktree Windows.
+- Mojibake scan hẹp: chỉ hit chính dòng hướng dẫn trong `AGENTS.md`.
+
+### Production check/deploy 2026-05-20
+
+- Worker chính cuối lượt: `c6e82dcd-53e1-4924-8469-c7fff8692d58`.
+- Chat Worker cuối lượt: `ee365521-1fd6-4dc0-a267-96c075a3612c`.
+- Static/OMS Worker cuối lượt: `af727200-7f3c-4c94-8118-58b5819e9144`.
+- Production API `/api/orders?limit=200`: pass, trả 200 dòng, total 10563, không trả `fee_raw_data`.
+- Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: tab OMS đang chạy thật pass desktop/tablet/mobile, không tràn ngang, không D1 error.
+- TikTok order `584104642942568017`: popup hiển thị `Thực nhận tạm tính` / `Lãi tạm tính`, không fake `actual_income`.
+- Lazada order `525472804102182`: popup hiển thị `Thiếu dữ liệu Finance API`, `Thực nhận tạm tính`, `Lãi tạm tính`.
+- Shopee order `260520UWGXD1S9`: tracking dùng `/api/v2/logistics/get_tracking_info`, có timeline API; `Nhắn khách` mở Chat Worker và gửi `ok` thành công.
+- Lazada order `525472804102182`: tracking dùng `/logistic/order/trace` nhưng API trả rỗng; `Nhắn khách` mở Chat Worker đúng context, gửi `ok` fail rõ `missing_session_id`.
+- TikTok order `584104642942568017`: tracking/chat ghi manual/local helper, không fake API/success.
+- Auto/Radar: `/api/bot/settings` bật auto, shop API có last/next sync; TikTok runner local vẫn `paused`, queue pending 4, dùng profile automation riêng.
 - Thêm module `apps/worker-api/src/modules/api-sync/sync-diagnostics.js` để ghi diagnostic an toàn vào `shops` mà không log token đầy đủ.
 - FE shop API status hiển thị `Kéo đơn`, `Trạng thái`, `Webhook`, `Realtime`, `last sync error`; nút `Đơn API` báo lỗi thật nếu sync fail.
 - OMS `Quét trạng thái` giảm batch và tách Shopee/Lazada để tránh một lượt quá nặng; cron realtime chỉ chạy một sàn mỗi lượt, TikTok chưa có shop API nên không đi polling API.
@@ -5798,3 +6873,715 @@
 - Sửa card KPI frontend để `Tổng Phí Sàn` cộng cả `Voucher từ sàn/Shopee` và `Combo/khuyến mại khác` vào tổng phí trừ.
 - OMS popup phí từng đơn đổi sang tab `Khách thanh toán`, `Sàn thanh toán`, `Lợi nhuận`, `Nguồn API` để không kéo một cột dài; mobile dùng panel cố định và tab cuộn ngang.
 - Shop có API: ưu tiên số liệu API phase 1; shop không API vẫn fallback cost setting/import và không gắn nhãn API nếu không có raw fee detail.
+
+## 2026-05-19 - Order auto scan theo shop capability và Finance reconcile
+
+- Audit cron Worker chính: `wrangler.toml` deploy `*/5 * * * *` và `0 0 * * *`; scheduled handler ở `apps/worker-api/src/index.js`.
+- Cron realtime chỉ polling API cho Shopee/Lazada. Shopee dùng endpoint chính thức `/api/v2/order/get_order_list` và `/api/v2/order/get_order_detail`; TikTok không có order API/token chính thức trong hệ thống nên không polling API.
+- Cập nhật 2026-05-20: Worker cron auto order/status không tự queue Chrome fallback cho shop no-API; `khogiadungcona`/TikTok đi qua Radar/local scheduler có `last/next/result/error`. Lazada cron nền giảm batch, tắt trace sâu và suppress push live để tránh Cloudflare `Too many subrequests`, lỗi thật ghi vào diagnostic.
+- Shop API order đang chạy: Lazada `kinhdoanhonlinegiasoc@gmail.com`, Shopee `chihuy1984`, `chihuy2309`, `phambich2312`.
+- Shop không API: Shopee `khogiadungcona`, TikTok `0909128999`; dữ liệu đơn phải vào Order Warehouse bằng browser/import/manual có log, không gắn nhãn `đồng bộ API`.
+- `importOrdersV2()` cập nhật `last_order_sync_at/status/error` cho fallback sau khi upsert `orders_v2/order_items`, để UI thấy lần quét cuối thay vì im lặng.
+- `marketplace_shop_capability_core` trả thêm `order_sync_mode` và thống kê nguồn đơn 7 ngày từ `orders_v2`; admin UI hiển thị `API / Browser / Import / Manual`.
+- Cron status Shopee giảm batch nền và không gọi escrow/payment khi chạy nền (`fetch_fees=0`, `fetch_tracking=0`) để tránh lỗi subrequest và không sync Payment live.
+- Finance mismatch `2026-05-18`: thiếu `order_analytics` cho đơn TikTok `584090485281163170`, `revenue=110.000đ`; phải rebuild Finance Core ngày này với `sync_payment=false`.
+- Deploy production: Worker chính `28cb2c4f-02e5-4db4-b4af-dc01769bf0d7`, frontend/static `ff505d8d-ea7d-49a4-953b-e4066b5f57d2`.
+- Production verify: Shopee order sync probe `chihuy1984` chạy `limit=1`, `fetch_fees=false`, `fetch_tracking=false`, `suppress_push=true`, trả `status=ok`, `imported_orders=1`, `saved_fee_details=0`; Shopee status probe all API shops `limit=1`, `fetch_fees=false`, `suppress_push=true`, trả `status=ok`, `checked=3`, `fee_updated=0`, `notified=0`.
+- Admin UI production bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test` pass desktop/tablet/mobile: có 6 block diagnostic, shop API hiện `KÉO ĐƠN API`, shop fallback hiện `ĐƠN MANUAL` và `Không polling API`, mobile `overflowX=0`.
+- 2026-05-19: TikTok pending settlement guard đã kiểm lại. Worker chính deploy `96ed68d8-3b97-4b38-960c-9dcf11ef339d`; Finance Core rebuild `2026-05-18..2026-05-19` với `sync_payment=false`, `orders=118`, `saved=118`. Order `584098737148888997` vẫn `pending_settlement`, `actual_income=NULL`, `estimated_income=45000`, `profit_status=estimated_pending_settlement`; eligibility batch nhỏ `limit=5` có chọn lại đơn pending, duplicate `orders_v2/order_items=0`.
+
+## 2026-05-20 - D1 rows-read / OMS read optimization
+
+- Không phát sinh kết luận thiếu endpoint mới. Lượt này chỉ đọc production và tối ưu D1/OMS read path; không sync Payment live, không gửi tin live, không gọi ship/arrange/confirm/cancel.
+- Cloudflare cleanup: xoá D1 tạo nhầm `fbshv_crm_db` (`fbb7faa5-7dff-4165-ba3c-591adf5334e2`) và Worker tạo nhầm `fbshv-crm`; production resources giữ nguyên.
+- D1 production `huyvan-analytics-db` đã backup schema/full export trước khi tạo index. Không drop table, không xoá dữ liệu đơn hàng.
+- Migration `docs/migrations/009_d1_rows_read_oms_indexes.sql` đã chạy remote để giảm scan cho OMS list/filter, label retry, webhook diagnostic và chat message lookup.
+- Production API read-only:
+  - `/api/orders?limit=50` pass, 50 rows, không raw payload nặng.
+  - `/api/orders?limit=200` pass, 200 rows, `X-OMS-Query-Count=8`, không raw payload nặng.
+  - `/api/orders/changes?limit=50` pass.
+  - `/api/orders/badges?platform=shopee` pass, cache hit ở lượt thứ hai.
+  - Filter `PENDING`, `UNPAID`, `SHIPPING`, `COMPLETED`, `CANCELLED`, `RETURN`, `platform=shopee`, `shop=chihuy1984`, `data_status=unmapped` pass.
+- Browser production profile `E:\codex-chrome-profiles\shophuyvan-test`: OMS desktop/tablet/mobile pass, không `Failed to fetch`, không tràn ngang; popup phí và tracking drawer đọc được.
+
+## 2026-05-20 - OMS order chat, dirty data cleanup, scanner bridge
+
+- Không chạy lại Cloudflare cleanup `fbshv_crm_db` / `fbshv-crm` vì user xác nhận đã xong. Lượt này chỉ deploy production resources đang dùng.
+- Shopee SellerChat send từ OMS/order pass cả 3 shop API:
+  - `chihuy1984` order `260520VCWW63EE`, text `ok`, Shopee message `2414388038268797297`.
+  - `chihuy2309` order `260520VDAFN735`, text `ok`, Shopee message `2414388042335093105`.
+  - `phambich2312` order `260520UVFANRBD`, text `ok`, Shopee message `2414388045514441075`.
+- Lazada IM endpoint đã kiểm qua Chat Worker/Core bridge: `/im/session/list`, `/im/message/list`, `/im/message/send`. Order `525472804102182` hiện fail `missing_session_id`; sync read-only pulled `0` matching sessions, nên chưa được ghi pass live.
+- TikTok order chat `0909128999` hiện classified `manual_send_required` / `manual_pending` cho order `584104642942568017`; không có fake API success.
+- Worker chính legacy `/api/chat/context` và `/api/chat/conversations` trả `410`; OMS dùng Core chat-target + Chat Worker route.
+- Dirty data cleanup đã chạy scoped trên D1 production: backup `20` placeholder item rows, delete `20` fake `order_items`, insert `10` return/refund markers, soft-hide `58` `SP_` products. Không xoá đơn, finance, payment, hoặc return/refund records thật.
+- TikTok finance estimate checked: order `584104642942568017` gross `35.000`, fee `11.050`, estimated income `23.950`; không để net/gross bằng nhau khi có fee rows.
+- Phone scanner bridge added and deployed: `POST /api/scan-bridge/session`, session connect, result post. Test session with code `260520VCWW63EE` returned `found=true`; production QR self-hosted vendor renders on desktop. Mobile viewport shows camera UI and real `camera_not_found` when the test machine has no camera.
+- TikTok auto legacy pause `codex_hotfix_final_pause` cleared from runtime; Radar no longer hard-skips TikTok for that reason. Latest scheduler run had TikTok `0909128999` in `ran_shops`, `skipped=[]`, `queued=0`, `eligible=0`.
+- Final deploy versions: Worker `8bee9805-310c-4112-aca3-edb233c7a0e2`, static `3dbcf7a5-b912-45c0-845d-a21959fa96fd`.
+
+## 2026-05-20 - Stabilization follow-up endpoint status
+
+- Shopee Chat/SellerChat regression sent text `ok` successfully for all API shops:
+  - `chihuy1984`, order `260520VCWW63EE`, platform message `2414401834649469297`.
+  - `chihuy2309`, order `260520VDAFN735`, platform message `2414401836182552946`.
+  - `phambich2312`, order `260520UVFANRBD`, platform message `2414401837572981105`.
+- Lazada IM is connected from the shop Sync page and OMS now uses synced conversation data. Order `527394116390561` resolved session `200013190561_1_200166591213_2_103` from `marketplace_chat_conversations`; `/im/message/send` PASS, Lazada message `9fbd4NrxXBS0BPAmD68895`.
+- TikTok Customer Service API family was checked in official/current API references and includes conversation/message operations, but the local Chat Worker still has no TikTok adapter/token scope. Production classification for order `584104642942568017`: `adapter_not_configured` / manual path, not endpoint missing and not fake success.
+- Shopee logistics tracking endpoint `/api/v2/logistics/get_tracking_info` is mapped to Tracking Core and OMS summary. Order `260520UWGXD1S9` tracking `SPXVN067286379715` has 4 API events, latest `PICKED_UP`; old batch diagnostic no longer overrides the row.
+- Lazada logistics endpoint `/logistic/order/trace` is used. It currently returns tracking number/status but no timeline events for checked orders such as `525472804102182`; record as `tracking_timeline_unavailable` / empty response, not `endpoint_not_available`.
+- TikTok tracking remains local-helper/Seller Center fallback for shop `0909128999`. Order `584104642942568017` returns `seller_center_detail_required`; runner must be logged in before timeline can be populated.
+- Shopee operations write endpoints remain disabled at the backend. `/api/operations/shopee/action` with `ship_order`, `execute=true` and confirm text returns `write_action_disabled`, `sent_to_shopee=false`; frontend dry-run panel shows this as an error, not success.
+- Deployed versions after this follow-up: Worker `84c4db06-fb0f-4f39-a426-e2fb8a788cc2`, Chat Worker `3b54a3d9-ddaf-42b9-b190-972272e442c7`, static `714dbf57-8b6e-4180-b279-2b2cca3ba941`.
+
+## 2026-05-20 - Runner browser launch evidence
+
+- Root blocker fixed for local Seller Center runners: Web/Radar queue result is no longer enough; TikTok/Shopee jobs now require browser lifecycle evidence before `running` or `completed`.
+- Worker main deployed `5821e5df-edb2-4820-9459-ab010637f6f8`; local helper/Radar restarted in interactive Windows session `1`.
+- Manual headful launch evidence:
+  - TikTok profile `E:\shophuyvan-python-automation\profiles\browser\shophuyvan-runner-tiktok`, Chrome PID `11996`, first URL `https://seller-vn.tiktok.com/account/login`, CDP `9331`.
+  - Shopee profile `E:\shophuyvan-python-automation\profiles\browser\HuyVan_Bot_Data_khogiadungcona`, Chrome PID `4132`, first URL `https://banhang.shopee.vn/`, CDP `9332`.
+- Web/Radar evidence:
+  - Button click on OMS created Web job `1106`; runner jobs `1107` TikTok and `1108` Shopee both completed with `headless=false`, `login_state=logged_in`, browser PID/CDP proof.
+  - Follow-up job `1109` verified final `log_text.lifecycle_events`; TikTok `1110` and Shopee `1111` both include `runner_picked -> browser_launch_requested -> browser_launched -> login_checking -> runner_started -> runner_finished`.
+- TikTok final: `job_id=1110`, `run_id=tiktok-1110-1779289512`, first URL `https://seller-vn.tiktok.com/order/detail?order_no=584104642942568017&shop_region=VN`, final `completed`, Warehouse backfill `1` order.
+- Shopee final: `job_id=1111`, `run_id=shopee-1111-1779289551`, first URL `https://banhang.shopee.vn/portal/sale/order`, final `completed`, Seller Center ran but updated `0` because order detail URL search returned `seller_center_detail_url_not_found`.
+- Safety confirmed: no Chrome user profile for automation, no global Chrome kill, no user Chrome close.
+
+## 2026-05-20 - Runner action/parser evidence
+
+- Runner/action/parser hiện có được giữ nguyên; bổ sung instrumentation và status propagation quanh luồng Web/Radar -> job queue -> `run_job_for_shop()` -> platform runner -> parser/update.
+- TikTok job `1122`: `TikTokEngine.tiktok_backfill_seller_finance_detail` đã gọi `backfill_seller_detail_finance_for_orders` và `parse_seller_detail_page`; parsed `1`, API backfill touched `1`, final `completed`.
+- Shopee job `1123`: `ShopeeEngine.shopee_backfill_seller_detail` đã gọi `backfill_shopee_seller_detail_for_orders` và `resolve_detail_url_by_search`; action chạy nhưng failed thật tại selector order row `260519RW5S0TA2` trên `https://banhang.shopee.vn/portal/sale/order`, screenshot `E:\shophuyvan-runtime\debug-payloads\runner-screenshots\20260520-223820-shopee-260519RW5S0TA2-order_row_not_found.png`, final `failed`.
+- Shopee rerun job `1124` xác nhận event lỗi là `action_failed_no_change`, final `failed`, không còn event phụ `completed_no_change` trong nhánh parser lỗi.
+- Web job `1121` vì vậy là `partial_error`, không còn báo hoàn tất giả khi Shopee parser/update không tạo dữ liệu.
+
+## 2026-05-21 - Chuẩn hóa Python automation theo Core/Warehouse mới
+
+- Đã chuyển profile runner hiện hành sang root cố định `E:\shophuyvan-python-automation\profiles\browser`; các đường `E:\codex-chrome-profiles\shophuyvan-runner-*` chỉ còn là lịch sử cũ, không dùng runtime automation.
+- File production theo action đã chuẩn hóa: TikTok/Shopee `keodonmoi.py`, `capnhattrangthai.py`, `dongbochitiet.py`, `capnhattaichinh.py`, `taitem.py`; parser đổi thành `parser_donhang.py` và `parser_chitiet.py`.
+- `shopee_orders_api.py` đã xoá vì không còn caller; shop API đi Worker/Open Platform. `print_label` legacy bị chặn, route tải tem no-API/TikTok queue `retry_label`.
+- Profile audit thật: TikTok `0909128999` và Shopee `khogiadungcona` mở đúng profile automation nhưng đều đang ở login page, nên e2e pull/status/detail/finance/label chưa PASS cho tới khi profile automation được đăng nhập lại.
+- Tests: Python compile, parser tests, Worker `npm test`, runner/source/label/finance/order/scheduler guards pass.
+# 2026-05-21 - Production manual-sync/backfill và OMS resync đã deploy
+
+- Worker chính `huyvan-worker-api` đã deploy version `190ce4a6-1bd2-4928-94dd-227395894665`; Static/OMS `shophuyvan-analytics` đã deploy version `b9b42d5b-545d-4807-b004-906580017619`.
+- Production `/api/orders/manual-sync/backfill` hiện nhận đủ `pull_orders`, `refresh_status`, `sync_detail`, `sync_finance`, `retry_label`; route diagnostic không còn trả runner profile trong `E:\codex-chrome-profiles`.
+- Local/Chrome shops dùng đúng profile map chuẩn: TikTok `0909128999` -> `E:\shophuyvan-python-automation\profiles\browser\shophuyvan-runner-tiktok`; Shopee no-API `khogiadungcona` -> `E:\shophuyvan-python-automation\profiles\browser\HuyVan_Bot_Data_khogiadungcona`.
+- Shop API không chạy Chrome: Shopee `chihuy1984`, `chihuy2309`, `phambich2312` và Lazada `kinhdoanhonlinegiasoc@gmail.com` trả `source=Open Platform / Worker API`, `api_shop_chrome_blocked=true`, `chrome_profile_path=""`.
+- OMS production đã kiểm bằng profile user `E:\codex-chrome-profiles\shophuyvan-test`: modal `Đồng bộ & tải lại` có `retry_label`, `pull_orders`, `refresh_status`, `sync_detail`, `sync_finance`; payload dry-run gửi đúng `action_type` và shop/platform value kỹ thuật; desktop/tablet/mobile không tràn ngang.
+- Safety lượt này: chỉ dry-run/capability/readback an toàn; không gửi tin live, không sync Payment live, không gọi ship/arrange/confirm/cancel, không `taskkill chrome.exe`.
+
+# 2026-05-21 - OMS Auto thay cho resync panel
+
+- Supersede mục OMS resync: production đã bỏ cụm `Đồng bộ & tải lại` và các nút chạy tay `Kéo đơn` / `Cập nhật trạng thái`; vận hành chuyển vào modal `Tự động vận hành`.
+- Worker chính `huyvan-worker-api` version `c751b46c-3a8b-4dc5-a872-058605d49c6b`; Static/OMS `shophuyvan-analytics` version `9fb2b1a8-d638-41a4-a0ef-ddd73f9cd713`.
+- Modal production có đủ action tự động `pull_orders`, `refresh_status`, `sync_detail`, `sync_finance`, `retry_label`; `/api/bot/settings` và local helper `/scheduler/config` đang bật cả 5 action.
+- Local helper/Radar đã restart đúng PID riêng, scheduler đang running. Auto đã completed `pull_orders`, `refresh_status`, `sync_detail`; `sync_finance` không có eligible; `retry_label` phát hiện lỗi `wrong_action_type_for_order_runner: retry_label`, đã sửa runner và py_compile pass nhưng chưa có lượt retry_label completed sau sửa.
+- Đã chặn 371 job Seller Center cũ của shop API bằng trạng thái `failed/api_shop_chrome_blocked`; `/api/jobs` không còn pending API Seller Center fallback.
+
+## Cập nhật 2026-05-21 - Final Core e2e Shopee/Lazada/TikTok
+
+- TikTok `0909128999` không có Open Platform order/finance/label capability trong Core hiện tại nên dùng Seller Center local helper đúng profile. Finance transaction URL `orderOrSkuId=584123080227784403` đã bấm thật `Xem chi tiết`; Finance Core dùng source `tiktok_seller_center_finance_transaction`, confidence `estimated`, `settlement_total=67.755`, `actual_income=null`.
+- TikTok label không có API chính thức trong Core; `retry_label` dùng Chrome local helper read-only `platforms/tiktok/orders/taitem.py`. Sample `584123080227784403` dry-run eligible và live job tải PDF thành công, Label Core `downloaded`, storage `labels/584123080227784403.pdf`.
+- TikTok detail sample `584128214410102531` lấy Tracking Core từ drawer `Thông tin kho vận`, source `tiktok_seller_center_logistics_drawer`, `tracking_events_count=3`; chat chỉ mở conversation bằng Seller Center, không gửi tin.
+- Shopee no-API `khogiadungcona` dùng Seller Center local helper đúng profile. Sample `260520VPM23704` đã parse Finance Core từ detail page: `product_after_discount=99.000`, `buyer_shipping_paid=8.000`, `platform_voucher=21.780`, `seller_cofunded_voucher=6.534`, `actual_income=70.030`, confidence `confirmed`.
+- Shopee no-API tracking sample `260520VPM23704` đã bấm `Mở rộng`; Core source `shopee_seller_center_tracking_expanded`, hiện Seller Center sample trả 1 event. Chat `Chat ngay` mở mini chat đúng khách/order, không gửi tin.
+- Lazada `kinhdoanhonlinegiasoc@gmail.com` vẫn đi API-only. Đã dùng `/api/orders/sync-api-orders`, `/api/orders/sync-api-status` với trace; label dry-run dùng `order.package.document.get` read-only và trả `not_ready/pending_retry`. Finance settlement confirmed chưa có nên giữ `missing:lazada_finance_api` / `Lãi tạm tính`, không dùng cost setting làm actual.
+- Không gọi Payment live, không gọi fulfillment write (`ship_order`, `arrange`, `confirm`, `cancel`) và không dùng Chrome cho shop API.
+- Browser production profile `E:\codex-chrome-profiles\shophuyvan-test` pass desktop/tablet/mobile: không tràn ngang, không còn panel/nút legacy, modal Auto đủ 5 action và không có nút chạy tay.
+
+## 2026-05-21 - Rerun Final Core audit trên diff chưa tách deploy
+
+- Lazada API-only rerun: `POST /api/orders/sync-api-orders` với `platform=lazada`, shop `kinhdoanhonlinegiasoc@gmail.com`, `limit=1`, `fetch_fees=0`, `fetch_trace=true`, `suppress_push=1` trả `status=ok`, `fetched=1`, `imported_orders=1`, `warnings=0`, `errors=0`.
+- Lazada status rerun cùng scope qua `POST /api/orders/sync-api-status` trả `status=ok`, `checked=1`, `updated=0`, `warnings=0`, `errors=0`; OMS readback order `528845557532322` giữ tracking `JNTMP0040749797VNA`, `source_mode=api_sync`, `actual_income=null`, `settlement_status=missing_lazada_finance_api`.
+- Lazada label dry-run qua `POST /api/label/backfill-eligible` scan `1`, eligible/queued `0`; route vẫn đi document capability/API, không Chrome fallback.
+- Lazada chat target production read `GET /api/core/orders/528845557532322/chat-target` lộ lỗi `500` khi chưa có conversation row IM. Local Core đã thêm null guard cho row `canonical_conversation_id` và test chặn regression; production cần deploy bản vá sau khi tách dirty worktree.
+- TikTok rerun đã parse transaction drawer order `584123080227784403` vào Finance Core `settlement_total=67.755` và logistics drawer order `584128214410102531` vào Tracking Core `events=3`; local fee taxonomy patch coi transaction bucket là nguồn TikTok đã quét, không để badge cost setting.
+- Shopee no-API rerun sample `260520VPM23704` vẫn readback settlement `70.030`, tracking expanded và `Chat ngay` mở đúng panel không gửi tin.
+- Retry label rerun TikTok sample `584123080227784403`: dry-run eligible, live job `1272` đi đúng `retry_label` runner nhưng Seller Center không có label đã tạo để tải trong phiên này, nên chưa có fresh PDF/readback pass cho lượt rerun.
+
+## 2026-05-21 - OMS blocker hotfix production readback
+
+- Lazada chat-target route đã deploy Worker `511bb164-f846-4941-bc63-03b46dbecdf0`: `GET /api/core/orders/528845557532322/chat-target` trả HTTP 200, `chat_open_status=not_connected`, `manual_required=true`, `reason=lazada_conversation_not_found`; không Chrome fallback và không gửi tin.
+- Shopee API processing bucket đã chuyển sang Core gate label + tracking: label `pending_document_generation`/thiếu tracking nằm `Chờ Xử Lý / Chưa Xử Lý`; processed query cho nhóm lỗi trả `total=0`. Không dùng `READY_TO_SHIP/PROCESSED` làm điều kiện đủ.
+- TikTok Seller Center finance không còn trộn cost setting khi đã có source Seller Center. Production `584123080227784403` giữ `estimated_income=67.755`, `actual_income=null`; legacy `1.620đ` ở `584117718394898329` và `584116980455670898` chuyển thành `sfr_service_fee/tiktok_sfr_fee`, không còn `Thực nhận ví`.
+- Static/OMS deploy `01cde46c-a646-4bb1-af4e-ad8dd7135cd1`: popup finance TikTok không còn warning `Shop chưa có API phí sàn`, không còn badge/row `Khấu trừ cost setting`; cache-bust loaded `oms-dashboard-inline-1.js`, `oms-main.js`, `oms-render.js`, `oms-fee-render.js` bản `20260521c`.
+- Retry label production dry-run TikTok dùng route `retry_label -> platforms/tiktok/orders/taitem.py`; scan 5, eligible 0, not_ready 5, sample readback Label Core `label_status=not_ready`, `label_download_source=local_python_chrome:platforms/tiktok/orders/taitem.py`. Không chạy live khi không có eligible safe sample.
+- Browser production profile `E:\codex-chrome-profiles\shophuyvan-test` pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`; script evidence `scripts/check-oms-hotfix-production-final.mjs`, screenshots trong `artifacts/oms-hotfix-20260521-final`.
+
+## 2026-05-21 - OMS Core-first regression lock và production verification
+
+- Guard đã cập nhật: `AGENTS.md`, `shophuyvan-warehouse-core-guard`, `shophuyvan-automation-guard`; đã tạo `shophuyvan-core-first-guard` ở repo và local skill. Domain routing khóa Product/Warehouse, Order/Status, Finance, Label, Tracking, Chat và Automation theo Core.
+- Shopee Label Core endpoint official đã kiểm: `get_shipping_document_parameter`, `create_shipping_document`, `get_shipping_document_result`, `download_shipping_document`; không dùng Chrome fallback cho shop API, không gọi `ship_order`, `arrange`, `confirm`, `cancel`.
+- Core/read-model đã tách `marketplace_status`, `tracking_sync_status`, `label_sync_status`, `operation_sync_status`, `oms_processing_bucket`: production `WAITING_LABEL` count/list `23/23`, rows có tracking thật và label pending; `Chưa Xử Lý` chỉ còn tracking missing.
+- Finance readback: `2605211PH999WY` có `payment_method_display=SPayLater`, `product_original_amount=90.000`, source rõ; `260520VPM23704` giữ `actual_income=70.030`; TikTok `584123080227784403` giữ `finance_source=tiktok_seller_center_finance_transaction`, `estimated_income=67.755`, `actual_income=null`, no cost setting badge.
+- Regression lock pass: `node scripts/check-oms-core-regression-lock.mjs`. Production browser pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`; screenshots trong `artifacts/oms-core-lock-20260521-final`. Deploy cuối: Worker `a89f228f-a767-4bd3-87c5-bdbe38dcdd2b`, static `b756f2fa-3ba4-41f0-8041-4a182d5e1907`.
+
+## 2026-05-22 - OMS date scan và TikTok finance production
+
+- Worker `huyvan-worker-api` deploy version `d2d301c5-d2f3-4216-ae78-2bea4fd95cba`; Static/OMS deploy version `5594b59c-c1f8-41b9-b915-d00c8d2892d9`.
+- `/api/orders/manual-sync/backfill` nhận manual date scan theo `platform`, `shop`, `action_type`, `from_date`, `to_date`, `date_field`, `limit`, `dry_run`; live chỉ chạy `selected_order_ids` từ dry-run.
+- `scan_all_errors` chỉ chạy dry-run. `retry_label`, `sync_finance`, `refresh_tracking`, `sync_detail` lấy đơn từ Order Core rồi kiểm Core tương ứng, không quét theo tab UI.
+- Production dry-run TikTok pass: label retry 2026-05-01..2026-05-22 `eligible_count=10`; finance `eligible_count=10`; tracking ngày 2026-02-27 `eligible_count=10`; scan all errors ngày 2026-05-20 `eligible_count=10`.
+- Live selected order `584117718394898329` tạo job `1310`, local runner completed qua `platforms/tiktok/orders/capnhattaichinh.py`, parsed/touched/updated `1/1/1`, Core readback finance pending đúng.
+- TikTok `584117718394898329`: `payment_method=Thanh toán khi giao hàng`, `product_original_amount=119.000`, `product_revenue_after_shop_discount=65.000`, `buyer_shipping_paid=0`, `buyer_total_paid=65.000`, `estimated_income=63.380`, `actual_income=null`, `tiktok_sfr_fee=1.620`, `ops_cost_setting_total=0`.
+- UI production profile `E:\codex-chrome-profiles\shophuyvan-test` đang cần đăng nhập lại; modal date scan chưa pass browser profile này sau deploy.
+
+## 2026-05-22 - OMS manual Core shop, all-shop pull button và TikTok finance/tracking verified
+
+- Production OMS đã mở bằng đúng Chrome profile user `E:\codex-chrome-profiles\shophuyvan-test`. Sau bản deploy mới, profile không còn bị login guard; page `OMS.huyvan` load thật và thao tác được.
+- Modal `Cài đặt vận hành` tab `Chạy thủ công` đã đổi shop text input thành Core shop select. Production DOM: `#botDateScanPlatform=SELECT`, `#botDateScanShop=SELECT`, shop TikTok `0909128999` render `Shop chưa đồng bộ tên · Tham chiếu tay · 2265 đơn`.
+- Dropdown `Tác vụ` thủ công không còn `pull_orders`/`Kéo đơn mới`; hiện chỉ có `refresh_status`, `retry_label`, `sync_finance`, `refresh_tracking`, `sync_detail`, `scan_all_errors`. Nút riêng `#btnPullAllCoreShops` nằm ngoài modal với nhãn `Kéo đơn toàn bộ shop`.
+- Responsive production pass trên desktop `1366x900`, tablet `820x1180`, mobile `390x844`: body không tràn ngang; modal `Cài đặt vận hành` không vượt viewport; trên mobile modal rộng `351/390px`, panel dùng scroll dọc, không ép ngang.
+- Bấm production `Kéo đơn toàn bộ shop` đã chạy pipeline thật: TikTok `pull_orders` job `1383` completed, Shopee no-API `pull_orders` job `1384` completed, job phát sinh `1385` completed. Local helper `/health` xác nhận Radar PID `18180`, `radar_running=true`, scheduler đang chạy.
+- Bằng chứng action suite: `refresh_status` TikTok `1369` completed, Shopee `1372` completed; `retry_label` TikTok `1378` completed, Shopee `1379` completed; `pull_orders` TikTok `1380/1383` completed, Shopee `1382/1384` completed; `sync_finance` selected TikTok `1389` completed; `sync_detail` không có eligible scheduler hoặc job phát sinh `1385` completed.
+- No-op guard production: job rỗng `1388` và `1392` không có `selected_order_ids/order_ids`, đã được cập nhật `completed_no_change` với log `Core preview không có selected_order_ids/order_ids; không mở Chrome automation cho job rỗng.` Quy tắc mới: Radar phải preview Core trước và không mở Chrome cho job rỗng.
+- TikTok order `584118922740139598` đã chạy `sync_finance` job `1389` bằng profile automation `E:\shophuyvan-python-automation\profiles\browser\shophuyvan-runner-tiktok`, final `completed`.
+- Tracking Core/OMS drawer order `584118922740139598`: source `tiktok_seller_center_logistics_drawer`, tracking `TTVN1080793108`, ĐVVC `BEST Express`, 7 event vận chuyển đúng Seller Center; production DOM không còn các dòng nội bộ sai `SKU người bán`, `Giảm giá`, `Phí vận chuyển`, `Tổng cộng`, `Đơn hàng hiện tại`.
+- Finance Core/OMS fee popup order `584118922740139598` khớp Seller Center: COD, tiền sản phẩm sau KM shop `75.000`, giá ban đầu `90.000`, shop giảm `-15.000`, buyer shipping `0`, voucher sàn `0`, buyer total `75.000`, doanh thu ước tính `75.000`, commission `-9.750`, payment fee `-4.500`, fulfillment `-3.000`, VAT `-750`, PIT `-375`, tổng phí `-18.375`, thực nhận dự kiến `56.625`, giá vốn `-26.000`, ADS `0`, PiShip `0`, lãi tạm tính `30.625`.
+- Test cuối sau cập nhật docs: `node scripts/check-oms-core-regression-lock.mjs` pass; `node --check` pass cho các JS/Core file đã sửa; `python -m py_compile` pass cho runner/parser TikTok và Radar; `git diff --check` pass với cảnh báo CRLF hiện có.
+- Safety: không gọi fulfillment write (`ship_order`, `arrange`, `confirm`, `cancel`), không gửi tin live, không chạy Payment live batch, không dùng profile user cho automation, không kill Chrome toàn cục.
+- Residual: `/api/jobs?mode=monitor` còn một số job queued có `selected_order_ids/order_ids` thật từ lượt trước; không coi đây là cùng lỗi job rỗng, cần xử lý riêng nếu muốn dọn toàn queue.
+
+## 2026-05-22 - Shopee affiliate fee và OMS automation readback
+
+- [x] Shopee Payment Open Platform `/api/v2/payment/get_escrow_detail` đã bổ sung mapping `order_ams_commission_fee` -> Finance Core `affiliate_fee` / UI `Phí hoa hồng Tiếp thị liên kết`.
+- [x] Production order `260517M6SFEXD5` đã sync lại bằng Worker/Open Platform, readback `affiliate_fee=11.286`, OMS popup hiển thị `Phí hoa hồng Tiếp thị liên kết API -11.286đ`.
+- [x] Shopee label PDF official route vẫn dùng `/api/v2/logistics/get_shipping_document_parameter`, `create_shipping_document`, `get_shipping_document_result`, `download_shipping_document`; label HTML cũ trong R2 không được coi là tem hợp lệ cho shop API.
+- [x] Hai đơn Shopee `2605211C2HMCTT`, `2605211B36B1W5` đã refresh tem thành PDF thật và không còn treo do `invalid_label_file`; `2605221CUC26SQ` không tìm thấy trong production API/UI khi kiểm.
+- [x] TikTok Tracking Core promotion: event ĐVVC thật từ Seller Center logistics drawer được dùng để chuyển đơn packaged/ready sang `SHIPPING`/`Đang giao`; live job `1435` cập nhật `84` đơn, sample `584123080227784403` đã sang `Đang giao`.
+- [x] OMS `Kéo đơn toàn bộ shop` có log chi tiết trong modal và chờ trạng thái cuối job: production jobs `1468/1469` completed với số quét/tạo/cập nhật/lỗi rõ ràng.
+
+## Cập nhật 2026-05-22 - Automation business log và Chat/CSKH bridge
+
+- [x] Automation job result bắt buộc có business summary: `scanned_count`, `created_count`, `updated_count`, `unchanged_count`, `skipped_count`, `failed_count`, `per_order`, `changed_fields`, `skip_reason/error_code`, `core_readback_ok`.
+- [x] TikTok table-layout parser không bỏ qua đơn thiếu ngày giờ; job thật `1579` và `1599` đã kéo đơn TikTok bằng Chrome headful, ghi Core và business log đầy đủ.
+- [x] TikTok `retry_label` no-PDF-ready không còn bị ghi failed giả; job verify `1641` trả `completed_no_change`, `skipped=1`, `failed=0`, per-order `584145278139860092` có `skip_reason=label_pdf_not_ready`.
+- [x] Shopee SellerChat API/bridge đã verified production bằng tin nhắn an toàn `dạ`; readback Chat Worker trả `status=sent` và `platform_message_id=2414740835755540849`.
+- [x] Browser production final pass: Chat/CSKH có textarea/nút `Gửi` enabled; OMS modal vận hành mở được trên mobile `390x844`, tablet `820x1180`, desktop `1366x900`, không tràn ngang.
+- [x] TikTok no-API chat-target không fake API send; Core trả `browser_helper_queue` và UI mở theo hướng helper/manual.
+- [ ] Queue production còn các job có selected/order ids thật từ các lượt trước; không coi là pass toàn queue nếu chưa replay hoặc dọn riêng từng job.
+
+## Cập nhật 2026-05-23 - Label API retry, TikTok item Core và timeline OMS
+
+- [x] Shopee API label vẫn dùng Open Platform Logistics document flow: `create_shipping_document`, `get_shipping_document_result`, `download_shipping_document`; cron Worker chuyển sang route retry để không bỏ qua `pending_document_generation`/`shopee_pdf_not_ready` đã đến hạn.
+- [x] Production live retry Shopee scan `3`, tải thành công PDF cho `2605236301GU3V`, không lỗi, không gọi fulfillment write.
+- [x] Lazada API label `528899310088924` không còn hiện như lỗi API hiện hành khi đơn chưa tới bước in tem; Core trả `not_ready` theo Order/Status Core, endpoint read-only giữ `order.package.document.get`.
+- [x] TikTok OMS item read-model enrich ảnh/vốn từ Product Core `products/product_variations`; `584153607620625999` hiển thị ảnh thật, vốn `22.000đ`, lãi `42.050đ`, không còn nút `Cập nhật Vốn`; `584152843457823885` không còn placeholder ảnh.
+- [x] Timeline OMS drawer lọc event tạo đơn lặp; browser production order `26052361U3W8HR` chỉ còn event vận chuyển thật `PICKED_UP`, không còn các dòng `ORDER_CREATED` bị đánh dấu.
+- [x] Browser production profile `E:\codex-chrome-profiles\shophuyvan-test` pass mobile/tablet/desktop, không tràn ngang sau deploy static.
+- [ ] Promotion price write/API Shopee/TikTok và bulk chỉnh giá khuyến mãi trong ảnh 7-13 chưa triển khai trong lượt này; phải kiểm endpoint/permission riêng trước khi bật gửi thật lên sàn.
+## 2026-05-23 - Chat API endpoint readback và Product Master giá KM bulk
+
+- Shopee Chat API endpoint dùng trong hệ thống: `/api/v2/sellerchat/get_conversation_list`, `/api/v2/sellerchat/get_message`, `/api/v2/sellerchat/send_message`. Frontend Chat/CSKH giờ luôn gọi sync cho các shop API đã cấu hình thay vì chỉ dựa vào hội thoại cũ.
+- Lazada Chat/IM endpoint dùng trong hệ thống: `/im/session/list`, `/im/message/list`, `/im/message/send`. Shop Lazada API `kinhdoanhonlinegiasoc@gmail.com` được đưa vào target polling mặc định.
+- Product Master giá khuyến mãi: đã thêm bulk percent edit trên UI và verify production desktop/mobile/tablet. Phần gửi live Shopee Discount vẫn đi qua queue/admin guard hiện có với endpoint `/api/v2/discount/update_discount_item`; chưa gửi live trong lượt này nếu chưa chọn đúng dòng promotion và xác nhận admin.
+
+## 2026-05-23 - Shopee Discount live-write via Promotion Core
+
+- Endpoint allowlist/live path: `/api/v2/discount/update_discount_item`, module `promotion`, action `update_discount_item`, requires admin confirm, dry-run preview and readback.
+- Production sample `chihuy1984` SKU `400348_100_day_dai_100mm` resolved `discount_id=799049801465856`, `item_id=11708283596`, `model_id=258985454594`.
+- Live-write sample `10.000đ` succeeded with Shopee response `count=1`, readback verified; reverted by same flow to `9.900đ`.
+- Product Master price-promotion preview no longer sends or displays stock proposal.
+
+## 2026-05-23 - Promotion Core API live-write Shopee/Lazada và UI readback
+
+- Shopee Open Platform endpoint chính thức đã dùng: `/api/v2/discount/update_discount_item`; readback: `/api/v2/discount/get_discount`. Lazada Open Platform endpoint chính thức đã dùng: `/product/price_quantity/update`; readback: `/products/get`.
+- Shopee variation guard đã sửa: preview không fallback mù theo `item_id`; ưu tiên exact `platform_sku`, exact `model_id`, hoặc `item_id + variation_name`. Dòng `40TACKE6X32MMK243` preview no-change với `model_id=370230821235`, không còn bắt nhầm model `5x30`.
+- Shopee live-write bằng Chrome visible profile `E:\codex-chrome-profiles\shophuyvan-test`: shop `chihuy1984`, SKU `400348_100_day_dai_100mm`, giá `9.900đ`, request `e3e3e7f3527d2e5c33bdcb8dc0da9100`, `verified=true`, `write_status=success`, `promotion_sync_status=synced`.
+- Shopee writeback sau live-write cập nhật cả `marketplace_discount_items` và `product_variations.discount_price`; `/api/sync-variations` readback SKU mẫu trả `discount_price=9900`, Product Master UI reload row cũng hiện `Giá KM hiện tại=9.900đ`.
+- Lazada live-write production: shop `kinhdoanhonlinegiasoc@gmail.com`, SKU `BANGDINH_K205`, endpoint `/product/price_quantity/update`, payload XML form dùng `SkuId=10096365942` và `SalePrice=14000`, request `21013cf717795464481103268`, `/products/get` readback `special_price=14000`, Core updated.
+- Product Master UI nút `Đồng bộ giá KM từ sàn` đã chạy thật:
+  - Shopee API `phambich2312`: sync Shopee Discount Core xong, bảng load lại `129` SKU; sau fix read-model, `/api/sync-variations?platform=shopee&shop=phambich2312&include_out_of_stock=0` trả `129/129` dòng có `discount_price` và Product Master production render `120/120` dòng đầu có giá KM.
+  - Shopee API `chihuy2309`: sync Shopee Discount Core production trả `status=ok`, `ok_count=1`, `total_items=178`, `errors=0`.
+  - Lazada API `kinhdoanhonlinegiasoc@gmail.com`: sync API products xong `159` SKU, bảng load lại `156` SKU còn tồn.
+- Browser responsive production đã kiểm bằng Chrome visible profile `E:\codex-chrome-profiles\shophuyvan-test`: tab Giá khuyến mãi không tràn ngang trên desktop `1366x900`, tablet `820x1180`, mobile `390x844`; nút sync visible, bảng load `120` input.
+- Deploy production cuối trong lượt này: Worker `huyvan-worker-api` version `006defda-46d1-46c9-883d-55fc8ca6de62`; static version `a0775c22-79f5-4e3d-b14f-8a43747bc341`.
+- Tests pass: `npm test` trong `apps/worker-api`, `node --check` các route JS đã sửa, `python -m py_compile E:\shophuyvan-python-automation\oms_python\ui\tabs\auto_run_tab.py E:\shophuyvan-python-automation\oms_python\platforms\shopee\promotion\shopee_promo.py E:\shophuyvan-python-automation\oms_python\features\reports\run_report_jobs.py`.
+- Shopee no-API `khogiadungcona`: sync giá KM từ Seller Center về Core/UI đã chạy thật job `2707`, Chrome visible profile `E:\shophuyvan-python-automation\profiles\browser\HuyVan_Bot_Data_khogiadungcona`, parse `119` dòng, Worker readback `114/125` SKU còn tồn có giá KM và Product Master render `120/120` dòng đầu có giá KM. Upload lên Seller Center đã chạy lại job `2715`, Seller Center trả `114/131` và `Chỉ một số sản phẩm thành công`; report `E:\shophuyvan-runtime\downloads\shopee_khogiadungcona_promo_upload_report_20260524_064325.xlsx` parse `uploaded=114`, `out_of_stock=17`, `failed=0`. Runner ghi `completed` vì 17 dòng fail đều là `Hết hàng`, gồm `40TACKE6X32MMK243`.
+- Product Master no-API upload readback: Worker route mới `/api/products/promo-upload-results` ghi trạng thái từng SKU/model vào Product/Warehouse Core; `/api/sync-variations?platform=shopee&shop=khogiadungcona&include_out_of_stock=1` trả badge fields. Production UI hiển thị `Đã up sàn` cho `40TACKE5X30MM` và `Hết hàng` cho `40TACKE6X32MMK243`; responsive check desktop `1366x900`, tablet `820x1180`, mobile `390x844` đều không tràn ngang.
+- Còn mở: TikTok no-API `0909128999` mới pass scrape/readback giá KM, nhánh upload giá KM chưa nối xong vào Auto-run tab nên chưa được tính hoàn thành.
+## 2026-05-24 - Tách ADS và Khuyến mãi sàn theo UI vận hành
+
+- Đã tách `Khuyến mãi sàn` khỏi `apps/fe/pages/ads.html`; ADS không còn tab `Khuyến mãi & ADS`, chỉ giữ khối tham chiếu `Ảnh hưởng khuyến mãi tới ADS` trong tổng quan.
+- Thêm `apps/fe/pages/promotions.html` và `apps/fe/js/dashboard/promotions.js`: dark theme/mobile-first, filter ngày/sàn/shop/trạng thái/tìm kiếm, đủ 8 module Shopee Discount/Voucher/Bundle/Add-On/Flash Sale và Lazada Voucher/Freeship/Flexicombo, có menu tổng quan, đồng bộ, nhật ký, cài đặt.
+- Thêm backend read-model `/api/discounts/promotion-module-read-model` trong cụm `routes/discounts/common`: trả danh sách chương trình, SKU/sản phẩm áp dụng và capability user-facing từ các bảng Promotion Core hiện có.
+- LazOP chính thức đã đối chiếu Promotion Tools: Seller Voucher, Free Shipping và Flexicombo có endpoint create/update/get/list/activate/deactivate và SKU add/remove cho Voucher/Freeship. Live-write Lazada vẫn khóa vì chưa có adapter payload/readback sample an toàn trong production.
+- Shopee endpoint paths đang dùng từ Open Platform reference/code hiện có: Discount, Voucher, Bundle Deal, Add-On Deal, Shop Flash Sale. Chưa mở live-write mới cho Voucher/Bundle/Add-On/Flash nếu chưa có diagnostics quyền Marketplace/Marketing, sample nhỏ, readback và revert.
+- Test đã cập nhật `scripts/test-ads-operations-ui.mjs`; pass cùng `node --check` cho các file JS/route mới. Chưa deploy/chưa production browser verification ở thời điểm note này.
+
+## 2026-05-24 - Khuyến mãi sàn load fail hotfix và Shopee Discount live-write UI
+
+- Fix load fail production: `apps/fe/js/dashboard/promotions.js` export đúng `window.loadPromotionModule/window.syncPromotionModule`, đổi sync UI sang request nhẹ `include_detail=0`, `shop_limit=1`, `incremental=1`; `apps/worker-api/src/routes/discounts/common/route-handler.js` bọc lỗi thành JSON có CORS để UI không còn báo `Failed to fetch` mơ hồ.
+- Production click verification bằng Chrome visible profile `E:\codex-chrome-profiles\shophuyvan-test`: 8 module `Shopee Discount`, `Shopee Voucher`, `Shopee Bundle`, `Shopee Add-On`, `Shopee Flash Sale`, `Lazada Voucher`, `Lazada Freeship`, `Lazada Flexicombo` đều gọi `/api/discounts/promotion-module-read-model` status `200`; Lazada Freeship/Flexicombo hiển thị empty state riêng.
+- Sync Shopee Discount production từ UI pass: `POST /api/discounts/shopee/sync` status `200`, toast `Đã đồng bộ Shopee Discount.`
+- Live-write sample từ UI pass: shop `phambich2312`, chương trình `913787453636608`, item `25068730875`, model `365375191421`, SKU `20 Bộ 5MM X 30MM`, before `39.000đ`, after `39.000đ`, endpoint `/api/v2/discount/update_discount_item`, Shopee response `count=1`, readback `verified=true`, Core `marketplace_discount_items.write_status=success`, `promotion_sync_status=synced`, `last_write_at=2026-05-24 20:32:53`, `last_readback_at=2026-05-24 20:32:53`. No-change sample nên revert không cần chạy.
+- Responsive production Khuyến mãi sàn pass: desktop `1366x900`, tablet `820x1180` scrollWidth/clientWidth `805/805`, mobile `390x844` scrollWidth/clientWidth `375/375`; screenshots trong `tmp-verification/`.
+- Deploy production: Worker `huyvan-worker-api` version `41353575-aef5-4725-9ba6-8f2595b90c26`; Static `shophuyvan-analytics` version `0af8ccc7-4bf4-46cd-a5e4-9e0048150b8e`.
+- Còn mở/live-write chưa pass: Shopee Voucher/Bundle/Add-On/Flash Sale và Lazada Voucher/Freeship/Flexicombo chưa được gọi hoàn thành live-write. LazOP public docs xác nhận Seller Voucher, Free Shipping, Flexicombo có create/update/get/list/activate/deactivate và SKU add/remove; cần adapter payload, quyền app, sample nhỏ, readback và revert riêng trước khi mở nút ghi thật.
+
+## 2026-05-25 - Chat/CSKH realtime API/no-API và UI production
+
+- Sửa UI Chat/CSKH gọn hơn, mobile-first: đổi nhãn kỹ thuật sang vận hành, giảm chiều cao list/thread, giữ badge capability rõ `Kết nối chính thức`, `Trình duyệt hỗ trợ`, `Gửi tay`, `Tự kéo tin`.
+- FE realtime: poll từng shop API mỗi `poll_seconds=12`, target mặc định Shopee `chihuy1984/chihuy2309/phambich2312` và Lazada `kinhdoanhonlinegiasoc@gmail.com`; sync xong reload list và thread đang mở.
+- Helper no-API: target exact `khogiadungcona` và `0909128999`; local `automation_browser.py` bỏ qua shop API trước khi chọn profile, validate profile automation, sửa mojibake trong parser.
+- Chat Worker normalize mojibake trước khi ghi/đọc Chat Core; FE cũng normalize hiển thị dữ liệu cũ. Node readback production trả `dạ shop cũng ko đc phép thao tác gì trên đơn ạ` đúng dấu.
+- Deploy production: static `shophuyvan-analytics` version `2f2119a7-5dde-4583-9885-6a444d6b8096`; Chat Worker `shophuyvan-chat-api` version `378b2d46-ae15-4057-a4ef-f7a38dcf9c63`; không deploy Worker chính.
+- Endpoint official đã kiểm/dùng: Shopee `/api/v2/sellerchat/get_conversation_list`, `/api/v2/sellerchat/get_message`, `/api/v2/sellerchat/send_message`; Lazada `/im/session/list`, `/im/message/list`, `/im/message/send`. Không có endpoint thiếu trong lượt này.
+- Production helper/readback: Shopee no-API `khogiadungcona` chạy `ok`, đúng profile `HuyVan_Bot_Data_khogiadungcona`, port `9319`; TikTok no-API `0909128999` chạy `ok`, `accepted_messages=1`, `saved_messages=1`, bấm từ UI chạy lại duplicate-safe, readback `last_synced_at=2026-05-25T12:05:07.162Z`, profile `shophuyvan-runner-tiktok`, port `9509`.
+- Browser production profile `E:\codex-chrome-profiles\shophuyvan-test`: mobile `390x844`, tablet `820x1180`, desktop `1366x900` đều load `50/50 hội thoại · 4 chưa đọc`, mở thread, bấm `Tin mới`, mở `Cài đặt`, không tràn ngang, không còn mojibake hiển thị; screenshots ở `artifacts/chat-cskh-20260525/`.
+- Readback tin: shop API Shopee có hội thoại chứa cả `sender_type=shop` và `sender_type=customer`; no-API Shopee/TikTok nhận tin khách, Shopee no-API cũ có tin phản hồi shop. Không gửi tin live mới trong lượt này để tránh nhắn khách thật ngoài ngữ cảnh.
+## 2026-05-25 - Chat/CSKH realtime hotfix after 22/05 stale view
+
+- UI default filter changed from Shopee-only to all channels, so Chat/CSKH now surfaces TikTok `0909128999` threads dated `25/05` at the top of production.
+- `Tin mới` now runs all official API sync targets and then local browser helper targets. Fetch log from production UI confirmed calls to Shopee/Lazada API sync and loopback helper `127.0.0.1:8765/chat-sync`.
+- Official API endpoints used/read back: Shopee `/api/v2/sellerchat/get_conversation_list`, `/api/v2/sellerchat/get_message`; Lazada `/im/session/list`, `/im/message/list`.
+- Production sync evidence on 2026-05-25: Shopee API shops `chihuy1984`, `chihuy2309`, `phambich2312` each listed `30`, pulled `0`, skipped unchanged `30`; Lazada API shop `kinhdoanhonlinegiasoc@gmail.com` listed `20`, pulled `0`, skipped unchanged `20`.
+- TikTok no-API helper via UI used `browser_thread_detail`, saved/readback thread with both `customer` and `shop`.
+- Shopee no-API `khogiadungcona` browser profile showed Shopee webchat empty state `Không Tìm Thấy Cuộc Hội Thoại Nào`; helper correctly returned `no_messages`.
+# 2026-05-25 - ADS luật tự động và Flash Sale tự động
+
+- Đã mở Shopee Open Platform và Lazada Open Platform bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`, CDP port `9333`, để đối chiếu nhóm endpoint ADS/Promotion trước khi nối UI mới.
+- ADS UI đã bỏ hai tab `Đồng bộ dữ liệu` và `Cài đặt`; tab `Điều chỉnh ADS` đổi thành `Luật tự động ADS`. Đồng bộ còn là nút `Kéo ADS` ở header và kết quả nằm trong `Nhật ký thao tác`.
+- Luật tự động ADS có bật/tắt, chạy kiểm tra ngay, tắt khẩn cấp, khung giờ không trùng, điều kiện ROAS/chi/tồn/giá vốn/lãi, giới hạn ngân sách và số lần bật lại/ngày. Route mới: `/api/ads/automation/settings`, `/api/ads/automation/run-now`, `/api/ads/automation/emergency-stop`.
+- Khuyến mãi sàn thêm `Shopee Flash Sale tự động`: khung giờ, ngày áp dụng, danh sách sản phẩm, giá Flash Sale, số lượng, tồn kho, điều kiện an toàn và nhật ký. Nếu quyền/capability chưa đủ thì lưu luật nhưng không fake ghi thật.
+- Khuyến mãi sàn thêm `Dọn chương trình cũ`: filter đã kết thúc, không chạy trong X ngày, không doanh thu, không sản phẩm; action chỉ mở live khi endpoint/capability hỗ trợ và readback đủ, không xoá dữ liệu nội bộ để giả vờ đã xoá.
+- Test local pass: `node --check` cho JS sửa, `node scripts/test-ads-operations-ui.mjs`, `node scripts/test-ui-design-system-guard.mjs`.
+- Chưa production pass cuối: cần deploy Worker/static rồi kiểm production ADS/Khuyến mãi trên desktop `1366x900`, tablet `820x1180`, mobile `390x844`.
+
+## 2026-05-26 - Promotion list cleanup UI
+
+- [x] Khuyến mãi sàn không thêm endpoint mới trong lượt này; chỉ dọn UI và đổi read-model mặc định để ẩn chương trình/voucher/Flash Sale đã hết hiệu lực khỏi danh sách vận hành.
+- [x] `promotion-module-read-model` mặc định dùng `not_expired`, loại `expired/ended/finish/finished/deleted/end` và `end_time` đã qua.
+- [x] Chương trình hết hiệu lực vẫn giữ trong Core lịch sử và chỉ hiển thị khi người vận hành mở `Dọn chương trình cũ`; không xoá local để giả vờ xoá trên sàn.
+- [x] Production verified bằng Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`: danh sách chính không còn tab/nút bị đánh dấu, không còn option `Đã kết thúc`, Shopee Flash Sale không hiển thị dòng hết hiệu lực.
+- [x] Shopee Voucher/Bundle/Add-On/Flash Sale UI chuyển sang create-only: không còn `Làm mới` và `Đồng bộ từ sàn`; code sync thủ công bị chặn cho 4 module này để không có caller ẩn gọi nhầm.
+- [x] Bảng SKU/item cũ của Shopee Voucher/Bundle/Add-On/Flash Sale đã ẩn khỏi UI; backend item read-model join chương trình cha còn hiệu lực để không trả item mồ côi hoặc item thuộc chương trình đã hết hạn.
+
+## 2026-05-26 - Shopee Flash Sale shop-scope hotfix
+
+- [x] UI Flash Sale không còn nhảy scroll khi nhập dữ liệu trong picker hoặc selected product group.
+- [x] Sản phẩm mới đang cấu hình hiển thị trạng thái `Chờ chạy theo luật`, không dùng trạng thái chương trình sàn `Đang chạy`.
+- [x] Đã bỏ khối `Danh sách sản phẩm/SKU` dư trong module `Shopee Flash Sale`; picker ngay dưới từng khung giờ là luồng chọn sản phẩm.
+- [x] Flash Sale automation bắt buộc chọn shop; `Tất cả shop` chỉ hiển thị cảnh báo và khóa toàn bộ thao tác ghi/chạy/picker. Rule lưu theo `flash_auto:${shop}`.
+- [x] Đã nối endpoint Shopee chính thức `/api/v2/shop_flash_sale/get_time_slot_id` qua route `/api/discounts/shopee/flash-sale/time-slots`; production readback `timeslot_id=273882997665795` cho shop `chihuy1984`.
+- [x] Production responsive pass desktop `1366x900`, tablet `820x1180`, mobile `390x844`, không tràn ngang. Evidence: `artifacts/promotions-20260526g-shop-flash-final/`.
+- [ ] Chưa mở live-write create/update/delete Flash Sale; bước tiếp theo cần adapter payload, capability, action log và readback `verified=true` trước khi bật nút ghi thật.
+### 2026-05-26 - Chat Core production deploy/readback
+
+- `Deploy`: Chat Worker `shophuyvan-chat-api` version cuối `e305fbca-38ca-4e54-b55c-e5872d37a2b3`, account `39cf0fe9b3eda88bda53e369770cabeb`, URL `https://shophuyvan-chat-api.zacha030596.workers.dev`, cron `*/2 * * * *`.
+- `Readback pass`: `/api/chat/health` 200 D1 mode; browser-helper unauthorized 401; browser-helper authorized push lưu message; WebSocket realtime nhận broadcast; Shopee webhook HMAC sai 401 và HMAC đúng 200 `processed=1`.
+- `Secret`: `BROWSER_HELPER_SECRET`, `SHOPEE_WEBHOOK_SECRET`, `LAZADA_WEBHOOK_SECRET` đã set trên Worker. Shopee/Lazada Open Platform cần cấu hình callback dùng đúng secret tương ứng; nếu chưa cấu hình thì webhook ngoài sàn sẽ bị reject đúng bằng `webhook_auth_failed`.
+- `Dữ liệu test`: đã xoá toàn bộ smoke rows có `shop_id LIKE 'codex_%'` khỏi D1 Chat sau kiểm.
+
+### 2026-05-26 - Chat Core realtime/webhook/browser-helper
+
+- `Shop có API`: Shopee/Lazada Chat Worker có endpoint webhook inbound `/api/chat/webhook/:channel`, bắt buộc HMAC SHA-256, ghi vào Chat Core và phát realtime qua Durable Object. Polling fallback cron `*/2 * * * *` gọi `scheduledSync` cho các hội thoại `polling_api/webhook` stale trên 5 phút.
+- `Endpoint đã dùng`: Chat Worker nội bộ dùng `/api/chat/webhook/shopee`, `/api/chat/webhook/lazada`, `/api/chat/realtime/connect`, `/api/chat/sync`. Shopee/Lazada bridge hiện vẫn là endpoint cấu hình sẵn trong Chat Worker để polling/gửi tin; không thêm live-write marketplace endpoint mới trong lượt này.
+- `Shop không API`: TikTok/manual dùng `/api/chat/browser-helper/poll` và `/api/chat/browser-helper/push` với `X-Helper-Token`; route cũ `/api/chat/automation-ingest` đã bị xoá sau khi migrate caller thật, không giữ wrapper/410.
+- `Thiếu quyền/secret`: production cần secret `BROWSER_HELPER_SECRET`, `SHOPEE_WEBHOOK_SECRET`, `LAZADA_WEBHOOK_SECRET`; nếu thiếu sẽ trả `browser_helper_secret_not_configured` hoặc `webhook_auth_failed`, không ghi dữ liệu giả.
+- `Fallback`: webhook miss được cron polling fallback; shop không API dùng browser helper headful ở `E:\shophuyvan-python-automation`, không gắn nhãn API sync.
+
+## 2026-05-27 - Chat/CSKH AI settings, Gemini rotation và notification switch
+
+- `Đã làm`: mở rộng tab `Cài đặt AI` thành workspace đủ chỗ cho Gemini keys, bộ nhớ kiến thức, từ khóa hạn chế và trạng thái lưu; thêm nút lưu riêng cho từ khóa và lưu toàn bộ AI settings.
+- `AI policy`: seed mặc định các chính sách Shopee/Lazada/TikTok vào `ai_learning_notes`; restricted keywords mặc định có `shopee`, `lazada`, `tiktok`, `zalo`, `facebook`, `web`, `sdt` và nhóm chửi thề. Backend chặn outbound text chứa từ khóa trước khi lưu/gửi.
+- `Gemini`: Chat Worker nhận tối đa 5 API key, lưu trong settings nội bộ, không trả raw key ra UI, xoay vòng key khi gọi Gemini/test.
+- `Thông báo`: topbar đổi sang công tắc; bật Notification theo user gesture, đăng ký service worker và Web Push subscription khi trình duyệt hỗ trợ. Chat Worker có route status/subscribe/unsubscribe/test và VAPID riêng.
+- `Đã kiểm production`: desktop `1366x900`, tablet `820x1180`, mobile `390x844` không tràn ngang, không mojibake, AI workspace có đủ Gemini/keyword/memory; công tắc hiển thị `Đang bật` khi permission granted; gửi text chứa `zalo` trả `restricted_keyword_blocked`.
+- `Deploy`: Chat Worker `d415164a-a7ab-4d6b-ab9a-a5fa5e15ead8`; static UI `5007da05-5d13-4f35-82f5-f19b652bf45e`.
+- `Còn lưu ý`: Chrome desktop CDP không tạo real Push subscription dù Notification bật; subscription API server-side đã test save/unsubscribe. Điện thoại thật cần bật công tắc trên chính thiết bị/PWA để sinh endpoint Push thật.
+
+## Chat/CSKH Operational Dark UI 2026-05-26
+
+- [x] Frontend Chat/CSKH cũ đã được thay trực tiếp tại `pages/chat-cskh.html` và `js/dashboard/chat/*`; không giữ wrapper mỏng, không giữ hai giao diện song song.
+- [x] Shop có API tiếp tục đi Chat Worker realtime/webhook/polling fallback: Shopee/Lazada dùng bridge/webhook/polling theo `sync_capability`, frontend chỉ render read-model và health từ Chat Core.
+- [x] Shop không API dùng browser helper/manual: TikTok/manual hiển thị `Helper trình duyệt`, `Lưu bản nháp`, `Cần helper chạy`; không gắn nhãn API sync cho shop không API.
+- [x] Production static deploy `shophuyvan-analytics` version `3f82e8e9-8ae3-4a2f-ad44-e8de70bfad93`; production check mobile/tablet/desktop pass, realtime banner ẩn, không console/http error.
+- [x] Dữ liệu test UI đã xoá khỏi Chat D1 production; remaining test rows `Kiểm tra UI mới%` bằng `0`.
+### 2026-05-26 - Chat Core Overhaul Shopee sync/UI parity
+
+- Code: tách `shopee-bridge-enrich.js`, `shopee-bridge-order-enrich.js`, `shopee-bridge-target.js`; `shopee-bridge.js` còn dưới 30KB. UI thêm `context.js` để đọc Order/Product/Promotion Core, không tự tính nghiệp vụ.
+- Deploy: Worker chính `huyvan-worker-api` `30cc9940-73eb-4fdf-82e5-c696e1810cc6`; static `shophuyvan-analytics` `b5ee14e6-d2a2-4e2f-a960-5d3a0fc7eab0`.
+- Test pass: `node --check` cho các module chat/bridge sửa, `node scripts/test-ui-design-system-guard.mjs`, `node scripts/check-oms-core-regression-lock.mjs`, production Chrome mobile/tablet/desktop không tràn ngang và không console/http error.
+- Production readback: `POST /api/chat/sync` Shopee `170044686` `limit=10` trả `pulled_conversations=10`, `pulled_messages=14`, `saved_messages=0`; top Shopee UI là `tdminh82 | GIA DỤNG HUY VÂN`, tin ngày `26/05/2026`.
+- UI parity đã có: shortcut `Emoji`, `Trả lời nhanh`, `Đơn hàng`, `Sản phẩm`, `Voucher`; tab Đơn có 1 order card; tab Sản phẩm có 6 card từ Product Core; tab Voucher hiện empty thật; quick reply chèn được vào composer; product card dry-run SKU `BOMACHPROK242+PIN` pass.
+- Chưa xong/parity còn thiếu: các row trong bằng chứng mobile như `kalot4991`, `phamdatthao273`, `anhvunhi1995`, `tiendatfarm` chưa kéo được từ SellerChat API production. Bước tiếp theo phải làm Shopee browser-helper/Seller Center summary để bù tên khách/preview cho API-missing rows rồi ghi Core.
+## 2026-05-26 - Chat/CSKH Duoke panel + Lazada IM readback
+
+- Sửa UI Chat/CSKH theo Duoke cho tab `Đơn` và `Sản phẩm`: order card có trạng thái, mã đơn, ảnh/item, phân loại, SKU, giá, số lượng, số tiền thanh toán, payment/logistics/time/notes và action; product panel có search/filter, ảnh, tên, SKU, giá, recent inquiries, tồn khi có dữ liệu, nút `Gửi`.
+- Sửa chuẩn hóa Chat Core để object payload không còn thành `[object Object]`; các row cũ đọc lại sẽ trả rỗng thay vì literal `[object Object]`, và lần sync mới sẽ lấy text từ object nếu adapter trả field `text/message/content/value/name`.
+- Sửa Lazada adapter trả `customer_name`; sửa Worker bridge Lazada `/im/message/list` truyền `start_time`.
+- Deploy: static `shophuyvan-analytics` `95942c14-061e-4094-bf21-dac0c08eeaf0`; Chat Worker `942cce27-86aa-428b-86e9-ef0e2aba352d`; Worker chính `88939f12-78bf-4f89-a891-55e6f4483b23`.
+- Production readback Lazada: `POST https://shophuyvan-chat-api.zacha030596.workers.dev/api/chat/sync` body `channel=lazada, shop_id=200166591213, limit=5, page_size=5` trả `pulled_conversations=5`, `pulled_messages=12`, `saved_messages=12`; attempts `/im/session/list` và `/im/message/list` HTTP 200/code `0`.
+- Production UI readback: Chrome profile `E:\codex-chrome-profiles\shophuyvan-test`, conversation `phuonganh160102`, desktop/tablet/mobile không tràn ngang; tab `Đơn` có 1 order card và ảnh sản phẩm; tab `Sản phẩm` có 3 card/3 ảnh; body không còn `[object Object]`; tab `Khách` đã bỏ.
+- Notification: thêm nút `Bật thông báo`; service worker và `showNotification` chạy khi browser cấp quyền. Readback profile test đang `Notification.permission=denied`, nên profile đó không thể hiện thông báo OS cho đến khi user bật lại quyền site.
+### 2026-05-27 - Customer Database từ sàn
+
+- Đã làm: Customer Core/table/API cho TikTok + Lazada; Lazada sync upsert contact từ Open Platform `/orders/get`; TikTok parser/runner tiếp tục lấy chi tiết khách hàng rồi rebuild vào Customer Core.
+- Đã nối UI: trang `customer-database.html`, summary/list/filter/rebuild đọc từ Customer Core.
+- Đã nối cài đặt vận hành: `auto_customer_enabled` và chu kỳ `customer_*_minutes` cho Radar local.
+- Còn cần production readback: chạy runner TikTok order mẫu `584207479537960490` bằng profile automation và kiểm trang production đủ desktop/tablet/mobile sau deploy.
+- Production readback đã chạy: TikTok order `584207479537960490` dùng profile automation/visible CDP, click đúng icon mắt trong `Chi tiết khách hàng`, ghi đủ tên/SĐT/địa chỉ; dữ liệu có `*` bị loại ở runner và Customer Core.
+- Customer DB UI đã có cột riêng `Tên khách hàng`, `SĐT`, `Địa chỉ`, `ID khách hàng`, `Nguồn`; frontend lọc trùng trước khi hiển thị và nút `Tải CSV` xuất đúng danh sách đang lọc.
+- 2026-05-28: `/api/customers/marketplace/rebuild` đã đổi sang append/merge, không `DELETE` dữ liệu cũ trước khi upsert. Bảng `marketplace_customer_contact_orders` khóa từng order đã nhập để rebuild lặp lại không cộng trùng.
+## 2026-05-27 - Dashboard daily Finance Core readback đủ shop
+
+- `Phạm vi`: Không thêm marketplace endpoint mới. Lỗi thiếu dữ liệu nằm ở Core snapshot: `orders_v2` đã có đủ shop trong ngày `2026-05-27`, nhưng `order_analytics` thiếu các shop Shopee/Lazada nên `/api/profit-by-day`, `/api/top-shop`, `/api/top-platform` chỉ trả TikTok.
+- `Đã dùng`: route nội bộ `/api/order-analytics/rebuild` để rebuild Finance Core từ Warehouse/Core hiện có; daily/top endpoints đọc `order_analytics` và tự rebuild khi `snapshot_health.stale_reasons` có `missing_order_analytics_rows`.
+- `Shop API`: Shopee `chihuy1984`, `chihuy2309`, `phambich2312` có dữ liệu escrow/fee trong Core; Lazada `kinhdoanhonlinegiasoc@gmail.com` có order Warehouse và hiện còn `estimated_orders=1` cho income nếu Finance API chưa có dòng settlement trong Core.
+- `Shop không API`: TikTok `0909128999` tiếp tục là dữ liệu estimate/local/import trong Finance Core, không gắn nhãn API sync.
+- `Readback production sau deploy`: `top-shop` ngày `2026-05-27` trả đủ 5 shop; `order-analytics/finance-core` `status=ok`, `orders=28`, `gross_revenue=3.029.000`, `stale_snapshot=false`, daily snapshot rows `5`.
+- `Deploy`: Worker API `huyvan-worker-api` version `d28e16bc-be66-4484-8aa2-5544cd6d6506`; static UI `shophuyvan-analytics` version `2f25784f-7a87-4723-bb50-528808287d04`.
+- `Kiểm UI thật`: `pages/profit-dashboard.html` pass desktop/tablet/mobile; bảng daily có `Sàn / Shop`, đủ Shopee/Lazada/TikTok và không tràn ngang trang.
+- `Thiếu quyền/endpoint`: Không phát sinh `api_permission_missing` mới trong lượt này. Các dòng `estimated_orders` còn lại cần sync Finance/settlement riêng nếu muốn đổi từ estimate sang confirmed.
+- 2026-05-27 Chat/CSKH Shopee send hotfix:
+  - `Đã kiểm`: Shopee SellerChat `POST /api/v2/sellerchat/send_message` với text có `content.order_sn`, fallback `source_content.order_sn`, và thẻ đơn `message_type=order`; Lazada IM endpoints giữ nguyên `/im/session/list`, `/im/message/list`, `/im/message/send`.
+  - `Đã dùng`: production gửi lại đơn Shopee `260527GANU1XNM` qua Chat Worker `/api/chat/messages/send` -> Shopee bridge -> `/api/v2/sellerchat/send_message`, trả `status=sent`, `platform_message_id=2415648592711041393`.
+  - `Deploy`: Worker `huyvan-worker-api` `9d2eac2b-5336-4fd9-a730-b6b9064b7673`; Chat Worker `shophuyvan-chat-api` `e70a812c-83de-4fae-aae2-8d692edd55ee`; Static `shophuyvan-analytics` `72a8a689-969e-417c-93f6-ef35500030a5`.
+  - `Còn mở`: các dòng failed cũ trong Chat Core vẫn là lịch sử lỗi trước deploy; tin mới đã sent. `scripts/test-order-chat-target.mjs` còn fail assertion TikTok cũ ngoài phạm vi Shopee hotfix.
+
+## 2026-05-28 - Flash Sale tự động build mới
+
+- `Đã làm`: thêm route nội bộ `/api/discounts/flash-deal/timeslots`, `/api/discounts/flash-deal/items/add`, `/api/discounts/flash-deal/items`, settings `/api/discounts/flash-auto/settings*`, logs `/api/discounts/flash-auto/logs` và run-now `/api/discounts/flash-auto/run`.
+- `Endpoint đã kiểm/đã dùng`: triển khai theo yêu cầu `/api/v2/flashdeal/get_time_slot_id`, `/api/v2/flashdeal/add_flash_deal_item`, `/api/v2/flashdeal/update_flash_deal_item`, `/api/v2/flashdeal/delete_flash_deal_item`, `/api/v2/flashdeal/get_flash_deal_item` qua Shopee API client/guard live-write.
+- `Shop API`: Shopee `chihuy1984`, `chihuy2309`, `phambich2312` được seed enabled và đọc token từ shop auth; production run mẫu `chihuy1984` có token, route chạy được tới Shopee nhưng endpoint trả `error_not_found`.
+- `Shop không API/fallback`: Lazada `kinhdoanhonlinegiasoc` được seed disabled; không dùng Seller Center fallback, không gắn nhãn API Flash Sale cho Lazada trong phase này.
+- `Readback production`: `POST https://huyvan-worker-api.nghiemchihuy.workers.dev/api/discounts/flash-auto/run` body `{"shop_id":"chihuy1984"}` trả `live_write_sent=false`, `verified=false`, `items_submitted=0`, `message=error_not_found`; `flash_auto_logs` ghi log tương ứng.
+- `Deploy`: Worker API `huyvan-worker-api` `b1b99694-33ca-4891-98ef-7d82e950b582`; static UI `shophuyvan-analytics` `7c9d3798-e9ab-4206-ac08-7198e617d47f`; D1 migration `20260528_flash_auto.sql` đã chạy production.
+- `UI production`: `pages/flash-auto.html` pass desktop `1440x900`, tablet `820x1180`, mobile `390x844`; 3 tab hoạt động, toggle lưu được, bấm `Chạy ngay` hiện toast `Lần thử 1/6 - đang gọi sàn...`.
+- `Còn mở`: cần kiểm lại official path/quyền Flashdeal trên Shopee Open Platform vì path `/api/v2/flashdeal/*` đang trả `error_not_found`; chưa có live-write verified.
+- `Hotfix UI routing`: sau phản hồi production vẫn thấy màn cũ, đã đổi `pages/promotions.html` thành Flash Sale tự động và giữ màn danh sách cũ ở `pages/promotions-list.html`; static deploy `f6338d5a-a71f-41fc-9f5b-bec2dfedff44`. Production check `pages/promotions.html` pass desktop/tablet/mobile, heading `Flash Sale tự động`, không còn panel cũ `Shopee Flash Sale`.
+## 2026-05-28 - Chat/CSKH realtime, push, Gemini AI
+
+- Done local: Chat Worker routes/settings/AI/knowledge/push/realtime đã được nối trong `apps/chat-worker-api`; static Chat UI thêm `/settings.html`, PWA manifest/service worker, iPhone banner, WebSocket reconnect + polling fallback, cảnh báo từ khóa cấm realtime.
+- Endpoint đã dùng: `/api/chat/settings`, `/api/chat/settings/stats`, `/api/chat/settings/export`, `/api/chat/ai/status`, `/api/chat/ai/test`, `/api/chat/ai/suggest`, `/api/chat/ai/knowledge`, `/api/chat/notifications/*`, `/api/chat/realtime/connect`, `/api/chat/webhook/:channel`, `/api/chat/sync`.
+- Shopee/Lazada: Chat sync/gửi vẫn đi qua Chat Worker và bridge hiện có; webhook sẽ immediate sync khi có `shop_id`. Shopee gửi chủ động vẫn cần nội dung có order info khi hội thoại mới theo rule sàn.
+- TikTok: chưa có endpoint Chat API chính thức trong hệ thống; tiếp tục `browser_helper` với interval cấu hình được.
+- Blocker còn lại: cần deploy và production readback thật trên Cloudflare; push iPhone chỉ pass khi user mở bằng Safari từ Home Screen và quyền notification được cấp.
+- Deploy/readback xong: Chat Worker `shophuyvan-chat-api` version `7af1b583-f3ca-4204-af47-95e55c23dd00`; static `shophuyvan-analytics` version `39d860d1-3103-47de-a699-94e2d2047870`; production API `/api/chat/ai/status` trả `active`, `/api/chat/settings/stats` trả đủ count, `/settings.html` và `pages/chat-cskh.html` pass desktop/tablet/mobile, không mojibake, không tràn ngang.
+## 2026-05-28 - Chat policy chặn SĐT/website
+
+- Done local: Chat Core thêm detector bắt định dạng SĐT Việt Nam và website/domain; UI Chat gọi `POST /api/chat/policy/check` trước khi optimistic append; trang `/settings.html` preview dùng cùng route.
+- Endpoint đã dùng: route nội bộ Chat Worker `/api/chat/policy/check`; không thêm endpoint Shopee/Lazada/TikTok mới, không đổi bridge marketplace.
+- Shop có API: Shopee/Lazada vẫn gửi/sync qua Chat Worker + bridge hiện có, nhưng mọi outbound text bị kiểm policy trước khi gọi adapter.
+- Shop không API: TikTok/manual/browser helper vẫn dùng luồng hiện có, bản nháp/gửi tay cũng bị UI policy check trước khi lưu/gửi.
+- Test local pass: `npm --prefix apps/chat-worker-api test --if-present`, `node scripts/test-chat-ai-policy.mjs`, `node --check apps/fe/js/dashboard/chat/events.js`, settings inline script syntax check.
+- Còn mở: deploy Chat Worker/static và production readback trên desktop/tablet/mobile.
+### 2026-05-28 - Product Core search tên dài cho Chat AI
+
+- `Xong`: `/api/core/products/search` không còn nổ D1 `LIKE or GLOB pattern too complex` khi Chat AI gửi tên sản phẩm dài Lazada.
+- `Xong`: Product search tách token an toàn và ưu tiên mã/SKU như `K75`, production trả `matched_product_core`, `search_needles=["K75"]`, kết quả SKU K75.
+- `Readback`: Chat AI dry-run hội thoại Lazada `lazada_200166591213_200001352163_1_200166591213_2_103` có `product_context_count=5`, `core_context_warnings=[]`, `context_risk_flags=[]`, `auto_send=false` vì intent chưa rõ.
+- `Deploy/verify`: Worker chính `204213c9-6b18-4b49-8c73-50712e17ec4c`; không deploy static UI/Chat Worker.
+- `Endpoint`: không thêm endpoint marketplace mới; dùng route Core read-only. Không phát sinh `api_permission_missing`, `token_scope_missing`, `endpoint_not_available`.
+### 2026-05-28 - Zalo Chat local browser-helper vào Chat Core
+
+- `Xong`: mở và rename 2 profile Zalo automation đúng tài khoản trong `E:\shophuyvan-python-automation\profiles\browser`: `Zalo_Shop_Huy_Van_0909128999` port `9241`, `Zalo_Nghiem_Chi_Huy_0848881111` port `9242`.
+- `Xong`: `E:\tool zalo` bám profile mới, auto-send bật mặc định nhưng guard bỏ qua group/family/system/stranger/risk-sensitive; background sync tiếp tục chạy headful/CDP.
+- `Endpoint`: đã dùng Chat Worker endpoint chuẩn `POST /api/chat/browser-helper/push` với `channel=zalo`, `connector=zalo_local_browser`, token `X-Helper-Token` đọc từ local config ngoài repo. Không thêm endpoint marketplace mới.
+- `Shop có API`: Shopee/Lazada/TikTok capability không đổi; Zalo không được gắn nhãn official API trong lượt này.
+- `Shop không API/fallback`: Zalo dùng local browser-helper vì chưa nối official Zalo chat API; không fake `sent` qua Chat Worker adapter.
+- `Readback`: `http://127.0.0.1:8794/api/automation/slots` pass 2 slot ok, bridge configured; sync thật 2 account pass, `autoReplyCount=0` do chưa có khách đủ điều kiện cần trả lời.
+- `Production API readback`: push thật từ Zalo Shop Huy Vân lưu 3 hội thoại / 26 tin vào Chat Core; `GET /api/chat/conversations?channel=zalo&shop_id=zalo_shop_huy_van_0909128999&limit=3` trả tiếng Việt đúng qua Node fetch, capability `browser_helper/manual_only`.
+- `Deploy`: static `shophuyvan-analytics` version `21793972-66ab-4465-8d1c-209543a70f91`, chỉ upload `/pages/chat-cskh.html` và `/css/dashboard/chat.css`; không deploy Worker chính/Chat Worker.
+- `UI verify`: production Chat/CSKH desktop/tablet/mobile `overflowX=false`, không console/http error; hội thoại Zalo `Kỹ Thuật Hoàng Nhân` hiện trong danh sách chung và badge Zalo có màu `rgb(0, 104, 255)`.
+- `Local automation follow-up`: Zalo tool có port fallback (`8794` bận -> `8795`), batch startup chọn port trống (`8787` bận -> `8788`), cài đặt `automation.scanIntervalSeconds=30`, cửa sổ Zalo compact `520x760` ở `0,0` và `540,0`, Chrome ưu tiên trước Edge.
+- `AI auto-send`: tích hợp qua local Zalo AI guard; trạng thái kiểm `aiRuntimeReady=true`, account AI enabled, `ZALO_AUTO_SEND_ENABLED=1`; không phát sinh gửi trong lượt kiểm vì không có tin khách mới đủ điều kiện.
+### 2026-05-28 - Zalo scan setting + history sync
+
+- `Phạm vi`: Zalo social chat qua local browser helper; không thêm endpoint marketplace official mới.
+- `Đã dùng`: `POST http://127.0.0.1:8794/api/shophuyvan-chat/sync-history`, `POST http://127.0.0.1:8794/api/shophuyvan-chat/send`, Chat Worker `/api/chat/browser-helper/push`.
+- `Xong`: Settings tab `Kênh chat` có cấu hình `Quét Zalo tự động` và nút `Đồng bộ lịch sử Zalo`; Chat/CSKH sync bar có dòng Zalo và bấm Sync gọi helper local.
+- `Readback`: helper `8794` chạy PID `23452`, 2 profile Zalo `ok=true`, `scanIntervalSeconds=30`, `autoSendEnabled=true`, `aiRuntimeReady=true`.
+- `History sync`: hội thoại `Kỹ Thuật Hoàng Nhân / 8195779656939267821` sync 2 tin và push Chat Core ok; sync lặp sau fix dedupe trả `saved_messages=0`, `skipped_duplicates=2`.
+- `Send test`: gửi `ok` đã thử thật nhưng Zalo Web trả `zalo_requires_friend` vì khách là người lạ/chưa kết bạn. Đây là blocker quyền hội thoại của Zalo, không phải thiếu route gửi.
+- `Deploy/verify`: static `shophuyvan-analytics` version `bfa32e29-cc0c-497a-bcb4-c5a5ee71716c`; Settings và Chat/CSKH pass desktop/tablet/mobile `overflowX=false`, Settings hiện Zalo local helper + scan 30 giây + nút sync lịch sử, Chat composer Zalo bấm gửi `ok` trả lỗi đúng từ Zalo.
+- `Shop có API`: Shopee/Lazada/TikTok không đổi endpoint/capability. `Shop social/no-API`: Zalo dùng browser-helper bridge, không gắn nhãn official API.
+- `Thiếu quyền/không có endpoint`: không phát sinh token/scope missing; còn thiếu điều kiện gửi với hội thoại người lạ theo chính sách Zalo Web.
+
+## 2026-05-29 - Flash Auto UI polish
+
+- Trạng thái: done (UI only).
+- Shop có API: giữ nguyên luồng endpoint Flash Auto hiện có, không thêm endpoint mới.
+- Shop không API: không đổi fallback.
+- Tiếp theo: cần verify production desktop/tablet/mobile bằng profile `E:\codex-chrome-profiles\shophuyvan-test` khi môi trường browser automation sẵn sàng.
+
+## 2026-05-30 - Flash Auto batch: 1 cài đặt cho nhiều shop
+
+- Trạng thái: done (code + deploy).
+- Đã thêm endpoint:
+  - `POST /api/discounts/flash-auto/settings/batch`: nhận `template + shop_ids[]`, upsert theo từng shop.
+  - `POST /api/discounts/flash-auto/run/batch`: chạy song song từng shop, trả `results[] + summary`.
+- Giữ tương thích:
+  - Route cũ `settings` và `run` không đổi; khi UI chọn 1 shop sẽ fallback single-shop flow.
+- UI `Khuyến mãi sàn > Flash Sale tự động`:
+  - Thêm chọn nhiều shop (`Chọn áp dụng`, `Chọn tất cả`, `Giữ lại 1 shop đang sửa`).
+  - Thêm `Lưu mẫu dùng chung` và `Chạy ngay cho shop đã chọn`.
+  - Có bảng tổng hợp kết quả theo từng shop.
+- Endpoint report:
+  - Shop có API: chạy theo batch route mới.
+  - Shop không API/không đủ quyền: phản ánh per-shop và tổng hợp `permission_denied` trong summary.
+  - Không phát sinh `endpoint_not_available` mới.
+- Verify kỹ thuật:
+  - `node --check` pass cho `flash-auto-settings.js`, `flash-auto-run.js`, `flash-auto.js`.
+  - Kích thước file vẫn dưới 30KB cho cụm FE đã sửa.
+- Deploy:
+  - Worker `huyvan-worker-api` version `f70be183-0519-4917-a421-35cb1432c919`.
+  - Static `shophuyvan-analytics` version `c2287853-c238-401b-8b29-8031d95cbc3f`.
+- Verify production:
+  - Endpoint batch save pass sample 2 shop (`summary.total=2`, `summary.success=2`).
+  - Endpoint batch run guard pass với payload rỗng (HTTP 400).
+  - Static production đã lên cache-bust mới `flash-auto-20260530c`, trang `promotions.html` có nút `run-now` cho multi-shop.
+- Còn mở:
+  - Chưa verify click-flow thật desktop/tablet/mobile bằng browser automation trong phiên này do thiếu Playwright extension.
+### 2026-05-30 - Python automation tab/RAM guard for no-API TikTok + Shopee
+
+- Scope: local Python automation runtime only (`E:\shophuyvan-python-automation`), no new marketplace endpoint wiring in Worker.
+- Runtime change:
+  - report runner now reuses one tab per feature key (`platform:shop:action_type`) and closes duplicate tabs for the same key.
+  - chat browser helper now reuses existing tagged marketplace tab and closes duplicate tagged tabs.
+  - radar auto chat sync now requests compact top window (`620x480`) to avoid covering operator workspace.
+  - TikTok compact mode is locked during chat sync, so viewport no longer auto-expands to `1380x860` when running compact windows.
+- API shop path unchanged:
+  - shop API flows still go Open Platform/Worker API first.
+  - no fallback policy change for API shops in this turn.
+- Endpoint report:
+  - checked: existing local helper `/chat-sync` + report worker runtime path.
+  - used: same existing paths, no new endpoint added.
+  - permission missing: none in this scope.
+  - endpoint not available: none newly discovered.
+- Verification in this turn:
+  - `python -m py_compile` pass for edited runtime files.
+  - live local helper run/readback done:
+    - TikTok `0909128999`: `window_bounds=620x480`, `viewport.reason=compact_mode_locked`.
+    - Shopee `khogiadungcona`: `window_bounds=620x480`.
+  - tab count stayed stable after rerun:
+    - TikTok CDP `9331`: `2->2` tabs.
+    - Shopee CDP `9332`: `2->2` tabs.
+  - note: still pending long-duration loop proof for full scheduler cycle.
+
+### 2026-05-31 - Zalo local browser-helper duplicate-content hotfix
+
+- `Phạm vi`: Zalo social/no-API browser-helper; không thêm marketplace endpoint mới.
+- `Đã dùng`: local `POST http://127.0.0.1:8794/api/shophuyvan-chat/sync-history`, Chat Worker `POST /api/chat/browser-helper/push`, production `GET /api/chat/conversations/:id/messages`.
+- `Đã sửa`: local helper canonical hóa ngày, reconcile alias sai hướng/sai ngày theo DOM thật và compact payload; serialize thao tác theo từng Zalo account; scraper abort nếu active thread chưa khớp id/title; Chat Core read-model lọc alias legacy `zalo_local_browser`.
+- `Verify profile 1`: `Kỹ Thuật Hoàng Nhân` DOM `2`, local `4 -> 2`, sync lặp `saved_messages=0`, `skipped_duplicates=2`, production read-model `2` Zalo rows + `1` internal draft.
+- `Verify profile 2`: `Cậu Hoàng` DOM `15`, local `37 -> 15`, sync lặp `saved_messages=0`, `skipped_duplicates=15`, production read-model `15` rows đúng hướng và giờ.
+- `Race verify`: chạy đồng thời 2 request sync-history `Cậu Hoàng`; cả hai đều `messages_synced=15`, `saved_messages=0`, `skipped_duplicates=15`. Helper PID `49548` giữ listener `8794` qua chu kỳ scheduler, 2 slot CDP `ok=true`.
+- `Dirty-data cleanup`: snapshot trước xóa tại `E:\shophuyvan-runtime\verification\zalo-dedupe-20260531\d1-race-contamination-before-delete.json`; xóa đúng `2` D1 rows nhiễm chéo thread đã xác minh, SQL readback `remaining=0`. Không cleanup rộng alias legacy.
+- `UI verify`: mở production Chat/CSKH thật bằng ShopHuyVan Chrome CDP `9333`; thread `Kỹ Thuật Hoàng Nhân` render `3` rows (`2` Zalo + `1` draft), thread `Cậu Hoàng` render đúng `15` rows. Screenshot `E:\shophuyvan-runtime\verification\zalo-dedupe-20260531\chat-cau-hoang-production-after-race-lock.png`.
+- `Deploy`: Chat Worker riêng `shophuyvan-chat-api` version `7d11d783-edd8-4bf1-9ca6-8d58eb80eda6`; account xác nhận `39cf0fe9b3eda88bda53e369770cabeb`. Không deploy Worker chính/static.
+- `Endpoint report`: không phát sinh `api_permission_missing`, `token_scope_missing`, `endpoint_not_available`; fallback Zalo tiếp tục là local browser-helper do chưa dùng official Zalo chat API.
+
+### 2026-05-31 - Zalo explicit-date alias cleanup + Chrome Local Network Access
+
+- `Phạm vi`: Zalo social/no-API browser-helper; không thêm marketplace endpoint official mới.
+- `Đã dùng`: local `POST http://127.0.0.1:8794/api/shophuyvan-chat/sync-history`, Chat Worker `POST /api/chat/browser-helper/push`, production Chat/CSKH UI.
+- `Đã sửa`: fingerprint attachment ổn định; compact alias không phụ thuộc random id; ưu tiên dòng có ngày explicit và sender direction đúng; profile picker bỏ tab kích hoạt Zalo; frontend local helper có `targetAddressSpace: 'local'`.
+- `Verify`: 2 Chrome profile Zalo thật CDP `9241/9242` đúng folder; thread `Đặng Kim Dũng / 1025381407093463190` còn đúng `2` tin theo thứ tự; sync lặp `saved_messages=0`, `skipped_duplicates=2`.
+- `Dirty-data cleanup`: snapshot rồi xóa đúng `6` message alias cũ và `1` conversation alias rỗng của thread đã xác minh. Không cleanup rộng legacy alias.
+- `Deploy`: Chat Worker riêng version `6e4636bc-a3bb-4763-ac6b-c9ff96041967`; static version `235eb070-6f07-4d40-9673-d691a490d6a9`.
+- `Còn mở`: Chrome production cần operator cấp Local Network Access một lần rồi bấm lại Sync để chốt POST từ UI. Không phát sinh `api_permission_missing`, `token_scope_missing`, `endpoint_not_available`.
+
+### 2026-05-31 - Zalo Cậu Hoàng wrong-thread source fix
+
+- `Phạm vi`: Zalo social/no-API browser-helper; không thêm marketplace endpoint official mới.
+- `Đã dùng`: local helper `POST http://127.0.0.1:8794/api/shophuyvan-chat/sync-history`, Chat Worker `POST /api/chat/browser-helper/push`, production `GET /api/chat/conversations/:id/messages`, production Chat/CSKH UI.
+- `Đã sửa`: helper chỉ push rows có cả ngày explicit và giờ visible; sync/send xác nhận active conversation id trước khi scrape/type/send; Chat Core dedupe platform id theo `channel + shop_id + platform_message_id`.
+- `Verify Zalo thật`: CDP `9242` profile `Zalo_Nghiem_Chi_Huy_0848881111` mở thread `Cậu Hoàng`, DOM thật không có `STORE DETAILING`.
+- `Dirty-data cleanup`: snapshot `E:\shophuyvan-runtime\zalo-tool\cau-hoang-d1-dirty-snapshot-20260531-123404.json`; xóa đúng `25` bad aliases, sau local store cleanup xóa thêm reinserted `STORE DETAILING` rows theo bounded passes `4 + 2`.
+- `Readback`: exact sync `messages_synced=15`, `saved_messages=0`, `skipped_duplicates=15`; production API sau sync và sau một chu kỳ scheduler giữ `count=15`, `badHits=0`.
+- `UI verify`: production Chat/CSKH qua ShopHuyVan Chrome CDP `9333` hiển thị `Cậu Hoàng`, `Đồng bộ ổn`, không còn `STORE DETAILING`, `date_unknown`, `time_unknown`, `_pos_`.
+- `Deploy`: Chat Worker riêng `shophuyvan-chat-api` version `2fae05ce-a97e-4557-9547-28b10e86cea4`; không deploy Worker chính/static trong bước cuối này.
+- `Endpoint report`: không phát sinh `api_permission_missing`, `token_scope_missing`, `endpoint_not_available`; fallback Zalo tiếp tục là local browser-helper do chưa dùng official Zalo chat API.
+
+### 2026-05-31 - Zalo local helper origin hardening
+
+- `Phạm vi`: local Zalo browser-helper security hardening; không thêm marketplace endpoint official mới.
+- `Đã dùng`: existing local helper routes `/api/shophuyvan-chat/sync-history`, `/api/shophuyvan-chat/send`, `/api/automation/slots`.
+- `Đã sửa`: helper chỉ echo CORS cho ShopHuyVan production/pages.dev hoặc loopback; origin lạ bị `403 origin_not_allowed`; JSON body quá lớn bị `413 body_too_large`; server bind mặc định `127.0.0.1`.
+- `Verify`: production origin preflight pass `204`; evil origin preflight fail `403` và không có private-network header; body `300KB` fail `413`.
+- `Runtime`: helper restart PID `20284`, listen `127.0.0.1:8794`, `autoSendEnabled=true`, `aiRuntimeReady=true`, 2 slots `9241/9242` ok.
+- `Readback`: after scheduler completion, `Cậu Hoàng` remains `count=15`, `badHits=0`.
+- `Endpoint report`: no official Zalo API endpoint added; no `api_permission_missing`, `token_scope_missing`, `endpoint_not_available`.
+
+
+
+
+### 2026-05-31 - Video Center responsive split + homepage external link
+
+- `Phạm vi`: UI-only (`library-management.css`, `analysis-upload.css`, `cards-search.css`, `dashboard_video.html`).
+- `Endpoint đã kiểm`: không có endpoint mới cần kiểm, giữ nguyên endpoint hiện tại.
+- `Endpoint đã dùng`: không đổi.
+- `Thiếu quyền`: none (`api_permission_missing`/`token_scope_missing` không phát sinh).
+- `Không có endpoint`: none (`endpoint_not_available` không phát sinh).
+- `Deploy`: chưa deploy static trong lượt này.
+- `Verify`: hook pass (`before-edit`, `after-edit`), production/browser 3 viewport còn mở do thiếu Playwright extension trong môi trường hiện tại.
+
+### 2026-05-31 - ADS sidebar quick links update
+
+- `Phạm vi`: UI-only, file `apps/fe/pages/ads.html`.
+- `Endpoint đã kiểm/đã dùng`: không đổi.
+- `Thiếu quyền`: none.
+- `Không có endpoint`: none.
+- `Deploy`: chưa deploy.
+- `Verify`: chưa verify production click-flow trong lượt này.
+
+### 2026-05-31 - Home quick access video shortcut
+
+- `Phạm vi`: UI-only (`index.html`, `dashboard-home.js`).
+- `Endpoint đã kiểm/đã dùng`: không đổi.
+- `Thiếu quyền`: none.
+- `Không có endpoint`: none.
+- `Deploy`: pending static deploy.
+
+### 2026-05-31 - Video runtime fix deploy note
+
+- `Phạm vi`: UI-only (`apps/fe/js/video/video-dashboard.js`).
+- `Endpoint đã kiểm/đã dùng`: không đổi.
+- `Thiếu quyền`: none.
+- `Không có endpoint`: none.
+- `Deploy`: pending static deploy.
+
+### 2026-05-31 - Video Dashboard redesign responsive
+
+- `Phạm vi`: UI-only (video dashboard css/html + trend render data-label).
+- `Endpoint đã kiểm/đã dùng`: không đổi.
+- `Thiếu quyền`: none.
+- `Không có endpoint`: none.
+- `Deploy`: pending static deploy.
+
+### 2026-05-31 - Video UI cleanup: bỏ Shop/API + thu nhỏ video đóng gói
+
+- `Phạm vi`: UI-only (`dashboard_video.html`, `multi-shop-state.js`, `cards-search.css`).
+- `Endpoint đã kiểm`: không thêm endpoint mới.
+- `Endpoint đã dùng`: không đổi.
+- `Thiếu quyền`: none (`api_permission_missing`/`token_scope_missing` không phát sinh).
+- `Không có endpoint`: none (`endpoint_not_available` không phát sinh).
+- `Deploy`: pending static deploy.
+- `Verify`: pending production click-flow 3 viewport sau deploy.
+
+## 2026-05-31 - Shopee Video queue run hotfix (subrequest limit)
+
+- Scope xác minh endpoint: `upload/edit/delete/list/detail` Shopee Video.
+- Kết luận: không thiếu endpoint trong scope; đã dùng đầy đủ:
+  - `/api/v2/media/init_video_upload`
+  - `/api/v2/media/upload_video_part`
+  - `/api/v2/media/complete_video_upload`
+  - `/api/v2/media/get_video_upload_result`
+  - `/api/v2/video/edit_video_info`
+  - `/api/v2/video/post_video`
+  - `/api/v2/video/delete_video`
+  - `/api/v2/video/get_video_list`
+  - `/api/v2/video/get_video_detail`
+- Hotfix production: giảm subrequest ở queue-run (`syncAfterPost=0`, `pollMaxRounds`, budget `maxExternalSubrequests`, chạy 1 job/lượt).
+- Endpoint status: `used` (không có endpoint_not_available mới trong scope này).
+
+### 2026-05-31 19:50 - Non-API automation verification rerun (TikTok/Shopee)
+
+- Checked endpoint behavior in production runtime for non-API shops:
+  - GET /api/orders readback shows fresh source_updated_at for both targets.
+- Queue recovery action for Shopee non-API runner:
+  - Requeued lock-busy jobs via PATCH /api/jobs/{id}.
+  - One requeued job (7634) already completed successfully.
+- Endpoint status:
+  - Used existing endpoints only (/api/jobs, /api/orders, local helper /report-run, /health).
+  - No new endpoint introduced.
+
+### 2026-06-01 - Order push iPhone (Order Core -> Chat Push)
+
+- Scope: order notification bridge only, no new marketplace Open Platform endpoint.
+- Checked: existing Chat Worker push endpoint `POST /api/chat/notifications/test` and all Order sync/import callsites that invoke `notifyOrderSubscribers`.
+- Used: Worker API now forwards order-change payload (`type=order`) to Chat Worker push endpoint.
+- Permission/token missing: none observed in local verification (`api_permission_missing`/`token_scope_missing` not raised).
+- Endpoint not available: none for this scope.
+- Fallback: no Seller Center fallback used.
+- Deploy: pending.
+### 2026-06-02 - Order push iPhone deploy + production readback
+
+- Scope: Order push/OMS/Chat notification only; khong them endpoint marketplace moi.
+- Code da deploy:
+  - `apps/fe/js/modules/oms-notifications.js`: OMS page tu dang ky PushSubscription qua Chat Worker, co guard iPhone standalone/Home Screen, co targeted push test cho dung thiet bi hien tai.
+  - `apps/fe/js/dashboard/chat/notifications.js`: chan iPhone Safari mode va hien ro loi test push khi dang ky nen khong pass.
+  - `apps/fe/pages/oms-dashboard.html`: them manifest + apple web-app meta/icon de Home Screen app cua OMS du dieu kien push tren iPhone.
+  - `apps/chat-worker-api/src/core/push-notification-core.js`: reject subscription thieu `p256dh/auth`, bo branch APNs header custom, normalize payload order/chat truoc khi gui.
+  - `apps/chat-worker-api/src/routes/notifications.js`: route test/subscription dung payload normalize moi.
+  - `apps/worker-api/src/routes/marketplace-chat/index.js`: order change bridge sang `POST /api/chat/notifications/test` tren Chat Worker.
+- Deploy production:
+  - Chat Worker `shophuyvan-chat-api`: `21ac05fa-e55b-4f47-965f-6e180f11958c`.
+  - Worker chinh `huyvan-worker-api`: `ff4b0c8a-39dd-4b80-93e1-7ee93d914285`.
+  - Static `shophuyvan-analytics`: `6d15c647-e43e-44ab-b2c8-34a598d4fc8c`.
+- Production readback pass:
+  - `GET https://shophuyvan-chat-api.zacha030596.workers.dev/api/chat/notifications/status` -> HTTP 200, `subscriptions=6`.
+  - `POST https://shophuyvan-chat-api.zacha030596.workers.dev/api/chat/notifications/test` voi payload order smoke -> `sent=6`, `failed=0`.
+  - `POST /api/chat/notifications/subscribe` voi subscription thieu key -> HTTP 400, `error_code=missing_push_keys`.
+  - Static asset production da co marker moi: `CHAT_PUSH_API`, `requiresStandaloneIosPush`, `sendOmsPushTest`, `manifest.webmanifest`, `apple-mobile-web-app-capable`.
+  - Route legacy tren Worker chinh van dung 410 cho `/api/chat/*`; push production di qua Chat Worker rieng.
+- Browser verification production:
+  - Da mo profile `E:\codex-chrome-profiles\shophuyvan-test` qua CDP `9333`.
+  - Production OMS redirect ve `pages/login?next=...`; profile nay chua co session dang nhap hop le trong luot verify nen khong the click-flow sau login.
+- Con mo / blocker that su:
+  - Chua verify lock screen/banner/notification center tren iPhone vat ly trong Home Screen mode.
+  - Chua trigger 1 order event that tren production de doc readback end-to-end tu OMS Core -> Worker chinh -> Chat Worker -> thiet bi.
+  - Neu user dang test bang Safari tab thuong tren iPhone, push ngoai man hinh van khong hien; can Add to Home Screen va cap quyen Notification trong iOS Settings.
+## 2026-06-03 - Customer contact ingest từ Chat Core vào Customer Database
+
+- Task: lưu tên/SĐT/địa chỉ khách xuất hiện trong hội thoại Shopee/Lazada/TikTok/Zalo/Facebook vào `Khách hàng sàn`.
+- Endpoint marketplace chính thức: không thêm endpoint Shopee/Lazada/TikTok/Zalo/Facebook mới trong phase này.
+- Internal endpoints đã dùng:
+  - Worker chính: `POST /api/customers/marketplace/chat-ingest` để Customer Core upsert contact từ chat.
+  - Chat Worker: `POST /api/chat/customer-contacts/backfill` để quét lại message cũ có tín hiệu liên hệ.
+- Shop có API: giữ nguyên API/Open Platform hiện có; Chat chỉ gửi dữ liệu đã lưu trong Chat Core sang Customer Core.
+- Shop không API/social: Zalo/Facebook/Shopee no-API/TikTok helper nếu message đã vào Chat Core thì có thể lưu contact lead; không gắn nhãn official API.
+- Quyền/token: route ingest yêu cầu secret nội bộ; nếu production thiếu secret sẽ báo `customer_contact_bridge_secret_not_configured` hoặc forbidden, không ghi public.
+- Fallback: không dùng Seller Center fallback cho task này.
+- Trạng thái: deployed + production readback pass. Worker chính `f4c7a8a5-4967-40db-96db-04dcff731ed6`, Chat Worker `cb3687af-78d1-4a0b-a78e-029898baaa42`, FE static `15535d6e-d49f-4997-92ba-b51aaacb81d5`.
+- Production backfill: Zalo `matched=4 forwarded=4 failed=0`, Shopee `matched=22 forwarded=22 failed=0`, Lazada `matched=1 forwarded=1 failed=0`, TikTok/Facebook batch kiểm chưa có message match.
+- Production summary sau cleanup/backfill: `total=57`, `shopee_total=6`, `tiktok_total=48`, `lazada_total=1`, `zalo_total=2`, `facebook_total=0`, `with_phone=52`, `with_address=55`.
+- Zalo scoped cleanup/readback: chỉ còn 2 contact hợp lệ theo conversation (`Thanh`, `Siêu Thị Điện Máy Thắng Hằng`); business broadcast/wrong-conversation helper rows đã bị lọc.
+
+## 2026-06-03 - Order push text tieng Viet cho OMS/iPhone
+
+- Scope: order push va OMS notification text only; khong them endpoint marketplace moi.
+- Endpoint da kiem:
+  - Worker chinh callsite notifyOrderSubscribers() trong routes/api-sync/common/shop-auth.js, routes/api-sync/shopee/orders/sync.js, routes/orders/import-orders-v2.js.
+  - Chat Worker push endpoint POST /api/chat/notifications/test.
+  - Readback endpoint GET /api/orders/changes.
+- Da dung:
+  - Order Core field display_status_vi va status_label_vi cho text notification.
+  - Fallback orderStatusLabel() trong apps/worker-api/src/core/orders/status-core.js khi row push chua mang read-model field.
+- Permission/token missing: khong phat sinh api_permission_missing hoac token_scope_missing.
+- Endpoint not available: khong phat sinh endpoint_not_available.
+- Fallback: khong dung Seller Center fallback.
+- Deploy:
+  - Worker chinh huyvan-worker-api: fdc383b1-5b2b-4646-9807-b3164e3fe7bb.
+  - Static shophuyvan-analytics: da3ed98b-157a-436d-97da-5c0b10a1348c.
+- Verify:
+  - Mock payload cho LOGISTICS_PACKAGED -> Đã đóng gói · shop phambich2312.
+  - Production GET /api/orders/changes?limit=1 tra display_status_vi Unicode that.
+  - Production push smoke voi payload co dau -> sent=6, failed=0.
+- Con mo:
+  - Chua verify iPhone vat ly sau khi trigger order event that.
+### 2026-06-04 - External Shopee full-product API
+
+- Scope: expose prompt-ready Shopee product content/media through authenticated External API.
+- Endpoints checked:
+  - Shopee `GET /api/v2/product/get_item_list`
+  - Shopee `GET /api/v2/product/get_item_base_info`
+  - Shopee `GET /api/v2/product/get_model_list`
+  - Shopee `GET /api/v2/product/get_item_extra_info`
+- Endpoints used in code:
+  - `GET /api/external/shopee/products/full`
+  - `GET /api/external/shopee/products/full/:itemId`
+- Shop API path:
+  - Shopee API shops only: `chihuy1984`, `chihuy2309`, `phambich2312`
+- Fallback:
+  - none; no Seller Center/browser helper path for this endpoint
+- Permission/token:
+  - external caller uses `API_KEY_FOR_FACEBOOK_CRM`
+  - Shopee token path reuses stored API shop credentials
+- Status:
+  - code_done
+  - deploy_pending

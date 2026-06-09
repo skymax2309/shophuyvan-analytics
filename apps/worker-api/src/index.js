@@ -3,7 +3,7 @@ import { getFilters, buildWhere }        from './utils/filters.js'
 import { getCostSettings, calcProfit }   from './utils/db.js'
 import { handleProducts, handleCostSettings, handleVariations } from './routes/products/index.js'
 import { autoRefreshShopeeTokens, handleShopsWarehouse } from './routes/shops/index.js'
-import { exportOrders, recalcCost, cleanupOrderFeePhase1, importOrdersV2, normalizeOrderWorkflowStatuses, getOrders, getOrderFilterOptions, getOrderChanges, updateOmsStatus, normalizeOmsStatusPair } from './routes/orders/index.js'
+import { exportOrders, recalcCost, cleanupOrderFeePhase1, handleTiktokSellerCenterFinance, handleShopeeSellerCenterDetail, handleManualOrderBackfill, importOrdersV2, normalizeOrderWorkflowStatuses, getOrders, getOrderFilterOptions, getOrderChanges, updateOmsStatus, normalizeOmsStatusPair } from './routes/orders/index.js'
 import { dashboard, revenueByDay, profitByDay } from './routes/dashboard/index.js'
 import { uniqueSkus, topSku, topProduct, topShop, topPlatform,
          cancelStats, priceCalc, topSkuFull } from './routes/dashboard/dashboard-aux.js'
@@ -11,12 +11,14 @@ import { uploadReport, getReportSummary, getOperationCosts,
          getReports, getReportFile }     from './routes/reports/index.js'
 import { createJob, getJobs, updateJob, deleteJob } from './routes/jobs/index.js'
 import { handleBotSettings } from './routes/bot/index.js'
-import { getApiShops, handleApiOrderSync, handleApiStatusSync, handleApiProductSync, handleBackfillMissingOrderItems, handleBuyerCancellationDecision, syncApiOrders, syncApiOrderStatuses, syncAdsCampaignSnapshots, syncLazadaReverseOrders, syncShopeeReturns } from './routes/api/index.js'
-import { getOrderLabel, getLabelStatus, refreshOrderLabel, recordLabelFile } from './routes/labels/index.js'
+import { getApiShops, handleApiOrderSync, handleApiStatusSync, handleApiProductSync, handleLazadaPromoAction, handleBackfillMissingOrderItems, handleBuyerCancellationDecision, syncApiOrders, syncApiOrderStatuses, syncAdsCampaignSnapshots, syncLazadaReverseOrders, syncShopeeReturns } from './routes/api/index.js'
+import { backfillEligibleLabels, getOrderLabel, getLabelStatus, refreshOrderLabel, recordLabelFile } from './routes/labels/index.js'
+import { listShopeeSellerCenterDetailEligibleOrders, queueShopeeSellerCenterDetailJobs } from './core/orders/shopee-seller-center-detail-core.js'
+import { listTiktokSellerCenterFinanceEligibleOrders, queueTiktokSellerCenterFinanceJobs } from './core/orders/tiktok-seller-center-finance-core.js'
 import { handleShopeeMarketplaceWebhook, handleLazadaMarketplaceWebhook, handleWebhookEventsStatus, handleWebhookSyncQueue, runMarketplacePushSyncQueueBatch } from './routes/marketplace/index.js'
 import { handleAdvancedApiFeatures } from './routes/api/features.js'
 import { handleAdvancedModules } from './routes/api/modules.js'
-import { handleChat, runChatAiAutoReplyBatch } from './routes/marketplace-chat/index.js'
+import { handleChat } from './routes/marketplace-chat/index.js'
 import { handleAds } from './routes/ads/index.js'
 import { handleIncome } from './routes/finance/income.js'
 import { handleOrderAnalytics, rebuildOrderAnalytics } from './routes/order-analytics/index.js'
@@ -30,6 +32,8 @@ import { handleLogisticsWatch } from './routes/logistics/index.js'
 import { handleCustomerRisk } from './routes/customer/index.js'
 import { handleAdminAuth, getAdminUserFromRequest } from './routes/admin/index.js'
 import { handleExternalApi } from './routes/external/index.js'
+import { handleCoreData } from './routes/core-data/index.js'
+import { runAdsAutomationCron } from './cron/ads-automation.js'
 import { handleShopeeDiagnostics } from './features/shopee/api/diagnostics.js'
 import { buildPublicShopRows } from './core/shops/display-core.js'
 import { parseInvoiceLocal, saveInvoice, listInvoices, getInvoiceFile,
@@ -58,9 +62,13 @@ const WORKER_ROUTE_DEPS = {
   handleVariations,
   handleCostSettings,
   importOrdersV2,
+  handleTiktokSellerCenterFinance,
+  handleShopeeSellerCenterDetail,
+  handleManualOrderBackfill,
   handleApiOrderSync,
   handleApiStatusSync,
   handleApiProductSync,
+  handleLazadaPromoAction,
   handleBackfillMissingOrderItems,
   handleAdvancedApiFeatures,
   handleAdvancedModules,
@@ -101,6 +109,7 @@ const WORKER_ROUTE_DEPS = {
   buildWhere,
   getApiShops,
   buildPublicShopRows,
+  exportOrders,
   recalcCost,
   cleanupOrderFeePhase1,
   updateCostPrices,
@@ -123,6 +132,7 @@ const WORKER_ROUTE_DEPS = {
   normalizeOmsStatusPair,
   handleCustomerRisk,
   handleExternalApi,
+  handleCoreData,
   handleShopeeDiagnostics,
   uploadReport,
   getReports,
@@ -135,9 +145,14 @@ const WORKER_ROUTE_DEPS = {
   deleteJob,
   handleBotSettings,
   getLabelStatus,
+  backfillEligibleLabels,
   refreshOrderLabel,
   getOrderLabel,
   recordLabelFile,
+  listShopeeSellerCenterDetailEligibleOrders,
+  queueShopeeSellerCenterDetailJobs,
+  listTiktokSellerCenterFinanceEligibleOrders,
+  queueTiktokSellerCenterFinanceJobs,
   getAdminUserFromRequest,
   cleanText,
   ensurePackingVideosTable,
@@ -177,6 +192,14 @@ async function blockReviewerWriteAccess(request, env, url, cors) {
 
 function cleanText(value) {
   return String(value ?? '').replace(/\u00a0/g, ' ').trim()
+}
+
+function localJsonRequest(path, body = {}) {
+  return new Request(`https://worker.local${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
 }
 
 const PACKING_SCAN_FIELD_HINTS = new Set([
@@ -565,6 +588,10 @@ export default {
       }
       const refreshed = await autoRefreshShopeeTokens(env)
       console.log(`[CRON] Tự động làm mới ${refreshed} token Shopee`)
+      if (event.cron === "*/15 * * * *") {
+        const adsAutomation = await runAdsAutomationCron(env)
+        console.log(`[CRON] ADS automation: shops=${adsAutomation.shops_processed}, evaluated=${adsAutomation.campaigns_evaluated}, executed=${adsAutomation.actions_executed}, skipped=${adsAutomation.actions_skipped}, errors=${adsAutomation.errors}`)
+      }
       if (event.cron === "*/5 * * * *" || event.cron === "*/30 * * * *") {
         const minute = new Date(event.scheduledTime || Date.now()).getUTCMinutes()
         const realtimePlatforms = ['shopee', 'lazada']
@@ -572,28 +599,50 @@ export default {
         // NEO: Cron realtime chỉ chạy một sàn mỗi lượt để không vượt quota subrequest; TikTok chưa có shop API nên không đưa vào polling API.
         const imported = await syncApiOrders(env, {}, {
           platform,
-          days: platform === 'lazada' ? 30 : 7,
-          limit: platform === 'lazada' ? 4 : 20,
+          days: platform === 'lazada' ? 7 : 7,
+          limit: platform === 'lazada' ? 2 : 20,
           offset: 0,
           fetch_fees: '0',
           fetch_tracking: platform === 'shopee' ? '0' : '',
+          fetch_trace: platform === 'lazada' ? '0' : '',
+          trace_budget: platform === 'lazada' ? 0 : undefined,
+          suppress_push: true,
           statuses: 'PENDING,READY_TO_SHIP,PROCESSED,SHIPPED,COMPLETED,CANCELLED,IN_CANCEL'
         })
         console.log(`[CRON] Kéo đơn API ${platform}/all-shops: fetched=${imported.fetched}, imported=${imported.imported_orders}, status=${imported.status}`)
         const synced = await syncApiOrderStatuses(env, {
           platform,
-          limit: platform === 'lazada' ? 4 : 30,
+          limit: platform === 'lazada' ? 2 : 10,
           offset: 0,
-          days: 30
+          days: 30,
+          fetch_fees: '0',
+          fetch_tracking: platform === 'shopee' ? '0' : '',
+          fetch_trace: platform === 'lazada' ? '0' : '',
+          suppress_push: true
         })
         console.log(`[CRON] Đồng bộ trạng thái ${platform}/all-shops: checked=${synced.checked}, updated=${synced.updated}, status=${synced.status}`)
-        if (minute % 30 === 0) {
-          const ads = await syncAdsCampaignSnapshots(env, {
-            days: 7,
-            limit: 80
-          })
-          console.log(`[CRON] Keo campaign ADS: fetched=${ads.fetched_campaigns}, saved=${ads.saved}, warnings=${ads.warnings?.length || 0}`)
-        }
+        const labels = await backfillEligibleLabels(localJsonRequest('/api/label/retry-failed', {
+          platform,
+          limit: platform === 'lazada' ? 2 : 4,
+          trigger: 'cron_after_status_sync',
+          dry_run: false
+        }), env, {})
+          .then(res => res.json())
+          .catch(error => ({ error: error.message || String(error) }))
+        console.log(`[CRON] Tải tem tự động ${platform}: eligible=${labels.eligible || 0}, downloaded=${labels.downloaded || 0}, manual=${labels.manual_required || 0}, errors=${labels.errors || 0}`)
+        // Shop không API do Radar/local scheduler đọc cấu hình auto điều phối; Worker cron không tự queue Chrome fallback.
+        console.log('[CRON] Bỏ qua Chrome fallback no-API trong Worker cron; Radar/local scheduler sẽ chạy theo auto_order/status config.')
+        const adsToday = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
+        const ads = await syncAdsCampaignSnapshots(env, {
+          platform,
+          from: adsToday,
+          to: adsToday,
+          performance_date: adsToday,
+          days: 1,
+          limit: 80,
+          shopLimit: 20
+        })
+        console.log(`[CRON] Keo campaign ADS realtime ${platform}/${adsToday}: fetched=${ads.fetched_campaigns}, saved=${ads.saved}, warnings=${ads.warnings?.length || 0}`)
         const promotionTasks = [
           'shopee_vouchers',
           'shopee_bundle',
@@ -626,12 +675,6 @@ export default {
         })
         if (pushQueue.selected_jobs) {
           console.log(`[CRON] Push queue incremental: jobs=${pushQueue.selected_jobs}, done=${pushQueue.done}, failed=${pushQueue.failed}`)
-        }
-        const chatAutoReply = await runChatAiAutoReplyBatch(env, {
-          limit: 3
-        })
-        if (chatAutoReply.processed) {
-          console.log(`[CRON] Chat AI auto-reply: mode=${chatAutoReply.mode}, processed=${chatAutoReply.processed}`)
         }
         // Hàng đợi video chỉ chạy job đã đến giờ, mỗi lát cắt tối đa một video để tránh đăng nhầm hàng loạt khi Shopee trả lỗi.
         const videoQueue = await runVideoUploadQueueBatch(env, {
@@ -672,7 +715,7 @@ export default {
         console.log(`[CRON] Discount Shopee: discounts=${discounts.total_discounts}, items=${discounts.total_items}, saved=${discounts.saved_discounts}`)
         const analytics = await rebuildOrderAnalytics(env, {
           days: 30,
-          sync_payment: true,
+          sync_payment: false,
           income_statuses: ['1', '2'],
           page_size: 30,
           shopLimit: 100
@@ -687,10 +730,17 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url)
 
+    const origin = request.headers.get("Origin") || "https://shophuyvan-analytics.nghiemchihuy.workers.dev"
+    // Browser OMS/ADS gọi Worker API cross-origin; trả đúng Origin và không cache biến thể CORS.
     const cors = {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,PATCH,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, Idempotency-Key, X-Request-Id, X-Shopee-Signature, X-Lazada-Signature, X-Webhook-Event, X-Webhook-Id, X-Webhook-Timestamp, X-Webhook-Signature"
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, Idempotency-Key, X-Request-Id, X-Chat-Bridge-Secret, X-Shopee-Signature, X-Lazada-Signature, X-Webhook-Event, X-Webhook-Id, X-Webhook-Timestamp, X-Webhook-Signature",
+      "Access-Control-Expose-Headers": "X-Request-Id, X-OMS-Query-Ms, X-OMS-Query-Count, X-OMS-Data-Source, X-OMS-Cache, X-OMS-Error",
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Max-Age": "86400",
+      "Cache-Control": "no-store",
+      "Vary": "Origin"
     }
 
     if (request.method === "OPTIONS")
@@ -727,9 +777,37 @@ export default {
         const routeResponse = await workerRouteHandler(request, env, ctx, cors, url, WORKER_ROUTE_DEPS)
         if (routeResponse) return routeResponse
       }
+      if (url.pathname.startsWith("/api/")) {
+        return Response.json({
+          status: "error",
+          error: "api_route_not_found",
+          message: "Không tìm thấy API.",
+          path: url.pathname
+        }, { status: 404, headers: cors })
+      }
       return new Response("Not found", { status: 404, headers: cors })
 
     } catch (e) {
+      if (url.pathname.startsWith("/api/")) {
+        const requestId = request.headers.get("X-Request-Id") || `worker-${Date.now()}`
+        console.error("[Worker API] Unhandled error", { requestId, path: url.pathname, message: e?.message || String(e) })
+        return Response.json({
+          status: "error",
+          error: "worker_unhandled_error",
+          message: "API lỗi trong quá trình xử lý.",
+          detail: e?.message || String(e),
+          path: url.pathname,
+          request_id: requestId,
+          retryable: true
+        }, {
+          status: 500,
+          headers: {
+            ...cors,
+            "Cache-Control": "no-store",
+            "X-Request-Id": requestId
+          }
+        })
+      }
       return new Response(e.toString(), { status: 500, headers: cors })
     }
   }

@@ -55,6 +55,12 @@ function collectTrackingEvents(raw) {
     root.tracking_detail,
     root.logistics_info,
     root.logistics_info_list,
+    root.data,
+    root.data?.tracking_info,
+    root.data?.tracking_info_list,
+    root.data?.tracking_list,
+    root.data?.module,
+    root.result,
     root.list,
     Array.isArray(root) ? root : null
   ].filter(Boolean)
@@ -68,6 +74,7 @@ function collectTrackingEvents(raw) {
     }
     if (typeof item !== 'object') return
     const description = firstText(
+      item.title,
       item.description,
       item.message,
       item.content,
@@ -106,8 +113,9 @@ function collectTrackingEvents(raw) {
         })
       }
     }
-    for (const key of ['tracking_info', 'tracking_list', 'details', 'events', 'logistics_info']) {
+    for (const key of ['tracking_info', 'tracking_info_list', 'tracking_list', 'details', 'events', 'logistics_info', 'logistics_info_list', 'logistic_detail_info_list', 'packages', 'package_list', 'package_detail_info_list', 'module', 'data', 'result', 'list']) {
       if (Array.isArray(item[key])) visit(item[key])
+      else if (item[key] && typeof item[key] === 'object') visit(item[key])
     }
   }
   candidates.forEach(visit)

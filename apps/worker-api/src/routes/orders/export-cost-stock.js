@@ -1,5 +1,7 @@
 import { calcProfit, getCostSettings } from '../../utils/db.js'
 import { getFilters } from '../../utils/filters.js'
+import { tableExists } from '../../core/orders/analytics-shared-core.js'
+import { normalizeOrderReadModel } from '../../core/orders/read-core.js'
 import { buildProductLookup, loadOrderFeeMap, loadSkuResolutionMaps, resolveItemProduct } from './cost-resolution.js'
 import { cleanOrderText } from './status-workflow.js'
 
@@ -20,51 +22,275 @@ export async function exportOrders(request, env, cors) {
   // Đếm tổng số đơn để FE tính số trang
   const countRes = await env.DB.prepare(`SELECT COUNT(*) as total FROM orders_v2 o WHERE ${conds.join(" AND ")}`).bind(...params).first();
   const total = countRes ? countRes.total : 0;
+  const hasFinanceCore = await tableExists(env, 'order_analytics')
+  const hasFeeDetails = await tableExists(env, 'order_fee_details')
+  const financeJoin = hasFinanceCore
+    ? `LEFT JOIN order_analytics oa ON oa.order_sn = o.order_id`
+    : ''
+  const feeDetailJoin = hasFeeDetails
+    ? `LEFT JOIN (
+        SELECT
+          LOWER(COALESCE(platform, '')) AS platform_key,
+          order_id,
+          SUM(COALESCE(tax_vat, 0) + COALESCE(tax_pit, 0)) AS tax_deduction,
+          SUM(COALESCE(fee_commission, 0) + COALESCE(fee_payment, 0) + COALESCE(fee_service, 0) + COALESCE(fee_affiliate, 0) + COALESCE(fee_handling, 0)) AS marketplace_fee_total,
+          SUM(COALESCE(fee_piship, 0)) AS piship_fee,
+          SUM(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN ABS(COALESCE(json_extract(raw_data, '$.buyer_payment_info.shopee_voucher'), 0)) ELSE 0 END) AS platform_voucher_total,
+          SUM(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN ABS(COALESCE(json_extract(raw_data, '$.order_income.voucher_from_seller'), 0)) ELSE 0 END) AS seller_cofunded_voucher_amount,
+          SUM(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN ABS(COALESCE(json_extract(raw_data, '$.order_income.voucher_from_shopee'), 0)) ELSE 0 END) AS platform_funded_voucher_amount,
+          SUM(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN ABS(COALESCE(json_extract(raw_data, '$.order_income.buyer_paid_shipping_fee'), json_extract(raw_data, '$.buyer_payment_info.shipping_fee'), 0)) ELSE 0 END) AS buyer_shipping_paid,
+          SUM(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN ABS(COALESCE(json_extract(raw_data, '$.buyer_payment_info.buyer_total_amount'), json_extract(raw_data, '$.order_income.buyer_total_amount'), 0)) ELSE 0 END) AS buyer_total_paid,
+          SUM(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN ABS(COALESCE(json_extract(raw_data, '$.order_income.order_discounted_price'), json_extract(raw_data, '$.order_income.order_selling_price'), json_extract(raw_data, '$.buyer_payment_info.merchant_subtotal'), 0)) ELSE 0 END) AS product_revenue_after_shop_discount,
+          SUM(CASE WHEN json_valid(COALESCE(raw_data, '')) THEN ABS(COALESCE(json_extract(raw_data, '$.order_income.escrow_amount_after_adjustment'), json_extract(raw_data, '$.order_income.escrow_amount'), settlement, 0)) ELSE COALESCE(settlement, 0) END + COALESCE(fee_piship, 0)) AS actual_income
+        FROM order_fee_details
+        GROUP BY LOWER(COALESCE(platform, '')), order_id
+      ) fd ON fd.platform_key = LOWER(COALESCE(o.platform, '')) AND fd.order_id = o.order_id`
+    : ''
+  const feeDetailColumns = hasFeeDetails
+    ? `
+      COALESCE(fd.tax_deduction, 0) AS finance_tax_deduction,
+      COALESCE(fd.marketplace_fee_total, 0) AS fee_detail_marketplace_fee_total,
+      COALESCE(fd.piship_fee, 0) AS fee_detail_piship_fee,
+      COALESCE(fd.platform_voucher_total, 0) AS fee_detail_platform_voucher_total,
+      COALESCE(fd.seller_cofunded_voucher_amount, 0) AS fee_detail_seller_cofunded_voucher_amount,
+      COALESCE(fd.platform_funded_voucher_amount, 0) AS fee_detail_platform_funded_voucher_amount,
+      COALESCE(fd.buyer_shipping_paid, 0) AS fee_detail_buyer_shipping_paid,
+      COALESCE(fd.buyer_total_paid, 0) AS fee_detail_buyer_total_paid,
+      COALESCE(fd.product_revenue_after_shop_discount, 0) AS fee_detail_product_revenue_after_shop_discount,
+      COALESCE(fd.actual_income, 0) AS fee_detail_actual_income`
+    : `
+      0 AS finance_tax_deduction,
+      0 AS fee_detail_marketplace_fee_total,
+      0 AS fee_detail_piship_fee,
+      0 AS fee_detail_platform_voucher_total,
+      0 AS fee_detail_seller_cofunded_voucher_amount,
+      0 AS fee_detail_platform_funded_voucher_amount,
+      0 AS fee_detail_buyer_shipping_paid,
+      0 AS fee_detail_buyer_total_paid,
+      0 AS fee_detail_product_revenue_after_shop_discount,
+      0 AS fee_detail_actual_income`
+  const fdProductRevenueExpr = hasFeeDetails ? 'COALESCE(fd.product_revenue_after_shop_discount, 0)' : '0'
+  const fdBuyerShippingExpr = hasFeeDetails ? 'COALESCE(fd.buyer_shipping_paid, 0)' : '0'
+  const fdBuyerPaidExpr = hasFeeDetails ? 'COALESCE(fd.buyer_total_paid, 0)' : '0'
+  const fdPlatformVoucherExpr = hasFeeDetails ? 'COALESCE(fd.platform_voucher_total, 0)' : '0'
+  const fdSellerCofundExpr = hasFeeDetails ? 'COALESCE(fd.seller_cofunded_voucher_amount, 0)' : '0'
+  const fdPlatformFundedExpr = hasFeeDetails ? 'COALESCE(fd.platform_funded_voucher_amount, 0)' : '0'
+  const fdActualIncomeExpr = hasFeeDetails ? 'COALESCE(fd.actual_income, 0)' : '0'
+  const fdMarketplaceFeeExpr = hasFeeDetails ? 'COALESCE(fd.marketplace_fee_total, 0)' : '0'
+  const fdTaxExpr = hasFeeDetails ? 'COALESCE(fd.tax_deduction, 0)' : '0'
+  const fdPishipExpr = hasFeeDetails ? 'COALESCE(fd.piship_fee, o.fee_piship, 0)' : 'COALESCE(o.fee_piship, 0)'
+  const taxonomyNumber = (path, fallback) => hasFinanceCore
+    ? `COALESCE(CASE WHEN json_valid(COALESCE(oa.source_json, '')) THEN json_extract(oa.source_json, '$.taxonomy.${path}') END, ${fallback})`
+    : fallback
+  const taxonomyText = (path, fallback = "''") => hasFinanceCore
+    ? `COALESCE(CASE WHEN json_valid(COALESCE(oa.source_json, '')) THEN json_extract(oa.source_json, '$.taxonomy.${path}') END, ${fallback})`
+    : fallback
+  const grossFallbackExpr = hasFinanceCore
+    ? `COALESCE(NULLIF(${fdProductRevenueExpr} + ${fdBuyerShippingExpr}, 0), oa.revenue, o.revenue, 0)`
+    : `COALESCE(NULLIF(${fdProductRevenueExpr} + ${fdBuyerShippingExpr}, 0), o.revenue, 0)`
+  const productFallbackExpr = `COALESCE(NULLIF(${fdProductRevenueExpr}, 0), MAX(0, ${grossFallbackExpr} - ${fdBuyerShippingExpr}))`
+  const buyerPaidFallbackExpr = `COALESCE(NULLIF(${fdBuyerPaidExpr}, 0), MAX(0, ${grossFallbackExpr} - ${fdPlatformVoucherExpr}))`
+  const grossRevenueExpr = taxonomyNumber('gross_revenue', grossFallbackExpr)
+  const productRevenueExpr = taxonomyNumber('product_revenue_after_shop_discount', productFallbackExpr)
+  const buyerShippingExpr = taxonomyNumber('buyer_shipping_paid', fdBuyerShippingExpr)
+  const buyerPaidExpr = taxonomyNumber('buyer_total_paid', buyerPaidFallbackExpr)
+  const platformVoucherExpr = taxonomyNumber('platform_voucher_total', fdPlatformVoucherExpr)
+  const sellerCofundExpr = taxonomyNumber('seller_cofunded_voucher_amount', fdSellerCofundExpr)
+  const platformFundedExpr = taxonomyNumber('platform_funded_voucher_amount', fdPlatformFundedExpr)
+  const actualIncomeAvailableExpr = taxonomyNumber('actual_income_available', '1')
+  const actualIncomeExpr = hasFinanceCore
+    ? `CASE WHEN ${actualIncomeAvailableExpr} = 0 THEN NULL ELSE ${taxonomyNumber('actual_income', fdActualIncomeExpr)} END`
+    : fdActualIncomeExpr
+  const estimatedIncomeExpr = taxonomyNumber('estimated_income', '0')
+  const actualIncomeSettlementExpr = taxonomyNumber('actual_income_settlement', '0')
+  const profitBasisExpr = taxonomyNumber('profit_basis', actualIncomeExpr)
+  const profitStatusExpr = taxonomyText('profit_status', "''")
+  const settlementStatusExpr = taxonomyText('settlement_status', "''")
+  const marketplaceFeeExpr = taxonomyNumber('marketplace_fee_total', fdMarketplaceFeeExpr)
+  const taxTotalExpr = taxonomyNumber('tax_total', fdTaxExpr)
+  const pishipExpr = taxonomyNumber('piship_fee', fdPishipExpr)
+  const opsCostExpr = taxonomyNumber('ops_cost_setting_total', `${fdPishipExpr} + COALESCE(o.fee_packaging, 0) + COALESCE(o.fee_operation, 0) + COALESCE(o.fee_labor, 0)`)
+  const financeColumns = hasFinanceCore
+    ? `
+      COALESCE(oa.revenue, o.revenue, 0) AS finance_revenue,
+      COALESCE(oa.actual_income, 0) AS finance_actual_income,
+      COALESCE(oa.platform_fees, 0) AS finance_platform_fees,
+      COALESCE(oa.ads_cost_allocated, 0) AS finance_ads_cost,
+      COALESCE(oa.refund_deduction, 0) AS finance_refund,
+      COALESCE(oa.cost_of_goods, o.cost_real, 0) AS finance_cost_real,
+      COALESCE(oa.net_profit, o.profit_real, 0) AS finance_net_profit,
+      COALESCE(oa.actual_income_source, '') AS finance_income_source,
+      ${grossRevenueExpr} AS finance_gross_revenue,
+      ${productRevenueExpr} AS finance_product_revenue_after_shop_discount,
+      ${buyerShippingExpr} AS finance_buyer_shipping_paid,
+      ${buyerPaidExpr} AS finance_buyer_total_paid,
+      ${platformVoucherExpr} AS finance_platform_voucher_total,
+      ${sellerCofundExpr} AS finance_seller_cofunded_voucher_amount,
+      ${platformFundedExpr} AS finance_platform_funded_voucher_amount,
+      ${actualIncomeExpr} AS finance_actual_income_taxonomy,
+      ${estimatedIncomeExpr} AS finance_estimated_income,
+      ${actualIncomeSettlementExpr} AS finance_actual_income_settlement,
+      ${actualIncomeAvailableExpr} AS finance_actual_income_available,
+      ${profitBasisExpr} AS finance_profit_basis,
+      ${profitStatusExpr} AS finance_profit_status,
+      ${settlementStatusExpr} AS finance_settlement_status,
+      ${marketplaceFeeExpr} AS finance_marketplace_fee_total,
+      ${taxTotalExpr} AS finance_tax_total,
+      ${pishipExpr} AS finance_piship_fee,
+      ${opsCostExpr} AS finance_ops_cost_setting_total,
+      CASE WHEN oa.order_sn IS NOT NULL THEN 1 ELSE 0 END AS has_finance_core,
+      ${feeDetailColumns}
+    `
+    : `
+      COALESCE(o.revenue, 0) AS finance_revenue,
+      0 AS finance_actual_income,
+      COALESCE(o.fee, 0) AS finance_platform_fees,
+      0 AS finance_ads_cost,
+      0 AS finance_refund,
+      COALESCE(o.cost_real, 0) AS finance_cost_real,
+      COALESCE(o.profit_real, 0) AS finance_net_profit,
+      '' AS finance_income_source,
+      ${fdProductRevenueExpr} + ${fdBuyerShippingExpr} AS finance_gross_revenue,
+      ${fdProductRevenueExpr} AS finance_product_revenue_after_shop_discount,
+      ${fdBuyerShippingExpr} AS finance_buyer_shipping_paid,
+      ${fdBuyerPaidExpr} AS finance_buyer_total_paid,
+      ${fdPlatformVoucherExpr} AS finance_platform_voucher_total,
+      ${fdSellerCofundExpr} AS finance_seller_cofunded_voucher_amount,
+      ${fdPlatformFundedExpr} AS finance_platform_funded_voucher_amount,
+      ${fdActualIncomeExpr} AS finance_actual_income_taxonomy,
+      0 AS finance_estimated_income,
+      0 AS finance_actual_income_settlement,
+      1 AS finance_actual_income_available,
+      ${fdActualIncomeExpr} AS finance_profit_basis,
+      '' AS finance_profit_status,
+      '' AS finance_settlement_status,
+      ${fdMarketplaceFeeExpr} AS finance_marketplace_fee_total,
+      ${fdTaxExpr} AS finance_tax_total,
+      ${fdPishipExpr} AS finance_piship_fee,
+      ${fdPishipExpr} + COALESCE(o.fee_packaging, 0) + COALESCE(o.fee_operation, 0) + COALESCE(o.fee_labor, 0) AS finance_ops_cost_setting_total,
+      0 AS has_finance_core,
+      ${feeDetailColumns}
+    `
+  const financeRevenueExpr = hasFinanceCore
+    ? `COALESCE(NULLIF(${grossRevenueExpr}, 0), oa.revenue, o.revenue, 0)`
+    : `COALESCE(NULLIF(${fdProductRevenueExpr} + ${fdBuyerShippingExpr}, 0), o.revenue, 0)`
 
-  // Join orders_v2 + order_items để có đủ thông tin từng SKU
+  // Export chỉ phân bổ số đã được Finance Core chuẩn hóa; không tự dựng lại lãi/phí từ công thức legacy.
   const rows = await env.DB.prepare(`
+    WITH item_counts AS (
+      SELECT order_id,
+             COUNT(*) AS item_count,
+             SUM(COALESCE(revenue_line, 0)) AS item_revenue
+      FROM order_items
+      GROUP BY order_id
+    ),
+    export_base AS (
     SELECT
       o.order_date, o.platform, o.shop, o.order_id,
       oi.sku, oi.product_name, oi.qty,
-      oi.revenue_line                                              AS revenue,
-      oi.revenue_line                                              AS raw_revenue,
-      oi.cost_real,
-      -- Phân bổ phí % theo tỷ lệ doanh thu dòng / tổng đơn
-      ROUND(o.fee_platform  * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_platform,
-      ROUND(o.fee_payment   * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_payment,
-      ROUND(o.fee_affiliate * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_affiliate,
-      ROUND(o.fee_ads       * oi.revenue_line / NULLIF(o.revenue,0)) AS fee_ads,
-      -- Phí per-đơn chỉ tính cho item đầu tiên
-      CASE WHEN oi.id = (
-        SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id
-      ) THEN o.fee_piship  ELSE 0 END AS fee_piship,
-      CASE WHEN oi.id = (
-        SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id
-      ) THEN o.fee_service ELSE 0 END AS fee_service,
-      CASE WHEN oi.id = (
-        SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id
-      ) THEN o.fee_packaging ELSE 0 END AS fee_packaging,
-      -- Tổng phí dòng này
-      ROUND(
-        (o.fee_platform + o.fee_payment + o.fee_affiliate + o.fee_ads)
-        * oi.revenue_line / NULLIF(o.revenue,0)
-        + CASE WHEN oi.id = (SELECT MIN(i2.id) FROM order_items i2 WHERE i2.order_id = o.order_id)
-               THEN o.fee_piship + o.fee_service + o.fee_packaging ELSE 0 END
-      )                                                            AS fee,
-      -- Lãi dòng = lãi đơn × tỷ lệ doanh thu
-      ROUND(o.profit_real * oi.revenue_line / NULLIF(o.revenue,0)) AS profit_real,
-      ROUND(o.tax_flat    * oi.revenue_line / NULLIF(o.revenue,0)) AS tax_flat,
-      ROUND(o.tax_income  * oi.revenue_line / NULLIF(o.revenue,0)) AS tax_income,
-      o.order_type, o.cancel_reason, o.return_fee
+      COALESCE(o.source_updated_at, '') AS source_updated_at,
+      COALESCE(oi.revenue_line, 0) AS raw_revenue,
+      COALESCE(o.raw_revenue, o.revenue, 0) AS order_original_price,
+      COALESCE(o.discount_shop, 0) + COALESCE(o.discount_combo, 0) AS order_shop_discount,
+      COALESCE(o.discount_shopee, 0) AS order_platform_voucher,
+      ${financeColumns},
+      CASE
+        WHEN ${financeRevenueExpr} > 0 AND COALESCE(oi.revenue_line, 0) > 0
+          THEN COALESCE(oi.revenue_line, 0) * 1.0 / ${financeRevenueExpr}
+        ELSE 1.0 / COALESCE(NULLIF(ic.item_count, 0), 1)
+      END AS line_ratio,
+      o.order_type,
+      o.oms_status,
+      o.shipping_status,
+      o.tracking_number,
+      o.cancel_reason,
+      o.return_fee
     FROM orders_v2 o
     LEFT JOIN order_items oi ON oi.order_id = o.order_id
+    LEFT JOIN item_counts ic ON ic.order_id = o.order_id
+    ${financeJoin}
+    ${feeDetailJoin}
     WHERE ${conds.join(" AND ")}
-    ORDER BY o.order_date DESC, o.order_id, oi.id
-    LIMIT ${limit} OFFSET ${offset}
-  `).bind(...params).all();
+    )
+    SELECT
+      order_date, platform, shop, order_id, sku, product_name, qty,
+      ROUND(finance_gross_revenue * line_ratio, 2) AS gross_revenue,
+      ROUND(finance_product_revenue_after_shop_discount * line_ratio, 2) AS product_revenue_after_shop_discount,
+      ROUND(finance_buyer_shipping_paid * line_ratio, 2) AS buyer_shipping_paid,
+      ROUND(finance_buyer_total_paid * line_ratio, 2) AS buyer_total_paid,
+      ROUND(finance_platform_voucher_total * line_ratio, 2) AS platform_voucher_total,
+      ROUND(finance_seller_cofunded_voucher_amount * line_ratio, 2) AS seller_cofunded_voucher_amount,
+      ROUND(finance_platform_funded_voucher_amount * line_ratio, 2) AS platform_funded_voucher_amount,
+      ROUND(COALESCE(NULLIF(order_original_price, 0), finance_revenue) * line_ratio, 2) AS original_price,
+      ROUND(order_shop_discount * line_ratio, 2) AS shop_discount,
+      ROUND(finance_gross_revenue * line_ratio, 2) AS revenue,
+      ROUND(finance_buyer_total_paid * line_ratio, 2) AS buyer_paid,
+      ROUND(finance_platform_voucher_total * line_ratio, 2) AS platform_voucher,
+      ROUND(raw_revenue, 2) AS raw_revenue,
+      CASE WHEN finance_actual_income_available = 0 THEN NULL ELSE ROUND(COALESCE(finance_actual_income_taxonomy, finance_actual_income) * line_ratio, 2) END AS actual_income,
+      ROUND(finance_estimated_income * line_ratio, 2) AS estimated_income,
+      ROUND(finance_actual_income_settlement * line_ratio, 2) AS actual_income_settlement,
+      finance_actual_income_available AS actual_income_available,
+      ROUND(finance_profit_basis * line_ratio, 2) AS profit_basis,
+      finance_profit_status AS profit_status,
+      finance_settlement_status AS settlement_status,
+      ROUND(finance_cost_real * line_ratio, 2) AS cost_real,
+      ROUND(finance_cost_real * line_ratio, 2) AS cost,
+      ROUND(finance_marketplace_fee_total * line_ratio, 2) AS fee_platform,
+      ROUND(finance_marketplace_fee_total * line_ratio, 2) AS marketplace_fee_total,
+      0 AS fee_payment,
+      0 AS fee_affiliate,
+      ROUND(finance_ads_cost * line_ratio, 2) AS fee_ads,
+      ROUND(finance_ads_cost * line_ratio, 2) AS ads_fee_total,
+      ROUND(finance_ads_cost * line_ratio, 2) AS ops_ads_fee,
+      ROUND(finance_piship_fee * line_ratio, 2) AS piship_fee,
+      ROUND(finance_ops_cost_setting_total * line_ratio, 2) AS ops_cost_setting_total,
+      ROUND(finance_tax_total * line_ratio, 2) AS tax_total,
+      ROUND(finance_tax_total * line_ratio, 2) AS tax_deduction,
+      ROUND(finance_refund * line_ratio, 2) AS return_refund,
+      ROUND((finance_seller_cofunded_voucher_amount + finance_marketplace_fee_total + finance_tax_total) * line_ratio, 2) AS fee,
+      ROUND((finance_seller_cofunded_voucher_amount + finance_marketplace_fee_total + finance_tax_total) * line_ratio, 2) AS deduction_total,
+      ROUND(finance_net_profit * line_ratio, 2) AS profit_real,
+      ROUND(finance_net_profit * line_ratio, 2) AS profit,
+      0 AS tax_flat,
+      0 AS tax_income,
+      'Người mua thanh toán' AS percent_basis_label,
+      order_type, oms_status, shipping_status, tracking_number, cancel_reason, return_fee,
+      CASE WHEN has_finance_core = 1 THEN 'order_analytics' ELSE 'orders_v2_legacy_fallback' END AS finance_source,
+      CASE
+        WHEN has_finance_core = 1 AND finance_income_source = 'orders_v2_estimate_no_ads' THEN 'estimated'
+        WHEN has_finance_core = 1 THEN 'confirmed'
+        ELSE 'fallback'
+      END AS finance_confidence,
+      finance_income_source,
+      source_updated_at
+    FROM export_base
+    ORDER BY order_date DESC, order_id, sku
+    LIMIT ? OFFSET ?
+  `).bind(...params, limit, offset).all();
+
+  const data = (rows.results || []).map(row => {
+    const statusCore = normalizeOrderReadModel(row)
+    return {
+      ...row,
+      raw_platform_status: statusCore.raw_platform_status,
+      order_status_core: statusCore.order_status_core,
+      fulfillment_status_core: statusCore.fulfillment_status_core,
+      display_status_vi: statusCore.display_status_vi,
+      terminal_status: statusCore.terminal_status,
+      status_reason: statusCore.status_reason,
+      label_eligible: statusCore.label_eligible,
+      label_status: statusCore.label_status,
+      label_reason: statusCore.label_reason,
+      shipping_label_url: statusCore.shipping_label_url,
+      label_file_path: statusCore.label_file_path,
+      last_label_download_at: statusCore.last_label_download_at,
+      last_label_error: statusCore.last_label_error
+    }
+  })
 
   return Response.json({
-    data: rows.results,
+    data,
     total: total,
     page: page,
     totalPages: Math.ceil(total / limit)

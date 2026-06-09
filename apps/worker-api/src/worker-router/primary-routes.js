@@ -1,3 +1,19 @@
+async function responseJsonSafe(response) {
+  try {
+    return await response.json()
+  } catch {
+    return {}
+  }
+}
+
+function localJsonRequest(path, body = {}) {
+  return new Request(`https://worker.local${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+}
+
 export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, deps) {
   const {
     handlePurchase,
@@ -6,9 +22,13 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
     handleVariations,
     handleCostSettings,
     importOrdersV2,
+    handleTiktokSellerCenterFinance,
+    handleShopeeSellerCenterDetail,
+    handleManualOrderBackfill,
     handleApiOrderSync,
     handleApiStatusSync,
     handleApiProductSync,
+    handleLazadaPromoAction,
     handleBackfillMissingOrderItems,
     handleAdvancedApiFeatures,
     handleAdvancedModules,
@@ -24,6 +44,7 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
     handleOperations,
     handleLogisticsWatch,
     handleExternalApi,
+    handleCoreData,
     handleShopeeMarketplaceWebhook,
     handleLazadaMarketplaceWebhook,
     handleWebhookEventsStatus,
@@ -83,9 +104,14 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
     deleteJob,
     handleBotSettings,
     getLabelStatus,
+    backfillEligibleLabels,
     refreshOrderLabel,
     getOrderLabel,
     recordLabelFile,
+    listShopeeSellerCenterDetailEligibleOrders,
+    queueShopeeSellerCenterDetailJobs,
+    listTiktokSellerCenterFinanceEligibleOrders,
+    queueTiktokSellerCenterFinanceJobs,
     getAdminUserFromRequest,
     cleanText,
     ensurePackingVideosTable,
@@ -107,12 +133,17 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
     return handleExternalApi(request, env, cors, ctx)
   }
 
+  if (url.pathname === "/api/core" || url.pathname.startsWith("/api/core/")) {
+    return handleCoreData(request, env, cors)
+  }
+
   if (url.pathname === "/api/admin/shopee/diagnostics" || url.pathname === "/admin/shopee/diagnostics") {
     return handleShopeeDiagnostics(request, env, cors, getAdminUserFromRequest)
   }
 
   if (url.pathname === "/api/shops/api-configs" ||
       url.pathname === "/api/shops/shopee-app-config" ||
+      url.pathname === "/api/shops/shopee-profile-sync" ||
       url.pathname === "/api/shops/shopee-snapshot" ||
       url.pathname === "/api/shops/shopee-write-guards" ||
       url.pathname === "/api/shops/shopee-video-app-config" ||
@@ -133,6 +164,7 @@ export async function handlePrimaryWorkerRoutes(request, env, ctx, cors, url, de
   if (url.pathname === "/api/products" ||
 url.pathname === "/api/products/promo-prices" ||
 url.pathname === "/api/products/update-promo-prices" ||
+url.pathname === "/api/products/promo-upload-results" ||
 url.pathname === "/api/products/catalog-settings" ||
 url.pathname === "/api/products/catalog-overview" ||
 url.pathname === "/api/products/inventory-stock-core" ||
@@ -182,6 +214,15 @@ url.pathname === "/api/products/publish-draft" ||
   if (url.pathname === "/api/import-orders-v2")
     return importOrdersV2(request, env, cors)
 
+  if (url.pathname === "/api/orders/manual-sync/backfill")
+    return handleManualOrderBackfill(request, env, cors)
+
+  if (url.pathname === "/api/orders/tiktok-seller-detail" || url.pathname.startsWith("/api/orders/tiktok-seller-detail/"))
+    return handleTiktokSellerCenterFinance(request, env, cors)
+
+  if (url.pathname === "/api/orders/shopee-seller-detail" || url.pathname.startsWith("/api/orders/shopee-seller-detail/"))
+    return handleShopeeSellerCenterDetail(request, env, cors)
+
   if (url.pathname === "/api/orders/backfill-missing-items")
     return handleBackfillMissingOrderItems(request, env, cors)
 
@@ -191,8 +232,74 @@ url.pathname === "/api/products/publish-draft" ||
   if (url.pathname === "/api/orders/sync-api-status")
     return handleApiStatusSync(request, env, cors)
 
+  if (url.pathname === "/api/orders/status/sync" && request.method === "POST") {
+    const body = await request.json().catch(() => ({}))
+    const platform = cleanText(body.platform || url.searchParams.get('platform')).toLowerCase()
+    const shop = cleanText(body.shop || url.searchParams.get('shop'))
+    const limit = Math.min(Math.max(Number(body.limit || url.searchParams.get('limit') || 10) || 10, 1), 50)
+    const dryRun = body.dry_run === true || body.dry_run === '1' || url.searchParams.get('dry_run') === '1'
+    const apiSummary = dryRun ? { skipped: true, dry_run: true } : await syncApiOrderStatuses(env, {
+      platform: ['shopee', 'lazada'].includes(platform) ? platform : '',
+      shop,
+      limit,
+      offset: 0,
+      days: Math.min(Math.max(Number(body.days || 30) || 30, 1), 90),
+      fetch_fees: '0',
+      fetch_tracking: platform === 'shopee' ? '0' : ''
+    })
+
+    const shopeeEligible = (platform && platform !== 'shopee') ? { orders: [], eligible_count: 0, scanned: 0 } : await listShopeeSellerCenterDetailEligibleOrders(env, {
+      shop,
+      limit: Math.min(limit, 20),
+      force: body.force === true,
+      order_id: body.order_id || body.order_sn
+    })
+    const shopeeQueued = dryRun ? { queued_jobs: 0, queued_orders: 0, dry_run: true } : await queueShopeeSellerCenterDetailJobs(env, shopeeEligible.orders || [], {
+      trigger: 'status_sync',
+      action_type: 'refresh_status',
+      scope: ['status', 'fulfillment', 'tracking', 'timeline', 'items'],
+      limit: Math.min(limit, 20)
+    })
+
+    const tiktokEligible = (platform && platform !== 'tiktok') ? { orders: [], eligible_count: 0, scanned: 0 } : await listTiktokSellerCenterFinanceEligibleOrders(env, {
+      order_id: body.order_id || body.order_no,
+      limit: Math.min(limit, 20),
+      force: body.force === true
+    })
+    const tiktokQueued = dryRun ? { queued_jobs: 0, queued_orders: 0, dry_run: true } : await queueTiktokSellerCenterFinanceJobs(env, tiktokEligible.orders || [], {
+      trigger: 'status_sync',
+      action_type: 'refresh_status',
+      scope: ['status', 'fulfillment', 'tracking', 'timeline', 'items'],
+      limit: Math.min(limit, 20)
+    })
+
+    const labelResponse = await backfillEligibleLabels(localJsonRequest('/api/label/backfill-eligible', {
+      platform,
+      shop,
+      limit,
+      dry_run: dryRun,
+      trigger: 'status_sync'
+    }), env, cors)
+    const labelBackfill = await responseJsonSafe(labelResponse)
+
+    return Response.json({
+      status: 'ok',
+      dry_run: dryRun,
+      action_type: 'refresh_status',
+      action_scope: ['status', 'fulfillment', 'tracking', 'timeline', 'items'],
+      realtime_mode: 'webhook_plus_polling_or_cron',
+      api_status_sync: apiSummary,
+      shopee_seller_detail: { ...shopeeEligible, ...shopeeQueued },
+      tiktok_seller_detail: { ...tiktokEligible, ...tiktokQueued },
+      label_backfill: labelBackfill
+    }, { headers: cors })
+  }
+
   if (url.pathname === "/api/products/sync-api-products")
     return handleApiProductSync(request, env, cors)
+
+  if (url.pathname === "/api/products/lazada-promo-action")
+    return handleLazadaPromoAction(request, env, cors)
 
   // Giữ thêm alias /api/features để các màn hình chat hoặc cache frontend cũ không bị 404 khi gọi sync nền.
   if (url.pathname === "/api/advanced/features" || url.pathname === "/api/advanced/actions" || url.pathname === "/api/features" || url.pathname === "/api/actions")
@@ -200,6 +307,10 @@ url.pathname === "/api/products/publish-draft" ||
 
   if (url.pathname === "/api/advanced/modules" || url.pathname === "/api/advanced/modules/actions")
     return handleAdvancedModules(request, env, cors)
+
+  if (url.pathname === "/api/internal/chat-bridge/shopee" || url.pathname.startsWith("/api/internal/chat-bridge/shopee/") ||
+      url.pathname === "/api/internal/chat-bridge/lazada" || url.pathname.startsWith("/api/internal/chat-bridge/lazada/"))
+    return handleChat(request, env, cors)
 
   if (url.pathname === "/api/chat" || url.pathname.startsWith("/api/chat/"))
     return handleChat(request, env, cors)
@@ -231,7 +342,7 @@ url.pathname === "/api/products/publish-draft" ||
   if (url.pathname === "/api/operations" || url.pathname.startsWith("/api/operations/"))
     return handleOperations(request, env, cors)
 
-  if (url.pathname === "/api/logistics-watch")
+  if (url.pathname === "/api/logistics-watch" || url.pathname === "/api/logistics-watch/detail")
     return handleLogisticsWatch(request, env, cors)
 
   // 🌟 CỔNG TIẾP NHẬN WEBHOOK TỪ SHOPEE (REALTIME)

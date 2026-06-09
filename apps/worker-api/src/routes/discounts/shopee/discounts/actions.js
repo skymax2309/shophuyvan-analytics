@@ -17,6 +17,10 @@ export function installDiscountsShopeeDiscountsActions(core) {
   const shopeeDiscountPayload = (...args) => core.shopeeDiscountPayload(...args)
   const shopeeResponseHasBusinessError = (...args) => core.shopeeResponseHasBusinessError(...args)
 
+  function isShopeeDiscountLiveWriteEnabled(env) {
+    return ['1', 'true', 'yes', 'on'].includes(cleanText(env?.SHOPEE_DISCOUNT_LIVE_WRITE_ENABLED).toLowerCase())
+  }
+
   async function saveDiscountAction(env, row) {
     await ensureShopeeDiscountTables(env)
     await env.DB.prepare(`
@@ -35,6 +39,78 @@ export function installDiscountsShopeeDiscountsActions(core) {
     ).run()
   }
   core.saveDiscountAction = saveDiscountAction
+
+  async function saveDiscountItemWriteback(env, base = {}, payload = {}, result = {}, verifyResult = {}) {
+    if (base.action !== 'update_discount_item') return
+    const targets = discountItemTargets(payload)
+    if (!targets.length) return
+    await ensureShopeeDiscountTables(env)
+    const writeStatus = result.write_status || (result.status === 'readback_mismatch' ? 'readback_mismatch' : (result.verified ? 'success' : 'failed'))
+    const syncStatus = writeStatus === 'success' ? 'synced' : writeStatus
+    const rawWritePayload = compactJson(payload, 30000)
+    const rawReadbackPayload = compactJson(verifyResult?.detail || verifyResult || {}, 30000)
+    const rawErrorPayload = compactJson(result.raw_error || result.raw_response?.error || {}, 30000)
+    for (const target of targets) {
+      await env.DB.prepare(`
+        UPDATE marketplace_discount_items
+        SET
+          promotion_price = CASE WHEN ? = 'success' AND ? > 0 THEN ? ELSE promotion_price END,
+          write_status = ?,
+          promotion_sync_status = ?,
+          last_write_at = datetime('now', '+7 hours'),
+          last_readback_at = CASE WHEN ? != '{}' THEN datetime('now', '+7 hours') ELSE last_readback_at END,
+          write_source = 'shopee_open_platform',
+          readback_source = CASE WHEN ? != '{}' THEN 'shopee_open_platform' ELSE readback_source END,
+          raw_write_payload = ?,
+          raw_readback_payload = ?,
+          error_code = ?,
+          error_message = ?,
+          raw_error_payload = ?,
+          updated_at = datetime('now', '+7 hours')
+        WHERE platform = 'shopee'
+          AND api_shop_id = ?
+          AND discount_id = ?
+          AND item_id = ?
+          AND COALESCE(model_id, '') = ?
+      `).bind(
+        writeStatus,
+        target.target_price,
+        target.target_price,
+        writeStatus,
+        syncStatus,
+        rawReadbackPayload,
+        rawReadbackPayload,
+        rawWritePayload,
+        rawReadbackPayload,
+        cleanText(result.error || result.raw_error?.error || verifyResult.reason),
+        cleanText(result.message || result.raw_error?.message),
+        rawErrorPayload,
+        cleanText(base.api_shop_id || base.shop_id),
+        cleanText(payload.discount_id),
+        cleanText(target.item_id),
+          cleanText(target.model_id)
+      ).run()
+      if (writeStatus === 'success' && target.target_price > 0) {
+        await env.DB.prepare(`
+          UPDATE product_variations
+          SET
+            discount_price = ?,
+            updated_at = datetime('now', '+7 hours')
+          WHERE platform = 'shopee'
+            AND (shop = ? OR shop = ? OR shop = ?)
+            AND platform_item_id = ?
+            AND COALESCE(model_id, '') = ?
+        `).bind(
+          target.target_price,
+          cleanText(base.shop),
+          cleanText(base.shop_id),
+          cleanText(base.api_shop_id),
+          cleanText(target.item_id),
+          cleanText(target.model_id)
+        ).run()
+      }
+    }
+  }
 
   function discountActionObjectId(action, payload = {}) {
     if (payload.discount_id) return cleanText(payload.discount_id)
@@ -166,7 +242,10 @@ export function installDiscountsShopeeDiscountsActions(core) {
     }
     const detail = await loadDiscountDetailForVerify(env, shop, discountId)
     if (action === 'update_discount_item') {
-      return verifyDiscountPriceTargets(detail, discountItemTargets(payload))
+      return {
+        ...verifyDiscountPriceTargets(detail, discountItemTargets(payload)),
+        detail
+      }
     }
     if (action === 'end_discount') {
       const status = cleanText(detail?.discount?.status).toLowerCase()
@@ -256,7 +335,7 @@ export function installDiscountsShopeeDiscountsActions(core) {
       await saveDiscountAction(env, result)
       return result
     }
-    const liveWriteGuard = assertShopeeLiveWriteAllowed(env, 'marketplace_client')
+    const liveWriteGuard = isShopeeDiscountLiveWriteEnabled(env) ? null : assertShopeeLiveWriteAllowed(env, 'marketplace_client')
     if (liveWriteGuard) {
       const result = buildShopeeActionResult({
         ...base,
@@ -313,6 +392,7 @@ export function installDiscountsShopeeDiscountsActions(core) {
           raw_response: response,
           message: 'Shopee từ chối một phần hoặc toàn bộ thao tác. Xem error_list trong raw_response.'
         })
+        await saveDiscountItemWriteback(env, base, payload, result, { reason: 'business_error' }).catch(() => {})
         await saveDiscountAction(env, result)
         return result
       }
@@ -320,7 +400,11 @@ export function installDiscountsShopeeDiscountsActions(core) {
       const result = buildShopeeActionResult({
         ...base,
         ok: true,
-        status: verifyResult.verified ? 'ok' : 'error',
+        status: verifyResult.verified ? 'ok' : 'readback_mismatch',
+        write_status: verifyResult.verified ? 'success' : 'readback_mismatch',
+        promotion_sync_status: verifyResult.verified ? 'synced' : 'readback_mismatch',
+        write_source: 'shopee_open_platform',
+        readback_source: 'shopee_open_platform',
         payload,
         confirmation_mode: confirmationMode,
         sent_to_shopee: true,
@@ -331,10 +415,12 @@ export function installDiscountsShopeeDiscountsActions(core) {
           ? 'Đã gọi Shopee Discount API thật và refetch xác nhận thay đổi.'
           : 'Shopee đã nhận request nhưng refetch chưa xác nhận thay đổi, không được xem là thành công.'
       })
+      await saveDiscountItemWriteback(env, base, payload, result, verifyResult)
       await saveDiscountAction(env, result)
       return result
     } catch (error) {
       const result = errorResult(base, payload, error)
+      await saveDiscountItemWriteback(env, base, payload, result, { reason: 'api_error' }).catch(() => {})
       await saveDiscountAction(env, result)
       return result
     }

@@ -7,6 +7,7 @@ export function installApiSyncLazadaProductsSync(core) {
   const cleanText = (...args) => core.cleanText(...args)
   const filterInStockProducts = (...args) => core.filterInStockProducts(...args)
   const firstText = (...args) => core.firstText(...args)
+  const getApiShops = (...args) => core.getApiShops(...args)
   const getLazadaSellerId = (...args) => core.getLazadaSellerId(...args)
   const mergeLazadaStockSources = core.mergeLazadaStockSources
   const normalizeLazadaAdvancedStockSource = core.normalizeLazadaAdvancedStockSource
@@ -15,7 +16,9 @@ export function installApiSyncLazadaProductsSync(core) {
   const saveProductCatalogSnapshotsBatch = core.saveProductCatalogSnapshotsBatch
   const saveProductKnowledgeBatch = core.saveProductKnowledgeBatch
   const syncVariationPayload = (...args) => core.syncVariationPayload(...args)
+  const signLazada = (...args) => core.signLazada(...args)
   const toMoney = (...args) => core.toMoney(...args)
+  const saveProductActionLog = (...args) => core.saveProductActionLog?.(...args)
 
   async function listLazadaProducts(accessToken, options = {}) {
     const limit = Math.max(1, Math.min(Number(options.limit || 500) || 500, 500))
@@ -55,6 +58,7 @@ export function installApiSyncLazadaProductsSync(core) {
         return {
           variation_name: sellerSku || 'Mac dinh',
           sku: sellerSku || cleanText(product.item_id),
+          model_id: firstText(sku.SkuId, sku.sku_id),
           price: toMoney(sku.price),
           discount_price: toMoney(sku.special_price),
           stock: Number(sku.quantity ?? sku.available ?? 0) || 0,
@@ -320,4 +324,196 @@ export function installApiSyncLazadaProductsSync(core) {
     }
   }
   core.syncLazadaProductsShop = syncLazadaProductsShop
+
+  function lazadaPriceNumber(value) {
+    const number = Number(String(value ?? '').replace(/[^\d.]/g, ''))
+    return Number.isFinite(number) ? number : 0
+  }
+
+  function lazadaSkuText(...values) {
+    return firstText(...values).trim()
+  }
+
+  function lazadaXmlEscape(value) {
+    return cleanText(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+  }
+
+  function buildLazadaPriceQuantityPayload(items = []) {
+    const skus = items.map(item => (
+      `<Sku>${item.item_id ? `<ItemId>${lazadaXmlEscape(item.item_id)}</ItemId>` : ''}${item.sku_id ? `<SkuId>${lazadaXmlEscape(item.sku_id)}</SkuId>` : `<SellerSku>${lazadaXmlEscape(item.seller_sku)}</SellerSku>`}${item.price ? `<Price>${lazadaPriceNumber(item.price)}</Price>` : ''}<SalePrice>${lazadaPriceNumber(item.sale_price || item.special_price)}</SalePrice></Sku>`
+    )).join('')
+    return `<Request><Product><Skus>${skus}</Skus></Product></Request>`
+  }
+  core.buildLazadaPriceQuantityPayload = buildLazadaPriceQuantityPayload
+
+  async function postLazadaPriceQuantityForm(shop, payload) {
+    const signed = await signLazada('/product/price_quantity/update', shop.access_token, { payload })
+    const res = await fetch('https://api.lazada.vn/rest/product/price_quantity/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
+      body: new URLSearchParams(signed)
+    })
+    const data = await res.json()
+    if (data.code && data.code !== '0') {
+      throw new Error(JSON.stringify({
+        code: data.code,
+        message: data.message,
+        detail: data.detail || data.data || null,
+        request_id: data.request_id
+      }))
+    }
+    return data
+  }
+  core.postLazadaPriceQuantityForm = postLazadaPriceQuantityForm
+
+  async function findLazadaSkuReadback(env, shop, sellerSku, options = {}) {
+    const target = cleanText(sellerSku).toLowerCase()
+    const maxRows = Math.max(50, Math.min(Number(options.maxRows || 500) || 500, 1000))
+    let offset = 0
+    while (offset < maxRows) {
+      const data = await callLazadaWithShop(env, shop, '/products/get', {
+        filter: 'all',
+        limit: '50',
+        offset: String(offset)
+      })
+      const products = data?.data?.products || []
+      for (const product of products) {
+        for (const sku of product.skus || []) {
+          const keys = [
+            sku.SellerSku,
+            sku.seller_sku,
+            sku.ShopSku,
+            sku.shop_sku,
+            sku.SkuId,
+            sku.sku_id
+          ].map(value => cleanText(value).toLowerCase()).filter(Boolean)
+          if (!keys.includes(target)) continue
+          return {
+            product,
+            sku,
+            seller_sku: lazadaSkuText(sku.SellerSku, sku.seller_sku, sku.ShopSku, sku.shop_sku, sellerSku),
+            sku_id: lazadaSkuText(sku.SkuId, sku.sku_id),
+            item_id: lazadaSkuText(product.item_id),
+            price: toMoney(sku.price),
+            special_price: toMoney(sku.special_price),
+            quantity: Number(sku.quantity ?? sku.available ?? 0) || 0
+          }
+        }
+      }
+      if (products.length < 50) break
+      offset += products.length
+    }
+    return null
+  }
+  core.findLazadaSkuReadback = findLazadaSkuReadback
+
+  async function writebackLazadaSpecialPrice(env, shopName, readback, proposedPrice) {
+    const sellerSku = lazadaSkuText(readback?.seller_sku)
+    if (!sellerSku) return { updated: 0, readback: null }
+    const price = lazadaPriceNumber(readback?.special_price || proposedPrice)
+    const result = await env.DB.prepare(`
+      UPDATE product_variations
+      SET discount_price = ?,
+          price = CASE WHEN ? > 0 THEN ? ELSE price END,
+          model_id = CASE WHEN ? != '' THEN ? ELSE model_id END,
+          platform_item_id = CASE WHEN ? != '' THEN ? ELSE platform_item_id END,
+          updated_at = datetime('now')
+      WHERE platform = 'lazada' AND shop = ? AND platform_sku = ?
+    `).bind(
+      price,
+      lazadaPriceNumber(readback?.price),
+      lazadaPriceNumber(readback?.price),
+      lazadaSkuText(readback?.sku_id),
+      lazadaSkuText(readback?.sku_id),
+      lazadaSkuText(readback?.item_id),
+      lazadaSkuText(readback?.item_id),
+      shopName,
+      sellerSku
+    ).run()
+    const row = await env.DB.prepare(`
+      SELECT platform_sku, platform_item_id, model_id, price, discount_price, updated_at
+      FROM product_variations
+      WHERE platform = 'lazada' AND shop = ? AND platform_sku = ?
+    `).bind(shopName, sellerSku).first().catch(() => null)
+    return { updated: Number(result?.meta?.changes || 0), readback: row }
+  }
+  core.writebackLazadaSpecialPrice = writebackLazadaSpecialPrice
+
+  async function executeLazadaPromoAction(env, options = {}) {
+    const shopName = cleanText(options.shop || options.user_name)
+    const action = cleanText(options.action || options.action_type || 'update_special_price')
+    const confirm = cleanText(options.confirm)
+    const payload = options.payload || {}
+    const sellerSku = lazadaSkuText(payload.seller_sku || payload.platform_sku || payload.sku)
+    const specialPrice = lazadaPriceNumber(payload.special_price || payload.price || payload.proposed_price)
+    const dryRun = options.dry_run === true || options.dry_run === 1 || cleanText(options.dry_run).toLowerCase() === 'true'
+    if (action !== 'update_special_price') throw new Error('Lệnh Lazada promotion không được hỗ trợ.')
+    if (!shopName || !sellerSku || specialPrice <= 0) throw new Error('Thiếu shop, SellerSku hoặc giá KM Lazada.')
+    const shops = await getApiShops(env, 'lazada', shopName, 1)
+    const shop = shops[0]
+    if (!shop) throw new Error('Không tìm thấy shop Lazada API trong Shop Core.')
+    const resolvedShop = shop.shop_name || shop.user_name || shopName
+    const beforeReadback = await findLazadaSkuReadback(env, shop, sellerSku)
+    const requestPayload = buildLazadaPriceQuantityPayload([{
+      seller_sku: sellerSku,
+      sku_id: lazadaSkuText(payload.sku_id || beforeReadback?.sku_id),
+      item_id: lazadaSkuText(payload.item_id || beforeReadback?.item_id),
+      price: lazadaPriceNumber(beforeReadback?.price),
+      sale_price: specialPrice,
+      special_price: specialPrice
+    }])
+    if (dryRun) {
+      return {
+        status: 'dry_run',
+        platform: 'lazada',
+        shop: resolvedShop,
+        endpoint: '/product/price_quantity/update',
+        seller_sku: sellerSku,
+        special_price: specialPrice,
+        request_payload: requestPayload,
+        before_readback: beforeReadback
+      }
+    }
+    if (confirm !== 'TOI_HIEU_DAY_LA_THAY_DOI_GIA_LAZADA') {
+      throw new Error('Thiếu xác nhận admin để ghi giá KM Lazada thật.')
+    }
+    if (String(env.LAZADA_PRICE_LIVE_WRITE_ENABLED || '').toLowerCase() !== 'true') {
+      throw new Error('LAZADA_PRICE_LIVE_WRITE_ENABLED chưa bật, chưa được ghi giá Lazada thật.')
+    }
+
+    const apiResponse = await postLazadaPriceQuantityForm(shop, requestPayload)
+    const readback = await findLazadaSkuReadback(env, shop, sellerSku)
+    const readbackPrice = lazadaPriceNumber(readback?.special_price)
+    const verified = Boolean(readback && Math.abs(readbackPrice - specialPrice) <= 0.01)
+    const coreWriteback = await writebackLazadaSpecialPrice(env, resolvedShop, readback || { seller_sku: sellerSku, special_price: specialPrice }, specialPrice)
+    await saveProductActionLog(env, {
+      platform: 'lazada',
+      shop: resolvedShop,
+      action_type: 'update_price',
+      action_scope: 'live_write',
+      action_status: verified ? 'success' : 'readback_mismatch',
+      request_payload: { action, payload: { seller_sku: sellerSku, special_price: specialPrice } },
+      preview_payload: { endpoint: '/product/price_quantity/update' },
+      response_payload: { api_response: apiResponse, readback, core_writeback: coreWriteback },
+      note: verified ? 'Ghi giá KM Lazada thành công và đã readback Core.' : 'Đã gọi Lazada nhưng readback chưa khớp giá KM.'
+    })
+    return {
+      status: verified ? 'success' : 'readback_mismatch',
+      platform: 'lazada',
+      shop: resolvedShop,
+      endpoint: '/product/price_quantity/update',
+      seller_sku: sellerSku,
+      proposed_special_price: specialPrice,
+      verified,
+      api_response: apiResponse,
+      readback,
+      core_writeback: coreWriteback
+    }
+  }
+  core.executeLazadaPromoAction = executeLazadaPromoAction
 }

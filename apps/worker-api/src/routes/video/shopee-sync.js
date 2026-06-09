@@ -19,6 +19,8 @@ export async function uploadShopeeVideoFromBuffer(env, shop, payload = {}) {
   const fileName = safeVideoFileName(payload.fileName || 'video.mp4')
   const fileSize = arrayBuffer.byteLength
   const durationSeconds = validateVideoUploadDuration(payload.durationSeconds)
+  const pollMaxRounds = Math.min(Math.max(numberValue(payload.pollMaxRounds || 8) || 8, 2), 8)
+  const maxExternalSubrequests = Math.min(Math.max(numberValue(payload.maxExternalSubrequests || 0) || 0, 0), 200)
   const initData = await callShopeePublicPost(app, SHOPEE_MEDIA_INIT_VIDEO_UPLOAD_PATH, {
     business: 3,
     scene: 1,
@@ -30,6 +32,11 @@ export async function uploadShopeeVideoFromBuffer(env, shop, payload = {}) {
   const videoUploadId = cleanVideoText(response.video_upload_id)
   const partSize = Math.max(1, numberValue(response.part_size))
   if (!videoUploadId || !partSize) throw new Error('Shopee không trả về video_upload_id hoặc part_size.')
+
+  const estimatedExternalSubrequests = 1 + Math.ceil(fileSize / partSize) + 1 + pollMaxRounds + 1 + 1 + 1
+  if (maxExternalSubrequests > 0 && estimatedExternalSubrequests > maxExternalSubrequests) {
+    throw new Error(`Video cần khoảng ${estimatedExternalSubrequests} lượt gọi API ngoài Worker (vượt ngưỡng ${maxExternalSubrequests}). Hãy giảm dung lượng video hoặc chuyển sang luồng đăng tay.`)
+  }
 
   const bytes = new Uint8Array(arrayBuffer)
   let partSeq = 0
@@ -48,13 +55,18 @@ export async function uploadShopeeVideoFromBuffer(env, shop, payload = {}) {
   await callShopeePublicPost(app, SHOPEE_MEDIA_COMPLETE_VIDEO_UPLOAD_PATH, {
     video_upload_id: videoUploadId
   })
-  const uploadResult = await pollVideoUploadResult(app, videoUploadId)
-  const coverData = await callShopeeVideoGet(env, shop, SHOPEE_VIDEO_COVER_LIST_PATH, { video_upload_id: videoUploadId })
-  const coverList = validVideoCoverImageUrlsForVideo(coverData?.response?.image_url_list, videoUploadId)
-  const coverImageUrl = videoCoverImageUrlForVideo(payload.coverImageUrl, videoUploadId) ||
-    coverList[0] ||
+  const uploadResult = await pollVideoUploadResult(app, videoUploadId, pollMaxRounds)
+  let coverList = []
+  let coverImageUrl = videoCoverImageUrlForVideo(payload.coverImageUrl, videoUploadId) ||
     videoCoverImageUrlForVideo(uploadResult?.video_info?.video_thumbnail_url, videoUploadId) ||
     validVideoCoverImageUrl(uploadResult?.video_info?.video_thumbnail_url)
+  if (!coverImageUrl) {
+    const coverData = await callShopeeVideoGet(env, shop, SHOPEE_VIDEO_COVER_LIST_PATH, { video_upload_id: videoUploadId })
+    coverList = validVideoCoverImageUrlsForVideo(coverData?.response?.image_url_list, videoUploadId)
+    coverImageUrl = coverList[0] ||
+      videoCoverImageUrlForVideo(uploadResult?.video_info?.video_thumbnail_url, videoUploadId) ||
+      validVideoCoverImageUrl(uploadResult?.video_info?.video_thumbnail_url)
+  }
   if (!coverImageUrl) throw new Error('Shopee chưa trả ảnh cover để đăng video.')
 
   const itemRows = Array.isArray(payload.itemRows) ? payload.itemRows : []
@@ -73,11 +85,15 @@ export async function uploadShopeeVideoFromBuffer(env, shop, payload = {}) {
     video_upload_id_list: [videoUploadId]
   })
   const postCheck = assertShopeeVideoWriteSucceeded(postResult, [videoUploadId], 'post_video')
-  await syncShopeeVideoDashboardShop(env, shop, {
-    period_type: 'Last7d',
-    end_date: defaultEndDate()
-  }).catch(() => null)
-  const detail = await syncShopeeVideoDetail(env, shop, { video_upload_id: videoUploadId }).catch(() => null)
+  const syncAfterPost = numberValue(payload.syncAfterPost ?? 1) !== 0
+  let detail = null
+  if (syncAfterPost) {
+    await syncShopeeVideoDashboardShop(env, shop, {
+      period_type: 'Last7d',
+      end_date: defaultEndDate()
+    }).catch(() => null)
+    detail = await syncShopeeVideoDetail(env, shop, { video_upload_id: videoUploadId }).catch(() => null)
+  }
 
   const result = {
     video_upload_id: videoUploadId,
@@ -104,7 +120,10 @@ export async function uploadShopeeVideoFromBuffer(env, shop, payload = {}) {
       duration_seconds: durationSeconds,
       caption: cleanVideoText(payload.caption),
       item_ids_json: itemRows,
-      scheduled_at: cleanVideoText(payload.scheduledAt)
+      scheduled_at: cleanVideoText(payload.scheduledAt),
+      sync_after_post: syncAfterPost ? 1 : 0,
+      poll_max_rounds: pollMaxRounds,
+      max_external_subrequests: maxExternalSubrequests || ''
     },
     result_payload: result,
     note: cleanVideoText(payload.note || 'Tải và đăng video mới lên Shopee Video')

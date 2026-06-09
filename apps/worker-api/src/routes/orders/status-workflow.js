@@ -239,6 +239,72 @@ export function orderNumber(value) {
   return Number.isFinite(number) ? number : 0
 }
 
+export function classifyDirtyOrderItemMarker(item = {}) {
+  const folded = [
+    item.sku,
+    item.variation_name,
+    item.product_name,
+    item.item_name
+  ].map(foldOrderStatusText).filter(Boolean).join(' ')
+
+  if (statusHas(folded, ['ma yeu cau tra hang'])) {
+    return {
+      dirty: true,
+      status: 'return_refund_marker',
+      reason: 'return_request_marker',
+      label: 'Có yêu cầu trả hàng/hoàn tiền'
+    }
+  }
+
+  if (statusHas(folded, ['thieu chi tiet san pham'])) {
+    return {
+      dirty: true,
+      status: 'item_missing',
+      reason: 'seller_center_detail_url_missing',
+      label: 'Thiếu chi tiết sản phẩm'
+    }
+  }
+
+  return { dirty: false, status: 'ok', reason: '', label: '' }
+}
+
+export function isDirtyOrderItemPlaceholder(item = {}) {
+  return classifyDirtyOrderItemMarker(item).dirty
+}
+
+export function summarizeOrderItemDataStatus(orderItems = []) {
+  const items = Array.isArray(orderItems) ? orderItems : []
+  const dirty = []
+  let realCount = 0
+  for (const item of items) {
+    const marker = classifyDirtyOrderItemMarker(item)
+    if (marker.dirty) {
+      dirty.push(marker)
+    } else {
+      realCount += 1
+    }
+  }
+
+  if (!dirty.length) {
+    return {
+      item_data_status: realCount > 0 ? 'ok' : 'item_missing',
+      item_missing_reason: realCount > 0 ? '' : 'item_detail_missing',
+      dirty_item_markers: []
+    }
+  }
+
+  const uniqueMarkers = [...new Map(dirty.map(marker => [marker.status, marker])).values()]
+  const hasMissing = uniqueMarkers.some(marker => marker.status === 'item_missing')
+  const hasReturnMarker = uniqueMarkers.some(marker => marker.status === 'return_refund_marker')
+
+  return {
+    item_data_status: realCount > 0 ? 'dirty_placeholder_filtered' : (hasMissing ? 'item_missing' : 'dirty_placeholder_only'),
+    item_missing_reason: hasMissing ? 'seller_center_detail_url_missing' : '',
+    return_refund_marker: hasReturnMarker ? 1 : 0,
+    dirty_item_markers: uniqueMarkers
+  }
+}
+
 export function orderItemIdentityKey(item = {}) {
   return [
     cleanOrderText(item.order_id),
@@ -304,7 +370,7 @@ export function dedupeIncomingItemsByOrder(rawItems = [], orders = []) {
 }
 
 export function normalizeDisplayItemsForOrder(order = {}, orderItems = []) {
-  const items = Array.isArray(orderItems) ? orderItems : []
+  const items = (Array.isArray(orderItems) ? orderItems : []).filter(item => !isDirtyOrderItemPlaceholder(item))
   if (items.length < 2) return items
 
   if (isLikelyDuplicateItemOvercount(order, items)) {
@@ -338,6 +404,8 @@ export function normalizeDisplayItemsForOrder(order = {}, orderItems = []) {
 export function compactOrderItemsByIdentity(items = []) {
   const grouped = new Map()
   for (const item of items || []) {
+    // Placeholder hoàn/trả hoặc thiếu item chỉ là trạng thái dữ liệu, không được ghi lại như sản phẩm thật.
+    if (isDirtyOrderItemPlaceholder(item)) continue
     const key = orderItemIdentityKey(item)
     const current = grouped.get(key)
     if (!current) {

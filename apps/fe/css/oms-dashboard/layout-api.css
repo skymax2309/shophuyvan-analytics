@@ -80,6 +80,36 @@
   .btn-sync.spinning svg { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  @media (min-width: 769px) and (max-width: 1024px) {
+    body { overflow-x: hidden; }
+    .topbar {
+      gap: 8px;
+      min-width: 0;
+      padding: 0 10px;
+    }
+    .topbar-left {
+      flex: 1 1 auto;
+      gap: 8px;
+      min-width: 0;
+    }
+    .top-nav-links {
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+      white-space: nowrap;
+    }
+    .top-nav-links::-webkit-scrollbar { display: none; }
+    .topbar-right {
+      flex: 0 1 auto;
+      gap: 6px !important;
+      max-width: 42vw;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .topbar-right::-webkit-scrollbar { display: none; }
+  }
+
   /* ── LAYOUT ── */
   .layout { display: flex; height: calc(100vh - 52px); }
 
@@ -91,6 +121,8 @@
     padding: 12px 8px;
     flex-shrink: 0;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
   }
   .sidebar-label {
     font-size: 10px;
@@ -132,9 +164,49 @@
   }
   .status-tab.active .badge { background: var(--accent); color: white; }
 
+  .sidebar-ops-settings {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid rgba(148, 163, 184, .18);
+    display: grid;
+    gap: 8px;
+  }
+
+  .sidebar-settings-btn {
+    width: 100%;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid rgba(59, 130, 246, .38);
+    border-radius: 8px;
+    background: rgba(59, 130, 246, .14);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .sidebar-settings-btn:hover {
+    border-color: rgba(59, 130, 246, .72);
+    background: rgba(59, 130, 246, .22);
+  }
+
+  .sidebar-pull-all-btn {
+    border-color: rgba(20, 184, 166, .42);
+    background: rgba(20, 184, 166, .14);
+  }
+
+  .sidebar-pull-all-btn:hover {
+    border-color: rgba(20, 184, 166, .78);
+    background: rgba(20, 184, 166, .22);
+  }
+
 
   /* ── MAIN ── */
-  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 
   /* ── TOOLBAR ── */
   .toolbar {

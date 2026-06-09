@@ -1,6 +1,8 @@
 /* NEO: OMS CSS tách theo layout, bảng đơn, thông báo, tem in và mobile để dễ bảo trì. */
-@import url('./layout-api.css?v=core-first-20260513a');
-@import url('./orders-table.css?v=core-first-20260513a');
+@import url('../theme/shophuyvan-design-tokens.css?v=ui-ds-20260525a');
+@import url('./layout-api.css?v=oms-ops-settings-20260522e');
+@import url('./orders-table.css?v=oms-hotfix-20260520c');
 @import url('./notifications-labels.css?v=core-first-20260513a');
 @import url('./label-printing.css?v=core-first-20260513a');
-@import url('./mobile.css?v=core-first-20260513a');
+@import url('./bot-settings.css?v=oms-ops-settings-20260522e');
+@import url('./mobile.css?v=oms-fetch-guard-20260519a');

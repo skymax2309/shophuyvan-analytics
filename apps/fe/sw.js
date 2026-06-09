@@ -1,5 +1,5 @@
 const API = 'https://huyvan-worker-api.nghiemchihuy.workers.dev'
-const CHAT_URL = '/pages/chat-marketplace.html'
+const CHAT_URL = '/pages/chat-cskh.html'
 const ORDER_URL = '/pages/oms-dashboard.html'
 const recentNoticeTags = new Map()
 
@@ -39,29 +39,20 @@ function notificationFromEvent(item) {
     type: event.type || event.data?.type || 'chat',
     url: event.url || event.data?.url || (event.type === 'order' ? ORDER_URL : CHAT_URL)
   }
+  const channel = event.channel_label || data.channel_label || event.channel || data.channel || ''
+  const sender = event.sender_name || data.sender_name || event.customer_name || data.customer_name || ''
+  const title = event.title || [channel, sender].filter(Boolean).join(' · ')
+  const body = event.body || event.message_text || data.message_text
   return {
-    title: event.title || (data.type === 'order' ? 'Cập nhật đơn hàng OMS' : 'Tin nhắn mới trên OMS'),
+    title: title || (data.type === 'order' ? 'Cập nhật đơn hàng OMS' : 'Tin nhắn mới trên Chat/CSKH'),
     options: {
-      body: event.body || (data.type === 'order' ? 'Có đơn hàng cần xử lý.' : 'Có tin nhắn mới cần tư vấn.'),
+      body: body || (data.type === 'order' ? 'Có đơn hàng cần xử lý.' : 'Bạn có tin nhắn mới từ khách hàng.'),
       tag: event.tag || `shv-${data.type || 'notice'}-${event.id || Date.now()}`,
       renotify: false,
       badge: '/icons/shophuyvan-icon.svg',
       icon: '/icons/shophuyvan-icon.svg',
       data
     }
-  }
-}
-
-async function latestOmsNotification() {
-  try {
-    const res = await fetch(`${API}/api/chat/notifications/latest`, {
-      cache: 'no-store'
-    })
-    const data = await res.json()
-    if (data?.event) return notificationFromEvent(data.event)
-    return null
-  } catch {
-    return null
   }
 }
 
@@ -72,7 +63,6 @@ self.addEventListener('push', event => {
       const payload = event.data?.json?.()
       if (payload?.title || payload?.body || payload?.type) notice = notificationFromEvent(payload)
     } catch {}
-    if (!notice) notice = await latestOmsNotification()
     if (!notice || shouldSkipRecentNotice(notice)) return
 
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })

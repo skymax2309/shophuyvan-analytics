@@ -1,6 +1,5 @@
 import { getShopeeAppFromRow, signHmacHex } from '../../utils/shopee-apps.js'
 import { syncApiOrders, syncApiOrderStatuses, syncApiProducts, syncShopeeReturns, syncLazadaReverseOrders } from '../api/index.js'
-import { refreshOrderLabel } from '../labels/index.js'
 import { recordChatWebhook } from '../marketplace-chat/index.js'
 import { recordShopWebhookDiagnostic } from '../../modules/api-sync/sync-diagnostics.js'
 import {
@@ -434,12 +433,12 @@ async function finishWebhookSyncJob(env, queueJob, status, result = {}, error = 
 
 async function refreshLabelQuietly(env, cors, orderId) {
   if (!orderId) return null
-  try {
-    const request = new Request(`https://worker.local/api/label/${encodeURIComponent(orderId)}/refresh`, { method: 'POST' })
-    const response = await refreshOrderLabel(request, env, cors, orderId)
-    return await response.json().catch(() => ({ status: response.status }))
-  } catch (error) {
-    return { error: error.message }
+  // Webhook logistics chỉ được ghi nhận và kéo lại trạng thái đơn; chưa tự tải tem để tránh gọi helper/API ghi ngoài capability guard.
+  return {
+    status: 'skipped',
+    order_id: orderId,
+    auto_refresh_disabled: true,
+    reason: 'Webhook label push không tự tải tem. Dùng POST /api/label/:orderId/refresh ở chế độ thủ công/read-only khi capability cho phép.'
   }
 }
 

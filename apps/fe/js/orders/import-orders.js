@@ -7,7 +7,7 @@ import {
   parseFileMeta
 } from '../parser/index.js'
 
-const API = 'https://huyvan-worker-api.nghiemchihuy.workers.dev'
+const API = window.SHV_API || 'https://huyvan-worker-api.nghiemchihuy.workers.dev'
 const btn = document.getElementById('btnImport')
 const fileInput = document.getElementById('file')
 const log = document.getElementById('log')

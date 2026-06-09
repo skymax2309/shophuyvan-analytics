@@ -14,6 +14,10 @@ window.showTab = function(name) {
     window.location.href = 'ads.html'
     return
   }
+  if (name === "promotion") {
+    window.location.href = 'promotions.html'
+    return
+  }
   document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"))
   const targetTab = document.getElementById("tab-" + name);
   if (targetTab) targetTab.classList.add("active");
@@ -56,15 +60,43 @@ window.showTab = function(name) {
 // ── EXPORT ───────────────────────────────────────────────────────────
 async function exportData() {
   const qs     = getFilterParams()
-  const orders = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
+  const result = await fetch(API + "/api/export-orders" + qs).then(r => r.json())
+  const orders = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : [])
+  const csvCell = value => `"${String(value ?? "").replace(/"/g, "\"\"")}"`
   const rows   = [
-    ["Ngày","Sàn","Shop","Mã đơn","SKU","Tên SP","SL","Doanh thu","Vốn thực","Phí","Lãi thực","Loại đơn"],
+    [
+      "Ngày","Sàn","Shop","Mã đơn","SKU","Tên SP","SL",
+      "Giá niêm yết","Giảm giá của shop","Tổng doanh thu báo cáo","Tiền sản phẩm sau KM shop","Phí vận chuyển người mua trả","Người mua thanh toán","Sàn tài trợ / Voucher sàn",
+      "Phí sàn","Thuế / Khấu trừ","Phí ngoài sàn / Ads","Tổng khấu trừ",
+      "Giá vốn","Thực nhận ví / Settlement","Profit basis","Lãi tạm tính / Lãi thực","Trạng thái lãi","Basis %","Loại đơn","Nguồn Finance","Độ tin cậy","Cập nhật nguồn"
+    ],
     ...orders.map(o => [
       o.order_date, o.platform, o.shop, o.order_id, o.sku, o.product_name,
-      o.qty, o.revenue, o.cost_real, o.fee, o.profit_real, o.order_type
+      o.qty,
+      o.original_price ?? o.raw_revenue ?? o.revenue,
+      o.shop_discount ?? 0,
+      o.gross_revenue ?? o.revenue,
+      o.product_revenue_after_shop_discount ?? 0,
+      o.buyer_shipping_paid ?? 0,
+      o.buyer_paid ?? o.revenue,
+      o.platform_voucher ?? 0,
+      o.marketplace_fee_total ?? o.fee_platform ?? 0,
+      o.tax_deduction ?? 0,
+      o.ops_ads_fee ?? o.fee_ads ?? 0,
+      o.deduction_total ?? o.fee,
+      o.cost_real,
+      o.actual_income_available === false || o.actual_income_available === 0 ? "" : (o.actual_income_settlement || o.actual_income),
+      o.profit_basis || o.actual_income,
+      o.profit_real,
+      o.profit_status || (o.finance_confidence === "estimated" ? "estimated" : "actual_income_confirmed"),
+      o.percent_basis_label || "Người mua thanh toán",
+      o.order_type,
+      o.finance_source,
+      o.finance_confidence,
+      o.source_updated_at || ""
     ])
   ]
-  const csv  = rows.map(r => r.join(",")).join("\n")
+  const csv  = rows.map(r => r.map(csvCell).join(",")).join("\n")
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
   const a    = document.createElement("a")
   a.href     = URL.createObjectURL(blob)
@@ -125,11 +157,15 @@ window.init = async function() {
   const initialTab = (window.location.hash || '').replace('#', '').trim();
   // Giữ tương thích link cũ bằng cách chuyển sang các trang đã tách riêng.
   if (initialTab === 'chat') {
-    window.location.href = 'chat-marketplace.html'
+    window.location.href = 'chat-cskh.html'
     return
   }
   if (initialTab === 'ads') {
     window.location.href = 'ads.html'
+    return
+  }
+  if (initialTab === 'promotion') {
+    window.location.href = 'promotions.html'
     return
   }
   if (initialTab && document.getElementById("tab-" + initialTab)) {

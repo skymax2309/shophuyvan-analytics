@@ -1,6 +1,6 @@
 const ZALO_TOOL_URL_KEY = 'shv_zalo_tool_url'
-const ZALO_DEFAULT_URL = 'http://127.0.0.1:8792'
-const ZALO_CANDIDATE_URLS = ['http://127.0.0.1:8792', 'http://127.0.0.1:8787']
+const ZALO_DEFAULT_URL = 'http://127.0.0.1:8794'
+const ZALO_CANDIDATE_URLS = ['http://127.0.0.1:8794', 'http://127.0.0.1:8795', 'http://127.0.0.1:8796']
 
 function zaloEl(id) {
   return document.getElementById(id)

@@ -352,12 +352,18 @@ export function resolveKnownLegacyCost(productLookup, candidates) {
 }
 
 export function skuLookupKeys(item) {
-  return [
+  const baseKeys = [
     item?.sku,
     item?.clean_variation,
     item?.variation_name,
     item?.product_name
   ].map(v => lookupKey(v)).filter(Boolean)
+  const platform = lookupKey(item?.platform)
+  const shop = lookupKey(item?.shop || item?.shop_id || item?.shop_name)
+  const scopedKeys = platform && shop
+    ? baseKeys.map(key => `${platform}|${shop}|${key}`)
+    : []
+  return [...scopedKeys, ...baseKeys]
 }
 
 export function resolveItemProduct(productLookup, item, varMap = {}, aliasMap = {}) {
@@ -384,11 +390,16 @@ export function resolveItemProduct(productLookup, item, varMap = {}, aliasMap = 
 }
 
 export async function loadSkuResolutionMaps(env) {
-  const varRows = await env.DB.prepare(`SELECT platform_sku, internal_sku, mapped_items, image_url, variation_name FROM product_variations WHERE map_status='MAPPED'`).all()
+  const varRows = await env.DB.prepare(`SELECT platform, shop, platform_sku, internal_sku, mapped_items, image_url, variation_name, product_name FROM product_variations WHERE map_status='MAPPED'`).all()
   const varMap = {}
   for (const v of varRows.results || []) {
-    if (v.platform_sku) varMap[lookupKey(v.platform_sku)] = v
-    if (v.variation_name) varMap[lookupKey(v.variation_name)] = v
+    const platform = lookupKey(v.platform)
+    const shop = lookupKey(v.shop)
+    const keys = [v.platform_sku, v.variation_name, v.product_name].map(value => lookupKey(value)).filter(Boolean)
+    for (const key of keys) {
+      if (platform && shop) varMap[`${platform}|${shop}|${key}`] = v
+      if (!varMap[key]) varMap[key] = v
+    }
   }
 
   const aliasRows = await env.DB.prepare(`SELECT platform_sku, internal_sku FROM sku_alias`).all()

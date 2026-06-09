@@ -15,6 +15,36 @@ const VIDEO_DUPLICATE_MEDIUM_SCORE = 45
 const SHOPEE_CREATOR_CENTER_VIDEO_UPLOAD_URL = 'https://banhang.shopee.vn/creator-center/video-upload/upload'
 const VIDEO_LOCAL_HELPER_URL = 'http://127.0.0.1:8765'
 
+const VIDEO_MOJIBAKE_PATTERN = /(?:Ã[\u0080-\u00BF]|Â[\u0080-\u00BF]|Ä[\u0080-\u00BF]|Æ[\u0080-\u00BF]|Ð[\u0080-\u00BF]|Ñ[\u0080-\u00BF]|Ø[\u0080-\u00BF]|â€[\u0080-\u00BF]|ï¿½|�)/
+
+function looksLikeMojibake(text) {
+  return VIDEO_MOJIBAKE_PATTERN.test(String(text ?? ''))
+}
+
+function normalizeMojibakeText(value) {
+  const rawText = String(value ?? '')
+  if (!rawText || !looksLikeMojibake(rawText)) return rawText
+  let normalized = rawText
+  for (let pass = 0; pass < 2; pass += 1) {
+    if (!looksLikeMojibake(normalized)) break
+    try {
+      const bytes = Uint8Array.from([...normalized].map(char => char.charCodeAt(0) & 0xff))
+      const decoded = new TextDecoder('utf-8').decode(bytes).trim()
+      if (!decoded || decoded === normalized) break
+      if (decoded.includes('�') && !normalized.includes('�')) break
+      normalized = decoded
+    } catch {
+      break
+    }
+  }
+  return normalized
+}
+
+// Chuẩn hóa dữ liệu văn bản để UI không bị dính giá trị rỗng giả như null/undefined.
+function cleanText(value) {
+  return normalizeMojibakeText(value).trim()
+}
+
 const state = {
   activeTab: 'center',
   activeSubtab: cleanText(initialVideoParams.get('view') || 'library'),
@@ -71,11 +101,6 @@ const state = {
   editSearchTimer: null,
   uploadSearchTimer: null,
   scheduleSearchTimer: null
-}
-
-// Chuẩn hóa dữ liệu văn bản để UI không bị dính giá trị rỗng giả như null/undefined.
-function cleanText(value) {
-  return String(value ?? '').trim()
 }
 
 const PACKING_SCAN_FIELD_HINTS = new Set([

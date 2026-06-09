@@ -10,6 +10,7 @@ export function createLabelVaultRenderers(ctx) {
     platformLabel,
     statusLabel,
     labelRefreshMode,
+    canDownloadLabel,
     rowsForStatus,
     selectedCountText,
     templateRows,
@@ -61,8 +62,7 @@ export function createLabelVaultRenderers(ctx) {
         <button type="button" class="btn btn-ghost" data-label-select-errors>Chọn tem lỗi</button>
         <button type="button" class="btn btn-ghost" data-label-clear-selected>Bỏ chọn</button>
         <button type="button" class="btn btn-primary" data-label-open-selected>In lại tem đã chọn</button>
-        <button type="button" class="btn btn-ghost" data-label-refresh-selected>Tải lại từ sàn</button>
-        <button type="button" class="btn btn-ghost" data-label-refresh-errors-page>Tải lại tem lỗi trang này</button>
+        <button type="button" class="btn btn-ghost" data-label-refresh-selected>Tải 1 tem read-only</button>
         <button type="button" class="btn btn-ghost" data-label-tab="template">Tùy chỉnh mẫu</button>
         <span class="label-vault-selected">${selectedCountText()}</span>
         <a href="#" data-label-status-tab="${status === 'error' ? 'all' : 'error'}">${status === 'error' ? 'Xem tất cả tem' : 'Xem tem lỗi'}</a>
@@ -112,6 +112,7 @@ export function createLabelVaultRenderers(ctx) {
         ${rows.map(row => {
           const status = statusLabel(row);
           const refreshMode = labelRefreshMode(row);
+          const canRefresh = canDownloadLabel(row);
           const checked = labelVaultState.selected.has(row.order_id) ? 'checked' : '';
           const rowTone = status.cls === 'danger' ? ' error' : status.cls === 'success' ? ' ok' : '';
           return `
@@ -133,7 +134,7 @@ export function createLabelVaultRenderers(ctx) {
               </div>
               <div class="label-vault-row-actions">
                 <button type="button" data-label-open="${escapeHtml(row.order_id)}">Mở/In lại</button>
-                <button type="button" data-label-refresh="${escapeHtml(row.order_id)}">Tải lại</button>
+                ${canRefresh ? `<button type="button" data-label-refresh="${escapeHtml(row.order_id)}">Tải read-only</button>` : ''}
               </div>
             </div>`;
         }).join('')}
@@ -157,19 +158,20 @@ export function createLabelVaultRenderers(ctx) {
       ${renderSummaryCards(labelVaultState.summary)}
       <div class="label-vault-action-grid">
         <section>
-          <h3>Tải lại / in lại theo mã đơn</h3>
-          <p>Nhập nhiều mã đơn cách nhau bằng xuống dòng, dấu phẩy hoặc dấu chấm phẩy.</p>
+          <h3>Tải / in theo mã đơn</h3>
+          <p>Nhập một mã đơn khi cần tải tem read-only. In lại có thể chọn nhiều tem đã lưu.</p>
           <textarea id="labelManualOrders" rows="8" placeholder="260508U1BFPM1V&#10;260508U10NH7G2"></textarea>
           <div class="label-vault-row-actions">
             <button type="button" class="btn btn-primary" data-label-manual-print>Mở/In lại</button>
-            <button type="button" class="btn btn-ghost" data-label-manual-refresh>Tải lại từ sàn/helper</button>
+            <button type="button" class="btn btn-ghost" data-label-manual-refresh>Tải 1 tem read-only</button>
           </div>
         </section>
         <section>
           <h3>Quy trình vận hành</h3>
           <ul>
-            <li>Shop có API: bấm tải lại để OMS gọi endpoint tem chính thức rồi lưu vào R2.</li>
-            <li>Shop chưa API: OMS tạo job <code>refresh_label</code>, Radar/local helper mở đúng Chrome shop để tải lại tem, không tự đổi trạng thái đơn.</li>
+            <li>Shop có capability read-only: OMS chỉ gọi route chuẩn <code>/api/label/:orderId/refresh</code> cho một đơn.</li>
+            <li>Shopee chỉ tải document đã sẵn sàng, không gọi tạo vận đơn, xác nhận đơn hoặc sắp xếp vận chuyển.</li>
+            <li>Shop chưa API, TikTok hoặc helper chưa xác minh: cần làm thủ công, chưa tạo job tải tem tự động.</li>
             <li>Tem lỗi cần xử lý trước khi đóng gói lại hoặc gửi khiếu nại có bằng chứng.</li>
           </ul>
         </section>

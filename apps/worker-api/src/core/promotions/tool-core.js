@@ -56,7 +56,7 @@ const PROMOTION_ENDPOINT_COVERAGE = [
     platform: 'shopee',
     module: 'Discount',
     read_endpoints: ['/api/v2/discount/get_discount_list', '/api/v2/discount/get_discount'],
-    write_endpoints: ['/api/v2/discount/add_discount', '/api/v2/discount/update_discount', '/api/v2/discount/update_discount_item', '/api/v2/discount/end_discount'],
+    write_endpoints: ['/api/v2/discount/add_discount', '/api/v2/discount/update_discount', '/api/v2/discount/update_discount_item', '/api/v2/discount/delete_discount', '/api/v2/discount/delete_discount_item', '/api/v2/discount/end_discount'],
     core_status: 'đã xong',
     safe_status: 'write_live_guarded',
     note: 'Đã có sync read-only và đã mở update_discount_item với quyền admin, hộp xác nhận OK, log và guard dòng gộp phân loại.'
@@ -74,7 +74,7 @@ const PROMOTION_ENDPOINT_COVERAGE = [
     platform: 'shopee',
     module: 'Bundle Deal',
     read_endpoints: ['/api/v2/bundle_deal/get_bundle_deal_list', '/api/v2/bundle_deal/get_bundle_deal', '/api/v2/bundle_deal/get_bundle_deal_item'],
-    write_endpoints: ['/api/v2/bundle_deal/add_bundle_deal', '/api/v2/bundle_deal/update_bundle_deal', '/api/v2/bundle_deal/end_bundle_deal'],
+    write_endpoints: ['/api/v2/bundle_deal/add_bundle_deal', '/api/v2/bundle_deal/update_bundle_deal', '/api/v2/bundle_deal/delete_bundle_deal', '/api/v2/bundle_deal/end_bundle_deal', '/api/v2/bundle_deal/delete_bundle_deal_item'],
     core_status: 'chưa làm',
     safe_status: 'write_live_guarded',
     note: 'Đã có sync read-only và route preview/apply ghi thật cho tạo/sửa/xóa/kết thúc bundle.'
@@ -83,7 +83,7 @@ const PROMOTION_ENDPOINT_COVERAGE = [
     platform: 'shopee',
     module: 'Add-On Deal',
     read_endpoints: ['/api/v2/add_on_deal/get_add_on_deal_list', '/api/v2/add_on_deal/get_add_on_deal', '/api/v2/add_on_deal/get_add_on_deal_main_item', '/api/v2/add_on_deal/get_add_on_deal_sub_item'],
-    write_endpoints: ['/api/v2/add_on_deal/add_add_on_deal', '/api/v2/add_on_deal/update_add_on_deal', '/api/v2/add_on_deal/end_add_on_deal'],
+    write_endpoints: ['/api/v2/add_on_deal/add_add_on_deal', '/api/v2/add_on_deal/update_add_on_deal', '/api/v2/add_on_deal/delete_add_on_deal', '/api/v2/add_on_deal/end_add_on_deal', '/api/v2/add_on_deal/delete_add_on_deal_main_item', '/api/v2/add_on_deal/delete_add_on_deal_sub_item'],
     core_status: 'chưa làm',
     safe_status: 'write_live_guarded',
     note: 'Đã có sync read-only và route preview/apply ghi thật; main/sub item dùng action riêng theo endpoint Shopee.'
@@ -92,7 +92,7 @@ const PROMOTION_ENDPOINT_COVERAGE = [
     platform: 'shopee',
     module: 'ShopFlashSale',
     read_endpoints: ['/api/v2/shop_flash_sale/get_shop_flash_sale_list', '/api/v2/shop_flash_sale/get_shop_flash_sale', '/api/v2/shop_flash_sale/get_shop_flash_sale_items'],
-    write_endpoints: ['/api/v2/shop_flash_sale/create_shop_flash_sale', '/api/v2/shop_flash_sale/update_shop_flash_sale', '/api/v2/shop_flash_sale/delete_shop_flash_sale'],
+    write_endpoints: ['/api/v2/shop_flash_sale/create_shop_flash_sale', '/api/v2/shop_flash_sale/update_shop_flash_sale', '/api/v2/shop_flash_sale/delete_shop_flash_sale', '/api/v2/shop_flash_sale/delete_shop_flash_sale_items'],
     core_status: 'chưa làm',
     safe_status: 'write_live_guarded',
     note: 'Đã mở preview/apply tạo/sửa/xóa Flash Sale theo giờ qua Shopee API, có xác nhận admin và log payload.'
@@ -101,7 +101,7 @@ const PROMOTION_ENDPOINT_COVERAGE = [
     platform: 'lazada',
     module: 'Seller Voucher API',
     read_endpoints: ['/promotion/vouchers/get', '/promotion/voucher/get', '/promotion/voucher/products/get'],
-    write_endpoints: ['/promotion/voucher/create', '/promotion/voucher/update', '/promotion/voucher/activate', '/promotion/voucher/deactivate'],
+    write_endpoints: ['/promotion/voucher/create', '/promotion/voucher/update', '/promotion/voucher/activate', '/promotion/voucher/deactivate', '/promotion/voucher/product/sku/remove'],
     core_status: 'chưa làm',
     safe_status: 'locked',
     note: 'Đã có docs LazOP; chưa nối read-only sync vào D1.'
@@ -110,7 +110,7 @@ const PROMOTION_ENDPOINT_COVERAGE = [
     platform: 'lazada',
     module: 'Free Shipping API',
     read_endpoints: ['/promotion/freeshippings/get', '/promotion/freeshipping/get', '/promotion/freeshipping/products/get', '/promotion/freeshipping/regions/get'],
-    write_endpoints: ['/promotion/freeshipping/create', '/promotion/freeshipping/update', '/promotion/freeshipping/activate', '/promotion/freeshipping/deactivate'],
+    write_endpoints: ['/promotion/freeshipping/create', '/promotion/freeshipping/update', '/promotion/freeshipping/activate', '/promotion/freeshipping/deactivate', '/promotion/freeshipping/product/sku/remove'],
     core_status: 'chưa làm',
     safe_status: 'locked',
     note: 'Cần preview vùng, delivery option và ngân sách trước khi apply.'
@@ -119,7 +119,7 @@ const PROMOTION_ENDPOINT_COVERAGE = [
     platform: 'lazada',
     module: 'Flexicombo API',
     read_endpoints: ['/promotion/flexicombo/list', '/promotion/flexicombo/details', '/promotion/flexicombo/products/list'],
-    write_endpoints: ['/promotion/flexicombo/create', '/promotion/flexicombo/update', '/promotion/flexicombo/activate', '/promotion/flexicombo/deactivate'],
+    write_endpoints: ['/promotion/flexicombo/create', '/promotion/flexicombo/update', '/promotion/flexicombo/activate', '/promotion/flexicombo/deactivate', '/promotion/flexicombo/products/delete'],
     core_status: 'chưa làm',
     safe_status: 'locked',
     note: 'Cần map SKU Lazada và mô phỏng combo trước khi apply.'
@@ -450,8 +450,36 @@ async function loadPromotionKnowledgeSummary(env, options = {}) {
   }
 }
 
+async function loadPromotionActionLogs(env, options = {}) {
+  if (!await tableExists(env, 'marketplace_discount_actions')) return []
+  const shop = cleanText(options.shop)
+  const shopFilter = shop ? ' AND shop = ?' : ''
+  const limit = Math.min(Math.max(Number(options.limit || 20) || 20, 1), 80)
+  const rows = await safeAll(env, `
+    SELECT platform, shop, action, dry_run, sent_to_shopee, response, created_at
+    FROM marketplace_discount_actions
+    WHERE 1=1 ${shopFilter}
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+  `, shop ? [shop, limit] : [limit])
+  return rows.map(row => {
+    const response = parseJson(row.response, {})
+    const status = cleanText(response.status || (num(row.sent_to_shopee) ? 'sent' : 'preview'))
+    return {
+      platform: cleanText(row.platform),
+      shop: cleanText(row.shop),
+      action: cleanText(row.action),
+      status,
+      dry_run: Boolean(num(row.dry_run)),
+      sent_to_platform: Boolean(num(row.sent_to_shopee)),
+      user_result: cleanText(response.message || (status === 'ok' ? 'Sàn đã xác nhận thao tác.' : 'Đã ghi nhận thao tác.')),
+      created_at: cleanText(row.created_at)
+    }
+  })
+}
+
 export async function loadPromotionToolCore(env, options = {}) {
-  const [capabilities, discountSummary, shopeeVoucherSummary, lazadaVoucherSummary, shopeeProgramSummary, lazadaProgramSummary, pushSummary, voucherFinance, adsOverlap, knowledgeSummary] = await Promise.all([
+  const [capabilities, discountSummary, shopeeVoucherSummary, lazadaVoucherSummary, shopeeProgramSummary, lazadaProgramSummary, pushSummary, voucherFinance, adsOverlap, knowledgeSummary, actionLogs] = await Promise.all([
     listMarketplaceShopCapabilities(env, { limit: 500 }).catch(() => []),
     loadDiscountSummary(env, options),
     loadVoucherSummary(env, { ...options, platform: 'shopee' }),
@@ -461,7 +489,8 @@ export async function loadPromotionToolCore(env, options = {}) {
     loadPromotionPushSummary(env, options),
     loadVoucherFinanceSummary(env, options),
     loadAdsOverlapSummary(env, options),
-    loadPromotionKnowledgeSummary(env, options)
+    loadPromotionKnowledgeSummary(env, options),
+    loadPromotionActionLogs(env, options)
   ])
   const endpointCoverage = promotionEndpointCoverage()
   const endpointSummary = endpointCoverage.reduce((acc, row) => {
@@ -511,6 +540,7 @@ export async function loadPromotionToolCore(env, options = {}) {
     endpoint_coverage: endpointCoverage,
     ads_overlap_rows: adsOverlap.sku_rows,
     promotion_knowledge_examples: knowledgeSummary.examples,
+    action_logs: actionLogs,
     shop_api: 'Shop có API: Shopee Discount/Voucher/Bundle/Add-On/Flash Sale đã có preview/apply ghi thật có quyền admin, xác nhận và log; Lazada promotion hiện đọc cache/read-only.',
     shop_no_api: 'Shop không có API: chỉ dùng dữ liệu tham chiếu từ đơn/report/import/browser có kiểm soát, không gắn nhãn tạo voucher hoặc combo bằng Open Platform.',
     safety: 'Core này đọc và tổng hợp; các lệnh Shopee ghi thật đi qua preview, quyền admin, xác nhận và log request/response.',

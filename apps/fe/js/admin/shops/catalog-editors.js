@@ -43,6 +43,116 @@ function syncCatalogDirectShopOptions() {
     );
 }
 
+function ensureCatalogBulkPriceControls() {
+    ensureCatalogTikTokPromotionControls();
+    if (document.getElementById('catalogBulkPromoPercent')) return;
+    const actions = document.querySelector('[onclick="loadCatalogPriceEditorRows()"]')?.closest('.ops-actions');
+    if (!actions) return;
+    if (!document.getElementById('catalogSyncPromoFromPlatformBtn')) {
+        actions.insertAdjacentHTML('beforeend', `
+          <button id="catalogSyncPromoFromPlatformBtn" type="button" class="soft" onclick="syncCatalogPromoPricesFromPlatform()">Đồng bộ giá KM từ sàn</button>
+        `);
+    }
+    actions.insertAdjacentHTML('beforebegin', `
+      <div class="ops-filter-grid catalog-bulk-price-tools">
+        <label class="ops-field">
+          <span>Chỉnh hàng loạt</span>
+          <input id="catalogBulkPromoPercent" type="number" step="0.5" placeholder="Ví dụ 5 hoặc -3">
+        </label>
+        <label class="ops-field">
+          <span>Tính theo</span>
+          <select id="catalogBulkPromoBase">
+            <option value="current">Giá KM mới đang nhập</option>
+            <option value="promo">Giá KM hiện tại</option>
+            <option value="original">Giá gốc</option>
+          </select>
+        </label>
+        <label class="ops-field">
+          <span>Thao tác</span>
+          <button type="button" class="primary" onclick="applyCatalogPromoPercentBulk()">Áp dụng % cho dòng đã chọn</button>
+        </label>
+      </div>
+    `);
+}
+
+function ensureCatalogTikTokPromotionControls() {
+    if (document.getElementById('catalogTikTokPromotionTools')) {
+        updateCatalogTikTokPromotionControls();
+        return;
+    }
+    const actions = document.querySelector('[onclick="loadCatalogPriceEditorRows()"]')?.closest('.ops-actions');
+    if (!actions) return;
+    actions.insertAdjacentHTML('beforebegin', `
+      <div id="catalogTikTokPromotionTools" class="ops-filter-grid catalog-tiktok-promo-tools" style="display:none">
+        <label class="ops-field catalog-tiktok-promo-url">
+          <span>Link chương trình TikTok</span>
+          <input id="catalogTikTokPromotionUrl" type="url" placeholder="Dán link discount/edit mới khi TikTok đổi chương trình">
+        </label>
+        <label class="ops-field">
+          <span>Cấu hình</span>
+          <button type="button" class="soft" onclick="saveCatalogTikTokPromotionUrl()">Lưu link TikTok</button>
+        </label>
+      </div>
+    `);
+    updateCatalogTikTokPromotionControls();
+}
+
+function getCatalogTikTokPromotionUrl() {
+    return String(document.getElementById('catalogTikTokPromotionUrl')?.value || '').trim();
+}
+
+function isValidTikTokPromotionUrl(url) {
+    return /^https:\/\/seller-vn\.tiktok\.com\/promotion\/marketing-tools\/discount\/edit\/\d+/.test(String(url || '').trim());
+}
+
+function updateCatalogTikTokPromotionControls() {
+    const wrap = document.getElementById('catalogTikTokPromotionTools');
+    if (!wrap) return;
+    const isTikTok = selectedCatalogPricePlatform() === 'tiktok';
+    wrap.style.display = isTikTok ? '' : 'none';
+    if (!isTikTok) return;
+    const settings = window.productCatalogSettings || {};
+    const urls = settings.tiktok_promotion_urls && typeof settings.tiktok_promotion_urls === 'object' ? settings.tiktok_promotion_urls : {};
+    const input = document.getElementById('catalogTikTokPromotionUrl');
+    const shop = selectedCatalogPriceShop() || '0909128999';
+    if (input && !input.value) input.value = urls[shop] || urls['0909128999'] || urls.default || '';
+}
+
+window.saveCatalogTikTokPromotionUrl = async function() {
+    const shop = selectedCatalogPriceShop() || '0909128999';
+    const url = getCatalogTikTokPromotionUrl();
+    if (!url) return notifyShopApi('Dán link chương trình TikTok trước khi lưu.', true);
+    if (!isValidTikTokPromotionUrl(url)) return notifyShopApi('Link TikTok phải là trang discount/edit của Seller Center.', true);
+    const current = window.productCatalogSettings || {};
+    const urls = current.tiktok_promotion_urls && typeof current.tiktok_promotion_urls === 'object'
+        ? { ...current.tiktok_promotion_urls }
+        : {};
+    urls[shop] = url;
+    try {
+        const res = await fetch(API + '/api/products/catalog-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tiktok_promotion_urls: urls })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) throw new Error(data.error || 'Không lưu được link TikTok');
+        applyCatalogSettingsToUi(data.settings || {});
+        notifyShopApi('Đã lưu link chương trình TikTok cho automation.');
+    } catch (error) {
+        notifyShopApi('Lỗi lưu link TikTok: ' + error.message, true);
+    }
+};
+
+function catalogPriceSelectedSet() {
+    if (!(window.catalogPriceSelectedSkus instanceof Set)) window.catalogPriceSelectedSkus = new Set();
+    return window.catalogPriceSelectedSkus;
+}
+
+function catalogPriceDraftMap() {
+    if (!window.catalogPriceDrafts || typeof window.catalogPriceDrafts !== 'object') window.catalogPriceDrafts = {};
+    return window.catalogPriceDrafts;
+}
+
 function selectedCatalogPricePlatform() {
     return document.getElementById('catalogPriceEditorPlatform')?.value || 'shopee';
 }
@@ -61,7 +171,7 @@ function selectedCatalogListingShop() {
 
 async function fetchVariationRowsForShop(platform, shop, includeOutOfStock = false) {
     if (!shop) return [];
-    const params = new URLSearchParams({ shop, t: String(Date.now()) });
+    const params = new URLSearchParams({ platform, shop, t: String(Date.now()) });
     if (includeOutOfStock) params.set('include_out_of_stock', '1');
     const res = await fetch(API + '/api/sync-variations?' + params.toString());
     const rows = await res.json().catch(() => []);
@@ -71,6 +181,7 @@ async function fetchVariationRowsForShop(platform, shop, includeOutOfStock = fal
 
 window.handleCatalogPriceEditorPlatformChange = function() {
     syncCatalogDirectShopOptions();
+    updateCatalogTikTokPromotionControls();
     const legacyPlatform = document.getElementById('catalogPreviewPlatform');
     if (legacyPlatform && ['shopee', 'lazada'].includes(selectedCatalogPricePlatform())) {
         legacyPlatform.value = selectedCatalogPricePlatform();
@@ -80,8 +191,10 @@ window.handleCatalogPriceEditorPlatformChange = function() {
 };
 
 window.loadCatalogPriceEditorRows = async function() {
+    ensureCatalogBulkPriceControls();
     const platform = selectedCatalogPricePlatform();
     const shop = selectedCatalogPriceShop();
+    updateCatalogTikTokPromotionControls();
     const summary = document.getElementById('catalogPriceEditorSummary');
     const list = document.getElementById('catalogPriceEditorList');
     if (!shop) {
@@ -94,6 +207,8 @@ window.loadCatalogPriceEditorRows = async function() {
         if (summary) summary.textContent = `Đang tải sản phẩm của ${shop}...`;
         const rows = await fetchVariationRowsForShop(platform, shop, false);
         window.catalogPriceEditorRows = rows;
+        window.catalogPriceSelectedSkus = new Set();
+        window.catalogPriceDrafts = {};
         renderCatalogPriceEditorRows();
     } catch (error) {
         window.catalogPriceEditorRows = [];
@@ -126,8 +241,28 @@ window.renderCatalogPriceEditorRows = function() {
         list.innerHTML = 'Không có sản phẩm phù hợp bộ lọc.';
         return;
     }
+    const uploadStatusMeta = (row = {}) => {
+        const status = String(row.promo_upload_status || '').toLowerCase();
+        const message = row.promo_upload_message || '';
+        if (status === 'uploaded') return { cls: 'ok', label: 'Đã up sàn', message };
+        if (status === 'out_of_stock') return { cls: 'warn', label: 'Hết hàng', message: message || 'Shopee báo hết hàng nên không nhận giá KM cho phân loại này.' };
+        if (status === 'failed') return { cls: 'error', label: 'Lỗi upload', message };
+        if (status === 'skipped') return { cls: 'muted', label: 'Bỏ qua', message };
+        return null;
+    };
     list.className = 'direct-table-wrap';
+    const selected = catalogPriceSelectedSet();
+    const drafts = catalogPriceDraftMap();
+    const filteredSkus = rows.map(row => String(row.platform_sku || '')).filter(Boolean);
+    const allFilteredSelected = filteredSkus.length > 0 && filteredSkus.every(sku => selected.has(sku));
     list.innerHTML = `
+        <div class="catalog-price-select-bar">
+          <label>
+            <input id="catalogPriceSelectAllVisible" type="checkbox" ${allFilteredSelected ? 'checked' : ''} onchange="toggleCatalogPriceFilteredSelection(this.checked)">
+            Chọn tất cả ${escapeHtml(formatCatalogNumber(rows.length))} SKU đang lọc
+          </label>
+          <span>Đã chọn ${escapeHtml(formatCatalogNumber(selected.size))} SKU. Bulk áp dụng cho toàn bộ SKU đã chọn, không chỉ 120 dòng đang hiện.</span>
+        </div>
         <table class="direct-table">
           <thead>
             <tr>
@@ -145,9 +280,11 @@ window.renderCatalogPriceEditorRows = function() {
                 const sku = row.platform_sku || '';
                 const currentPromo = Number(row.discount_price || 0);
                 const displayPrice = currentPromo || Number(row.price || 0);
+                const inputValue = Object.prototype.hasOwnProperty.call(drafts, sku) ? drafts[sku] : displayPrice;
+                const uploadStatus = uploadStatusMeta(row);
                 return `
                   <tr>
-                    <td data-label="Chọn"><input class="catalog-price-row-check" type="checkbox" data-sku="${escapeHtml(sku)}"></td>
+                    <td data-label="Chọn"><input class="catalog-price-row-check" type="checkbox" data-sku="${escapeHtml(sku)}" ${selected.has(sku) ? 'checked' : ''} onchange="toggleCatalogPriceRowSelection(this)"></td>
                     <td data-label="Sản phẩm">
                       <div class="direct-product-cell">
                         ${row.image_url ? `<img src="${escapeHtml(row.image_url)}" alt="">` : '<img alt="">'}
@@ -159,9 +296,12 @@ window.renderCatalogPriceEditorRows = function() {
                     </td>
                     <td data-label="SKU sàn"><strong>${escapeHtml(sku || 'Chưa có')}</strong><div class="direct-product-sub">Item ${escapeHtml(row.platform_item_id || '')}</div></td>
                     <td data-label="Giá gốc">${escapeHtml(formatVnd(row.price))}</td>
-                    <td data-label="Giá KM hiện tại">${escapeHtml(currentPromo ? formatVnd(currentPromo) : 'Chưa có')}</td>
+                    <td data-label="Giá KM hiện tại">
+                      <div>${escapeHtml(currentPromo ? formatVnd(currentPromo) : 'Chưa có')}</div>
+                      ${uploadStatus ? `<div class="catalog-upload-status ${escapeHtml(uploadStatus.cls)}" title="${escapeHtml(uploadStatus.message || '')}">${escapeHtml(uploadStatus.label)}</div>` : ''}
+                    </td>
                     <td data-label="Giá KM mới">
-                      <input class="direct-price-input catalog-price-input" type="number" min="0" step="1000" value="${escapeHtml(displayPrice)}" data-sku="${escapeHtml(sku)}" oninput="markCatalogPriceEditorChange(this)">
+                      <input class="direct-price-input catalog-price-input" type="number" min="0" step="1000" value="${escapeHtml(inputValue)}" data-sku="${escapeHtml(sku)}" oninput="markCatalogPriceEditorChange(this)">
                     </td>
                     <td data-label="Tồn">${escapeHtml(formatCatalogNumber(row.stock))}</td>
                   </tr>
@@ -173,14 +313,49 @@ window.renderCatalogPriceEditorRows = function() {
     `;
 };
 
+window.toggleCatalogPriceRowSelection = function(input) {
+    const sku = input?.dataset?.sku || '';
+    if (!sku) return;
+    const selected = catalogPriceSelectedSet();
+    if (input.checked) selected.add(sku);
+    else selected.delete(sku);
+};
+
+window.toggleCatalogPriceFilteredSelection = function(checked) {
+    const search = String(document.getElementById('catalogPriceEditorSearch')?.value || '').trim().toLowerCase();
+    const selected = catalogPriceSelectedSet();
+    for (const row of window.catalogPriceEditorRows || []) {
+        const haystack = [
+            row.product_name,
+            row.variation_name,
+            row.platform_sku,
+            row.platform_item_id,
+            row.internal_sku
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (search && !haystack.includes(search)) continue;
+        const sku = String(row.platform_sku || '');
+        if (!sku) continue;
+        if (checked) selected.add(sku);
+        else selected.delete(sku);
+    }
+    renderCatalogPriceEditorRows();
+};
+
 window.markCatalogPriceEditorChange = function(input) {
     input.classList.add('changed');
+    const sku = input.dataset.sku || '';
+    if (sku) {
+        catalogPriceDraftMap()[sku] = catalogPreviewNumber(input.value);
+        catalogPriceSelectedSet().add(sku);
+    }
     const row = input.closest('tr');
     const check = row?.querySelector('.catalog-price-row-check');
     if (check) check.checked = true;
 };
 
 function collectCatalogPriceEditorItems({ changedOnly = false } = {}) {
+    const drafts = catalogPriceDraftMap();
+    const selected = catalogPriceSelectedSet();
     const inputs = [...document.querySelectorAll('.catalog-price-input')];
     const items = [];
     for (const input of inputs) {
@@ -191,8 +366,42 @@ function collectCatalogPriceEditorItems({ changedOnly = false } = {}) {
         const price = catalogPreviewNumber(input.value);
         if (sku && price > 0) items.push({ sku, price });
     }
+    for (const sku of selected) {
+        if (items.some(item => item.sku === sku)) continue;
+        if (changedOnly && !Object.prototype.hasOwnProperty.call(drafts, sku)) continue;
+        const sourceRow = (window.catalogPriceEditorRows || []).find(item => String(item.platform_sku || '') === sku) || {};
+        const fallback = Number(sourceRow.discount_price || sourceRow.price || 0);
+        const price = catalogPreviewNumber(Object.prototype.hasOwnProperty.call(drafts, sku) ? drafts[sku] : fallback);
+        if (sku && price > 0) items.push({ sku, price });
+    }
     return items;
 }
+
+window.applyCatalogPromoPercentBulk = function() {
+    const percent = Number(document.getElementById('catalogBulkPromoPercent')?.value || 0);
+    const baseMode = document.getElementById('catalogBulkPromoBase')?.value || 'current';
+    if (!Number.isFinite(percent) || percent === 0) return notifyShopApi('Nhập phần trăm cần tăng/giảm giá khuyến mãi.', true);
+    const selected = catalogPriceSelectedSet();
+    if (!selected.size) return notifyShopApi('Tick các SKU cần chỉnh giá hàng loạt trước.', true);
+    const drafts = catalogPriceDraftMap();
+    selected.forEach(sku => {
+        const sourceRow = (window.catalogPriceEditorRows || []).find(item => String(item.platform_sku || '') === sku) || {};
+        const visibleInput = document.querySelector(`.catalog-price-input[data-sku="${CSS.escape(sku)}"]`);
+        const current = catalogPreviewNumber(visibleInput?.value ?? drafts[sku] ?? sourceRow.discount_price ?? sourceRow.price);
+        const base = baseMode === 'original'
+            ? catalogPreviewNumber(sourceRow.price)
+            : (baseMode === 'promo' ? catalogPreviewNumber(sourceRow.discount_price || current) : current);
+        if (base <= 0) return;
+        const next = Math.max(0, Math.round((base * (1 + percent / 100)) / 1000) * 1000);
+        drafts[sku] = next;
+        if (visibleInput) {
+            visibleInput.value = String(next);
+            window.markCatalogPriceEditorChange(visibleInput);
+        }
+    });
+    renderCatalogPriceEditorRows();
+    notifyShopApi(`Đã áp dụng ${percent > 0 ? '+' : ''}${percent}% cho ${formatCatalogNumber(selected.size)} SKU đã chọn.`);
+};
 
 window.saveCatalogPromoPrices = async function() {
     const platform = selectedCatalogPricePlatform();
@@ -215,16 +424,88 @@ window.saveCatalogPromoPrices = async function() {
     }
 };
 
+function selectedCatalogPriceShopRow() {
+    const platform = selectedCatalogPricePlatform();
+    const shop = selectedCatalogPriceShop();
+    return directShopRows(platform, false).find(row => directShopValue(row) === shop) || null;
+}
+
+window.syncCatalogPromoPricesFromPlatform = async function() {
+    const platform = selectedCatalogPricePlatform();
+    const shop = selectedCatalogPriceShop();
+    const shopRow = selectedCatalogPriceShopRow();
+    if (!shop) return notifyShopApi('Chưa chọn shop để đồng bộ giá khuyến mãi.', true);
+    const isApiShop = String(shopRow?.capability_mode || '') === 'api_active';
+    try {
+        if (platform === 'shopee' && isApiShop) {
+            const res = await fetch(API + '/api/discounts/shopee/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ shop, discount_status: 'ongoing', include_detail: 1, shop_limit: 1 })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error || data.status === 'error') throw new Error(data.error || data.message || 'Không đồng bộ được Shopee Discount Core');
+            notifyShopApi(`Đã đồng bộ Shopee Discount Core cho ${shop}.`);
+            await loadCatalogPriceEditorRows();
+            return;
+        }
+        if (platform === 'lazada' && isApiShop) {
+            const res = await fetch(API + '/api/products/sync-api-products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform: 'lazada', shop, limit: 500, include_out_of_stock: 1 })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error || data.status === 'error') throw new Error(data.error || 'Không đồng bộ được sản phẩm Lazada API');
+            notifyShopApi(`Đã đồng bộ giá KM Lazada API: ${formatCatalogNumber(data.synced_variations || 0)} SKU.`);
+            await loadCatalogPriceEditorRows();
+            return;
+        }
+        const payload = {
+            platform,
+            shop,
+            action_type: 'tai_file',
+            source: 'Product Master Promotion Core',
+            requires_visible_browser: true,
+            promotion_url: platform === 'tiktok' ? getCatalogTikTokPromotionUrl() : ''
+        };
+        if (platform === 'tiktok') {
+            if (!payload.promotion_url) return notifyShopApi('Dán link chương trình TikTok trước khi tạo job đồng bộ.', true);
+            if (!isValidTikTokPromotionUrl(payload.promotion_url)) return notifyShopApi('Link TikTok phải là trang discount/edit của Seller Center.', true);
+        }
+        const res = await fetch(API + '/api/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: 'admin',
+                platform,
+                shop_name: shop,
+                task_type: 'promotion_prices',
+                payload: JSON.stringify(payload)
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error || data.status === 'error') throw new Error(data.error || 'Không tạo được job đồng bộ giá KM');
+        notifyShopApi(`Đã tạo job đồng bộ giá KM #${data.id || ''}. Runner phải mở Chrome visible bằng profile automation của shop.`);
+    } catch (error) {
+        notifyShopApi('Lỗi đồng bộ giá KM từ sàn: ' + error.message, true);
+    }
+};
+
 window.previewCatalogPriceEditorRows = function() {
     const platform = selectedCatalogPricePlatform();
     const shop = selectedCatalogPriceShop();
     const items = collectCatalogPriceEditorItems();
-    if (!['shopee', 'lazada'].includes(platform)) {
-        notifyShopApi('TikTok hiện chưa có Open Platform ghi giá trong luồng này. Có thể lưu giá tham chiếu trong OMS trước.', true);
-        return;
-    }
     if (!shop) return notifyShopApi('Chưa chọn shop để preview đẩy giá.', true);
     if (!items.length) return notifyShopApi('Hãy tick hoặc sửa ít nhất một dòng giá để preview.', true);
+    if (platform === 'tiktok') {
+        createTikTokPromotionUploadJob(items);
+        return;
+    }
+    if (!['shopee', 'lazada'].includes(platform)) {
+        notifyShopApi('Sàn này chưa có luồng ghi giá khuyến mãi.', true);
+        return;
+    }
     const legacyPlatform = document.getElementById('catalogPreviewPlatform');
     const legacyShop = document.getElementById('catalogPreviewShop');
     const legacyAction = document.getElementById('catalogPreviewActionType');
@@ -236,6 +517,42 @@ window.previewCatalogPriceEditorRows = function() {
     if (legacyItems) legacyItems.value = items.map(item => `${item.sku}|${item.price}`).join('\n');
     runCatalogWritePreview();
 };
+
+async function createTikTokPromotionUploadJob(items) {
+    const platform = selectedCatalogPricePlatform();
+    const shop = selectedCatalogPriceShop();
+    const promotionUrl = getCatalogTikTokPromotionUrl();
+    if (!promotionUrl) return notifyShopApi('Dán link chương trình TikTok trước khi tạo job upload.', true);
+    if (!isValidTikTokPromotionUrl(promotionUrl)) return notifyShopApi('Link TikTok phải là trang discount/edit của Seller Center.', true);
+    try {
+        await window.saveCatalogTikTokPromotionUrl();
+        const payload = {
+            platform,
+            shop,
+            action_type: 'up_gia',
+            source: 'Product Master Promotion Core',
+            promotion_url: promotionUrl,
+            items,
+            requires_visible_browser: true
+        };
+        const res = await fetch(API + '/api/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: 'admin',
+                platform,
+                shop_name: shop,
+                task_type: 'promotion_prices',
+                payload: JSON.stringify(payload)
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error || data.status === 'error') throw new Error(data.error || 'Không tạo được job upload TikTok');
+        notifyShopApi(`Đã tạo job upload giá KM TikTok #${data.id || ''}. Runner sẽ tải mẫu, điền file và up lại bằng Chrome visible.`);
+    } catch (error) {
+        notifyShopApi('Lỗi tạo job upload TikTok: ' + error.message, true);
+    }
+}
 
 window.handleCatalogListingEditorPlatformChange = function() {
     syncCatalogDirectShopOptions();

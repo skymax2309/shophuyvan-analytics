@@ -3,6 +3,90 @@ import { ensureProductCatalogTables, getProductCatalogOverview, getProductCatalo
 import { getExistingProductRow, hasManualStockDelta, previewMarketplaceListingAction, previewMarketplaceWriteAction, productStockNumber } from './marketplace-preview.js'
 import { createPublishContentVariants, createPublishDraft, listPublishDrafts, previewPublishDraft } from './publish-ai.js'
 
+async function addProductColumnIfMissing(env, definition) {
+  try {
+    await env.DB.prepare(`ALTER TABLE products ADD COLUMN ${definition}`).run()
+  } catch (error) {
+    const message = String(error?.message || '').toLowerCase()
+    if (!message.includes('duplicate column') && !message.includes('already exists')) throw error
+  }
+}
+
+async function addProductVariationColumnIfMissing(env, definition) {
+  try {
+    await env.DB.prepare(`ALTER TABLE product_variations ADD COLUMN ${definition}`).run()
+  } catch (error) {
+    const message = String(error?.message || '').toLowerCase()
+    if (!message.includes('duplicate column') && !message.includes('already exists')) throw error
+  }
+}
+
+async function ensureProductMappingGuardColumns(env) {
+  await addProductColumnIfMissing(env, "hidden_from_mapping INTEGER DEFAULT 0")
+  await addProductColumnIfMissing(env, "sku_type TEXT DEFAULT ''")
+  await addProductColumnIfMissing(env, "user_confirmed INTEGER DEFAULT 0")
+}
+
+async function ensurePromoUploadStatusColumns(env) {
+  await addProductVariationColumnIfMissing(env, "promo_upload_status TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_message TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_file TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_job_id TEXT DEFAULT ''")
+  await addProductVariationColumnIfMissing(env, "promo_upload_price REAL DEFAULT 0")
+  await addProductVariationColumnIfMissing(env, "promo_upload_at TEXT DEFAULT ''")
+}
+
+function productNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
+function parseComboItems(value) {
+  try {
+    const items = JSON.parse(value || '[]')
+    return Array.isArray(items) ? items : []
+  } catch {
+    return []
+  }
+}
+
+function applyComboProductReadModel(rows = []) {
+  const productMap = new Map(rows.map(row => [String(row.sku || ''), row]))
+  return rows.map(row => {
+    if (Number(row.is_combo || 0) !== 1) return row
+    const items = parseComboItems(row.combo_items)
+    if (!items.length) return row
+    let costInvoice = 0
+    let costReal = 0
+    let hasInvoiceSource = false
+    let hasRealSource = false
+    let missingComponents = 0
+    for (const item of items) {
+      const sku = String(item?.sku || '').trim()
+      const qty = Math.max(1, productNumber(item?.qty) || 1)
+      const component = productMap.get(sku)
+      if (!component) {
+        missingComponents += 1
+        continue
+      }
+      const componentInvoice = productNumber(component.cost_invoice)
+      const componentReal = productNumber(component.cost_real)
+      if (componentInvoice > 0) hasInvoiceSource = true
+      if (componentReal > 0) hasRealSource = true
+      costInvoice += componentInvoice * qty
+      costReal += componentReal * qty
+    }
+    return {
+      ...row,
+      // Combo phải được tính từ Product Core để mọi màn hình đọc cùng một read-model, không vá riêng trên UI.
+      cost_invoice: hasInvoiceSource ? costInvoice : row.cost_invoice,
+      cost_real: hasRealSource ? costReal : row.cost_real,
+      combo_price_source: hasInvoiceSource || hasRealSource ? 'product_core.combo_items' : 'missing',
+      combo_missing_components: missingComponents
+    }
+  })
+}
+
 export async function handleProducts(request, env, cors) {
   const url = new URL(request.url);
   await ensureProductCatalogTables(env)
@@ -89,16 +173,180 @@ export async function handleProducts(request, env, cors) {
         return Response.json({ success: false, error: "Dữ liệu không hợp lệ" }, { status: 400, headers: cors });
       }
       const statements = [];
+      const readbackKeys = [];
+      const readbackModels = [];
+      const readbackItems = [];
       for (const item of items) {
-        if (item.sku && item.price !== undefined) {
-          statements.push(
-            env.DB.prepare(`UPDATE product_variations SET discount_price = ? WHERE platform = ? AND shop = ? AND platform_sku = ?`)
-            .bind(item.price, platform, shop, item.sku)
-          );
+        const sku = item.sku || item.platform_sku;
+        const modelId = item.model_id || item.sku_id;
+        const platformItemId = item.platform_item_id || item.product_id || item.item_id;
+        const price = Number(item.price ?? item.discount_price ?? item.promotion_price ?? 0);
+        if (price > 0 && (sku || modelId || platformItemId)) {
+          if (sku) {
+            statements.push(
+              env.DB.prepare(`UPDATE product_variations SET discount_price = ?, updated_at = datetime('now') WHERE platform = ? AND shop = ? AND platform_sku = ?`)
+              .bind(price, platform, shop, sku)
+            );
+            readbackKeys.push(String(sku));
+          } else if (modelId) {
+            statements.push(
+              env.DB.prepare(`UPDATE product_variations SET discount_price = ?, updated_at = datetime('now') WHERE platform = ? AND shop = ? AND model_id = ?`)
+              .bind(price, platform, shop, modelId)
+            );
+            readbackModels.push(String(modelId));
+          } else {
+            statements.push(
+              env.DB.prepare(`UPDATE product_variations SET discount_price = ?, updated_at = datetime('now') WHERE platform = ? AND shop = ? AND platform_item_id = ?`)
+              .bind(price, platform, shop, platformItemId)
+            );
+            readbackItems.push(String(platformItemId));
+          }
         }
       }
-      if (statements.length > 0) await env.DB.batch(statements);
-      return Response.json({ success: true, updated: statements.length }, { headers: cors });
+      let changedRows = 0;
+      if (statements.length > 0) {
+        // D1 giới hạn số statement/biến trong một batch, nên chia nhỏ file Shopee lớn để không kẹt sync Core.
+        const batchSize = 20;
+        for (let index = 0; index < statements.length; index += batchSize) {
+          const batchResults = await env.DB.batch(statements.slice(index, index + batchSize));
+          changedRows += (batchResults || []).reduce((sum, result) => sum + Number(result?.meta?.changes || 0), 0);
+        }
+      }
+      let readback = [];
+      if (readbackKeys.length) {
+        const uniqueKeys = [...new Set(readbackKeys)].slice(0, 200);
+        for (let index = 0; index < uniqueKeys.length; index += 20) {
+          const group = uniqueKeys.slice(index, index + 20);
+          const placeholders = group.map(() => '?').join(',');
+          const { results } = await env.DB.prepare(`
+            SELECT platform_sku, discount_price, updated_at
+            FROM product_variations
+            WHERE platform = ? AND shop = ? AND platform_sku IN (${placeholders})
+          `).bind(platform, shop, ...group).all();
+          readback = readback.concat(results || []);
+        }
+      }
+      if (readbackModels.length) {
+        const uniqueModels = [...new Set(readbackModels)].slice(0, 200);
+        for (let index = 0; index < uniqueModels.length; index += 20) {
+          const group = uniqueModels.slice(index, index + 20);
+          const placeholders = group.map(() => '?').join(',');
+          const { results } = await env.DB.prepare(`
+            SELECT platform_sku, model_id, discount_price, updated_at
+            FROM product_variations
+            WHERE platform = ? AND shop = ? AND model_id IN (${placeholders})
+          `).bind(platform, shop, ...group).all();
+          readback = readback.concat(results || []);
+        }
+      }
+      if (readbackItems.length) {
+        const uniqueItems = [...new Set(readbackItems)].slice(0, 200);
+        for (let index = 0; index < uniqueItems.length; index += 20) {
+          const group = uniqueItems.slice(index, index + 20);
+          const placeholders = group.map(() => '?').join(',');
+          const { results } = await env.DB.prepare(`
+            SELECT platform_sku, platform_item_id, discount_price, updated_at
+            FROM product_variations
+            WHERE platform = ? AND shop = ? AND platform_item_id IN (${placeholders})
+          `).bind(platform, shop, ...group).all();
+          readback = readback.concat(results || []);
+        }
+      }
+      return Response.json({
+        success: true,
+        accepted: statements.length,
+        updated: changedRows,
+        core: 'Product/Warehouse Core',
+        readback_count: readback.length,
+        readback
+      }, { headers: cors });
+    } catch (error) {
+      return Response.json({ success: false, error: error.message }, { status: 500, headers: cors });
+    }
+  }
+
+  if (request.method === "POST" && url.pathname.endsWith('/promo-upload-results')) {
+    try {
+      await ensurePromoUploadStatusColumns(env)
+      const body = await request.json();
+      const platform = String(body.platform || 'shopee').trim().toLowerCase();
+      const shop = String(body.user_name || body.shop || '').trim();
+      const fileName = String(body.file_name || body.upload_file || '').trim();
+      const jobId = String(body.job_id || body.jobId || '').trim();
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (!platform || !shop || !items.length) {
+        return Response.json({ success: false, error: "Thiếu platform/shop/items" }, { status: 400, headers: cors });
+      }
+      if (body.clear_existing || body.reset_shop_status) {
+        await env.DB.prepare(`
+          UPDATE product_variations
+          SET promo_upload_status = '',
+              promo_upload_message = '',
+              promo_upload_file = '',
+              promo_upload_job_id = '',
+              promo_upload_price = 0,
+              promo_upload_at = ''
+          WHERE platform = ? AND shop = ?
+        `).bind(platform, shop).run()
+      }
+      const allowedStatuses = new Set(['uploaded', 'out_of_stock', 'failed', 'skipped'])
+      const statements = []
+      const counts = { uploaded: 0, out_of_stock: 0, failed: 0, skipped: 0 }
+      for (const item of items) {
+        const sku = String(item.sku || item.platform_sku || '').trim()
+        const modelId = String(item.model_id || item.sku_id || '').trim()
+        const platformItemId = String(item.platform_item_id || item.item_id || item.product_id || '').trim()
+        if (!sku && !modelId && !platformItemId) continue
+        const rawStatus = String(item.status || '').trim().toLowerCase()
+        const status = allowedStatuses.has(rawStatus) ? rawStatus : 'failed'
+        counts[status] = (counts[status] || 0) + 1
+        const matchParts = []
+        const matchParams = []
+        if (sku) {
+          matchParts.push('platform_sku = ?')
+          matchParams.push(sku)
+        }
+        if (modelId) {
+          matchParts.push('model_id = ?')
+          matchParams.push(modelId)
+        }
+        if (!matchParts.length && platformItemId) {
+          matchParts.push('platform_item_id = ?')
+          matchParams.push(platformItemId)
+        }
+        statements.push(env.DB.prepare(`
+          UPDATE product_variations
+          SET promo_upload_status = ?,
+              promo_upload_message = ?,
+              promo_upload_file = ?,
+              promo_upload_job_id = ?,
+              promo_upload_price = ?,
+              promo_upload_at = datetime('now'),
+              updated_at = datetime('now')
+          WHERE platform = ? AND shop = ? AND (${matchParts.join(' OR ')})
+        `).bind(
+          status,
+          String(item.message || item.reason || '').slice(0, 300),
+          fileName,
+          jobId,
+          productNumber(item.price ?? item.discount_price ?? item.promotion_price),
+          platform,
+          shop,
+          ...matchParams
+        ))
+      }
+      let changedRows = 0
+      for (let index = 0; index < statements.length; index += 20) {
+        const batchResults = await env.DB.batch(statements.slice(index, index + 20))
+        changedRows += (batchResults || []).reduce((sum, result) => sum + Number(result?.meta?.changes || 0), 0)
+      }
+      return Response.json({
+        success: true,
+        core: 'Product/Warehouse Core',
+        accepted: statements.length,
+        updated: changedRows,
+        counts
+      }, { headers: cors });
     } catch (error) {
       return Response.json({ success: false, error: error.message }, { status: 500, headers: cors });
     }
@@ -109,7 +357,9 @@ export async function handleProducts(request, env, cors) {
   // ==========================================
   // BỌC THÉP: Chỉ bắt đúng đường dẫn gốc /api/products, tuyệt đối không nuốt nhầm API khác
   if (request.method === "GET" && (url.pathname === "/api/products" || url.pathname === "/api/products/")) {
+    await ensureProductMappingGuardColumns(env)
     const search = url.searchParams.get("search");
+    const includeTempSku = url.searchParams.get("include_temp") === "1";
     let cond = "";
     let params = [];
     
@@ -117,11 +367,23 @@ export async function handleProducts(request, env, cors) {
     if (search) {
       cond = "WHERE p.sku LIKE ? OR p.product_name LIKE ?";
       params = [`%${search}%`, `%${search}%`];
+      if (!includeTempSku) {
+        // Mã SP_ tự sinh chỉ được hiện khi vận hành bật kiểm tra mã tạm.
+        cond = `WHERE (p.sku LIKE ? OR p.product_name LIKE ?)
+          AND NOT (
+            UPPER(COALESCE(p.sku, '')) LIKE 'SP\\_%' ESCAPE '\\'
+            AND COALESCE(p.user_confirmed, 0) = 0
+          )
+          AND COALESCE(p.hidden_from_mapping, 0) = 0`
+      }
     }
 
 // Liệt kê rõ các cột để tránh lỗi trùng lặp và loại bỏ các chuỗi rác 'undefined', 'null'
     const query = `
       SELECT p.sku, p.product_name, p.description, p.video_url, p.images, p.cost_invoice, p.cost_real, p.is_combo, p.combo_items, p.combo_qty, p.stock, p.stock_main, p.stock_sub, p.min_stock, p.is_parent, p.parent_sku,
+        COALESCE(p.hidden_from_mapping, 0) AS hidden_from_mapping,
+        COALESCE(p.sku_type, '') AS sku_type,
+        COALESCE(p.user_confirmed, 0) AS user_confirmed,
         CASE
           WHEN p.image_url IS NOT NULL AND TRIM(p.image_url) NOT IN ('', 'undefined', 'null') THEN TRIM(p.image_url)
           ELSE COALESCE(
@@ -135,12 +397,13 @@ export async function handleProducts(request, env, cors) {
       ORDER BY p.sku
     `;
     const rows = await env.DB.prepare(query).bind(...params).all();
+    const productRows = applyComboProductReadModel(rows.results || [])
     
     // Tối ưu bọc thép: Trả về dạng { data } cho Popup Map SKU, và dạng Mảng cho trang Quản lý Sản phẩm cũ để không bị sụp Web
     if (search) {
-      return Response.json({ data: rows.results, success: true }, { headers: cors });
+      return Response.json({ data: productRows, success: true }, { headers: cors });
     }
-    return Response.json(rows.results, { headers: cors });
+    return Response.json(productRows, { headers: cors });
   }
 
 // ==========================================

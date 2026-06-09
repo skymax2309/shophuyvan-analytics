@@ -36,20 +36,15 @@ function oaPct(value) {
   return `${Number(value || 0).toFixed(1)}%`
 }
 
-function oaOrderStatusLabel(value) {
-  if (value === 'RETURN_REFUND') return 'Trả hàng / hoàn tiền'
-  if (value === 'RETURN') return 'Trả hàng'
-  if (value === 'TO_RETURN') return 'Chờ trả hàng'
-  // Dùng cùng core trạng thái với chat/OMS để không hiện mã thô RETURN/CANCELLED cho người vận hành.
-  return window.SHV_ORDER_STATUS_CORE?.label
-    ? window.SHV_ORDER_STATUS_CORE.label(value, '')
-    : String(value || '')
+function oaOrderStatusLabel(row = {}) {
+  if (!row || typeof row !== 'object') return 'Lỗi / cần kiểm tra'
+  return row.display_status_vi || row.status_label_vi || 'Lỗi / cần kiểm tra'
 }
 
 function oaSourceLabel(source) {
   if (source === 'shopee.payment.get_income_detail') return 'Payment API'
   if (source === 'shopee.payment.get_escrow_detail') return 'Escrow API'
-  if (source === 'lazada.finance.transaction.detail.get') return 'Lazada Finance'
+  if (source === 'lazada.finance.transaction.details.get') return 'Lazada Finance'
   if (source === 'orders_v2_zero_revenue_return_fee') return 'Hoàn/trả suy luận'
   if (source === 'orders_v2_estimate_no_ads') return 'Ước tính'
   return source || 'Chưa rõ'
@@ -291,7 +286,7 @@ function renderOrderAnalyticsTable(rows) {
         <td style="text-align:right">${oaMoney(row.ads_cpo || row.ads_cost_allocated)}<small>${Number(row.ads_cpo_denominator || 0)} đơn chia</small></td>
         <td style="text-align:right">${oaMoney(row.refund_deduction)}</td>
         <td style="text-align:right"><b>${oaMoney(row.net_profit)}</b><small>${oaPct(row.margin_pct)}</small></td>
-        <td>${oaEscape(oaOrderStatusLabel(row.return_status || row.shipping_status || row.oms_status || ''))}</td>
+        <td>${oaEscape(oaOrderStatusLabel(row))}</td>
         <td>${oaEscape(note)}</td>
       </tr>
     `
@@ -372,7 +367,7 @@ window.exportOrderAnalyticsCsv = function() {
     row.refund_deduction,
     row.net_profit,
     row.margin_pct,
-    oaOrderStatusLabel(row.return_status || row.shipping_status || row.oms_status),
+    oaOrderStatusLabel(row),
     `${oaAdsLabel(row.ads_allocation_method)} - ${oaCpoBasisLabel(row.ads_cpo_basis)}`
   ])
   const csv = [header, ...body].map(line => line.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')

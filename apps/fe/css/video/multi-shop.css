@@ -1,3 +1,4 @@
+@charset "UTF-8";
 /* NEO: CSS riêng cho luồng đăng video đa shop, tách khỏi dashboard lớn để dễ tìm và maintain. */
 .video-multi-shop-list {
   display: grid;
@@ -9,9 +10,15 @@
   display: grid;
   gap: 10px;
   border: 1px solid var(--video-border);
-  border-radius: 6px;
-  padding: 10px;
+  border-radius: 8px;
+  padding: 12px;
   background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
+  transition: box-shadow 0.15s;
+}
+
+.video-multi-shop-row:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .1);
 }
 
 .video-multi-shop-head,
@@ -22,6 +29,16 @@
   gap: 8px;
   align-items: center;
   justify-content: space-between;
+}
+
+.video-multi-shop-head strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--video-text);
+}
+
+.video-multi-shop-head .video-toggle {
+  gap: 6px;
 }
 
 .video-multi-shop-foot span {
@@ -138,12 +155,17 @@
 
 .video-manual-actions {
   display: grid;
-  gap: 6px;
-  border: 1px solid var(--video-warning-soft);
-  border-radius: 4px;
-  padding: 10px;
+  gap: 8px;
+  border: 1px solid #fbbf24;
+  border-left: 4px solid #f59e0b;
+  border-radius: 6px;
+  padding: 10px 12px;
   background: #fffbeb;
   color: #92400e;
+}
+
+.video-manual-actions strong {
+  font-size: 13px;
 }
 
 .video-manual-actions span {

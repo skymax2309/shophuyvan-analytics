@@ -1,4 +1,50 @@
 (function () {
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[char]))
+  }
+
+  function formatShopScope(row) {
+    const platform = String(row.platform || '').trim()
+    const shop = String(row.shop || '').trim()
+    if (!platform && !shop) return 'Tất cả shop'
+    return `${platform ? platform.toUpperCase() : 'Sàn'} · ${shop || 'Chưa rõ shop'}`
+  }
+
+  function aggregateRowsByDate(rows) {
+    const byDate = new Map()
+    rows.forEach((row) => {
+      const key = row.d || ''
+      const item = byDate.get(key) || {
+        d: key,
+        orders: 0,
+        revenue: 0,
+        cost_real: 0,
+        fee: 0,
+        operation_cost: 0,
+        profit_real: 0,
+        profit_invoice: 0,
+      }
+      item.orders += Number(row.orders || 0)
+      item.revenue += Number(row.revenue || 0)
+      item.cost_real += Number(row.cost_real || 0)
+      item.fee += Number(row.fee || 0)
+      item.operation_cost += Number(row.operation_cost || 0)
+      item.profit_real += Number(row.profit_real || 0)
+      item.profit_invoice += Number(row.profit_invoice || 0)
+      byDate.set(key, item)
+    })
+    return [...byDate.values()].map((row) => ({
+      ...row,
+      margin: row.revenue > 0 ? row.profit_real / row.revenue * 100 : 0,
+    }))
+  }
+
   function buildDailyRows(ctx) {
     const profDayRows = Array.isArray(ctx.profDay) ? ctx.profDay : []
     const revenueByDate = new Map((Array.isArray(ctx.revDay) ? ctx.revDay : []).map((row) => [row.d, row]))
@@ -18,6 +64,9 @@
       const profit = Number(row.profit_real ?? 0) - operationCost
       return {
         d: row.d,
+        platform: row.platform || revenueRow.platform || '',
+        shop: row.shop || revenueRow.shop || '',
+        shop_label: formatShopScope((row.platform || row.shop) ? row : revenueRow),
         orders,
         revenue,
         cost_real: Number(row.cost_real ?? 0),
@@ -36,7 +85,7 @@
     const tbody = document.getElementById("dailyProfitTable")
     if (!tbody) return
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:18px;color:#9ca3af">Không có dữ liệu trong khoảng lọc này</td></tr>`
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:18px;color:#9ca3af">Không có dữ liệu trong khoảng lọc này</td></tr>`
       return
     }
 
@@ -54,6 +103,7 @@
     tbody.innerHTML = rows.map((row) => `
       <tr>
         <td><b>${row.d}</b></td>
+        <td>${escapeHtml(row.shop_label)}</td>
         <td style="text-align:right">${row.orders.toLocaleString("vi-VN")}</td>
         <td style="text-align:right">${ctx.fmt(row.revenue)}</td>
         <td style="text-align:right">${ctx.fmt(row.cost_real)}</td>
@@ -64,6 +114,7 @@
       </tr>`).join("") + `
       <tr>
         <td><b>Tổng</b></td>
+        <td><b>Tất cả shop</b></td>
         <td style="text-align:right"><b>${totals.orders.toLocaleString("vi-VN")}</b></td>
         <td style="text-align:right"><b>${ctx.fmt(totals.revenue)}</b></td>
         <td style="text-align:right"><b>${ctx.fmt(totals.cost_real)}</b></td>
@@ -76,14 +127,20 @@
 
   function renderCharts(ctx, rows) {
     const revDay = Array.isArray(ctx.revDay) ? ctx.revDay : []
+    const chartRows = aggregateRowsByDate(rows)
+    const revenueChartRows = aggregateRowsByDate(revDay.map((row) => ({
+      d: row.d,
+      revenue: Number(row.revenue || 0),
+      orders: Number(row.orders || 0),
+    })))
     const platforms = Array.isArray(ctx.platforms) ? ctx.platforms : []
     const shops = Array.isArray(ctx.shops) ? ctx.shops : []
     const platformColors = { shopee: "#ee4d2d", tiktok: "#010101", lazada: "#0f146d" }
 
     // Biểu đồ dùng cùng dòng ngày đã phân bổ chi phí vận hành để khớp với bảng dưới.
-    ctx.makeChart("chartRevenue", "bar", revDay.map((row) => row.d), [{
+    ctx.makeChart("chartRevenue", "bar", revenueChartRows.map((row) => row.d), [{
       label: "Doanh thu",
-      data: revDay.map((row) => row.revenue),
+      data: revenueChartRows.map((row) => row.revenue),
       backgroundColor: "#3b82f620",
       borderColor: "#3b82f6",
       borderWidth: 2,
@@ -91,9 +148,9 @@
       tension: 0.3,
     }], { extra: { plugins: { legend: { display: false } } } })
 
-    ctx.makeChart("chartProfit", "line", rows.map((row) => row.d), [
-      { label: "Lãi thực sau vận hành", data: rows.map((row) => row.profit_real), borderColor: "#10b981", backgroundColor: "#10b98115", fill: true, tension: 0.3, borderWidth: 2 },
-      { label: "Lãi HĐ sau vận hành", data: rows.map((row) => row.profit_invoice), borderColor: "#8b5cf6", backgroundColor: "transparent", tension: 0.3, borderWidth: 2, borderDash: [4, 3] },
+    ctx.makeChart("chartProfit", "line", chartRows.map((row) => row.d), [
+      { label: "Lãi thực sau vận hành", data: chartRows.map((row) => row.profit_real), borderColor: "#10b981", backgroundColor: "#10b98115", fill: true, tension: 0.3, borderWidth: 2 },
+      { label: "Lãi HĐ sau vận hành", data: chartRows.map((row) => row.profit_invoice), borderColor: "#8b5cf6", backgroundColor: "transparent", tension: 0.3, borderWidth: 2, borderDash: [4, 3] },
     ], { legend: true })
 
     ctx.makeChart("chartPlatform", "doughnut", platforms.map((row) => row.platform), [{
