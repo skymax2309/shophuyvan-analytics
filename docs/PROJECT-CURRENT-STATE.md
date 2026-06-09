@@ -12,6 +12,7 @@
   - Created commit `b1f1d7a` with the complete non-ignored worktree state.
   - Pushed successfully to `origin/main`.
   - Verified `origin/main` and local `main` both point to `b1f1d7a`.
+  - Branch cleanup: local repo only has `main`; no local branch was deleted. `git remote prune origin` removed no stale refs; kept `origin/cloudflare/workers-autoconfig`.
 - Cleanup:
   - Moved 30 tracked/ignored artifact roots and files, 474 files total, about 75.79 MB, to `E:\shophuyvan-runtime\cleanup-archive\20260609-checkpoint-b1f1d7a`.
   - Removed regenerable `.wrangler` caches and `scripts/__pycache__`; no Wrangler process was active.
